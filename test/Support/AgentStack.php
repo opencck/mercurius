@@ -34,6 +34,7 @@ final class AgentStack {
         public readonly ScriptedLlm $llm = new ScriptedLlm(),
         RunLimits $limits = new RunLimits(30, 100_000, 900, 120),
         float $debounce = 0.0,
+        int $maxMessageLength = 4096,
     ) {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
@@ -41,7 +42,7 @@ final class AgentStack {
         $this->principals = new InMemoryPrincipalRepository();
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
-        $this->channel = new FakeChannel();
+        $this->channel = new FakeChannel(max(1, $maxMessageLength));
         $loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10);
         $this->scheduler = new RunScheduler(
             $loop,

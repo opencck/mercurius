@@ -45,6 +45,7 @@ use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
+use Revolt\EventLoop;
 
 require __DIR__ . '/vendor/autoload.php';
 
@@ -64,6 +65,8 @@ try {
 
 date_default_timezone_set($config->timezone);
 $logger = LoggerFactory::create($config->logLevel);
+// An error escaping a fiber is logged instead of stopping the whole process.
+EventLoop::setErrorHandler(static fn(Throwable $e) => $logger->error('Unhandled error in the event loop', ['error' => $e::class]));
 $version = getenv('APP_VERSION');
 $version = is_string($version) && $version !== '' ? $version : 'dev';
 

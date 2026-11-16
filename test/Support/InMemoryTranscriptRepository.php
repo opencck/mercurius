@@ -21,8 +21,15 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     public array $inboxes = [];
     /** @var (Closure(): void)|null called first in appendAssistant; throw from it to test save-before-execute */
     public ?Closure $beforeAssistant = null;
+    /** @var (Closure(): void)|null called first in appendToolResult */
+    public ?Closure $beforeToolResult = null;
+    /** @var (Closure(): void)|null called first in appendUser */
+    public ?Closure $beforeUser = null;
 
     public function appendUser(int $conversationId, ?int $runId, string $content, ?string $externalId = null): void {
+        if ($this->beforeUser !== null) {
+            ($this->beforeUser)();
+        }
         $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::user($content)];
     }
 
@@ -42,6 +49,9 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     }
 
     public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void {
+        if ($this->beforeToolResult !== null) {
+            ($this->beforeToolResult)();
+        }
         $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::toolResult($callId, $content)];
         $this->setStatus($runId, $callId, $status);
     }

@@ -16,12 +16,16 @@ use Mercurius\Llm\TextDelta;
 use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
 
+use function Amp\delay;
+
 /**
  * Answers each call with the next scripted response; when the script ends, answers with plain text "готово".
  */
 final class ScriptedLlm implements LlmClient {
     /** @var list<ChatRequest> */
     public array $requests = [];
+    /** seconds every call waits before answering; cancellable */
+    public float $delay = 0.0;
 
     /** @param list<ChatResponse|LlmException> $script */
     public function __construct(private array $script = []) {}
@@ -44,6 +48,9 @@ final class ScriptedLlm implements LlmClient {
 
     public function stream(ChatRequest $request, ?Cancellation $cancellation = null): iterable {
         $this->requests[] = $request;
+        if ($this->delay > 0) {
+            delay($this->delay, cancellation: $cancellation);
+        }
         $next = array_shift($this->script) ?? self::text('готово');
         if ($next instanceof LlmException) {
             throw $next;

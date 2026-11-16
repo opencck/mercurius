@@ -24,7 +24,13 @@ final class FakeChannel implements Channel {
         return 'telegram';
     }
 
+    /** seconds every send waits, to imitate Telegram rate limits */
+    public float $sendDelay = 0.0;
+
     public function send(OutgoingMessage $message): SendResult {
+        if ($this->sendDelay > 0) {
+            \Amp\delay($this->sendDelay);
+        }
         $id = (string) $this->nextId++;
         $this->log[] = ['send', $message->chatId, $message->text];
         $this->modes[] = ['send', $message->text, $message->parseMode];

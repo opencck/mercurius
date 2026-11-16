@@ -104,7 +104,8 @@ final class AgentLoop {
         );
 
         try {
-            $reason = $this->resumePending($state) ?? $this->iterate($state);
+            // finish() is inside: /stop during the closing summary call must stop the run, not escape.
+            return $this->finish($state, $this->resumePending($state) ?? $this->iterate($state));
         } catch (CancelledException $e) {
             if (self::isShutdown($e)) {
                 $this->flushTime($state);
@@ -113,7 +114,6 @@ final class AgentLoop {
             }
             return $this->stop($state);
         }
-        return $this->finish($state, $reason);
     }
 
     private function iterate(RunState $state): StopReason {

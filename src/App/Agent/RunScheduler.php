@@ -9,6 +9,7 @@ use Amp\Future;
 use DateTimeImmutable;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
+use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Run;
@@ -41,6 +42,11 @@ use function Amp\delay;
 final class RunScheduler {
     public const RESUMED = 'Продолжаю задачу после перезапуска.';
     public const INTERRUPTED = 'Прервано перезапуском: неизвестно, выполнено ли действие. Проверь состояние, прежде чем повторять.';
+    public const CRASHED = 'Задача прервана из-за внутренней ошибки. Подробности — в журнале сервера.';
+    public const NOT_STARTED = 'Не удалось начать задачу из-за внутренней ошибки. Попробуйте ещё раз.';
+
+    /** @var array<int, true> conversations whose run was told to stop and is still finishing */
+    private array $stopping = [];
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
@@ -65,7 +71,8 @@ final class RunScheduler {
     /** Hands a message over and returns at once. */
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId): void {
         $text = trim($message->text);
-        $run = $this->runs->active($conversationId);
+        // A run being stopped takes no more steering: the message waits and starts the next run.
+        $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
         if ($run !== null) {
             $this->transcript->inbox($run->id, $text, $message->messageId);
             return;
@@ -94,6 +101,7 @@ final class RunScheduler {
             return true;
         }
         if (isset($this->active[$conversationId])) {
+            $this->stopping[$conversationId] = true;
             $this->active[$conversationId]['cancellation']->cancel();
             return true;
         }
@@ -140,12 +148,21 @@ final class RunScheduler {
             }
             delay($wait);
         }
+        // A run that is still finishing (e.g. after /stop) goes first; the waiting text starts the next one.
+        while (isset($this->active[$conversationId])) {
+            $this->active[$conversationId]['future']->await();
+        }
         $pending = $this->pending[$conversationId] ?? null;
         unset($this->pending[$conversationId]);
         if ($pending === null) {
             return;
         }
-        $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
+        try {
+            $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
+        } catch (Throwable $e) {
+            $this->logger->error('Could not start a run', ['conversation' => $conversationId, 'error' => $e::class]);
+            $this->channel->send(new OutgoingMessage($pending['message']->chatId, self::NOT_STARTED, $pending['message']->messageId));
+        }
     }
 
     private function start(Principal $principal, int $conversationId, string $text, ?string $messageId): void {
@@ -167,9 +184,15 @@ final class RunScheduler {
             }
             return;
         }
-        $this->transcript->appendUser($conversationId, $run->id, $text, $messageId);
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval);
-        $observer->start();
+        try {
+            $this->transcript->appendUser($conversationId, $run->id, $text, $messageId);
+            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval);
+            $observer->start();
+        } catch (Throwable $e) {
+            // The run exists but will never run: free the conversation.
+            $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
+            throw $e;
+        }
         $this->launch($run, $principal, $observer);
     }
 
@@ -202,9 +225,13 @@ final class RunScheduler {
                     $final = $this->loop->run($run, $policy, $principal, $observer, $cancellation->getCancellation());
                 } catch (Throwable $e) {
                     $this->logger->error('Run crashed', ['run' => $run->id, 'error' => $e::class]);
+                    $this->fail($run, $observer);
                     return;
                 } finally {
-                    unset($this->active[$conversationId]);
+                    // Only our own entry: a newer run of the conversation may have started meanwhile.
+                    if (($this->active[$conversationId]['cancellation'] ?? null) === $cancellation) {
+                        unset($this->active[$conversationId], $this->stopping[$conversationId]);
+                    }
                 }
                 if (!$final->status->isActive()) {
                     $this->carryOver($final, $principal);
@@ -213,12 +240,33 @@ final class RunScheduler {
         ];
     }
 
+    /** A run that crashed is closed as failed, so the conversation is free and the owner knows. */
+    private function fail(Run $run, ChannelRunObserver $observer): void {
+        try {
+            foreach ($this->transcript->pendingCalls($run->id) as $call) {
+                $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Failed, 'Не выполнено: внутренняя ошибка.');
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('Could not close calls of a crashed run', ['run' => $run->id, 'error' => $e::class]);
+        }
+        try {
+            $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
+            $observer->finished($this->runs->find($run->id) ?? $run, self::CRASHED, StopReason::InternalError);
+        } catch (Throwable $e) {
+            $this->logger->error('Could not close a crashed run', ['run' => $run->id, 'error' => $e::class]);
+        }
+    }
+
     /** Steering notes that came after the run's last iteration start the next run instead of being lost. */
     private function carryOver(Run $run, Principal $principal): void {
-        $left = $this->transcript->consumeInbox($run->id);
-        if ($left === [] || $run->stopReason === StopReason::Stopped) {
-            return;
+        try {
+            $left = $this->transcript->consumeInbox($run->id);
+            if ($left === [] || $run->stopReason === StopReason::Stopped) {
+                return;
+            }
+            $this->start($principal, $run->conversationId, implode("\n\n", $left), null);
+        } catch (Throwable $e) {
+            $this->logger->error('Could not start a run from leftover messages', ['run' => $run->id, 'error' => $e::class]);
         }
-        $this->start($principal, $run->conversationId, implode("\n\n", $left), null);
     }
 }

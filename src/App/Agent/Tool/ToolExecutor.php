@@ -48,7 +48,8 @@ final class ToolExecutor {
             return ToolResult::error(sprintf('Инструмент %s завершился с ошибкой (%s).', $name, (new \ReflectionClass($e))->getShortName()));
         }
 
-        $content = $this->truncate($result->content);
+        // PostgreSQL text cannot hold NUL, and a fetched body may contain it.
+        $content = $this->truncate(str_replace("\0", "\u{FFFD}", $result->content));
         if ($tool->untrusted()) {
             $content = UntrustedWrapper::wrap($name, $content);
         }

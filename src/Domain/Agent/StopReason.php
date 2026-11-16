@@ -20,6 +20,7 @@ enum StopReason: string {
     case PersistFailed = 'persist_failed';
     case ModelFailed = 'model_failed';
     case Stopped = 'stopped';
+    case InternalError = 'internal_error';
 
     /** A limit ran out: the model gets one last call without tools to sum up. */
     public function isLimit(): bool {
@@ -47,6 +48,7 @@ enum StopReason: string {
             self::PersistFailed => 'не удалось сохранить шаг в базу',
             self::ModelFailed => 'модель недоступна',
             self::Stopped => 'остановлено владельцем',
+            self::InternalError => 'внутренняя ошибка',
         };
     }
 }

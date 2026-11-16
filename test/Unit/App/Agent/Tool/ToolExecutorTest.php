@@ -77,6 +77,13 @@ final class ToolExecutorTest extends AsyncTestCase {
         self::assertSame(str_repeat('я', 10) . "\n… [обрезано: показано 10 из 30 символов]", $result->content);
     }
 
+    public function testNulBytesAreReplaced(): void {
+        $tool = new FakeTool('nul', handler: static fn(): ToolResult => ToolResult::ok("a\0b"));
+        $result = (new ToolExecutor())->run(self::call($tool), $this->context(), 5);
+
+        self::assertSame("a\u{FFFD}b", $result->content);
+    }
+
     public function testUntrustedResultIsWrapped(): void {
         $result = (new ToolExecutor())->run(self::call(new FakeTool('web', untrusted: true)), $this->context(), 5);
 
