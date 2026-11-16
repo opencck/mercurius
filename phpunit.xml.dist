@@ -13,6 +13,9 @@
         <testsuite name="integration">
             <directory>test/Integration</directory>
         </testsuite>
+        <testsuite name="sandbox">
+            <directory>test/Sandbox</directory>
+        </testsuite>
     </testsuites>
     <php>
         <ini name="zend.assertions" value="1"/>

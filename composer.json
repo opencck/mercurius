@@ -45,8 +45,9 @@
         "allow-plugins": {}
     },
     "scripts": {
-        "test": "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit --exclude-group integration",
+        "test": "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit --exclude-group integration,sandbox",
         "test-integration": "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit --group integration",
+        "test-sandbox": "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit --group sandbox",
         "phpstan": "phpstan analyse --no-progress --memory-limit=1G",
         "psalm": "psalm --no-progress --show-info=false",
         "check": [
