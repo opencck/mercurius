@@ -37,6 +37,7 @@ use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
 use OpenCCK\Infrastructure\Database\Migrator;
 use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Logger\LoggerFactory;
+use OpenCCK\Infrastructure\Module\AgentModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
@@ -141,6 +142,8 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
 
 (new App($logger))
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
+    // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
+    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,
