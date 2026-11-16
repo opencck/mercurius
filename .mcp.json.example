@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "openrouter": {
+      "type": "http",
+      "url": "https://mcp.openrouter.ai/mcp"
+    },
     "ssh-mcp": {
       "type": "stdio",
       "command": "npx",

@@ -1,6 +1,3 @@
-# Граф знаний graphify — генерируется локально командой /graphify
-graphify-out/
-
 # Секреты и локальные настройки
 .env
 .env.*
@@ -13,3 +10,33 @@ graphify-out/
 # Локальные скиллы без своего репозитория (скиллы-сабмодули в git входят)
 .claude/skills/skill-opencck/
 .claude/skills/graphify/
+
+# Граф знаний graphify — генерируется локально командой /graphify
+graphify-out/
+
+# Зависимости PHP (composer.lock коммитится)
+/vendor/
+
+# Кеши и отчёты PHPUnit, PHPStan, Psalm
+.phpunit.cache/
+.phpunit.result.cache
+/var/cache/
+/coverage/
+# Локальная настройка PHPStan; в git — phpstan.neon.dist
+phpstan.neon
+
+# Данные и логи приложения во время работы (тома Docker и рабочая область агента)
+/storage/
+/var/log/
+*.log
+
+# Локальное переопределение Docker Compose
+docker-compose.override.yml
+compose.override.yaml
+
+# IDE и операционные системы
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
