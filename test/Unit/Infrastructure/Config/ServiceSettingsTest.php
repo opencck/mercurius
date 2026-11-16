@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\Infrastructure\Config;
 
+use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
@@ -81,5 +82,26 @@ final class ServiceSettingsTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('LLM_REASONING_EFFORT');
         LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_REASONING_EFFORT' => 'extreme']);
+    }
+
+    public function testAgentDefaults(): void {
+        $settings = AgentSettings::fromEnv([]);
+
+        self::assertSame(30, $settings->maxTurns);
+        self::assertSame(400000, $settings->tokenBudget);
+        self::assertSame(900, $settings->runTimeout);
+        self::assertSame(120, $settings->toolTimeout);
+    }
+
+    public function testAgentToolTimeoutCappedAt600(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('AGENT_TOOL_TIMEOUT');
+        AgentSettings::fromEnv(['AGENT_TOOL_TIMEOUT' => '601']);
+    }
+
+    public function testAgentRejectsNonPositive(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('AGENT_MAX_TURNS');
+        AgentSettings::fromEnv(['AGENT_MAX_TURNS' => '0']);
     }
 }

@@ -19,6 +19,7 @@ use OpenCCK\App\Service\HealthService;
 use OpenCCK\Infrastructure\API\App;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
 use OpenCCK\Infrastructure\API\Server;
+use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
@@ -43,6 +44,7 @@ try {
     $config = Config::fromEnv($_ENV);
     $telegram = TelegramSettings::fromEnv($_ENV, $config->appUrl);
     $llmSettings = LlmSettings::fromEnv($_ENV);
+    $agentSettings = AgentSettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
     exit(78); // EX_CONFIG
