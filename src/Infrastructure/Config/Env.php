@@ -60,4 +60,32 @@ final class Env {
         }
         return $value;
     }
+
+    /**
+     * A size in bytes: plain number or with k/m/g suffix (powers of 1024), as Docker writes it.
+     *
+     * @param array<array-key, mixed> $env
+     * @param positive-int $default
+     * @return positive-int
+     * @throws ConfigException
+     */
+    public static function bytes(array $env, string $name, int $default): int {
+        $value = self::raw($env, $name);
+        if ($value === null) {
+            return $default;
+        }
+        if (preg_match('/^(\d+)([kmg]?)$/i', $value, $match) !== 1) {
+            throw ConfigException::invalid($name, 'a size like 512m, 2g or a number of bytes');
+        }
+        $bytes = (int) $match[1] * match (strtolower($match[2])) {
+            'k' => 1024,
+            'm' => 1024 ** 2,
+            'g' => 1024 ** 3,
+            default => 1,
+        };
+        if ($bytes < 1) {
+            throw ConfigException::invalid($name, 'a positive size');
+        }
+        return $bytes;
+    }
 }

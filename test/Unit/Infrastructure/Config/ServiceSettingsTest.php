@@ -7,6 +7,7 @@ namespace OpenCCK\Test\Unit\Infrastructure\Config;
 use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
+use OpenCCK\Infrastructure\Config\SandboxSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
 use PHPUnit\Framework\TestCase;
 
@@ -97,6 +98,37 @@ final class ServiceSettingsTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('AGENT_TOOL_TIMEOUT');
         AgentSettings::fromEnv(['AGENT_TOOL_TIMEOUT' => '601']);
+    }
+
+    public function testSandboxDefaults(): void {
+        $settings = SandboxSettings::fromEnv([]);
+        $limits = $settings->ownerLimits();
+
+        self::assertSame('http://sandbox:9000', $settings->url);
+        self::assertNull($settings->token());
+        self::assertSame(5 * 1024 ** 3, $limits->diskBytes);
+        self::assertSame(512, $limits->processes);
+        self::assertSame(600, $limits->cpuSeconds);
+        self::assertSame(8 * 1024 ** 3, $limits->memoryBytes);
+        self::assertSame(4, $limits->concurrentCommands);
+    }
+
+    public function testSandboxSizesAcceptUnits(): void {
+        self::assertSame(536870912, SandboxSettings::fromEnv(['SANDBOX_WORKSPACE_LIMIT' => '512m'])->ownerLimits()->diskBytes);
+        self::assertSame(1000, SandboxSettings::fromEnv(['SANDBOX_WORKSPACE_LIMIT' => '1000'])->ownerLimits()->diskBytes);
+    }
+
+    public function testSandboxRejectsBadSize(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('SANDBOX_WORKSPACE_LIMIT');
+        SandboxSettings::fromEnv(['SANDBOX_WORKSPACE_LIMIT' => '5x']);
+    }
+
+    public function testSandboxTokenIsHidden(): void {
+        $settings = SandboxSettings::fromEnv(['SANDBOX_TOKEN' => 'super-secret-token-value']);
+
+        self::assertSame('super-secret-token-value', $settings->token());
+        self::assertStringNotContainsString('super-secret', print_r($settings, true));
     }
 
     public function testAgentRejectsNonPositive(): void {

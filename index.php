@@ -31,6 +31,7 @@ use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
+use OpenCCK\Infrastructure\Config\SandboxSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
@@ -58,6 +59,7 @@ try {
     $telegram = TelegramSettings::fromEnv($_ENV, $config->appUrl);
     $llmSettings = LlmSettings::fromEnv($_ENV);
     $agentSettings = AgentSettings::fromEnv($_ENV);
+    $sandboxSettings = SandboxSettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
     exit(78); // EX_CONFIG
@@ -93,7 +95,7 @@ $principals = new PostgresPrincipalRepository($db);
 $conversations = new PostgresConversationRepository($db);
 $runs = new PostgresRunRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
-$policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits());
+$policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
