@@ -79,6 +79,7 @@ use OpenCCK\App\Agent\Tool\MemoryProposeTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Infrastructure\Config\MemorySettings;
+use OpenCCK\App\Service\MemoryCommands;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\ContentScreen;
@@ -257,7 +258,8 @@ $memoryStore = new PostgresMemoryStore($db);
 $textAnalyzer = new TextAnalyzer();
 $recall = new Recall($memoryStore, $textAnalyzer);
 $audience = new ConversationAudience($conversations);
-$scheduler->useMemory(new MemoryContext($memoryStore, $recall), $audience);
+$memoryContext = new MemoryContext($memoryStore, $recall);
+$scheduler->useMemory($memoryContext, $audience);
 if (!$memorySettings->hasSecret()) {
     $logger->warning('MEMORY_SECRET is not set: the key of forgotten texts comes from the bot token');
 }
@@ -281,6 +283,7 @@ $chat = new ChatService(
     $approvals,
     new TraceReports(new PostgresTraceReportRepository($db), $traces),
     $logger,
+    new MemoryCommands($memoryStore, $proposals, $memoryContext),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards]);
 
