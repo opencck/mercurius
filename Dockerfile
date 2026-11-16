@@ -1,13 +1,13 @@
 # Mercurius application image: PHP 8.2 CLI with the extensions AMPHP and PostgreSQL need.
 FROM php:8.2-cli-bookworm AS base
 
+# No pecl-ev: amphp/postgres over ext-pgsql refuses to run on the ev loop driver.
+# Revolt falls back to its stream_select driver, which is enough at the current load.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev libev4 libev-dev git unzip \
+    && apt-get install -y --no-install-recommends libpq-dev git unzip \
     && docker-php-ext-install pgsql pcntl sockets \
-    && pecl install ev \
-    && docker-php-ext-enable ev opcache \
-    && apt-get purge -y --auto-remove libev-dev \
-    && rm -rf /var/lib/apt/lists/* /tmp/pear
+    && docker-php-ext-enable opcache \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN { \
         echo 'memory_limit=512M'; \
