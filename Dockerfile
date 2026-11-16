@@ -50,3 +50,32 @@ COPY test ./test
 RUN mkdir -p .phpunit.cache var && chown -R mercurius .phpunit.cache var
 USER mercurius
 CMD ["composer", "test-integration"]
+
+# Sandbox: where the agent runs commands and keeps files. Runtimes the agent can build tools on (owner decision):
+# PHP 8.2 with Composer, Python 3, Node.js with npm, Go. The executor runs as root with a minimal capability set
+# (compose) and does every participant operation as that participant's Unix user.
+# spec: BRIEF.md#песочница
+FROM php:8.2-cli-bookworm AS sandbox
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
+    && docker-php-ext-install pcntl sockets \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=golang:1.23-bookworm /usr/local/go /usr/local/go
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+ENV PATH=/usr/local/go/bin:$PATH
+WORKDIR /app
+COPY --from=base /app/vendor ./vendor
+COPY composer.json sandbox.php ./
+COPY src ./src
+RUN mkdir -p /workspace && chmod 0711 /workspace
+EXPOSE 9000
+STOPSIGNAL SIGTERM
+CMD ["php", "sandbox.php"]
+
+# Sandbox tests (users, processes, files): docker compose --profile test run --rm sandbox-test
+FROM sandbox AS sandbox-test
+COPY --from=test /app/vendor ./vendor
+COPY phpunit.xml.dist ./
+COPY test ./test
+CMD ["composer", "test-sandbox"]

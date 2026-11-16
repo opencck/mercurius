@@ -32,6 +32,7 @@ services:
         max-file: "5"
     networks:
       internal:
+      sandbox:
       web:
         aliases:
           - mercurius
@@ -58,6 +59,49 @@ services:
     networks:
       - internal
 
+  # Sandbox: commands and files of the agent, one Unix user per participant. No core secrets, no database,
+  # no web network; root with a minimal capability set, every operation runs as the participant.
+  # spec: BRIEF.md#песочница
+  sandbox:
+    build:
+      context: .
+      target: sandbox
+    image: mercurius-sandbox:${APP_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
+    cpus: ${SANDBOX_CPUS:-2}
+    mem_limit: ${SANDBOX_MEMORY:-2g}
+    pids_limit: ${SANDBOX_PIDS:-512}
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,nosuid
+    volumes:
+      - sandbox_workspace:/workspace
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:9000/health') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - sandbox
+
   # Test runner, started only on demand: docker compose --profile test run --rm test
   test:
     profiles: ["test"]
@@ -75,10 +119,38 @@ services:
     networks:
       - internal
 
+  # Sandbox tests (users, processes, files), on demand: docker compose --profile test run --rm sandbox-test
+  sandbox-test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: sandbox-test
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,nosuid
+    networks:
+      - sandbox
+
 volumes:
   postgres_data:
+  sandbox_workspace:
 
 networks:
   internal:
+  # A fixed subnet, so the host firewall (DOCKER-USER) can keep the sandbox away from the host and the LAN.
+  sandbox:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
   web:
     external: true
