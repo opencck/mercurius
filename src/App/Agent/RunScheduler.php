@@ -182,6 +182,13 @@ final class RunScheduler {
     public function resumeAll(): void {
         foreach ($this->runs->unfinished() as $run) {
             try {
+                if ($run->parentRunId !== null) {
+                    // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker belonged to a delegation call that the
+                    // restart interrupted; its orchestrator learns that from the call, the worker does not go on alone.
+                    $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
+                    $this->events->runFinished($run->id, 'failed', 'interrupted by a restart', $run->activeMs);
+                    continue;
+                }
                 $this->resume($run);
             } catch (Throwable $e) {
                 $this->logger->error('Could not resume a run', ['run' => $run->id, 'error' => $e::class]);

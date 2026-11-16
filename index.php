@@ -18,6 +18,8 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\Context\ContextCompactor;
+use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
+use OpenCCK\App\Agent\Delegation\WorkerRunner;
 use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\Model\RequestClassifier;
@@ -196,6 +198,8 @@ $loop = new AgentLoop(
     ),
     events: $tracer,
 );
+// Delegation: workers run through the same loop, so the tool is registered once the loop exists.
+$tools->register(new DelegateTaskTool(new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger)));
 $scheduler = new RunScheduler(
     $loop,
     $runs,

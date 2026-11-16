@@ -102,6 +102,24 @@ final class RunSchedulerTest extends AsyncTestCase {
         $stack->transcript->startCall($run->id, 'c1');
     }
 
+    public function testWorkersAreNotResumed(): void {
+        $stack = new AgentStack();
+        $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $conversation = $stack->conversations->openConversation($owner->id, 'worker', 'run1-d1-1');
+        $parent = $stack->runs->start(1, $owner->id, 'm/x', new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120));
+        self::assertNotNull($parent);
+        $stack->runs->finish($parent->id, RunStatus::Stopped, \OpenCCK\Domain\Agent\StopReason::Stopped);
+        $worker = $stack->runs->start($conversation, $owner->id, 'm/x', new \OpenCCK\Domain\Agent\RunLimits(15, 1000, 840, 120), $parent->id);
+        self::assertNotNull($worker);
+
+        $stack->scheduler->resumeAll();
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(RunStatus::Failed, $stack->runs->find($worker->id)?->status);
+        self::assertSame([], $stack->llm->requests);
+        self::assertSame([], $stack->channel->texts('send'));
+    }
+
     public function testResumeRerunsInterruptedRead(): void {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('продолжил')]));
         $tool = new FakeTool('tool');
