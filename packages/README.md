@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `cdc9a0b` | 2026-11-16 | Единый интерфейс вызова LLM, адаптер OpenRouter |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `83c021f` | 2026-11-16 | Единый интерфейс вызова LLM, адаптер OpenRouter |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `6744d13` | 2026-11-16 | Канал связи и адаптер Telegram |
 
@@ -25,6 +25,11 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-16 — llm: индексы моделей в каталоге
+
+- `mercurius-llm` `83c021f`: `ModelInfo` получил индексы Artificial Analysis (интеллект, код, агентность) из
+  `benchmarks.artificial_analysis` ответа `/models`. Нужно выбору модели по профилю задачи (фаза 5, часть 2).
 
 ### 2026-11-16 — messenger: кнопки, нажатия, файлы
 
