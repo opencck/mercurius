@@ -23,6 +23,7 @@ use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
+use OpenCCK\App\Agent\Model\FallbackModels;
 use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\Model\ModelRouter;
@@ -213,6 +214,7 @@ $loop = new AgentLoop(
         events: $tracer,
     ),
     events: $tracer,
+    fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)));

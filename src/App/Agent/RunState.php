@@ -35,6 +35,9 @@ final class RunState {
     public bool $streamRetried = false;
     /** The answer as delivered, when it was stitched from parts. */
     public ?string $finalText = null;
+    /** The model after a switch on failure; null — the run's own. */
+    public ?string $model = null;
+    public bool $switched = false;
     /** the last model call failed with this kind */
     public ?\Mercurius\Llm\ErrorKind $lastError = null;
     /** clock value up to which active time is saved */

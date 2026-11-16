@@ -257,6 +257,25 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('Ответ.', $this->observer->final);
     }
 
+    public function testFailedModelIsSwitchedOnceToTheMainRole(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $roles = new \OpenCCK\App\Agent\Model\ModelRoles($stores, $stores);
+        $roles->seed();
+        $down = new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Server, 'down');
+        $main = (string) $roles->model(\OpenCCK\Domain\Agent\ModelRole::MAIN);
+        $llm = new ScriptedLlm([$down, $down]);
+        $llm->byModel[$main] = [ScriptedLlm::text('Ответ основной модели.')];
+        $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10,
+            fallback: new \OpenCCK\App\Agent\Model\FallbackModels($roles, $stores, $stores, new \Psr\Log\NullLogger()));
+
+        $run = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        self::assertSame('Ответ основной модели.', $this->observer->final);
+        self::assertSame($main, $llm->requests[2]->model);
+        self::assertSame('failure', $stores->decisions[0]->method);
+    }
+
     public function testTokenBudgetStopsBeforeModelCall(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('итог')]);
 

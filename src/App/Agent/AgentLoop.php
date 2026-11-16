@@ -29,6 +29,7 @@ use OpenCCK\App\Agent\Tool\LongRunning;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
 use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\App\Agent\Model\FallbackModels;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Agent\Tool\ToolResult;
@@ -111,6 +112,7 @@ final class AgentLoop {
         private readonly ?ApprovalGate $gate = null,
         private readonly ?ContextCompactor $compactor = null,
         private readonly AgentEvents $events = new NullEvents(),
+        private readonly ?FallbackModels $fallback = null,
     ) {
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
@@ -188,6 +190,16 @@ final class AgentLoop {
                     $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true, cancellation: $state->cancellation);
                     $this->loadContext($state);
                     continue;
+                }
+                // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
+                if ($this->fallback !== null && !$state->switched) {
+                    $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId);
+                    if ($next !== null) {
+                        $state->switched = true;
+                        $state->model = $next;
+                        $state->streamRetried = false;
+                        continue;
+                    }
                 }
                 return StopReason::ModelFailed;
             }
@@ -344,7 +356,7 @@ final class AgentLoop {
         if ($closingPrompt !== null) {
             $messages[] = Message::user($closingPrompt);
         }
-        return new ChatRequest($state->run->model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort);
+        return new ChatRequest($state->model ?? $state->run->model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort);
     }
 
     /**
