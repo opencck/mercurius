@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Agent\Model;
+
+use Amp\NullCancellation;
+use Amp\PHPUnit\AsyncTestCase;
+use Mercurius\Llm\ModelCatalog\ModelInfo;
+use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Tool\SetModelRoleTool;
+use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\Domain\Agent\ModelRole;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Test\Support\InMemoryModelStores;
+
+final class ModelRolesTest extends AsyncTestCase {
+    private InMemoryModelStores $stores;
+    private ModelRoles $roles;
+    private Principal $owner;
+    private Principal $user;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->stores = new InMemoryModelStores();
+        $this->stores->replace('openrouter', [
+            new ModelInfo('x/tools', 'tools', 100_000, null, null, ['text'], ['text'], ['tools']),
+            new ModelInfo('x/plain', 'plain', 100_000, null, null, ['text'], ['text'], []),
+            new ModelInfo('x/other', 'other', 100_000, null, null, ['text'], ['text'], ['tools']),
+        ]);
+        $this->roles = new ModelRoles($this->stores, $this->stores);
+        $this->roles->seed();
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Владелец');
+        $this->user = new Principal(2, PrincipalKind::Human, Role::User, 'Помощник');
+    }
+
+    /** @param array<string, mixed> $args */
+    private function call(Principal $by, array $args): \OpenCCK\App\Agent\Tool\ToolResult {
+        return (new SetModelRoleTool($this->roles))->execute($args, new ToolContext(1, 1, $by, new NullCancellation()));
+    }
+
+    public function testSeedValuesComeFirst(): void {
+        self::assertSame('openrouter:z-ai/glm-5.3-flash', (string) $this->roles->model(ModelRole::MAIN));
+        self::assertSame('openrouter:openai/gpt-5.6-luna', (string) $this->roles->model(ModelRole::CHEAP));
+        self::assertSame('openrouter:anthropic/claude-opus-5', (string) $this->roles->model(ModelRole::STRONG));
+        self::assertSame('openrouter:google/gemini-3.8-flash', (string) $this->roles->model(ModelRole::MEDIA));
+    }
+
+    public function testAgentChangesARoleWithAReason(): void {
+        $result = $this->call($this->user, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'быстрее и дешевле на наших задачах']);
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame('openrouter:x/tools', (string) $this->roles->model(ModelRole::MAIN));
+        self::assertSame(ModelRole::SET_BY_AGENT, $this->stores->roles[ModelRole::MAIN]->setBy);
+        self::assertSame(2, $this->stores->roles[ModelRole::MAIN]->setByPrincipal);
+    }
+
+    public function testOnlyTheOwnerFixes(): void {
+        self::assertTrue($this->call($this->user, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'хочу закрепить навсегда', 'fix' => true])->isError);
+        self::assertFalse($this->call($this->owner, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'закрепляю как основную', 'fix' => true])->isError);
+        self::assertSame(ModelRole::SET_BY_OWNER, $this->stores->roles[ModelRole::MAIN]->setBy);
+    }
+
+    public function testOwnerFixedRoleIsNotChanged(): void {
+        $this->call($this->owner, ['role' => 'strong', 'model' => 'x/tools', 'reason' => 'закрепляю как сильную', 'fix' => true]);
+
+        $result = $this->call($this->owner, ['role' => 'strong', 'model' => 'x/other', 'reason' => 'агент решил сэкономить']);
+
+        self::assertTrue($result->isError);
+        self::assertStringContainsString('зафиксировал владелец', $result->content);
+        self::assertSame('openrouter:x/tools', (string) $this->roles->model(ModelRole::STRONG));
+    }
+
+    public function testUnknownOrToollessModelIsRefused(): void {
+        self::assertStringContainsString('нет в каталоге', $this->call($this->owner, ['role' => 'main', 'model' => 'x/unknown', 'reason' => 'просто попробовать'])->content);
+        self::assertStringContainsString('инструмент', $this->call($this->owner, ['role' => 'main', 'model' => 'x/plain', 'reason' => 'просто попробовать'])->content);
+        self::assertFalse($this->call($this->owner, ['role' => 'cheap', 'model' => 'x/plain', 'reason' => 'резюме не требуют инструментов'])->isError);
+    }
+
+    public function testShortReasonIsRefused(): void {
+        self::assertTrue($this->call($this->owner, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'надо'])->isError);
+    }
+}
