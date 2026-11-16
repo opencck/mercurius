@@ -121,6 +121,15 @@ final class FileToolsTest extends TestCase {
         self::assertSame('Путь /etc — вне рабочего каталога участника.', $result->content);
     }
 
+    public function testRunCommandDangerFollowsTheClassifier(): void {
+        $tool = new RunCommandTool($this->sandbox, 120);
+
+        self::assertSame(DangerClass::Write, $tool->danger(['command' => 'ls']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['command' => 'git push origin master']));
+        self::assertSame('git-push:origin', $tool->grantKey(['command' => 'git push origin master']));
+        self::assertNull($tool->grantKey(['command' => 'ls']));
+    }
+
     public function testDefaultTimeoutComesFromSettings(): void {
         (new RunCommandTool($this->sandbox, 90))->execute(['command' => 'ls'], self::context());
 

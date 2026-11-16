@@ -16,7 +16,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
  * spec: BRIEF.md#инструменты — run_command
  * spec: BRIEF.md#песочница — each command independent, cwd as an argument
  */
-final class RunCommandTool extends SandboxTool {
+final class RunCommandTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'run_command';
 
     /** @param positive-int $defaultTimeout seconds when the model gives none (AGENT_TOOL_TIMEOUT) */
@@ -40,7 +40,20 @@ final class RunCommandTool extends SandboxTool {
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Write;
+        return $this->classify($args)->danger;
+    }
+
+    public function grantKey(array $args): ?string {
+        return $this->classify($args)->key;
+    }
+
+    public function describe(array $args): string {
+        return $this->classify($args)->label;
+    }
+
+    /** @param array<string, mixed> $args */
+    private function classify(array $args): Classification {
+        return (new CommandClassifier())->classify(Args::string($args, 'command') ?? '');
     }
 
     public function timeout(): int {

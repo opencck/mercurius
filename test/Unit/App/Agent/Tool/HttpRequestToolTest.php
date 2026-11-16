@@ -86,12 +86,25 @@ final class HttpRequestToolTest extends AsyncTestCase {
         );
     }
 
-    public function testOnlyGetAndHeadAreAccepted(): void {
-        $schema = $this->tool([])->definition()->parameters;
+    public function testReadsAreReadsAndChangesAreIrreversible(): void {
+        $tool = $this->tool([]);
+        $schema = $tool->definition()->parameters;
 
         self::assertSame([], JsonSchema::validate($schema, ['url' => 'https://example.com/', 'method' => 'HEAD']));
-        self::assertNotSame([], JsonSchema::validate($schema, ['url' => 'https://example.com/', 'method' => 'POST']));
-        self::assertSame(DangerClass::Read, $this->tool([])->danger(['url' => 'https://example.com/']));
+        self::assertSame([], JsonSchema::validate($schema, ['url' => 'https://example.com/', 'method' => 'POST', 'body' => '{}']));
+        self::assertNotSame([], JsonSchema::validate($schema, ['url' => 'https://example.com/', 'method' => 'TRACE']));
+        self::assertSame(DangerClass::Read, $tool->danger(['url' => 'https://example.com/']));
+        self::assertNull($tool->grantKey(['url' => 'https://example.com/']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['url' => 'https://Api.Example.com/x', 'method' => 'POST']));
+        self::assertSame('http:POST api.example.com', $tool->grantKey(['url' => 'https://Api.Example.com/x', 'method' => 'POST']));
+    }
+
+    public function testPostSendsBody(): void {
+        $result = $this->tool(['https://example.com/items' => [201, ['content-type' => 'application/json'], '{"id":1}']])
+            ->execute(['url' => 'https://example.com/items', 'method' => 'POST', 'body' => '{"a":1}', 'headers' => ['content-type' => 'application/json']], self::context());
+
+        self::assertSame(['POST https://example.com/items'], $this->http->requested);
+        self::assertStringStartsWith('HTTP 201', $result->content);
     }
 
     public function testResultIsMarkedUntrusted(): void {
