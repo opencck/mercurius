@@ -1,0 +1,159 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Infrastructure\Sandbox;
+
+use Amp\Cancellation;
+use Amp\CancelledException;
+use Amp\CompositeCancellation;
+use Amp\Http\Client\DelegateHttpClient;
+use Amp\Http\Client\HttpException;
+use Amp\Http\Client\Request;
+use Amp\NullCancellation;
+use Amp\TimeoutCancellation;
+use JsonException;
+use OpenCCK\App\Agent\Sandbox\CommandOutcome;
+use OpenCCK\App\Agent\Sandbox\Sandbox;
+use OpenCCK\App\Agent\Sandbox\SandboxFailure;
+use OpenCCK\Domain\Agent\SandboxLimits;
+use SensitiveParameter;
+
+use function Amp\ByteStream\buffer;
+
+/**
+ * Talks to the sandbox executor over the sandbox network with a bearer token. Cancelling an exec also asks the
+ * executor to kill the command.
+ *
+ * spec: BRIEF.md#песочница — executor behind a token
+ */
+final class HttpSandboxClient implements Sandbox {
+    private const FILE_TIMEOUT = 60;
+    private const EXTRA_SECONDS = 10;
+
+    public function __construct(
+        private readonly DelegateHttpClient $http,
+        private readonly string $url,
+        #[SensitiveParameter] private readonly string $token,
+    ) {}
+
+    public function exec(int $principalId, SandboxLimits $limits, string $callId, string $command, string $cwd, int $timeoutSeconds, Cancellation $cancellation): CommandOutcome {
+        try {
+            $body = $this->call('exec', $principalId, $limits, ['command' => $command, 'cwd' => $cwd, 'timeout' => $timeoutSeconds], $timeoutSeconds + self::EXTRA_SECONDS, $cancellation, $callId);
+        } catch (CancelledException $e) {
+            if ($cancellation->isRequested()) {
+                try {
+                    $this->call('cancel', $principalId, $limits, [], self::EXTRA_SECONDS, new NullCancellation(), $callId);
+                } catch (SandboxFailure) {
+                    // The command may already be gone; the run is being cancelled either way.
+                }
+            }
+            throw $e;
+        }
+        return new CommandOutcome(
+            self::int($body, 'exit_code'),
+            self::string($body, 'stdout'),
+            self::string($body, 'stderr'),
+            ($body['timed_out'] ?? false) === true,
+            ($body['over_quota'] ?? false) === true,
+            self::int($body, 'duration_ms'),
+        );
+    }
+
+    public function read(int $principalId, SandboxLimits $limits, string $path, int $startLine, int $maxLines, Cancellation $cancellation): array {
+        $body = $this->call('read', $principalId, $limits, ['path' => $path, 'start_line' => $startLine, 'max_lines' => $maxLines], self::FILE_TIMEOUT, $cancellation);
+        return ['text' => self::string($body, 'text'), 'totalLines' => self::int($body, 'totalLines')];
+    }
+
+    public function write(int $principalId, SandboxLimits $limits, string $path, string $content, Cancellation $cancellation): void {
+        $this->call('write', $principalId, $limits, ['path' => $path, 'content' => $content], self::FILE_TIMEOUT, $cancellation);
+    }
+
+    public function replace(int $principalId, SandboxLimits $limits, string $path, string $old, string $new, Cancellation $cancellation): void {
+        $this->call('replace', $principalId, $limits, ['path' => $path, 'old' => $old, 'new' => $new], self::FILE_TIMEOUT, $cancellation);
+    }
+
+    public function list(int $principalId, SandboxLimits $limits, string $path, int $depth, Cancellation $cancellation): array {
+        $body = $this->call('list', $principalId, $limits, ['path' => $path, 'depth' => $depth], self::FILE_TIMEOUT, $cancellation);
+        $list = isset($body['entries']) && is_array($body['entries']) ? $body['entries'] : [];
+        $entries = [];
+        foreach (array_keys($list) as $index) {
+            $entry = self::entry($list[$index]);
+            if ($entry !== null) {
+                $entries[] = $entry;
+            }
+        }
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>
+     * @throws SandboxFailure
+     * @throws CancelledException when $cancellation is requested
+     */
+    private function call(string $operation, int $principalId, SandboxLimits $limits, array $fields, int $timeoutSeconds, Cancellation $cancellation, string $callId = ''): array {
+        $payload = ['principal_id' => $principalId, 'call_id' => $callId, 'limits' => [
+            'disk_bytes' => $limits->diskBytes,
+            'processes' => $limits->processes,
+            'cpu_seconds' => $limits->cpuSeconds,
+            'memory_bytes' => $limits->memoryBytes,
+            'concurrent_commands' => $limits->concurrentCommands,
+        ]] + $fields;
+        $request = new Request($this->url . '/v1/' . $operation, 'POST', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        $request->setHeader('authorization', 'Bearer ' . $this->token);
+        $request->setHeader('content-type', 'application/json');
+        $request->setTransferTimeout($timeoutSeconds);
+        $request->setInactivityTimeout($timeoutSeconds);
+        $request->setBodySizeLimit(16 * 1024 * 1024);
+
+        try {
+            $response = $this->http->request($request, new CompositeCancellation($cancellation, new TimeoutCancellation($timeoutSeconds + 1)));
+            $text = buffer($response->getBody());
+        } catch (CancelledException $e) {
+            if ($cancellation->isRequested()) {
+                throw $e;
+            }
+            throw new SandboxFailure('Песочница не ответила вовремя.');
+        } catch (HttpException) {
+            throw new SandboxFailure('Песочница недоступна.');
+        }
+
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode($text, true, 32, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw new SandboxFailure('Песочница вернула непонятный ответ.');
+        }
+        if (!is_array($decoded)) {
+            throw new SandboxFailure('Песочница вернула непонятный ответ.');
+        }
+        $body = array_combine(array_map('strval', array_keys($decoded)), array_values($decoded));
+        if (($body['ok'] ?? false) !== true) {
+            $error = self::string($body, 'error');
+            throw new SandboxFailure($error !== '' ? $error : 'Песочница отказала.');
+        }
+        return $body;
+    }
+
+    /** @param array<string, mixed> $body */
+    private static function int(array $body, string $key): int {
+        return isset($body[$key]) && is_int($body[$key]) ? $body[$key] : 0;
+    }
+
+    /** @param array<string, mixed> $body */
+    private static function string(array $body, string $key): string {
+        return isset($body[$key]) && is_string($body[$key]) ? $body[$key] : '';
+    }
+
+    /** @return array{path: string, type: string, size: int}|null */
+    private static function entry(mixed $entry): ?array {
+        if (!is_array($entry) || !isset($entry['path'], $entry['type'], $entry['size'])) {
+            return null;
+        }
+        if (!is_string($entry['path']) || !is_string($entry['type']) || !is_int($entry['size'])) {
+            return null;
+        }
+        return ['path' => $entry['path'], 'type' => $entry['type'], 'size' => $entry['size']];
+    }
+}
