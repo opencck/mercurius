@@ -44,8 +44,8 @@ final class InMemoryModelStores implements ModelCatalogRepository, ModelRoleRepo
         return $this->roles;
     }
 
-    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null): bool {
-        if (($this->roles[$role] ?? null)?->setBy === ModelRole::SET_BY_OWNER && $setBy !== ModelRole::SET_BY_OWNER) {
+    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null, bool $byOwner = false): bool {
+        if (($this->roles[$role] ?? null)?->setBy === ModelRole::SET_BY_OWNER && $setBy !== ModelRole::SET_BY_OWNER && !$byOwner) {
             return false;
         }
         $this->roles[$role] = new ModelRole($role, $model, $reason, $setBy, $principalId);

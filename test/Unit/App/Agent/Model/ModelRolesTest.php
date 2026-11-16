@@ -10,6 +10,7 @@ use Mercurius\Llm\ModelCatalog\ModelInfo;
 use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\App\Agent\Tool\SetModelRoleTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -26,9 +27,11 @@ final class ModelRolesTest extends AsyncTestCase {
         parent::setUp();
         $this->stores = new InMemoryModelStores();
         $this->stores->replace('openrouter', [
-            new ModelInfo('x/tools', 'tools', 100_000, null, null, ['text'], ['text'], ['tools']),
+            new ModelInfo('x/tools', 'tools', 100_000, 0.0000001, 0.0000004, ['text'], ['text'], ['tools']),
             new ModelInfo('x/plain', 'plain', 100_000, null, null, ['text'], ['text'], []),
-            new ModelInfo('x/other', 'other', 100_000, null, null, ['text'], ['text'], ['tools']),
+            new ModelInfo('x/other', 'other', 100_000, 0.0000001, 0.0000004, ['text'], ['text'], ['tools']),
+            new ModelInfo('x/pricey', 'pricey', 100_000, 0.00015, 0.0006, ['text'], ['text'], ['tools']),
+            new ModelInfo('z-ai/glm-5.3-flash', 'glm', 100_000, 0.00000015, 0.0000005, ['text'], ['text'], ['tools']),
         ]);
         $this->roles = new ModelRoles($this->stores, $this->stores);
         $this->roles->seed();
@@ -66,7 +69,7 @@ final class ModelRolesTest extends AsyncTestCase {
     public function testOwnerFixedRoleIsNotChanged(): void {
         $this->call($this->owner, ['role' => 'strong', 'model' => 'x/tools', 'reason' => 'закрепляю как сильную', 'fix' => true]);
 
-        $result = $this->call($this->owner, ['role' => 'strong', 'model' => 'x/other', 'reason' => 'агент решил сэкономить']);
+        $result = $this->call($this->user, ['role' => 'strong', 'model' => 'x/other', 'reason' => 'участник решил сэкономить']);
 
         self::assertTrue($result->isError);
         self::assertStringContainsString('зафиксировал владелец', $result->content);
@@ -77,6 +80,22 @@ final class ModelRolesTest extends AsyncTestCase {
         self::assertStringContainsString('нет в каталоге', $this->call($this->owner, ['role' => 'main', 'model' => 'x/unknown', 'reason' => 'просто попробовать'])->content);
         self::assertStringContainsString('инструмент', $this->call($this->owner, ['role' => 'main', 'model' => 'x/plain', 'reason' => 'просто попробовать'])->content);
         self::assertFalse($this->call($this->owner, ['role' => 'cheap', 'model' => 'x/plain', 'reason' => 'резюме не требуют инструментов'])->isError);
+    }
+
+    public function testOwnerCanUnfixARole(): void {
+        $this->call($this->owner, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'закрепляю как основную', 'fix' => true]);
+
+        self::assertFalse($this->call($this->owner, ['role' => 'main', 'model' => 'x/other', 'reason' => 'снимаю закрепление'])->isError);
+        self::assertSame(ModelRole::SET_BY_AGENT, $this->stores->roles[ModelRole::MAIN]->setBy);
+    }
+
+    public function testFixingOrAPricierModelNeedsApproval(): void {
+        $tool = new SetModelRoleTool($this->roles);
+
+        self::assertSame(DangerClass::Write, $tool->danger(['role' => 'main', 'model' => 'x/tools', 'reason' => 'дешевле при том же качестве']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['role' => 'main', 'model' => 'x/pricey', 'reason' => 'лучше пишет код']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['role' => 'main', 'model' => 'x/unknown', 'reason' => 'цена неизвестна']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['role' => 'main', 'model' => 'x/tools', 'reason' => 'закрепить', 'fix' => true]));
     }
 
     public function testShortReasonIsRefused(): void {

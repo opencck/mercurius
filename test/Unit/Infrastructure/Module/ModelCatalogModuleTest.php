@@ -66,6 +66,18 @@ final class ModelCatalogModuleTest extends AsyncTestCase {
         self::assertNotNull($this->stores->find(ModelRef::parse('a/old')));
     }
 
+    public function testEmptyAnswerKeepsTheOldCatalog(): void {
+        $this->stores->replace('openrouter', [new ModelInfo('a/old', 'old', 1000, null, null)]);
+        $this->stores->fetched['openrouter'] = new \DateTimeImmutable('-2 days');
+        $module = new ModelCatalogModule(['openrouter' => static fn(): array => []], $this->stores, new NullLogger());
+
+        $module->start();
+        $module->idle();
+        $module->stop();
+
+        self::assertNotNull($this->stores->find(ModelRef::parse('a/old')));
+    }
+
     public function testTimerReloadsEveryInterval(): void {
         $module = new ModelCatalogModule(['openrouter' => $this->fetch(...)], $this->stores, new NullLogger(), 0.05);
 

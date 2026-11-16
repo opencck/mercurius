@@ -28,15 +28,15 @@ final class PostgresModelRoleRepository implements ModelRoleRepository {
         return $roles;
     }
 
-    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null): bool {
+    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null, bool $byOwner = false): bool {
         // One statement: a row the owner fixed is changed only by the owner.
         $row = $this->db->execute(
             "INSERT INTO model_roles (role, provider, model, reason, set_by, set_by_principal) VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT (role) DO UPDATE SET provider = EXCLUDED.provider, model = EXCLUDED.model, reason = EXCLUDED.reason,
                 set_by = EXCLUDED.set_by, set_by_principal = EXCLUDED.set_by_principal, updated_at = now()
-             WHERE model_roles.set_by <> 'owner' OR EXCLUDED.set_by = 'owner'
+             WHERE model_roles.set_by <> 'owner' OR EXCLUDED.set_by = 'owner' OR ?::boolean
              RETURNING role",
-            [$role, $model->provider, $model->model, $reason, $setBy, $principalId],
+            [$role, $model->provider, $model->model, $reason, $setBy, $principalId, $byOwner],
         )->fetchRow();
         return $row !== null;
     }

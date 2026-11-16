@@ -49,6 +49,26 @@ final class ModelRouterTest extends AsyncTestCase {
         self::assertSame([], $this->llm->requests);
     }
 
+    public function testEverydayWordsAreNotComplex(): void {
+        foreach (['Хочу купить планшет', 'Какая планета больше?', 'Я планирую отпуск', 'Какой план?', 'Нравится архитектура дома', 'Исследую рынок сам'] as $text) {
+            self::assertSame(RequestClass::Short, $this->classify($text)[0], $text);
+        }
+        self::assertSame(RequestClass::Complex, $this->classify('Составь план миграции базы')[0]);
+        self::assertSame(RequestClass::Complex, $this->classify('Проанализируй логи и предложи решение')[0]);
+    }
+
+    public function testSlowClassifierFallsBackToNormal(): void {
+        $this->llm = new ScriptedLlm([ScriptedLlm::text('complex')]);
+        $this->llm->delay = 2.0;
+        $classifier = new RequestClassifier($this->llm, static fn(): string => 'openrouter:cheap/model', new NullLogger(), 0.1);
+
+        $started = microtime(true);
+        $result = $classifier->classify(str_repeat('Расскажи про nginx. ', 15));
+
+        self::assertSame([RequestClass::Normal, 'fallback'], array_slice($result, 0, 2));
+        self::assertLessThan(1.0, microtime(true) - $started);
+    }
+
     public function testUnclearTextAsksTheCheapModel(): void {
         $this->llm = new ScriptedLlm([ScriptedLlm::text('normal')]);
 
@@ -94,10 +114,16 @@ final class ModelRouterTest extends AsyncTestCase {
     }
 
     public function testWindowComesFromTheCatalog(): void {
-        $this->stores->replace('openrouter', [new ModelInfo('z-ai/glm-5.3-flash', 'glm', 1_048_576, null, null)]);
+        $this->stores->replace('openrouter', [new ModelInfo('z-ai/glm-5.3-flash', 'glm', 32_768, null, null)]);
 
-        self::assertSame(1_048_576, $this->router()->window('z-ai/glm-5.3-flash'));
-        self::assertSame(1_048_576, $this->router()->window('openrouter:z-ai/glm-5.3-flash'));
+        self::assertSame(32_768, $this->router()->window('z-ai/glm-5.3-flash'));
+        self::assertSame(32_768, $this->router()->window('openrouter:z-ai/glm-5.3-flash'));
+    }
+
+    public function testSettingCapsALargerCatalogWindow(): void {
+        $this->stores->replace('openrouter', [new ModelInfo('anthropic/claude-opus-5', 'opus', 1_000_000, null, null)]);
+
+        self::assertSame(131072, $this->router()->window('anthropic/claude-opus-5'));
     }
 
     public function testWindowFallsBackWithoutCatalog(): void {

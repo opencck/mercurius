@@ -30,6 +30,7 @@ use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
@@ -590,7 +591,7 @@ final class AgentLoop {
             $this->calls->record(new LlmCallRecord(
                 conversationId: $state->run->conversationId,
                 purpose: 'agent',
-                model: $model,
+                model: (string) ModelRef::parse($model),
                 finishReason: $finishReason,
                 errorKind: $errorKind,
                 inputTokens: max(0, $usage->inputTokens),

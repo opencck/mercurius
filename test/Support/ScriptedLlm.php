@@ -44,6 +44,9 @@ final class ScriptedLlm implements LlmClient {
 
     public function complete(ChatRequest $request, ?Cancellation $cancellation = null): ChatResponse {
         $this->requests[] = $request;
+        if ($this->delay > 0) {
+            delay($this->delay, cancellation: $cancellation);
+        }
         $next = array_shift($this->script) ?? self::text('готово');
         if ($next instanceof LlmException) {
             throw $next;

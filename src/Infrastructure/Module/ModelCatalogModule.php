@@ -72,6 +72,10 @@ final class ModelCatalogModule implements AppModuleInterface {
     private function load(string $provider, Closure $fetch): void {
         try {
             $models = $fetch();
+            if ($models === []) {
+                $this->logger->warning('Model catalog came empty; the old one stays', ['provider' => $provider]);
+                return;
+            }
             $this->catalog->replace($provider, $models);
             $this->logger->info('Model catalog loaded', ['provider' => $provider, 'models' => count($models)]);
         } catch (Throwable $e) {

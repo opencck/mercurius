@@ -50,10 +50,15 @@ final class ModelRouter {
         return $model;
     }
 
-    /** @return positive-int tokens of the model's window, from the catalog or the setting */
+    /**
+     * Tokens of the model's window for compaction: from the catalog, but never above LLM_CONTEXT_WINDOW — a 1M window
+     * would let a conversation send hundreds of thousands of tokens on every step before compacting.
+     *
+     * @return positive-int
+     */
     public function window(string $model): int {
         $length = $this->catalog->find(ModelRef::parse($model))?->contextLength;
-        return $length !== null && $length > 0 ? $length : $this->defaultWindow;
+        return $length !== null && $length > 0 ? min($length, $this->defaultWindow) : $this->defaultWindow;
     }
 
     public function cheapModel(): string {

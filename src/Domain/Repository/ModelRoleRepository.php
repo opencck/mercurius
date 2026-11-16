@@ -11,8 +11,11 @@ interface ModelRoleRepository {
     /** @return array<string, ModelRole> role => row */
     public function all(): array;
 
-    /** Sets the model of a role; false when the owner fixed the role and $setBy is not the owner. */
-    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null): bool;
+    /**
+     * Sets the model of a role; false when the owner fixed the role and the writer is not the owner. The owner may
+     * write without fixing, which takes the fix off.
+     */
+    public function set(string $role, ModelRef $model, string $reason, string $setBy, ?int $principalId = null, bool $byOwner = false): bool;
 
     /**
      * Adds the roles that have no row yet, marked as seed; existing rows are kept.

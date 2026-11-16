@@ -44,6 +44,25 @@ final class ModelRoles {
         return $row !== null ? $row->model : ModelRef::parse(self::SEED[$role] ?? self::SEED[ModelRole::MAIN]);
     }
 
+    /**
+     * Whether the model would cost more per token than the one in the role now; an unknown price counts as more.
+     */
+    public function pricier(string $role, string $model): bool {
+        try {
+            $next = $this->catalog->find(ModelRef::parse(trim($model)));
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+        $now = $this->catalog->find($this->model($role));
+        if ($next === null || $next->inputPricePerToken === null || $next->outputPricePerToken === null) {
+            return true;
+        }
+        if ($now === null || $now->inputPricePerToken === null || $now->outputPricePerToken === null) {
+            return false;
+        }
+        return $next->inputPricePerToken > $now->inputPricePerToken || $next->outputPricePerToken > $now->outputPricePerToken;
+    }
+
     /** @return array<string, ModelRole> */
     public function all(): array {
         return $this->roles->all();
@@ -77,7 +96,7 @@ final class ModelRoles {
             throw new DomainException(sprintf('Модель %s не вызывает инструменты, а роль «%s» без них не работает.', $ref, $role));
         }
         $setBy = $fix ? ModelRole::SET_BY_OWNER : ModelRole::SET_BY_AGENT;
-        if (!$this->roles->set($role, $ref, trim($reason), $setBy, $by->id)) {
+        if (!$this->roles->set($role, $ref, trim($reason), $setBy, $by->id, $by->isOwner())) {
             throw new DomainException(sprintf('Роль «%s» зафиксировал владелец; изменить её может только он, указав fix.', $role));
         }
         return $ref;

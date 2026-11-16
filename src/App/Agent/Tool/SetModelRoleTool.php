@@ -38,7 +38,14 @@ final class SetModelRoleTool implements Tool {
         ]);
     }
 
+    /**
+     * A cheaper or equal model is a write; fixing a role or a pricier (or unpriced) model goes to the owner first —
+     * a page the agent read must not be able to switch every conversation to an expensive model.
+     */
     public function danger(array $args): DangerClass {
+        if (($args['fix'] ?? false) === true || $this->roles->pricier(Args::string($args, 'role') ?? '', Args::string($args, 'model') ?? '')) {
+            return DangerClass::Irreversible;
+        }
         return DangerClass::Write;
     }
 
