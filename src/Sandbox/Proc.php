@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Sandbox;
 
+use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\CompositeCancellation;
@@ -15,10 +16,14 @@ use function Amp\async;
 use function Amp\Future\await;
 
 /**
- * Starts a process, feeds stdin, reads stdout and stderr into bounded windows, and on timeout or cancellation kills
- * its whole session.
+ * Starts a process, feeds stdin, reads stdout and stderr into bounded windows. When the process ends, times out or is
+ * cancelled, its whole session is killed, so background jobs never outlive the command or hold its pipes; every
+ * wait afterwards is bounded.
  */
 final class Proc {
+    /** Seconds to wait for the pipes and the wrapper after the session is killed. */
+    private const DRAIN_SECONDS = 2;
+
     public function __construct(
         private readonly ProcessTree $tree = new ProcessTree(),
         private readonly int $windowBytes = 25_000,
@@ -47,25 +52,46 @@ final class Proc {
                     $stderr->append($chunk);
                 }
             }),
+            // stdin is fed in its own fiber: a reader that never reads (a FIFO) must not hang us.
+            async(static function () use ($process, $stdin): void {
+                $input = $process->getStdin();
+                try {
+                    if ($stdin !== null && $stdin !== '') {
+                        $input->write($stdin);
+                    }
+                    $input->end();
+                } catch (StreamException) {
+                    // The process stopped reading (exited early or was killed).
+                }
+            }),
         ];
-        $stdinStream = $process->getStdin();
-        if ($stdin !== null && $stdin !== '') {
-            $stdinStream->write($stdin);
-        }
-        $stdinStream->end();
 
-        $timeout = new TimeoutCancellation($timeoutSeconds);
         $timedOut = false;
         $cancelled = false;
         try {
-            $exitCode = $process->join(new CompositeCancellation($cancellation, $timeout));
+            $exitCode = $process->join(new CompositeCancellation($cancellation, new TimeoutCancellation($timeoutSeconds)));
         } catch (CancelledException) {
             $timedOut = !$cancellation->isRequested();
             $cancelled = !$timedOut;
-            $this->tree->killSession($process->getPid());
-            $exitCode = $process->join();
+            $exitCode = 137;
         }
-        await($readers);
+
+        // Background jobs of the command die with it: state lives in files, not in leftover processes.
+        $this->tree->killSession($process->getPid());
+        try {
+            if ($process->isRunning()) {
+                $exitCode = $timedOut || $cancelled ? 137 : $process->join(new TimeoutCancellation(self::DRAIN_SECONDS));
+            }
+            await($readers, new TimeoutCancellation(self::DRAIN_SECONDS));
+        } catch (CancelledException) {
+            // Something outside the session still holds a pipe: stop reading, keep what we have.
+            $process->getStdout()->close();
+            $process->getStderr()->close();
+            $process->getStdin()->close();
+            foreach ($readers as $reader) {
+                $reader->ignore();
+            }
+        }
 
         return new CommandResult(
             $exitCode,

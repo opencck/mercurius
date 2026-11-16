@@ -81,6 +81,15 @@ final class HttpSandboxClientTest extends AsyncTestCase {
         self::assertSame('c9', $this->http->sent[1][2]['call_id']);
     }
 
+    /** Review M7: spilled tool output may be invalid UTF-8; it must still be sent, not crash the run. */
+    public function testInvalidUtf8IsSent(): void {
+        $client = $this->client(static fn(string $path): array => [200, '{"ok":true}']);
+
+        $client->write(7, self::limits(), 'f', "ok \xC3\x28 bad", new NullCancellation());
+
+        self::assertSame('/v1/write', $this->http->sent[0][0]);
+    }
+
     public function testReadReturnsTextAndTotal(): void {
         $client = $this->client(static fn(string $path): array => [200, '{"ok":true,"text":"a\nb\n","totalLines":9}']);
 

@@ -107,7 +107,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('http://sandbox:9000', $settings->url);
         self::assertNull($settings->token());
         self::assertSame(5 * 1024 ** 3, $limits->diskBytes);
-        self::assertSame(512, $limits->processes);
+        self::assertSame(128, $limits->processes);
         self::assertSame(600, $limits->cpuSeconds);
         self::assertSame(8 * 1024 ** 3, $limits->memoryBytes);
         self::assertSame(4, $limits->concurrentCommands);

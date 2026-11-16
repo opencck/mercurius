@@ -44,7 +44,9 @@ final class CommandRunner implements Runner {
         }
         $this->running[$principalId] = ($this->running[$principalId] ?? 0) + 1;
         try {
-            $result = $this->proc->run($this->argv($principalId, $limits, $command), $cwd, $timeoutSeconds, $stdin, $cancellation);
+            // The process starts in the home (as root, before the privilege drop); the requested directory is entered
+            // by the participant's shell, so a symlink into another home is refused by the kernel.
+            $result = $this->proc->run($this->argv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation);
         } finally {
             $this->running[$principalId]--;
         }
@@ -52,14 +54,19 @@ final class CommandRunner implements Runner {
         return new CommandResult($result->exitCode, $result->stdout, $result->stderr, $result->timedOut, $result->cancelled, $result->durationMs, $over);
     }
 
-    /** @return list<string> */
-    public function argv(int $principalId, SandboxLimits $limits, string $command): array {
+    /**
+     * @param string $cwd directory the participant's shell enters before the command (umask 077: new files are private)
+     * @return list<string>
+     */
+    public function argv(int $principalId, SandboxLimits $limits, string $command, string $cwd): array {
         $uid = (string) $this->workspace->uid($principalId);
         return [
             'prlimit',
             '--nproc=' . $limits->processes,
             '--cpu=' . $limits->cpuSeconds,
             '--as=' . $limits->memoryBytes,
+            // No single file may outgrow the participant's disk limit while a command runs.
+            '--fsize=' . $limits->diskBytes,
             '--',
             'setpriv', '--reuid=' . $uid, '--regid=' . $uid, '--clear-groups', '--',
             'env', '-i',
@@ -68,7 +75,8 @@ final class CommandRunner implements Runner {
             'PATH=' . self::PATH,
             'LANG=C.UTF-8',
             'setsid', '--wait',
-            'bash', '-c', $command,
+            'bash', '-c', 'umask 077; cd -- "$1" || { echo "Каталог $1 недоступен." >&2; exit 2; }; eval "$2"',
+            'mercurius', $cwd, $command,
         ];
     }
 }

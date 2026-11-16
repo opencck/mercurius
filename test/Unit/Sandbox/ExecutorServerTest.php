@@ -140,6 +140,15 @@ final class ExecutorServerTest extends AsyncTestCase {
         self::assertTrue(self::json($response)['cancelled']);
     }
 
+    /** Review I6: participants' commands share the executor's network namespace and come from loopback. */
+    public function testLoopbackPeerIsRefused(): void {
+        $client = $this->createMock(Client::class);
+        $client->method('getRemoteAddress')->willReturn(new \Amp\Socket\InternetAddress('127.0.0.1', 50000));
+        $request = new Request($client, 'POST', Http::new('http://sandbox:9000/v1/usage'), ['authorization' => 'Bearer ' . self::TOKEN], json_encode(['principal_id' => 7, 'limits' => self::LIMITS], JSON_THROW_ON_ERROR));
+
+        self::assertSame(403, $this->server()->handleRequest($request)->getStatus());
+    }
+
     public function testHealthNeedsNoToken(): void {
         self::assertSame(200, $this->server()->handleRequest($this->request('/health', [], null, 'GET'))->getStatus());
     }

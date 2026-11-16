@@ -15,6 +15,8 @@ use OpenCCK\Domain\Agent\SandboxLimits;
  */
 final class Files implements FileStore {
     private const LIST_LIMIT = 500;
+    // Below the read window (4 MB head + 4 MB tail), so a file read for replace always comes back whole.
+    private const REPLACE_MAX = 4_000_000;
     private const TIMEOUT = 60;
 
     private ?CommandRunner $runner = null;
@@ -66,7 +68,15 @@ final class Files implements FileStore {
             throw new SandboxError('Фрагмент для замены пуст.');
         }
         $file = $this->workspace->resolve($principalId, $path);
-        $result = $this->asUser($principalId, $limits, 'cat -- ' . escapeshellarg($file));
+        // The output window keeps at most REPLACE_MAX bytes whole; a bigger file would come back cut and be saved so.
+        $result = $this->asUser($principalId, $limits, sprintf(
+            'test "$(stat -c %%s -- %1$s)" -le %2$d || { echo too-large >&2; exit 3; }; cat -- %1$s',
+            escapeshellarg($file),
+            self::REPLACE_MAX,
+        ));
+        if ($result->exitCode === 3 && str_contains($result->stderr, 'too-large')) {
+            throw new SandboxError(sprintf('Файл %s больше %d МБ — правь его командой (sed, python).', $path, intdiv(self::REPLACE_MAX, 1024 * 1024)), 413);
+        }
         if ($result->exitCode !== 0) {
             throw new SandboxError(sprintf('Не удалось прочитать %s: %s', $path, self::reason($result)), 404);
         }
@@ -121,7 +131,7 @@ final class Files implements FileStore {
             throw new SandboxError('Исполнитель не настроен.', 500);
         }
         return $this->proc->run(
-            $this->runner->argv($principalId, $limits, $command),
+            $this->runner->argv($principalId, $limits, $command, $this->workspace->home($principalId)),
             $this->workspace->home($principalId),
             self::TIMEOUT,
             $stdin,

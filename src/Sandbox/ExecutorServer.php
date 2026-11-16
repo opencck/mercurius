@@ -39,6 +39,11 @@ final class ExecutorServer implements RequestHandler {
         if ($path === '/health') {
             return self::json(HttpStatus::OK, ['ok' => true]);
         }
+        // Participants' commands share this network namespace and connect over loopback; the core never does.
+        $peer = $request->getClient()->getRemoteAddress()->toString();
+        if (str_starts_with($peer, '127.') || str_starts_with($peer, '[::1]')) {
+            return self::json(HttpStatus::FORBIDDEN, ['ok' => false, 'error' => 'Нет доступа.']);
+        }
         if ($request->getMethod() !== 'POST' || !str_starts_with($path, '/v1/')) {
             return self::json(HttpStatus::NOT_FOUND, ['ok' => false, 'error' => 'Нет такой операции.']);
         }

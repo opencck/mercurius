@@ -17,30 +17,43 @@ final class ProcessTree {
 
     public function __construct(private readonly string $proc = '/proc') {}
 
+    /**
+     * Kills the root process, its descendants and every process of their sessions. The command chain execs
+     * (prlimit → setpriv → env → setsid → bash), so the session id is usually the root pid itself: that session is
+     * killed even after the root has exited and its background jobs were reparented. A few rounds catch processes
+     * forked while we were scanning.
+     */
     public function killSession(int $rootPid): void {
-        $table = $this->table();
         $own = posix_getsid(0);
-        $sessions = [];
-        $queue = [$rootPid];
-        $seen = [];
-        while ($queue !== []) {
-            $pid = array_shift($queue);
-            if (isset($seen[$pid])) {
-                continue;
-            }
-            $seen[$pid] = true;
-            if (isset($table[$pid]) && $table[$pid]['sid'] !== $own) {
-                $sessions[$table[$pid]['sid']] = true;
-            }
-            foreach ($table as $child => $row) {
-                if ($row['ppid'] === $pid) {
-                    $queue[] = $child;
+        for ($round = 0; $round < 3; $round++) {
+            $table = $this->table();
+            $sessions = $rootPid !== $own ? [$rootPid => true] : [];
+            $queue = [$rootPid];
+            $seen = [];
+            while ($queue !== []) {
+                $pid = array_shift($queue);
+                if (isset($seen[$pid])) {
+                    continue;
+                }
+                $seen[$pid] = true;
+                if (isset($table[$pid]) && $table[$pid]['sid'] !== $own) {
+                    $sessions[$table[$pid]['sid']] = true;
+                }
+                foreach ($table as $child => $row) {
+                    if ($row['ppid'] === $pid) {
+                        $queue[] = $child;
+                    }
                 }
             }
-        }
-        foreach ($table as $pid => $row) {
-            if (isset($sessions[$row['sid']]) || (isset($seen[$pid]) && $pid !== $rootPid)) {
-                @posix_kill($pid, self::SIGKILL);
+            $killed = 0;
+            foreach ($table as $pid => $row) {
+                if ($pid !== getmypid() && (isset($sessions[$row['sid']]) || isset($seen[$pid]))) {
+                    @posix_kill($pid, self::SIGKILL);
+                    $killed++;
+                }
+            }
+            if ($killed === 0) {
+                return;
             }
         }
     }

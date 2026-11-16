@@ -35,7 +35,8 @@ $files = new Files($workspace, $users);
 $runner = new CommandRunner($workspace, $users, $files);
 $files->attach($runner);
 
-$server = SocketHttpServer::createForDirectAccess($logger, connectionLimit: 64, connectionLimitPerIp: 64);
+// A few connections per address: participants cannot crowd out the core.
+$server = SocketHttpServer::createForDirectAccess($logger, connectionLimit: 256, connectionLimitPerIp: 16);
 $server->expose(new InternetAddress('0.0.0.0', 9000));
 $server->start(new ExecutorServer($token, $workspace, $runner, $files, $logger), new DefaultErrorHandler());
 $logger->info('Sandbox executor listening', ['port' => 9000]);

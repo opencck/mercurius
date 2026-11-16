@@ -75,6 +75,47 @@ final class CommandRunnerTest extends SandboxTestCase {
         $first->await();
     }
 
+    /** Review C1: cwd through a symlink must not start the command inside another participant's tree. */
+    public function testCwdThroughSymlinkCannotReachOtherHome(): void {
+        $this->sh(8, 'mkdir -p project && echo secret > project/f && chmod 755 project && chmod 644 project/f');
+        $this->sh(7, 'ln -s ' . $this->workspace->home(8) . '/project x');
+
+        $result = $this->runner->run(7, self::limits(), 'cat f', $this->workspace->home(7) . '/x', 10, null, new \Amp\NullCancellation());
+
+        self::assertNotSame(0, $result->exitCode);
+        self::assertStringNotContainsString('secret', $result->stdout);
+    }
+
+    /** Review C2: a background job must not keep the command (and its slot) after the foreground part ends. */
+    public function testBackgroundJobDoesNotHoldCommand(): void {
+        $started = microtime(true);
+        $result = $this->sh(7, 'sleep 300 & echo done', 10, self::limits(concurrent: 1));
+
+        self::assertSame("done\n", $result->stdout);
+        self::assertLessThan(5, microtime(true) - $started);
+        self::assertSame(0, $this->sh(7, 'true', 10, self::limits(concurrent: 1))->exitCode);
+    }
+
+    /** Review I5: a single file cannot grow past the disk limit during a command. */
+    public function testFileSizeIsLimitedDuringCommand(): void {
+        $result = $this->sh(7, 'head -c 3000 /dev/zero > big; stat -c %s big', 10, self::limits(disk: 1024));
+
+        self::assertSame('1024', trim($result->stdout));
+    }
+
+    /** Review I1 and M1: a new participant's first operations may run in parallel. */
+    public function testParallelFirstUseCreatesTheUserOnce(): void {
+        $futures = [];
+        for ($i = 0; $i < 4; $i++) {
+            $futures[] = async(fn() => $this->sh(11, 'id -u'));
+        }
+        foreach ($futures as $future) {
+            $result = $future->await();
+            self::assertInstanceOf(CommandResult::class, $result);
+            self::assertSame("20011\n", $result->stdout);
+        }
+    }
+
     public function testOverQuotaAfterCommandIsReported(): void {
         $result = $this->sh(7, 'head -c 3000 /dev/zero > big', 10, self::limits(disk: 1024));
 

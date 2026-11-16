@@ -38,7 +38,8 @@ final class SandboxSettings {
             Env::raw($env, 'SANDBOX_TOKEN'),
             new SandboxLimits(
                 diskBytes: Env::bytes($env, 'SANDBOX_WORKSPACE_LIMIT', 5 * 1024 ** 3),
-                processes: Env::positiveInt($env, 'SANDBOX_PIDS', 512, 100_000),
+                // Well below the container's pids limit, so one participant cannot take every process slot.
+                processes: Env::positiveInt($env, 'SANDBOX_COMMAND_PROCESSES', 128, 100_000),
                 cpuSeconds: Env::positiveInt($env, 'SANDBOX_COMMAND_CPU_SECONDS', 600, 86_400),
                 memoryBytes: Env::bytes($env, 'SANDBOX_COMMAND_MEMORY', 8 * 1024 ** 3),
                 concurrentCommands: Env::positiveInt($env, 'SANDBOX_CONCURRENT_COMMANDS', 4, 64),

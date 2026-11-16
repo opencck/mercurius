@@ -100,7 +100,7 @@ final class HttpSandboxClient implements Sandbox {
             'memory_bytes' => $limits->memoryBytes,
             'concurrent_commands' => $limits->concurrentCommands,
         ]] + $fields;
-        $request = new Request($this->url . '/v1/' . $operation, 'POST', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        $request = new Request($this->url . '/v1/' . $operation, 'POST', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
         $request->setHeader('authorization', 'Bearer ' . $this->token);
         $request->setHeader('content-type', 'application/json');
         $request->setTransferTimeout($timeoutSeconds);
