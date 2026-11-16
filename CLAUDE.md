@@ -197,7 +197,7 @@
 1. Закоммитить и отправить изменения (`composer check` зелёный, CI прошёл).
 2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger` (референсы на сервере не нужны).
 3. Новые переменные окружения — дописать в серверный `.env` через `sftp-upload` (права `600`), не печатая значения.
-4. `docker compose up -d --build`; проверить `docker compose ps` (оба сервиса `healthy`) и журнал `docker compose logs --tail=50 app`.
+4. `docker compose up -d --build` (на сервере с таймаутом ssh-mcp в 60 с — в фоне через `nohup`, затем ждать `EXIT=` в журнале); проверить `docker compose ps` (`app`, `postgres`, `sandbox` — `healthy`) и журнал `docker compose logs --tail=50 app` (строка `Migrations checked` с применёнными миграциями).
 5. Интеграционные тесты: `docker compose --profile test run --rm --build test`.
 6. Убрать старые образы проекта: `docker image prune -f --filter label=com.docker.compose.project=mercurius` — не трогая чужие.
 
@@ -208,7 +208,7 @@
 
 | Файл | В git | Содержимое |
 |------|-------|------------|
-| `.env` | нет | `COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `OPENROUTER_API_KEY`, `VLESS_URI` (задан — запросы к OpenRouter идут через VLESS; пуст — напрямую), `APP_URL` (публичный адрес; задан — Telegram через webhook, пуст — long polling), `TELEGRAM_WEBHOOK_SECRET` |
+| `.env` | нет | Секреты: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `OPENROUTER_API_KEY`, `VLESS_URI` (задан — запросы к OpenRouter идут через VLESS; пуст — напрямую), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN` (пуст — песочница выключена), `METRICS_TOKEN` (пуст — `/metrics` выключен). Прочее: `COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`, `TELEGRAM_ADMIN_ID`, `APP_URL` (задан — Telegram через webhook, пуст — long polling), лимиты агента и песочницы, окно и модели (`LLM_*`), срок хранения трасс. Полный список с пояснениями — `.env.example` |
 | `.env.example` | да | Те же переменные без значений. Добавил переменную в `.env` — добавь и сюда |
 | `.mcp.json` | нет | Настройка MCP `ssh-mcp` с адресом и паролем |
 | `.mcp.json.example` | да | Образец без адреса и пароля; заодно показывает, как подключить MCP OpenRouter |

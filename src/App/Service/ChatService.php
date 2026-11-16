@@ -26,7 +26,9 @@ final class ChatService implements MessageHandler {
     public const REFUSAL = 'Это персональный агент. Доступа у вас нет.';
     public const NOT_TEXT = 'Пока я понимаю только текстовые сообщения.';
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
-    public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.";
+    public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
+
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
