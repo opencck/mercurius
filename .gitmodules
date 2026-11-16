@@ -1,0 +1,4 @@
+[submodule "references/claude-cookbooks"]
+	path = references/claude-cookbooks
+	url = https://github.com/anthropics/claude-cookbooks.git
+	shallow = true
