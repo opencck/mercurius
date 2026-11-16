@@ -30,6 +30,7 @@ final class ChatService implements MessageHandler {
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
+    private const REPORT_LIMIT = 3500;
 
     public function __construct(
         private readonly AccessService $access,
@@ -37,6 +38,7 @@ final class ChatService implements MessageHandler {
         private readonly RunScheduler $scheduler,
         private readonly Channel $channel,
         private readonly ?ApprovalService $approvals = null,
+        private readonly ?TraceReports $reports = null,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
@@ -77,6 +79,10 @@ final class ChatService implements MessageHandler {
             }
             return;
         }
+        if (in_array($command, ['/usage', '/runs', '/trace'], true) && $this->reports !== null) {
+            $this->report($principal->isOwner(), $command, trim(substr($text, strlen($command))), $message);
+            return;
+        }
         if ($command === '/new') {
             $this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId));
             $this->conversations->close($message->channel, $message->chatId);
@@ -86,6 +92,24 @@ final class ChatService implements MessageHandler {
 
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId);
         $this->scheduler->submit($principal, $message, $conversationId);
+    }
+
+    /** spec: BRIEF.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */
+    private function report(bool $owner, string $command, string $argument, IncomingMessage $message): void {
+        if (!$owner || $this->reports === null) {
+            $this->reply($message, self::OWNER_ONLY);
+            return;
+        }
+        $text = match ($command) {
+            '/usage' => $this->reports->usage(ctype_digit($argument) ? (int) $argument : 7),
+            '/runs' => $this->reports->runs(),
+            default => ctype_digit($argument) ? $this->reports->trace((int) $argument) : null,
+        } ?? TraceReports::NO_RUN;
+        if (mb_strlen($text) > self::REPORT_LIMIT) {
+            $this->channel->sendFile($message->chatId, sprintf('%s-%s.txt', ltrim($command, '/'), $argument === '' ? 'report' : $argument), $text, 'Отчёт целиком');
+            return;
+        }
+        $this->reply($message, $text);
     }
 
     private function reply(IncomingMessage $message, string $text): void {

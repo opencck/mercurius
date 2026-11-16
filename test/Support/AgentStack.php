@@ -17,6 +17,7 @@ use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Domain\Agent\RunLimits;
 
@@ -45,6 +46,7 @@ final class AgentStack {
         float $debounce = 0.0,
         int $maxMessageLength = 4096,
         ?ModelRouter $router = null,
+        ?TraceReports $reports = null,
     ) {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
@@ -73,7 +75,7 @@ final class AgentStack {
         $this->approvalService->onDecision($this->scheduler->resumeRun(...));
         $this->visitors = new VisitorService($this->principals, $this->channel, '42');
         $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'pv' => $this->visitors]);
-        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService);
+        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, reports: $reports);
     }
 
     /** A press on a button, as the channel delivers it. */

@@ -1,0 +1,112 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Service;
+
+use Amp\PHPUnit\AsyncTestCase;
+use DateTimeImmutable;
+use OpenCCK\App\Service\ChatService;
+use OpenCCK\App\Service\TraceReports;
+use OpenCCK\Domain\Agent\TraceSpan;
+use OpenCCK\Test\Support\AgentStack;
+use OpenCCK\Test\Support\FakeTraceReports;
+use OpenCCK\Test\Support\InMemoryTraceRepository;
+
+/**
+ * Spend and run reports for the owner: /usage, /runs, /trace.
+ */
+final class TraceReportsTest extends AsyncTestCase {
+    private FakeTraceReports $figures;
+    private InMemoryTraceRepository $traces;
+    private AgentStack $stack;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->figures = new FakeTraceReports(
+            models: [
+                ['model' => 'openrouter:anthropic/claude-opus-5', 'calls' => 3, 'input' => 9000, 'output' => 2100, 'cost' => 0.0975],
+                ['model' => 'openrouter:z-ai/glm-5.3-flash', 'calls' => 40, 'input' => 120000, 'output' => 8000, 'cost' => 0.0221],
+            ],
+            days: [['day' => '2026-11-16', 'calls' => 43, 'cost' => 0.1196]],
+            costliest: [['id' => 42, 'cost' => 0.0305, 'tokens' => 3391]],
+            runs: [['id' => 42, 'status' => 'done', 'reason' => 'answered', 'model' => 'openrouter:anthropic/claude-opus-5', 'turns' => 1, 'tokens' => 3391, 'active_ms' => 21000, 'cost' => 0.0305, 'started' => '2026-11-16 19:04']],
+        );
+        $this->traces = new InMemoryTraceRepository();
+        $this->stack = new AgentStack(reports: new TraceReports($this->figures, $this->traces));
+        $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
+    }
+
+    private function lastText(): string {
+        $texts = $this->stack->channel->texts('send');
+        self::assertNotSame([], $texts);
+        return (string) end($texts);
+    }
+
+    public function testUsageShowsModelsDaysAndTotals(): void {
+        $this->stack->say('/usage 3');
+
+        $text = $this->lastText();
+        self::assertStringContainsString('за 3 дн.', $text);
+        self::assertStringContainsString('openrouter:anthropic/claude-opus-5', $text);
+        self::assertStringContainsString('$0.0975', $text);
+        self::assertStringContainsString('2026-11-16', $text);
+        self::assertStringContainsString('Итого: $0.1196', $text);
+        self::assertStringContainsString('#42', $text);
+        self::assertEqualsWithDelta((new DateTimeImmutable('-3 days'))->getTimestamp(), $this->figures->since?->getTimestamp(), 5);
+        self::assertSame([], $this->stack->llm->requests);
+    }
+
+    public function testRunsListsTheLatest(): void {
+        $this->stack->say('/runs');
+
+        $text = $this->lastText();
+        self::assertStringContainsString('#42', $text);
+        self::assertStringContainsString('21 с', $text);
+        self::assertStringContainsString('$0.0305', $text);
+    }
+
+    public function testTraceShowsTheChainOfSteps(): void {
+        $run = $this->traces->openRun(42, 'openrouter:x/model');
+        $this->traces->record(new TraceSpan(42, $run, TraceSpan::MODEL, 'openrouter:x/model', new DateTimeImmutable(), 1200, TraceSpan::OK, 1000, 100, 200, costUsd: 0.002, costStatus: TraceSpan::COST_ACTUAL));
+        $this->traces->record(new TraceSpan(42, $run, TraceSpan::TOOL, 'run_command', new DateTimeImmutable(), 300, TraceSpan::ERROR, error: 'exit 1'));
+        $this->traces->closeRun(42, TraceSpan::OK, 1600, null);
+
+        $this->stack->say('/trace 42');
+
+        $text = $this->lastText();
+        self::assertStringContainsString('Запуск #42', $text);
+        self::assertStringContainsString('model openrouter:x/model', $text);
+        self::assertStringContainsString('1.2 с', $text);
+        self::assertStringContainsString('вход 1000 (кеш 200), выход 100', $text);
+        self::assertStringContainsString('tool run_command', $text);
+        self::assertStringContainsString('exit 1', $text);
+    }
+
+    public function testUnknownTraceSaysSo(): void {
+        $this->stack->say('/trace 999');
+
+        self::assertSame(TraceReports::NO_RUN, $this->lastText());
+    }
+
+    public function testLongTraceGoesAsAFile(): void {
+        $run = $this->traces->openRun(42, 'openrouter:x/model');
+        for ($i = 0; $i < 150; $i++) {
+            $this->traces->record(new TraceSpan(42, $run, TraceSpan::TOOL, 'read_file', new DateTimeImmutable(), 10, TraceSpan::OK));
+        }
+
+        $this->stack->say('/trace 42');
+
+        self::assertCount(1, $this->stack->channel->files);
+        self::assertStringContainsString('read_file', $this->stack->channel->files[0][2]);
+    }
+
+    public function testReportsAreForTheOwnerOnly(): void {
+        $this->stack->say('привет', '99');
+        $this->stack->press('pv:2:u');
+        foreach (['/usage', '/runs', '/trace 42'] as $command) {
+            $this->stack->say($command, '99');
+            self::assertSame(ChatService::OWNER_ONLY, $this->lastText(), $command);
+        }
+    }
+}

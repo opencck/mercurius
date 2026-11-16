@@ -37,6 +37,7 @@ use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Infrastructure\API\App;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
@@ -68,6 +69,7 @@ use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
+use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
@@ -211,6 +213,7 @@ $chat = new ChatService(
     $scheduler,
     $channel,
     $approvals,
+    new TraceReports(new PostgresTraceReportRepository($db), $traces),
     $logger,
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors]);
