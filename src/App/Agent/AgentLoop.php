@@ -6,6 +6,8 @@ namespace OpenCCK\App\Agent;
 
 use Amp\Cancellation;
 use Amp\CancelledException;
+use Amp\CompositeCancellation;
+use Amp\TimeoutCancellation;
 use Closure;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\ChatResponse;
@@ -68,6 +70,8 @@ use function Amp\Future\await;
  */
 final class AgentLoop {
     /** Output cap of the closing summary after a limit. */
+    /** Seconds for the summary call after a limit: past the deadline it still gets its own short time. */
+    private const SUMMARY_SECONDS = 60.0;
     private const SUMMARY_TOKENS = 1000;
     /** Saved as the answer of a stopped run: the model sees the task as closed, not as waiting. */
     public const STOPPED_NOTE = 'Задача остановлена владельцем по команде /stop. Не продолжай её, пока владелец не попросит снова.';
@@ -158,8 +162,13 @@ final class AgentLoop {
                 return StopReason::TokenBudget;
             }
 
-            $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens), $reserved);
+            $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
+            $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens), $reserved, max(1.0, $left));
             if ($response === null) {
+                if ($this->elapsedMs($state) >= $state->run->limits->runTimeout * 1000) {
+                    // The deadline cut the call off: a limit, with a summary, not a failure of the model.
+                    return StopReason::Deadline;
+                }
                 // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
                 if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
                     $state->overflowRetried = true;
@@ -294,12 +303,17 @@ final class AgentLoop {
         return new ChatRequest($state->run->model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort);
     }
 
-    /** Streams one model call; null when the model failed. Spend is settled and recorded either way. */
-    private function callModel(RunState $state, ChatRequest $request, int $reserved): ?ChatResponse {
+    /**
+     * Streams one model call; null when the model failed or ran out of its seconds. Spend is settled and recorded
+     * either way. The seconds bound the call itself: a provider that keeps the connection alive with keep-alive
+     * comments but never answers would otherwise hold the run until the HTTP transfer timeout.
+     */
+    private function callModel(RunState $state, ChatRequest $request, int $reserved, float $seconds): ?ChatResponse {
         $started = ($this->clock)();
+        $cancellation = new CompositeCancellation($state->cancellation, new TimeoutCancellation($seconds));
         try {
             $response = null;
-            foreach ($this->llm->stream($request, $state->cancellation) as $event) {
+            foreach ($this->llm->stream($request, $cancellation) as $event) {
                 if ($event instanceof TextDelta) {
                     $state->observer->textDelta($state->run, $event->text);
                 } elseif ($event instanceof StreamEnd) {
@@ -310,9 +324,17 @@ final class AgentLoop {
                 throw new LlmException(ErrorKind::Network, 'Stream ended without a final event');
             }
         } catch (CancelledException $e) {
-            $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
-            $this->events->modelCalled($state->run->id, 'agent', $request, null, 'cancelled', ($this->clock)() - $started);
-            throw $e;
+            if ($state->cancellation->isRequested()) {
+                $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
+                $this->events->modelCalled($state->run->id, 'agent', $request, null, 'cancelled', ($this->clock)() - $started);
+                throw $e;
+            }
+            $this->events->modelCalled($state->run->id, 'agent', $request, null, ErrorKind::Timeout->value, ($this->clock)() - $started);
+            $state->lastError = ErrorKind::Timeout;
+            $this->logger->warning('Model call ran out of time', ['run' => $state->run->id, 'seconds' => round($seconds, 1)]);
+            $this->settle($state, $reserved, new Usage());
+            $this->record($state, $request->model, null, ErrorKind::Timeout->value, $started, new Usage());
+            return null;
         } catch (LlmException $e) {
             $this->events->modelCalled($state->run->id, 'agent', $request, null, $e->kind->value, ($this->clock)() - $started);
             $state->lastError = $e->kind;
@@ -540,6 +562,7 @@ final class AgentLoop {
                 $state,
                 $this->request($state, [], min(self::SUMMARY_TOKENS, $this->maxTokens), sprintf('Лимит исчерпан (%s). Кратко подведи итог: что сделано, что осталось.', $reason->label())),
                 0,
+                self::SUMMARY_SECONDS,
             );
             $text = $summary === null || trim($summary->text) === '' ? 'Итог подвести не удалось.' : $summary->text;
             if ($summary !== null) {

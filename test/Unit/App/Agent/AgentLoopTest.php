@@ -176,6 +176,20 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringContainsString('Остановлено: исчерпан лимит ходов. Ходов: 3', (string) $this->observer->final);
     }
 
+    public function testHungModelCallEndsAtTheDeadline(): void {
+        // A provider that keeps the connection alive but never answers must not hold the run past its deadline.
+        $llm = new ScriptedLlm([ScriptedLlm::text('слишком поздно'), ScriptedLlm::text('итог')]);
+        $llm->delay = 3.0;
+        $started = microtime(true);
+
+        $run = $this->execute($llm, $this->start(limits: new RunLimits(30, 100_000, 1, 120)));
+
+        self::assertSame(StopReason::Deadline, $run->stopReason);
+        self::assertLessThan(5.0, microtime(true) - $started, 'the first call is cut at 1 s, the summary takes 3 s');
+        self::assertCount(2, $llm->requests);
+        self::assertSame([], $llm->requests[1]->tools);
+    }
+
     public function testTokenBudgetStopsBeforeModelCall(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('итог')]);
 
