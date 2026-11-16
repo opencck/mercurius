@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `83c021f` | 2026-11-16 | Единый интерфейс вызова LLM, адаптер OpenRouter |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `96f5145` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `6744d13` | 2026-11-16 | Канал связи и адаптер Telegram |
 
@@ -25,6 +25,14 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-16 — llm: клиент и каталог OpenAI
+
+- `mercurius-llm` `96f5145`: `OpenAI\OpenAIClient` на общем с OpenRouter коде протокола Chat Completions
+  (`max_completion_tokens`, `reasoning_effort` строкой, без `temperature` при усилии рассуждения),
+  `ModelCatalog\OpenAICatalog` — модели ключа, описанные открытым каталогом OpenRouter.
+- Для Меркурия: второй провайдер моделей, любой из двух ключей достаточен
+  ([BRIEF](../BRIEF.md#провайдеры-моделей-openrouter-и-openai)).
 
 ### 2026-11-16 — llm: индексы моделей в каталоге
 
