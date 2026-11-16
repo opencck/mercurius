@@ -238,6 +238,35 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame(AgentLoop::EMPTY_NOTE, $last->content);
     }
 
+    public function testCutAnswerWithoutTextIsAnEmptyOneNotAContinuation(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::cut(''), ScriptedLlm::text('Ответ.')]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertCount(2, $llm->requests);
+        $messages = $llm->requests[1]->messages;
+        $last = end($messages);
+        self::assertNotFalse($last);
+        self::assertSame(AgentLoop::EMPTY_NOTE, $last->content);
+    }
+
+    public function testToolStepClearsAFragmentInProgress(): void {
+        $this->registry->register(new FakeTool('t'));
+        $llm = new ScriptedLlm([
+            ScriptedLlm::cut('Начал, '),
+            ScriptedLlm::calls(new ToolCall('c1', 't', '{"q":"1"}')),
+            ScriptedLlm::text('Готово.'),
+        ]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertSame('Готово.', $this->observer->final, 'no stale fragment glued to the answer');
+        $messages = $llm->requests[2]->messages;
+        $last = end($messages);
+        self::assertNotFalse($last);
+        self::assertNotSame(AgentLoop::CONTINUE_NOTE, $last->content);
+    }
+
     public function testEmptyAnswersGiveUpAfterThreeRetries(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text('лишний')]);
 
@@ -248,13 +277,23 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testBrokenStreamIsRetriedOnce(): void {
-        $down = new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'reset');
-        $llm = new ScriptedLlm([$down, ScriptedLlm::text('Ответ.')]);
+        $broken = ScriptedLlm::broken('Отв', new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'reset'));
+        $llm = new ScriptedLlm([$broken, ScriptedLlm::text('Ответ.')]);
 
         $run = $this->execute($llm, $this->start());
 
         self::assertSame(StopReason::Answered, $run->stopReason);
         self::assertSame('Ответ.', $this->observer->final);
+    }
+
+    public function testFailureBeforeTheFirstEventIsNotRetriedAgain(): void {
+        // The client retries before the first event itself; the loop does not add another round.
+        $llm = new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'down'), ScriptedLlm::text('лишний')]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::ModelFailed, $run->stopReason);
+        self::assertCount(1, $llm->requests);
     }
 
     public function testFailedModelIsSwitchedOnceToTheMainRole(): void {
@@ -263,7 +302,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $roles->seed();
         $down = new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Server, 'down');
         $main = (string) $roles->model(\OpenCCK\Domain\Agent\ModelRole::MAIN);
-        $llm = new ScriptedLlm([$down, $down]);
+        $llm = new ScriptedLlm([$down]);
         $llm->byModel[$main] = [ScriptedLlm::text('Ответ основной модели.')];
         $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10,
             fallback: new \OpenCCK\App\Agent\Model\FallbackModels($roles, $stores, $stores, new \Psr\Log\NullLogger()));
@@ -272,7 +311,7 @@ final class AgentLoopTest extends AsyncTestCase {
 
         self::assertSame(StopReason::Answered, $run->stopReason);
         self::assertSame('Ответ основной модели.', $this->observer->final);
-        self::assertSame($main, $llm->requests[2]->model);
+        self::assertSame($main, $llm->requests[1]->model);
         self::assertSame('failure', $stores->decisions[0]->method);
     }
 

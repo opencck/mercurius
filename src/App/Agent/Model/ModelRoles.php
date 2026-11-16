@@ -38,7 +38,7 @@ final class ModelRoles {
     public const SEED_OPENAI = [
         ModelRole::CHEAP => 'openai:gpt-6-luna',
         ModelRole::MAIN => 'openai:gpt-6.1-terra',
-        ModelRole::STRONG => 'openai:gpt-6.1-sol',
+        ModelRole::STRONG => 'openai:gpt-6-sol',
         ModelRole::MEDIA => 'openai:gpt-6-luna',
     ];
 

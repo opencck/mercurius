@@ -42,10 +42,13 @@ final class PostgresModelReliabilityRepository implements ModelReliabilityReposi
     public function latency(DateTimeImmutable $since): array {
         $stats = [];
         foreach ($this->db->execute(
+            // A timed-out call counts with its whole wait: a model that hangs must not look fast.
             "SELECT model, count(*)::int AS calls,
                     percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms)::int AS p50,
                     percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)::int AS p95
-             FROM llm_calls WHERE created_at >= to_timestamp(?) AND error_kind IS NULL GROUP BY model",
+             FROM llm_calls
+             WHERE created_at >= to_timestamp(?) AND purpose = 'agent' AND (error_kind IS NULL OR error_kind = 'timeout')
+             GROUP BY model",
             [$since->getTimestamp()],
         ) as $row) {
             $model = $row['model'] ?? null;

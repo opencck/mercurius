@@ -60,7 +60,7 @@ final class ModelRolesTest extends AsyncTestCase {
 
         self::assertSame('openai:gpt-6-luna', (string) $roles->model(ModelRole::CHEAP));
         self::assertSame('openai:gpt-6.1-terra', (string) $roles->model(ModelRole::MAIN));
-        self::assertSame('openai:gpt-6.1-sol', (string) $roles->model(ModelRole::STRONG));
+        self::assertSame('openai:gpt-6-sol', (string) $roles->model(ModelRole::STRONG), 'gpt-6.1-sol always reasons: no tools in Chat Completions');
     }
 
     public function testRoleOfAProviderWithoutAKeyFallsBack(): void {

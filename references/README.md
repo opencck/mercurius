@@ -33,7 +33,7 @@
 
 | Пакет | Путь | Коммит |
 |-------|------|--------|
-| [opencck/mercurius-llm](https://github.com/opencck/mercurius-llm) | [packages/llm/](../packages/llm/) | `d8d6d67` |
+| [opencck/mercurius-llm](https://github.com/opencck/mercurius-llm) | [packages/llm/](../packages/llm/) | `0907de0` |
 | [opencck/mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [packages/connectors/](../packages/connectors/) | `6920581` |
 | [opencck/mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [packages/messenger/](../packages/messenger/) | `cbb9e93` |
 

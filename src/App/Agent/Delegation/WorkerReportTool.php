@@ -57,7 +57,9 @@ final class WorkerReportTool implements Tool {
         $run = $this->runs->find($id);
         $parentId = $run?->parentRunId;
         $parent = $parentId === null ? null : $this->runs->find($parentId);
-        if ($run === null || $parent === null || ($parent->id !== $context->runId && $parent->conversationId !== $context->conversationId)) {
+        // In a group one conversation serves several participants: the run must also be theirs (or the owner asks).
+        $theirs = $parent !== null && ($parent->principalId === $context->principal->id || $context->principal->isOwner());
+        if ($run === null || $parent === null || !$theirs || ($parent->id !== $context->runId && $parent->conversationId !== $context->conversationId)) {
             return ToolResult::error('Такого запуска воркера у этой задачи нет.');
         }
         $messages = $this->transcript->runMessages($run->id);

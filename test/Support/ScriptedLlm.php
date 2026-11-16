@@ -31,14 +31,14 @@ final class ScriptedLlm implements LlmClient {
      * Answers for a given model, taken before the common script: workers and the orchestrator run side by side, so
      * the order of their calls is not fixed.
      *
-     * @var array<string, list<ChatResponse|LlmException>>
+     * @var array<string, list<ChatResponse|LlmException|BrokenStream>>
      */
     public array $byModel = [];
 
-    /** @param list<ChatResponse|LlmException> $script */
+    /** @param list<ChatResponse|LlmException|BrokenStream> $script */
     public function __construct(private array $script = []) {}
 
-    private function next(ChatRequest $request): ChatResponse|LlmException {
+    private function next(ChatRequest $request): ChatResponse|LlmException|BrokenStream {
         if (isset($this->byModel[$request->model]) && $this->byModel[$request->model] !== []) {
             return array_shift($this->byModel[$request->model]);
         }
@@ -47,6 +47,11 @@ final class ScriptedLlm implements LlmClient {
 
     public static function text(string $text, int $input = 100, int $output = 10): ChatResponse {
         return new ChatResponse($text, [], FinishReason::Stop, new Usage($input, $output), 'test/model', 'gen');
+    }
+
+    /** A stream that sends some text and then breaks with the error. */
+    public static function broken(string $text, LlmException $error): BrokenStream {
+        return new BrokenStream($text, $error);
     }
 
     /** An answer cut off by the output limit. */
@@ -68,6 +73,9 @@ final class ScriptedLlm implements LlmClient {
             delay($this->delay, cancellation: $cancellation);
         }
         $next = $this->next($request);
+        if ($next instanceof BrokenStream) {
+            throw $next->error;
+        }
         if ($next instanceof LlmException) {
             throw $next;
         }
@@ -80,6 +88,10 @@ final class ScriptedLlm implements LlmClient {
             delay($this->delay, cancellation: $cancellation);
         }
         $next = $this->next($request);
+        if ($next instanceof BrokenStream) {
+            yield new TextDelta($next->text);
+            throw $next->error;
+        }
         if ($next instanceof LlmException) {
             throw $next;
         }

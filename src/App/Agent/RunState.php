@@ -33,6 +33,8 @@ final class RunState {
     public int $emptyRetries = 0;
     /** A call that broke mid-stream was repeated once. */
     public bool $streamRetried = false;
+    /** The last call delivered at least one stream event before it failed. */
+    public bool $streamBegan = false;
     /** The answer as delivered, when it was stitched from parts. */
     public ?string $finalText = null;
     /** The model after a switch on failure; null — the run's own. */

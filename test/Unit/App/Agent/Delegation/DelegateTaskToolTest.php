@@ -165,7 +165,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     public function testFailedWorkerIsAValueNotAnError(): void {
         $down = new LlmException(ErrorKind::Server, 'down');
         // On the strong role there is nothing stronger to retry on: one failure is the whole story.
-        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'strong']]), $down, $down, ScriptedLlm::text('итог без воркера')]);
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'strong']]), $down, ScriptedLlm::text('итог без воркера')]);
         $stack = $this->stack($llm);
 
         $stack->say('задача');
@@ -240,7 +240,6 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'раз', 'role' => 'cheap']]),
             new LlmException(ErrorKind::Server, 'down'),
-            new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('со второй попытки'),
             ScriptedLlm::text('итог'),
         ]);
@@ -249,7 +248,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->say('задача');
         $stack->scheduler->awaitIdle();
 
-        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $llm->requests[3]->model);
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $llm->requests[2]->model);
         $report = self::report($llm);
         self::assertStringContainsString('каскад', $report);
         self::assertStringContainsString('со второй попытки', $report);
@@ -294,7 +293,6 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
             new LlmException(ErrorKind::Server, 'down'),
-            new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('ответ со второй попытки'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
             ScriptedLlm::text('итог'),
@@ -305,8 +303,8 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         $strong = (string) $this->roles->model(ModelRole::STRONG);
-        self::assertSame($strong, $llm->requests[3]->model, 'the retry');
-        self::assertSame($strong, $llm->requests[4]->model, 'no model stronger than strong');
+        self::assertSame($strong, $llm->requests[2]->model, 'the retry');
+        self::assertSame($strong, $llm->requests[3]->model, 'no model stronger than strong');
         self::assertStringContainsString('та же модель, другой нет', self::report($llm));
     }
 
@@ -330,7 +328,6 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             self::delegate([['goal' => 'раз', 'role' => 'strong', 'profile' => ['error_cost' => 9]], ['goal' => 'два', 'role' => 'strong']]),
             ScriptedLlm::text('ответ раз'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
-            new LlmException(ErrorKind::Server, 'down'),
             new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('итог'),
         ]);
@@ -432,6 +429,27 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             }
         }
         return null;
+    }
+
+    public function testGuestInTheSameGroupCannotReadTheOwnersWorker(): void {
+        $stack = $this->stack(new ScriptedLlm());
+        $limits = new RunLimits(30, 1000, 900, 120);
+        // The owner's run and its worker in one group conversation.
+        $parent = $stack->runs->start(1, 1, 'm', $limits);
+        self::assertNotNull($parent);
+        $worker = $stack->runs->start(2, 1, 'm', $limits, $parent->id);
+        self::assertNotNull($worker);
+        $stack->transcript->appendAssistant(2, $worker->id, 'данные владельца', []);
+        $tool = new \OpenCCK\App\Agent\Delegation\WorkerReportTool($stack->runs, $stack->transcript);
+        $guest = new \OpenCCK\Domain\Entity\Principal(7, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::User, 'Гость');
+        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Владелец');
+
+        $byGuest = $tool->execute(['run' => $worker->id], new \OpenCCK\App\Agent\Tool\ToolContext(99, 1, $guest, new \Amp\NullCancellation()));
+        $byOwner = $tool->execute(['run' => $worker->id], new \OpenCCK\App\Agent\Tool\ToolContext(99, 1, $owner, new \Amp\NullCancellation()));
+
+        self::assertTrue($byGuest->isError);
+        self::assertFalse($byOwner->isError);
+        self::assertSame('данные владельца', $byOwner->content);
     }
 
     public function testLongSummaryIsCut(): void {

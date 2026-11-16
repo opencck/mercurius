@@ -15,6 +15,8 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\StopReason;
 
 
+use Revolt\EventLoop;
+
 use function Amp\delay;
 /**
  * Shows a run in the chat with one status message: a placeholder, then the current step, then the streamed answer;
@@ -46,7 +48,7 @@ final class ChannelRunObserver implements RunObserver {
         /** a run longer than this gets its answer as a new message: an edit does not notify */
         private readonly float $freshAfter = 60.0,
         /** the longest flood wait the final message sits out before going another way */
-        private readonly float $maxFloodWait = 30.0,
+        private readonly float $maxFloodWait = 120.0,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -89,16 +91,15 @@ final class ChannelRunObserver implements RunObserver {
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)
         //      — the answer of a long run goes as a new message, so the owner is notified
         $fresh = $messageId !== null && ($this->clock)() - $this->startedAt >= $this->freshAfter;
-        if ($messageId !== null && !$fresh) {
-            $delivered = $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
-        } else {
-            if ($messageId !== null) {
-                $this->channel->edit($this->chatId, $messageId, self::ANSWER_BELOW, ParseMode::Plain);
-            }
-            $delivered = false;
-        }
+        $delivered = $messageId !== null && !$fresh
+            && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
         if (!$delivered) {
-            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode)));
+            $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode)));
+            // The preview points below only once something is below.
+            $preview = $fresh ? $messageId : null;
+            if ($sent && $preview !== null) {
+                $this->channel->edit($this->chatId, $preview, self::ANSWER_BELOW, ParseMode::Plain);
+            }
         }
         foreach ($parts as $part) {
             $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: $mode)));
@@ -118,9 +119,17 @@ final class ChannelRunObserver implements RunObserver {
         if ($result->success) {
             return true;
         }
-        if ($result->errorKind === SendErrorKind::RateLimited && $result->retryAfter !== null && $result->retryAfter <= $this->maxFloodWait) {
-            delay((float) $result->retryAfter);
-            return $attempt()->success;
+        if ($result->errorKind === SendErrorKind::RateLimited && $result->retryAfter !== null) {
+            if ($result->retryAfter <= $this->maxFloodWait) {
+                delay((float) $result->retryAfter);
+                return $attempt()->success;
+            }
+            // A long flood: the answer still goes, once the chat may be written to again.
+            // Unreferenced: a pending answer does not keep a stopping process alive.
+            EventLoop::unreference(EventLoop::delay((float) $result->retryAfter + 1.0, static function () use ($attempt): void {
+                $attempt();
+            }));
+            return true;
         }
         return false;
     }

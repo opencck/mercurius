@@ -42,6 +42,8 @@ use Revolt\EventLoop;
 final class ApprovalService implements ApprovalGate, CallbackHandler {
     /** Longer actions go to the owner as a file next to the card: you cannot approve what you cannot see. */
     private const CARD_LIMIT = 3000;
+    /** Seconds of flood the card waits out before the action is refused. */
+    private const FLOOD_WAIT = 30;
 
     /** @var (Closure(int): void)|null resumes a run after its approval is decided */
     private ?Closure $resume = null;
@@ -97,7 +99,13 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             }
         }
         $row[] = new Button('Отказать', sprintf('ap:%d:d', $approval->id));
-        $sent = $this->channel->send(new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]));
+        $card = new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]);
+        $sent = $this->channel->send($card);
+        // The run streams into the same chat: a short flood is waited out before the action is refused.
+        if (!$sent->success && $sent->errorKind === \Mercurius\Messenger\SendErrorKind::RateLimited && $sent->retryAfter !== null && $sent->retryAfter <= self::FLOOD_WAIT) {
+            \Amp\delay((float) $sent->retryAfter);
+            $sent = $this->channel->send($card);
+        }
         if ($sent->success && $sent->messageId !== null) {
             $this->approvals->setCard($approval->id, $this->ownerChatId, $sent->messageId);
         } elseif (!$sent->success) {
@@ -106,6 +114,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $this->logger->warning('Approval card was not delivered; refused', ['approval' => $approval->id, 'run' => $run->id]);
             $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, 'Карточка подтверждения не дошла до владельца.', null);
             if ($decided !== null) {
+                $this->closeCard($decided, 'Карточка не дошла — отказ.');
                 // The run is still pausing in this fiber: it continues once the pause is saved.
                 EventLoop::defer(fn() => $this->continue($decided));
             }

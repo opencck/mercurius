@@ -50,15 +50,18 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         self::assertContains('Итог', $channel->texts('send'), 'the answer is not lost');
     }
 
-    public function testLongFloodIsNotWaitedOutButTheAnswerStillArrives(): void {
+    public function testLongFloodIsSatOutInTheBackground(): void {
         $channel = new FakeChannel();
-        $channel->editResults = [SendResult::failed(SendErrorKind::RateLimited, 'flood', 3600)];
-        $observer = $this->observer($channel);
+        // The flood is longer than the observer waits in line: the answer goes once it is over.
+        $channel->editResults = [SendResult::failed(SendErrorKind::RateLimited, 'flood', 1)];
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now, maxFloodWait: 0.5);
         $observer->start();
 
         $observer->finished(self::finishedRun(), 'Итог', StopReason::Answered);
+        self::assertNotContains('Итог', $channel->texts('edit'), 'not yet');
+        \Amp\delay(2.2);
 
-        self::assertContains('Итог', $channel->texts('send'));
+        self::assertContains('Итог', $channel->texts('edit'));
     }
 
     public function testAnswerOfALongRunComesAsANewMessage(): void {

@@ -164,18 +164,18 @@ final class AgentLoop {
             if ($reason !== null) {
                 return $reason;
             }
+            // Before compaction: its summary call costs money too.
+            $over = $this->spend?->exceeded();
+            if ($over !== null) {
+                $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
+                return StopReason::SpendCap;
+            }
             if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), cancellation: $state->cancellation) === true) {
                 $this->loadContext($state);
             }
             $reserved = $this->reserve($state);
             if ($reserved === null) {
                 return StopReason::TokenBudget;
-            }
-            $over = $this->spend?->exceeded();
-            if ($over !== null) {
-                $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
-                $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
-                return StopReason::SpendCap;
             }
 
             $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
@@ -187,7 +187,8 @@ final class AgentLoop {
                 }
                 // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L345 — a stream that broke after
                 //      it began is a stub, not a verdict: nothing was saved yet, so the call is made once more
-                if (in_array($state->lastError, [ErrorKind::Server, ErrorKind::Network, ErrorKind::Timeout], true) && !$state->streamRetried) {
+                // Before the first event the client already retried: only a break after it is repeated here.
+                if ($state->streamBegan && in_array($state->lastError, [ErrorKind::Server, ErrorKind::Network, ErrorKind::Timeout], true) && !$state->streamRetried) {
                     $state->streamRetried = true;
                     continue;
                 }
@@ -204,7 +205,6 @@ final class AgentLoop {
                     if ($next !== null) {
                         $state->switched = true;
                         $state->model = $next;
-                        $state->streamRetried = false;
                         continue;
                     }
                 }
@@ -215,7 +215,8 @@ final class AgentLoop {
             if (!$response->hasToolCalls()) {
                 // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L379 (_continue_text) — an answer
                 //      cut off by the output limit is continued and stitched, up to 4 times
-                if ($response->finishReason === FinishReason::Length && $state->continuations < self::MAX_CONTINUATIONS) {
+                // A cut answer with no text is an empty one: the output went to reasoning, a continuation would repeat it.
+                if ($response->finishReason === FinishReason::Length && trim($response->text) !== '' && $state->continuations < self::MAX_CONTINUATIONS) {
                     $state->continuations++;
                     $state->partial .= $response->text;
                     continue;
@@ -232,6 +233,13 @@ final class AgentLoop {
                 $this->saveAnswer($state, $text);
                 return StopReason::Answered;
             }
+            // A step with tools ends whatever answer was being continued or retried: the next answer starts clean.
+            if ($state->partial !== '' || $state->emptyRetries > 0) {
+                $this->logger->info('Model turned to tools mid-answer; the fragment is dropped', ['run' => $state->run->id]);
+            }
+            $state->partial = '';
+            $state->continuations = 0;
+            $state->emptyRetries = 0;
 
             $outcome = $this->validator->validate($response->toolCalls, $state->policy, $this->transcript->callIds($state->run->id));
             if ($outcome->truncated) {
@@ -305,7 +313,7 @@ final class AgentLoop {
      * @return int|null tokens reserved, null when the budget is exhausted
      */
     private function reserve(RunState $state): ?int {
-        $reserved = $this->estimate($state) + $this->maxTokens;
+        $reserved = $this->estimate($state) + intdiv(mb_strlen($state->partial), 4) + $this->maxTokens;
         return $this->runs->reserve($state->run->id, $reserved) ? $reserved : null;
     }
 
@@ -374,9 +382,11 @@ final class AgentLoop {
     private function callModel(RunState $state, ChatRequest $request, int $reserved, float $seconds): ?ChatResponse {
         $started = ($this->clock)();
         $cancellation = new CompositeCancellation($state->cancellation, new TimeoutCancellation($seconds));
+        $state->streamBegan = false;
         try {
             $response = null;
             foreach ($this->llm->stream($request, $cancellation) as $event) {
+                $state->streamBegan = true;
                 if ($event instanceof TextDelta) {
                     $state->observer->textDelta($state->run, $event->text);
                 } elseif ($event instanceof StreamEnd) {
@@ -624,7 +634,11 @@ final class AgentLoop {
      */
     private function finish(RunState $state, StopReason $reason): Run {
         $run = $state->run;
-        if ($reason === StopReason::Answered) {
+        if ($state->partial !== '' && $reason !== StopReason::Answered) {
+            // The fragment was already on the owner's screen: a stop keeps it instead of a bare report.
+            $this->saveAnswer($state, $state->partial);
+            $text = $state->partial . $this->report($state, $reason);
+        } elseif ($reason === StopReason::Answered) {
             $messages = $this->transcript->runMessages($run->id);
             $text = $state->finalText ?? ($messages === [] ? '' : $messages[array_key_last($messages)]->content);
             $text = trim($text) === '' ? 'Модель вернула пустой ответ.' : $text;

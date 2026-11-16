@@ -102,14 +102,14 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
 
     /** A run that failed for a reason other than a limit is closed in the history as well. */
     public function testFailedTaskIsClosedInHistory(): void {
-        $stack = new AgentStack(new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'down'), new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'down'), ScriptedLlm::text('ок')]));
+        $stack = new AgentStack(new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'down'), ScriptedLlm::text('ок')]));
 
         $stack->say('первая');
         $stack->scheduler->awaitIdle();
         $stack->say('вторая');
         $stack->scheduler->awaitIdle();
 
-        $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[2]->messages, 1));
+        $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
         self::assertSame('первая', $contents[0]);
         self::assertStringStartsWith('Не удалось завершить задачу.', $contents[1]);
         self::assertSame('вторая', $contents[2]);
