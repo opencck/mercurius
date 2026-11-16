@@ -344,7 +344,7 @@ final class AgentLoop {
         $state->observer->toolStarted($state->run, $call->call->name, mb_substr($call->call->argumentsJson, 0, 200));
         $remaining = max(1, (int) floor(($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000));
         $timeout = max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
-        $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation);
+        $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id);
         return $this->executor->run($call, $context, $timeout);
     }
 
