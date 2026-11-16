@@ -139,4 +139,18 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertSame(RunStatus::Stopped, $this->stack->runs->find(1)?->status);
         self::assertSame(ApprovalStatus::Denied, $this->stack->approvals->find(1)?->status);
     }
+
+    public function testWaitingRunIsLeftAloneOnRestartAndAPressContinuesIt(): void {
+        $this->waitingRun();
+
+        $this->stack->scheduler->resumeAll();
+        $this->stack->scheduler->awaitIdle();
+        self::assertSame(RunStatus::WaitingApproval, $this->stack->runs->find(1)?->status);
+        self::assertSame([], $this->stack->runs->unfinished());
+
+        $this->stack->press('ap:1:a');
+        $this->stack->scheduler->awaitIdle();
+        self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status);
+        self::assertSame(1, $this->push->runs);
+    }
 }
