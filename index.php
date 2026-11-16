@@ -16,6 +16,7 @@ use Mercurius\Messenger\Telegram\WebhookProcessor;
 use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
+use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\AddressGuard;
 use OpenCCK\App\Agent\Tool\HttpRequestTool;
@@ -122,12 +123,13 @@ $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
 $approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger);
+$llmCalls = new PostgresLlmCallRepository($db);
 $loop = new AgentLoop(
     $llm,
     $runs,
     $transcript,
     $conversations,
-    new PostgresLlmCallRepository($db),
+    $llmCalls,
     $tools,
     new ToolExecutor(logger: $logger, sandbox: $sandbox),
     $llmSettings->maxTokens,
@@ -136,6 +138,8 @@ $loop = new AgentLoop(
     $logger,
     approvals: $approvalStore,
     gate: $approvals,
+    // Context compaction: the window and the cheap model come from the settings until the model catalog.
+    compactor: new ContextCompactor($llm, $transcript, $conversations, $runs, $llmCalls, $llmSettings->contextWindow, $llmSettings->cheapModel, $logger),
 );
 $scheduler = new RunScheduler(
     $loop,

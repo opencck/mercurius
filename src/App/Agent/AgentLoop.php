@@ -17,6 +17,7 @@ use Mercurius\Llm\StreamEnd;
 use Mercurius\Llm\TextDelta;
 use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
+use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Tool\BatchPlanner;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\SecretMasker;
@@ -35,6 +36,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\StoredToolCall;
 use OpenCCK\Domain\Agent\ToolCallStatus;
+use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Entity\LlmCallRecord;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ApprovalRepository;
@@ -92,6 +94,7 @@ final class AgentLoop {
         ?Closure $clock = null,
         private readonly ?ApprovalRepository $approvals = null,
         private readonly ?ApprovalGate $gate = null,
+        private readonly ?ContextCompactor $compactor = null,
     ) {
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
@@ -108,9 +111,10 @@ final class AgentLoop {
             $observer,
             $cancellation,
             $meta->systemPrompt ?? SystemPrompt::text(),
-            $this->transcript->history($run->conversationId, $run->id, $this->historyLimit),
+            [],
             ($this->clock)(),
         );
+        $this->loadContext($state);
 
         try {
             // finish() is inside: /stop during the closing summary call must stop the run, not escape.
@@ -140,6 +144,9 @@ final class AgentLoop {
             if ($reason !== null) {
                 return $reason;
             }
+            if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state)) === true) {
+                $this->loadContext($state);
+            }
             $reserved = $this->reserve($state);
             if ($reserved === null) {
                 return StopReason::TokenBudget;
@@ -147,8 +154,16 @@ final class AgentLoop {
 
             $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens), $reserved);
             if ($response === null) {
+                // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
+                if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
+                    $state->overflowRetried = true;
+                    $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true);
+                    $this->loadContext($state);
+                    continue;
+                }
                 return StopReason::ModelFailed;
             }
+            $state->overflowRetried = false;
             if (!$response->hasToolCalls()) {
                 $this->saveAnswer($state, $response->text);
                 return StopReason::Answered;
@@ -226,14 +241,37 @@ final class AgentLoop {
      * @return int|null tokens reserved, null when the budget is exhausted
      */
     private function reserve(RunState $state): ?int {
+        $reserved = $this->estimate($state) + $this->maxTokens;
+        return $this->runs->reserve($state->run->id, $reserved) ? $reserved : null;
+    }
+
+    /**
+     * Input tokens of the next call: the prompt tokens of the last call plus what was added since, or, without that
+     * anchor (first call, after a compaction), characters of the whole request / 4.
+     */
+    private function estimate(RunState $state): int {
         $messages = $this->transcript->runMessages($state->run->id);
         if ($state->run->promptAnchor > 0) {
-            $input = $state->run->promptAnchor + intdiv(self::chars(array_slice($messages, $state->messagesAtCall)), 4);
-        } else {
-            $input = intdiv(mb_strlen($state->systemPrompt) + self::chars($state->history) + self::chars($messages), 4);
+            return $state->run->promptAnchor + intdiv(self::chars(array_slice($messages, $state->messagesAtCall)), 4);
         }
-        $reserved = $input + $this->maxTokens;
-        return $this->runs->reserve($state->run->id, $reserved) ? $reserved : null;
+        return intdiv(mb_strlen($state->systemPrompt . ($state->summary ?? '')) + self::chars($state->history) + self::chars($this->contextMessages($state)), 4);
+    }
+
+    /** Summary and history as of now: after a compaction they change. */
+    private function loadContext(RunState $state): void {
+        $compaction = $this->conversations->compaction($state->run->conversationId);
+        $state->summary = $compaction->summary;
+        $state->uptoId = $compaction->uptoId;
+        $state->history = array_map(
+            static fn(TranscriptEntry $e): Message => $e->message,
+            $this->transcript->historyEntries($state->run->conversationId, $state->run->id, $this->historyLimit, $compaction->uptoId),
+        );
+        $state->run = $this->runs->find($state->run->id) ?? $state->run;
+    }
+
+    /** @return list<Message> messages of the run the model gets: those after the summary */
+    private function contextMessages(RunState $state): array {
+        return array_map(static fn(TranscriptEntry $e): Message => $e->message, $this->transcript->runEntries($state->run->id, $state->uptoId));
     }
 
     /**
@@ -241,8 +279,9 @@ final class AgentLoop {
      * @param positive-int $maxTokens
      */
     private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null): ChatRequest {
-        $messages = [Message::system($state->systemPrompt), ...$state->history, ...$this->transcript->runMessages($state->run->id)];
-        $state->messagesAtCall = count($messages) - 1 - count($state->history);
+        $summary = $state->summary === null ? [] : [Message::user($state->summary)];
+        $messages = [Message::system($state->systemPrompt), ...$summary, ...$state->history, ...$this->contextMessages($state)];
+        $state->messagesAtCall = count($this->transcript->runMessages($state->run->id));
         if ($closingPrompt !== null) {
             $messages[] = Message::user($closingPrompt);
         }
@@ -268,6 +307,7 @@ final class AgentLoop {
             $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
             throw $e;
         } catch (LlmException $e) {
+            $state->lastError = $e->kind;
             $this->logger->error('Model call failed', ['run' => $state->run->id, 'kind' => $e->kind->value, 'status' => $e->status]);
             $this->settle($state, $reserved, new Usage());
             $this->record($state, $request->model, null, $e->kind->value, $started, new Usage());
@@ -278,6 +318,7 @@ final class AgentLoop {
             $this->record($state, $request->model, null, 'unknown', $started, new Usage());
             return null;
         }
+        $state->lastError = null;
         $this->settle($state, $reserved, $response->usage);
         $this->record($state, $response->model !== '' ? $response->model : $request->model, $response->finishReason->value, null, $started, $response->usage);
         return $response;

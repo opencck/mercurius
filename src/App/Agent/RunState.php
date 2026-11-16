@@ -25,10 +25,16 @@ final class RunState {
     public int $messagesAtCall = 0;
     /** an irreversible call is waiting for the owner: the loop stops without finishing the run */
     public bool $paused = false;
+    /** the provider said the context is too long once in this iteration; the next time the run fails */
+    public bool $overflowRetried = false;
+    /** the last model call failed with this kind */
+    public ?\Mercurius\Llm\ErrorKind $lastError = null;
     /** clock value up to which active time is saved */
     public float $flushedAt;
 
-    /** @param list<Message> $history */
+    /**
+     * @param list<Message> $history earlier runs after the summary
+     */
     public function __construct(
         public Run $run,
         public readonly ParticipantPolicy $policy,
@@ -36,8 +42,12 @@ final class RunState {
         public readonly RunObserver $observer,
         public readonly Cancellation $cancellation,
         public readonly string $systemPrompt,
-        public readonly array $history,
+        public array $history,
         float $now,
+        /** summary of the compacted early part, sent right after the system prompt */
+        public ?string $summary = null,
+        /** id of the last compacted message: only later ones go to the model */
+        public int $uptoId = 0,
     ) {
         $this->guard = new LoopGuard();
         $this->flushedAt = $now;
