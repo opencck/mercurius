@@ -141,4 +141,37 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertContains(ChatService::OWNER_ONLY, $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
     }
+
+    /** @return list<string> texts sent to one chat */
+    private function sentTo(string $chatId): array {
+        $texts = [];
+        foreach ($this->stack->channel->log as [$action, $chat, $text]) {
+            if ($action === 'send' && $chat === $chatId) {
+                $texts[] = $text;
+            }
+        }
+        return $texts;
+    }
+
+    public function testVisitorIsToldWhenLetIn(): void {
+        $this->stack->say('привет', '99');
+        $this->stack->press('pv:2:u');
+
+        self::assertContains(VisitorService::LET_IN_USER, $this->sentTo('99'));
+    }
+
+    public function testVisitorIsToldWhenAllowedToTalk(): void {
+        $this->stack->say('привет', '99');
+        $this->stack->press('pv:2:t');
+
+        self::assertContains(VisitorService::LET_IN_TALK, $this->sentTo('99'));
+    }
+
+    public function testRefusedVisitorIsNotToldAnything(): void {
+        $this->stack->say('привет', '99');
+        $before = count($this->stack->channel->log);
+        $this->stack->press('pv:2:r');
+
+        self::assertSame([], array_filter(array_slice($this->stack->channel->log, $before), static fn(array $e): bool => $e[0] === 'send'));
+    }
 }

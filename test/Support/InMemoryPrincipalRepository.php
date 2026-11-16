@@ -26,6 +26,15 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return $id === null ? null : $this->find($id);
     }
 
+    public function externalId(int $principalId, string $channel): ?string {
+        foreach ($this->identities as $key => $id) {
+            if ($id === $principalId && str_starts_with($key, $channel . ':')) {
+                return substr($key, strlen($channel) + 1);
+            }
+        }
+        return null;
+    }
+
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
         $owner = $this->ownerId === null ? $this->add(Role::Owner, $displayName, PrincipalStatus::Active) : $this->principals[$this->ownerId];
         $this->ownerId = $owner->id;

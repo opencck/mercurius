@@ -21,6 +21,7 @@ use Psr\Log\NullLogger;
 /**
  * A stranger who writes becomes a pending visitor, and the owner gets one card: let them talk (no tools), make them a
  * user or an admin, or refuse. Until the owner decides, the stranger gets a short notice and the model is not called.
+ * Once let in, the visitor is told so (decision of the owner 2026-11-16); a refusal is not announced.
  *
  * spec: BRIEF.md#участники-люди-и-агенты — an unknown writer is shown to the owner, who decides
  * ref: references/hermes-agent/gateway/pairing.py@e96221fa:L29-L37 — hermes lets a stranger in only after the owner
@@ -29,6 +30,9 @@ use Psr\Log\NullLogger;
  */
 final class VisitorService implements CallbackHandler {
     public const WAITING = 'Передал владельцу, он скоро ответит.';
+    public const LET_IN_TALK = 'Владелец разрешил нам разговаривать. Пишите.';
+    public const LET_IN_USER = 'Владелец добавил вас как пользователя. Пишите.';
+    public const LET_IN_ADMIN = 'Владелец добавил вас как администратора. Пишите.';
     /** The stranger's first message shown on the card, cut to this many characters. */
     private const PREVIEW = 500;
 
@@ -82,7 +86,22 @@ final class VisitorService implements CallbackHandler {
         if ($callback->messageId !== null) {
             $this->channel->edit($callback->chatId, $callback->messageId, sprintf("Собеседник\n\n%s\n\n%s", self::who($decided, null, null), $outcome));
         }
+        if ($status === PrincipalStatus::Active) {
+            $this->tell($decided, $callback->channel, match ($role) {
+                Role::User => self::LET_IN_USER,
+                Role::Admin => self::LET_IN_ADMIN,
+                default => self::LET_IN_TALK,
+            });
+        }
         $this->logger->info('Visitor decided', ['visitor' => $decided->id, 'role' => $role->value, 'status' => $status->value]);
+    }
+
+    /** A private chat with a person has the id of their account (Telegram), so the message goes there. */
+    private function tell(Principal $visitor, string $channel, string $text): void {
+        $chatId = $this->principals->externalId($visitor->id, $channel);
+        if ($chatId === null || !$this->channel->send(new OutgoingMessage($chatId, $text))->success) {
+            $this->logger->warning('Visitor was not told about the decision', ['visitor' => $visitor->id]);
+        }
     }
 
     private static function who(Principal $principal, ?string $userName, ?string $userId): string {

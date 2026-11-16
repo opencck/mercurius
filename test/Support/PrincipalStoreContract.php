@@ -24,6 +24,8 @@ abstract class PrincipalStoreContract extends AsyncTestCase {
         self::assertSame(PrincipalStatus::Pending, $visitor->status);
         self::assertSame($visitor->id, $this->principals->createVisitor('telegram', $this->externalId, 'Гость')->id);
         self::assertSame($visitor->id, $this->principals->findByIdentity('telegram', $this->externalId)?->id);
+        self::assertSame($this->externalId, $this->principals->externalId($visitor->id, 'telegram'));
+        self::assertNull($this->principals->externalId($visitor->id, 'slack'));
     }
 
     public function testVisitorIsDecidedOnce(): void {

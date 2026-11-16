@@ -80,7 +80,7 @@ final class AgentStack {
 
     public function message(string $text, string $userId = '42'): IncomingMessage {
         $id = (string) ++$this->messageId;
-        return new IncomingMessage('telegram', '42', $userId, 'owner', 'Owner', $text, $id, null, true, new DateTimeImmutable(), $id);
+        return new IncomingMessage('telegram', $userId, $userId, 'owner', 'Owner', $text, $id, null, true, new DateTimeImmutable(), $id);
     }
 
     public function say(string $text, string $userId = '42'): void {

@@ -13,6 +13,9 @@ interface PrincipalRepository {
 
     public function findByIdentity(string $channel, string $externalId): ?Principal;
 
+    /** The participant's account in a channel (in Telegram, the user id), or null when they have none there. */
+    public function externalId(int $principalId, string $channel): ?string;
+
     /** Creates the owner (a person) and binds the identity; returns the existing owner when there already is one. */
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal;
 

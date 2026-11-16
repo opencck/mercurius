@@ -34,6 +34,16 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return $row === null ? null : self::hydrate($row);
     }
 
+    public function externalId(int $principalId, string $channel): ?string {
+        $row = $this->db->execute(
+            'SELECT external_id FROM channel_identities WHERE principal_id = ? AND channel = ? ORDER BY external_id LIMIT 1',
+            [$principalId, $channel],
+        )->fetchRow();
+        $id = $row['external_id'] ?? null;
+
+        return is_string($id) ? $id : null;
+    }
+
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
         $tx = $this->db->beginTransaction();
         try {
