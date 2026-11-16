@@ -86,13 +86,13 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
                   WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS cascades,
                 (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
                   WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?))::int AS verifiers,
-                -- the same rule as the code: the first line that starts with a verdict, in the verifier's final answer
+                -- the same rule as the code: the first line that starts with a verdict, in the final answer of the verifier
                 (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
                   WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?)
-                    AND substring(
+                    AND (regexp_match(
                           (SELECT m.content FROM messages m WHERE m.run_id = r.id AND m.role = 'assistant'
-                             AND (m.tool_calls IS NULL OR jsonb_array_length(m.tool_calls) = 0) ORDER BY m.id DESC LIMIT 1)
-                          FROM '(?:^|\n)[[:space:]*_]*[Вв][Ее][Рр][Дд][Ии][Кк][Тт][[:space:]*_]*[:—–-][[:space:]*_]*([А-Яа-я]+)') IN ('отклонено', 'Отклонено', 'ОТКЛОНЕНО'))::int AS rejected,
+                             AND (m.tool_calls IS NULL OR jsonb_array_length(m.tool_calls) = 0) ORDER BY m.id DESC LIMIT 1),
+                          '(^|\n)[\s*_]*[Вв][Ее][Рр][Дд][Ии][Кк][Тт][\s*_]*[:—–-][\s*_]*([А-Яа-я]+)'))[2] IN ('отклонено', 'Отклонено', 'ОТКЛОНЕНО'))::int AS rejected,
                 (SELECT count(*) FROM delegations WHERE created_at >= to_timestamp(?))::int AS background",
             array_fill(0, 7, $since->getTimestamp()),
         )->fetchRow() ?? [];
