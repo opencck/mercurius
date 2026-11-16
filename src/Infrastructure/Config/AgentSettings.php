@@ -18,6 +18,8 @@ final class AgentSettings {
      * @param positive-int $runTimeout seconds per run, approval waits excluded
      * @param positive-int $toolTimeout seconds per tool call, at most 600
      * @param positive-int $approvalTimeout seconds the owner has to answer an approval card; silence is a denial
+     * @param positive-int $workerMaxTurns model calls of one worker
+     * @param positive-int $workerTokenBudget tokens of one worker at most, taken from the orchestrator's budget
      */
     private function __construct(
         public readonly int $maxTurns,
@@ -25,6 +27,8 @@ final class AgentSettings {
         public readonly int $runTimeout,
         public readonly int $toolTimeout,
         public readonly int $approvalTimeout,
+        public readonly int $workerMaxTurns,
+        public readonly int $workerTokenBudget,
     ) {}
 
     /**
@@ -38,6 +42,8 @@ final class AgentSettings {
             runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 900, 86_400),
             toolTimeout: Env::positiveInt($env, 'AGENT_TOOL_TIMEOUT', 120, 600),
             approvalTimeout: Env::positiveInt($env, 'AGENT_APPROVAL_TIMEOUT', 1800, 86_400),
+            workerMaxTurns: Env::positiveInt($env, 'AGENT_WORKER_MAX_TURNS', 15, 100),
+            workerTokenBudget: Env::positiveInt($env, 'AGENT_WORKER_TOKEN_BUDGET', 100_000, 10_000_000),
         );
     }
 

@@ -39,6 +39,7 @@ final class AgentStack {
     public readonly InMemoryApprovalRepository $approvals;
     public readonly ApprovalService $approvalService;
     public readonly CallbackRouter $callbacks;
+    public readonly AgentLoop $loop;
     public readonly VisitorService $visitors;
     private int $messageId = 0;
 
@@ -60,7 +61,7 @@ final class AgentStack {
         $this->channel = new FakeChannel(max(1, $maxMessageLength));
         $this->approvals = new InMemoryApprovalRepository();
         $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800);
-        $loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
+        $loop = $this->loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
         $this->scheduler = new RunScheduler(
             $loop,
             $this->runs,

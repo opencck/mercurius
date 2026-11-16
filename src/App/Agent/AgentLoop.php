@@ -22,6 +22,7 @@ use OpenCCK\App\Agent\Tool\BatchPlanner;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
+use OpenCCK\App\Agent\Tool\LongRunning;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
 use OpenCCK\App\Agent\Tool\ToolContext;
@@ -472,7 +473,9 @@ final class AgentLoop {
         $preview = $call->args === null ? $call->call->argumentsJson : (json_encode(SecretMasker::maskArgs($call->args), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         $state->observer->toolStarted($state->run, $call->call->name, mb_substr(SecretMasker::mask($preview), 0, 200));
         $remaining = max(1, (int) floor(($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000));
-        $timeout = max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
+        $timeout = $call->tool instanceof LongRunning
+            ? max(1, min($call->tool->timeout(), $remaining))
+            : max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
         $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id);
         $started = ($this->clock)();
         $result = $this->executor->run($call, $context, $timeout);

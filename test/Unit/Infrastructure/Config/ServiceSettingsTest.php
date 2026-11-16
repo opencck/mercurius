@@ -122,6 +122,8 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame(900, $settings->runTimeout);
         self::assertSame(120, $settings->toolTimeout);
         self::assertSame(1800, $settings->approvalTimeout);
+        self::assertSame(15, $settings->workerMaxTurns);
+        self::assertSame(100_000, $settings->workerTokenBudget);
     }
 
     public function testApprovalTimeoutIsAtMostADay(): void {
