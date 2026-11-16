@@ -4,7 +4,7 @@
 
 Mercurius is an autonomous personal agent. You run it on your own server with Docker Compose and talk to it through a Telegram bot. It is meant to help with any kind of work: searching the web, working with servers over SSH, writing code and running software projects, planning, research and testing.
 
-**Status:** the first working version (the MVP: development phases 1–4) runs on the owner's server. The rest is in development; the plan is in [`ROADMAP.md`](ROADMAP.md) (in Russian).
+**Status:** runs on the owner's server; development phases 0–5 are done (the MVP and delegation to workers). The rest is in development; the plan is in [`ROADMAP.md`](ROADMAP.md) (in Russian).
 
 ## What works now
 
@@ -15,17 +15,18 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - Context compaction: old tool results are cut first, then the middle of the conversation is summarised by a cheap model.
 - Model roles (cheap, main, strong, media) chosen by a rough class of the first request; models of any provider (OpenRouter and the OpenAI API); the agent and the owner change roles with a reason.
 - Traces of every run: steps with time, tokens and cost; `/usage`, `/runs`, `/trace <id>`; Prometheus metrics behind a token.
+- Delegation: the agent splits a task into parts for worker agents with a clean context, read-only parts side by side, within a shared token budget. Each part gets a model by its needs (scores 1–10 against catalog benchmarks, the cheapest model that fits, a retry on a stronger model when the model fails); a part where a mistake is costly is checked by a separate verifier. Long work runs in the background, survives a restart and reports back as a new message; `/delegation` shows how the agent splits work.
 
 ## Planned
 
-An orchestrator that splits a task across worker agents on different models; long-term memory; servers over SSH, also through VLESS; a browser; skills and MCP servers; scheduled tasks and projects; a network of Mercurius instances over WebSocket.
+Long-term memory; servers over SSH, also through VLESS; a browser; skills and MCP servers; scheduled tasks and projects; a network of Mercurius instances over WebSocket.
 
 ## Running it
 
 1. Clone with submodules: `git clone git@github.com:opencck/mercurius.git && cd mercurius && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger`.
 2. Copy `.env.example` to `.env` and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Every variable is explained in the file.
 3. `docker compose up -d --build`. The app applies database migrations at start.
-4. Write to your bot. Commands: `/new`, `/stop`, `/permissions`, `/usage [days]`, `/runs`, `/trace <id>`.
+4. Write to your bot. Commands: `/new`, `/stop`, `/permissions`, `/usage [days]`, `/runs`, `/trace <id>`, `/delegation [days]`.
 
 ## Stack
 
