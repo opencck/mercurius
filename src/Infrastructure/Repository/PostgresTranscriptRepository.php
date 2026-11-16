@@ -71,6 +71,10 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         );
     }
 
+    public function setCallStatus(int $runId, string $callId, ToolCallStatus $status): void {
+        $this->db->execute('UPDATE tool_calls SET status = ? WHERE run_id = ? AND call_id = ?', [$status->value, $runId, $callId]);
+    }
+
     public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void {
         $transaction = $this->db->beginTransaction();
         try {
@@ -123,7 +127,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $calls = [];
         foreach ($this->db->execute(
             "SELECT call_id, position, name, arguments::text AS arguments, danger, status FROM tool_calls
-             WHERE run_id = ? AND status IN ('pending', 'running') ORDER BY position",
+             WHERE run_id = ? AND status IN ('pending', 'running', 'awaiting_approval') ORDER BY position",
             [$runId],
         ) as $row) {
             $arguments = self::nullableString($row, 'arguments');

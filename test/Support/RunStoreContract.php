@@ -104,6 +104,24 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertTrue($this->fetchRun($id)->warned);
     }
 
+    public function testPausedRunIsActiveButNotUnfinished(): void {
+        $id = $this->startRun();
+        $this->runs->setStatus($id, RunStatus::WaitingApproval);
+
+        self::assertSame($id, $this->runs->active($this->conversationId)?->id);
+        self::assertSame([], $this->runs->unfinished());
+        $this->runs->setStatus($id, RunStatus::Running);
+        self::assertSame(RunStatus::Running, $this->fetchRun($id)->status);
+    }
+
+    public function testAwaitingCallIsStillPending(): void {
+        $id = $this->startRun();
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('c1', 0, DangerClass::Irreversible)]);
+        $this->transcript->setCallStatus($id, 'c1', ToolCallStatus::AwaitingApproval);
+
+        self::assertSame(ToolCallStatus::AwaitingApproval, $this->transcript->pendingCalls($id)[0]->status);
+    }
+
     public function testUnfinishedListsRunningRuns(): void {
         $id = $this->startRun();
 

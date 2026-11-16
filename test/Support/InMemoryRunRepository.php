@@ -72,6 +72,10 @@ final class InMemoryRunRepository implements RunRepository {
         $this->runs[$runId] = $this->with($this->runs[$runId], status: $status, stopReason: $reason);
     }
 
+    public function setStatus(int $runId, RunStatus $status): void {
+        $this->runs[$runId] = $this->with($this->runs[$runId], status: $status);
+    }
+
     private function with(
         Run $run,
         ?RunStatus $status = null,

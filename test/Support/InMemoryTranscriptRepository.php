@@ -48,6 +48,10 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         $this->setStatus($runId, $callId, ToolCallStatus::Running);
     }
 
+    public function setCallStatus(int $runId, string $callId, ToolCallStatus $status): void {
+        $this->setStatus($runId, $callId, $status);
+    }
+
     public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void {
         if ($this->beforeToolResult !== null) {
             ($this->beforeToolResult)();
@@ -83,7 +87,7 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     public function pendingCalls(int $runId): array {
         $pending = [];
         foreach ($this->calls[$runId] ?? [] as $call) {
-            if ($call->status === ToolCallStatus::Pending || $call->status === ToolCallStatus::Running) {
+            if (in_array($call->status, [ToolCallStatus::Pending, ToolCallStatus::Running, ToolCallStatus::AwaitingApproval], true)) {
                 $pending[] = $call;
             }
         }

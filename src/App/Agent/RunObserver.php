@@ -15,6 +15,9 @@ interface RunObserver {
 
     public function textDelta(Run $run, string $text): void;
 
+    /** The run paused for the owner's approval. */
+    public function waiting(Run $run, string $text): void;
+
     /** Called once when the run ends (not on shutdown: the run goes on after restart). */
     public function finished(Run $run, string $finalText, ?StopReason $reason): void;
 }

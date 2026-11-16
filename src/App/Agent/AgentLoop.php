@@ -18,6 +18,7 @@ use Mercurius\Llm\TextDelta;
 use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
 use OpenCCK\App\Agent\Tool\BatchPlanner;
+use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
@@ -25,14 +26,17 @@ use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Service\SystemPrompt;
+use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
+use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\StoredToolCall;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Entity\LlmCallRecord;
 use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\LlmCallRepository;
 use OpenCCK\Domain\Repository\RunRepository;
@@ -85,6 +89,8 @@ final class AgentLoop {
         private readonly int $historyLimit,
         private readonly LoggerInterface $logger = new NullLogger(),
         ?Closure $clock = null,
+        private readonly ?ApprovalRepository $approvals = null,
+        private readonly ?ApprovalGate $gate = null,
     ) {
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
@@ -107,7 +113,14 @@ final class AgentLoop {
 
         try {
             // finish() is inside: /stop during the closing summary call must stop the run, not escape.
-            return $this->finish($state, $this->resumePending($state) ?? $this->iterate($state));
+            $reason = $this->resumePending($state);
+            if (!$state->paused) {
+                $reason ??= $this->iterate($state);
+            }
+            if ($state->paused) {
+                return $this->pause($state);
+            }
+            return $this->finish($state, $reason ?? StopReason::InternalError);
         } catch (CancelledException $e) {
             if (self::isShutdown($e)) {
                 $this->flushTime($state);
@@ -118,7 +131,8 @@ final class AgentLoop {
         }
     }
 
-    private function iterate(RunState $state): StopReason {
+    /** @return StopReason|null null when the run paused for an approval */
+    private function iterate(RunState $state): ?StopReason {
         while (true) {
             $this->deliverInbox($state);
             $reason = $this->checkLimits($state);
@@ -154,7 +168,7 @@ final class AgentLoop {
                 return StopReason::PersistFailed;
             }
             $reason = $this->execute($state, $outcome->calls);
-            if ($reason !== null) {
+            if ($reason !== null || $state->paused) {
                 return $reason;
             }
 
@@ -314,11 +328,26 @@ final class AgentLoop {
                 continue;
             }
 
+            // An irreversible call is alone in its segment (BatchPlanner): ask, use a grant, or refuse first.
+            $admission = $this->admit($state, $segment[0]);
+            if ($admission === false) {
+                $this->transcript->setCallStatus($state->run->id, $segment[0]->call->id, ToolCallStatus::AwaitingApproval);
+                $state->paused = true;
+                return null;
+            }
             $futures = [];
             foreach ($segment as $call) {
-                $futures[] = async(fn(): ToolResult => $this->runCall($state, $call));
+                $futures[] = $admission instanceof ToolResult
+                    ? \Amp\Future::complete($admission)
+                    : async(fn(): ToolResult => $this->runCall($state, $call));
             }
             $results = await($futures);
+            if ($admission === 'granted') {
+                $first = $results[0] ?? null;
+                if ($first instanceof ToolResult) {
+                    $results[0] = new ToolResult($first->content . "\n\n[Выполнено по сохранённому разрешению владельца.]", $first->isError);
+                }
+            }
             foreach ($segment as $index => $call) {
                 $result = $results[$index] ?? null;
                 if (!$result instanceof ToolResult) {
@@ -334,6 +363,51 @@ final class AgentLoop {
             }
         }
         return $halted ? StopReason::LoopGuard : null;
+    }
+
+    /**
+     * Whether a call may run now. Only irreversible calls are checked.
+     *
+     * spec: BRIEF.md#подтверждения-и-запреты — approval, saved grants, nobody to ask means refusal
+     * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 (check_all_command_guards) — guards in order:
+     *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
+     *
+     * @return bool|'granted'|ToolResult true — run; 'granted' — run by a saved grant; false — paused for the owner;
+     *         ToolResult — do not run, this is the result
+     */
+    private function admit(RunState $state, ValidatedCall $call): bool|string|ToolResult {
+        if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
+            return true;
+        }
+        $approval = $this->approvals?->forCall($state->run->id, $call->call->id);
+        if ($approval !== null) {
+            return match ($approval->status) {
+                ApprovalStatus::Approved => true,
+                ApprovalStatus::Pending => false,
+                ApprovalStatus::Denied => ToolResult::error('Отказано владельцем' . ($approval->reason !== null ? ': ' . $approval->reason : '.') . ' Действие не выполнено.'),
+                ApprovalStatus::Expired => ToolResult::error('Владелец не ответил вовремя — молчание не согласие. Действие не выполнено.'),
+            };
+        }
+        $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
+        if ($key !== null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
+            $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
+            return 'granted';
+        }
+        if ($this->gate === null || $this->approvals === null || !$state->policy->mayRequestApproval) {
+            return ToolResult::error('Действие требует подтверждения владельца, а запросить его сейчас нельзя. Не выполнено.');
+        }
+        $this->gate->request($state->run, $call, $state->principal);
+        return false;
+    }
+
+    /** The run waits for the owner: saved as waiting, no final message — the decision resumes it. */
+    private function pause(RunState $state): Run {
+        $this->flushTime($state);
+        $this->runs->setStatus($state->run->id, RunStatus::WaitingApproval);
+        $paused = $this->runs->find($state->run->id) ?? $state->run;
+        $state->observer->waiting($paused, 'Жду подтверждения владельца…');
+        $this->logger->info('Run waits for approval', ['run' => $state->run->id]);
+        return $paused;
     }
 
     private function runCall(RunState $state, ValidatedCall $call): ToolResult {

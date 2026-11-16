@@ -25,6 +25,8 @@ interface TranscriptRepository {
 
     public function startCall(int $runId, string $callId): void;
 
+    public function setCallStatus(int $runId, string $callId, ToolCallStatus $status): void;
+
     /** The result message and the call's final status, in one transaction. */
     public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void;
 
@@ -39,7 +41,7 @@ interface TranscriptRepository {
      */
     public function history(int $conversationId, int $beforeRunId, int $limit): array;
 
-    /** @return list<StoredToolCall> calls of the run that have no result yet, in order */
+    /** @return list<StoredToolCall> calls of the run that have no result yet (pending, running, awaiting approval), in order */
     public function pendingCalls(int $runId): array;
 
     /** @return list<string> */

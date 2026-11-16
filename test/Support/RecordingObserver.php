@@ -14,6 +14,7 @@ final class RecordingObserver implements RunObserver {
     public string $streamed = '';
     public ?string $final = null;
     public ?StopReason $reason = null;
+    public ?string $waiting = null;
 
     public function toolStarted(Run $run, string $name, string $argsPreview): void {
         $this->tools[] = $name;
@@ -26,5 +27,9 @@ final class RecordingObserver implements RunObserver {
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
         $this->final = $finalText;
         $this->reason = $reason;
+    }
+
+    public function waiting(Run $run, string $text): void {
+        $this->waiting = $text;
     }
 }

@@ -96,6 +96,10 @@ final class PostgresRunRepository implements RunRepository {
         );
     }
 
+    public function setStatus(int $runId, RunStatus $status): void {
+        $this->db->execute('UPDATE runs SET status = ?, updated_at = now() WHERE id = ?', [$status->value, $runId]);
+    }
+
     /** @param array<string, mixed> $row */
     private static function run(array $row): Run {
         return new Run(

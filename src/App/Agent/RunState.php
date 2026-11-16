@@ -23,6 +23,8 @@ final class RunState {
     public bool $truncatedRetried = false;
     /** run messages already sent with the last model call */
     public int $messagesAtCall = 0;
+    /** an irreversible call is waiting for the owner: the loop stops without finishing the run */
+    public bool $paused = false;
     /** clock value up to which active time is saved */
     public float $flushedAt;
 

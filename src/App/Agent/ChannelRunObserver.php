@@ -61,6 +61,11 @@ final class ChannelRunObserver implements RunObserver {
         }
     }
 
+    public function waiting(Run $run, string $text): void {
+        $this->text = '';
+        $this->show($text, ParseMode::Plain, force: true);
+    }
+
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
         if (!$this->started) {
             $this->start();

@@ -34,4 +34,7 @@ interface RunRepository {
     public function markWarned(int $runId): void;
 
     public function finish(int $runId, RunStatus $status, ?StopReason $reason): void;
+
+    /** Pauses a run for an approval or puts it back to running; the stop reason is untouched. */
+    public function setStatus(int $runId, RunStatus $status): void;
 }
