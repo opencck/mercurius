@@ -67,6 +67,12 @@ final class ProviderRouter implements LlmClient {
         $ref = ModelRef::parse($request->model);
         $client = $this->clients[$ref->provider] ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
         $bare = $ref->model === $request->model ? $request : $request->withModel($ref->model);
+        // OpenRouter caches Anthropic prompts only when asked; one top-level field moves the breakpoint along the
+        // conversation by itself. OpenAI and most others cache on their own.
+        // ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221fa:L1740-L1800 (anthropic_prompt_cache_policy)
+        if ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/') && !isset($bare->extra['cache_control'])) {
+            $bare = $bare->withExtra([...$bare->extra, 'cache_control' => ['type' => 'ephemeral']]);
+        }
         // ref: references/hermes-agent/agent/reasoning_params.py@e96221fa:L91-L122 (_supports_reasoning_extra_body) —
         //      the catalog's supported_parameters decide; the OpenAI API answers 400 to reasoning_effort for models
         //      without reasoning, where OpenRouter only ignored it. An unknown model keeps the effort.

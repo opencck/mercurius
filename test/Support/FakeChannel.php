@@ -28,6 +28,7 @@ final class FakeChannel implements Channel {
     public float $sendDelay = 0.0;
     /** @var list<SendResult> results the next edits return before the default success */
     public array $editResults = [];
+    public bool $sendFileFails = false;
     /** @var list<SendResult> results the next sends return before the default success */
     public array $sendResults = [];
     /** @var array<array-key, list<list<\Mercurius\Messenger\Button>>> buttons each message got last, by message id */
@@ -88,6 +89,9 @@ final class FakeChannel implements Channel {
     }
 
     public function sendFile(string $chatId, string $fileName, string $content, ?string $caption = null): SendResult {
+        if ($this->sendFileFails) {
+            return SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down');
+        }
         $this->files[] = [$chatId, $fileName, $content];
         return SendResult::ok((string) $this->nextId++);
     }

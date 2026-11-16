@@ -61,6 +61,44 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertContains('Жду подтверждения владельца…', $this->stack->channel->texts('edit'));
     }
 
+    public function testCardThatDidNotArriveIsARefusalAtOnce(): void {
+        // The placeholder goes, the card does not.
+        $this->stack->channel->sendResults = [\Mercurius\Messenger\SendResult::ok('1'), \Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down')];
+
+        $this->stack->say('отправь изменения');
+        $this->stack->scheduler->awaitIdle();
+        // The refusal resumes the run once its pause is saved.
+        \Amp\delay(0.01);
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status, 'no 30-minute wait for a card nobody sees');
+        self::assertSame(0, $this->push->runs);
+    }
+
+    public function testActionThatCouldNotBeShownCanOnlyBeRefused(): void {
+        $this->stack = new AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'push', json_encode(['remote' => implode(' ', array_fill(0, 800, 'слово'))], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE))),
+            ScriptedLlm::text('Готово.'),
+        ]));
+        $this->stack->registry->register($this->push);
+        $this->stack->channel->sendFileFails = true;
+
+        $this->stack->say('отправь изменения');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('показать целиком не удалось', $this->card());
+        $labels = [];
+        foreach ($this->stack->channel->buttons as $rows) {
+            foreach ($rows as $row) {
+                foreach ($row as $button) {
+                    $labels[] = $button->text;
+                }
+            }
+        }
+        self::assertContains('Отказать', $labels);
+        self::assertNotContains('Разрешить', $labels, 'nobody approves what they could not read');
+    }
+
     public function testApprovePressResumesTheRun(): void {
         $this->waitingRun();
 

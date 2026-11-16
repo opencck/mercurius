@@ -24,6 +24,7 @@ use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Revolt\EventLoop;
 
 /**
  * Approvals in the owner's private chat (presses "ap:<id>:a|g|d") and the list of saved grants (/permissions,
@@ -77,25 +78,38 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         );
 
         $inFile = mb_strlen($shown) > self::CARD_LIMIT;
-        if ($inFile) {
-            $this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, 'Действие целиком');
-        }
+        // ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L2744-L2763 (send_exec_approval) — an action
+        //      the owner could not read in full can only be refused
+        $unreadable = $inFile && !$this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, 'Действие целиком')->success;
         $text = sprintf(
             "Подтвердите действие\n\n%s\nИнструмент: %s\nАргументы:\n%s\n\nПросит: %s\nЖду до %s UTC; молчание — отказ.",
             $label,
             $call->call->name,
-            $inFile ? '(целиком — в файле выше)' : $shown,
+            $unreadable ? '(показать целиком не удалось — подтвердить нельзя, только отказать)' : ($inFile ? '(целиком — в файле выше)' : $shown),
             $principal->displayName ?? ('участник ' . $principal->id),
             (new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)))->setTimezone(new \DateTimeZone('UTC'))->format('H:i'),
         );
-        $row = [new Button('Разрешить', sprintf('ap:%d:a', $approval->id))];
-        if ($key !== null) {
-            $row[] = new Button('Разрешать всегда', sprintf('ap:%d:g', $approval->id));
+        $row = [];
+        if (!$unreadable) {
+            $row[] = new Button('Разрешить', sprintf('ap:%d:a', $approval->id));
+            if ($key !== null) {
+                $row[] = new Button('Разрешать всегда', sprintf('ap:%d:g', $approval->id));
+            }
         }
         $row[] = new Button('Отказать', sprintf('ap:%d:d', $approval->id));
         $sent = $this->channel->send(new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]));
         if ($sent->success && $sent->messageId !== null) {
             $this->approvals->setCard($approval->id, $this->ownerChatId, $sent->messageId);
+        } elseif (!$sent->success) {
+            // ref: references/hermes-agent/tools/approval.py@e96221fa:L950 — a card nobody can see is a refusal now,
+            //      not a wait for the timeout
+            $this->logger->warning('Approval card was not delivered; refused', ['approval' => $approval->id, 'run' => $run->id]);
+            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, 'Карточка подтверждения не дошла до владельца.', null);
+            if ($decided !== null) {
+                // The run is still pausing in this fiber: it continues once the pause is saved.
+                EventLoop::defer(fn() => $this->continue($decided));
+            }
+            return;
         }
         $this->logger->info('Approval requested', ['approval' => $approval->id, 'run' => $run->id, 'tool' => $call->call->name]);
     }

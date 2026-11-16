@@ -77,6 +77,17 @@ final class ProviderRouterTest extends AsyncTestCase {
         self::assertSame('low', $openAi->requests[2]->reasoningEffort, 'unknown models keep it');
     }
 
+    public function testClaudeThroughOpenRouterAsksForPromptCaching(): void {
+        $openRouter = new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b')]);
+        $router = new ProviderRouter(['openrouter' => $openRouter]);
+
+        $router->complete(new ChatRequest('anthropic/claude-opus-5', [Message::user('x')]));
+        $router->complete(new ChatRequest('z-ai/glm-5.3-flash', [Message::user('x')]));
+
+        self::assertSame(['type' => 'ephemeral'], $openRouter->requests[0]->extra['cache_control'] ?? null);
+        self::assertArrayNotHasKey('cache_control', $openRouter->requests[1]->extra, 'others cache on their own');
+    }
+
     public function testUnknownProviderIsABadRequest(): void {
         $router = new ProviderRouter(['openrouter' => new ScriptedLlm()]);
 
