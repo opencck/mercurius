@@ -90,11 +90,11 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         );
     }
 
-    public function grants(int $principalId): array {
+    public function grants(?int $principalId = null): array {
         $grants = [];
         foreach ($this->db->execute(
-            'SELECT id, principal_id, key FROM approval_grants WHERE principal_id = ? AND revoked_at IS NULL ORDER BY id',
-            [$principalId],
+            'SELECT id, principal_id, key FROM approval_grants WHERE (?::bigint IS NULL OR principal_id = ?) AND revoked_at IS NULL ORDER BY id',
+            [$principalId, $principalId],
         ) as $row) {
             $grants[] = self::grant($row);
         }

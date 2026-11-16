@@ -96,8 +96,8 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         }
     }
 
-    public function grants(int $principalId): array {
-        return array_values(array_filter($this->grants, static fn(Grant $g): bool => $g->principalId === $principalId));
+    public function grants(?int $principalId = null): array {
+        return array_values(array_filter($this->grants, static fn(Grant $g): bool => $principalId === null || $g->principalId === $principalId));
     }
 
     public function revokeGrant(int $id): ?Grant {

@@ -38,7 +38,8 @@ final class TelegramModule implements AppModuleInterface {
         $url = $this->settings->webhookUrl;
         $secret = $this->settings->webhookSecret();
         if ($url !== null && $secret !== null) {
-            $this->api->setWebhook($url, $secret, ['message']);
+            // Presses on buttons (approvals, visitors, grants) come as callback queries.
+            $this->api->setWebhook($url, $secret, ['message', 'callback_query']);
             $this->logger->info('Telegram webhook registered', ['url' => $url]);
             return;
         }

@@ -14,6 +14,8 @@ use Mercurius\Messenger\Telegram\TelegramChannel;
 use Mercurius\Messenger\Telegram\UpdateParser;
 use Mercurius\Messenger\Telegram\WebhookProcessor;
 use OpenCCK\App\Agent\AgentLoop;
+use OpenCCK\App\Agent\ApprovalService;
+use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\AddressGuard;
 use OpenCCK\App\Agent\Tool\HttpRequestTool;
@@ -28,6 +30,7 @@ use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Infrastructure\API\App;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
 use OpenCCK\Infrastructure\API\Server;
@@ -44,6 +47,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use OpenCCK\Infrastructure\Module\AgentModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
+use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
@@ -115,6 +119,9 @@ if ($sandbox !== null) {
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
 }
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
+// Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
+$approvalStore = new PostgresApprovalRepository($db);
+$approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger);
 $loop = new AgentLoop(
     $llm,
     $runs,
@@ -127,6 +134,8 @@ $loop = new AgentLoop(
     $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
     $llmSettings->historyLimit,
     $logger,
+    approvals: $approvalStore,
+    gate: $approvals,
 );
 $scheduler = new RunScheduler(
     $loop,
@@ -139,17 +148,22 @@ $scheduler = new RunScheduler(
     $llmSettings->model,
     $logger,
 );
+$scheduler->useApprovals($approvals);
+$approvals->onDecision($scheduler->resumeRun(...));
+$visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
 $chat = new ChatService(
-    new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId),
+    new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
     $conversations,
     $scheduler,
     $channel,
+    $approvals,
     $logger,
 );
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
-$dispatcher = new ChatDispatcher($chat, $logger);
+$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses);
 $deduplicator = new Deduplicator();
 
 $routes = [];
@@ -163,7 +177,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
 (new App($logger))
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
-    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger()))
+    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,

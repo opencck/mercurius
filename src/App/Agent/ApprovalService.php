@@ -24,6 +24,9 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
+ * Approvals in the owner's private chat (presses "ap:<id>:a|g|d") and the list of saved grants (/permissions,
+ * presses "pg:<id>:x" revoke one).
+ *
  * Approvals in the owner's private chat: a card with the action shown in full (secrets masked), three buttons,
  * an atomic decision, then the card is edited and the run resumes. Silence past the timeout is a denial; so is a
  * text from the owner while the run waits, with that text as the reason.
@@ -94,7 +97,32 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $this->logger->info('Approval requested', ['approval' => $approval->id, 'run' => $run->id, 'tool' => $call->call->name]);
     }
 
+    /** Sends the active grants with a revoke button each; false when there are none. */
+    public function showGrants(string $chatId, ?string $replyTo): bool {
+        $grants = $this->approvals->grants();
+        if ($grants === []) {
+            return false;
+        }
+        $lines = [];
+        $rows = [];
+        foreach ($grants as $grant) {
+            $name = $this->principals->find($grant->principalId)->displayName ?? ('участник ' . $grant->principalId);
+            $lines[] = sprintf('%d. %s — %s', $grant->id, $grant->key, $name);
+            $rows[] = [new Button(sprintf('Отозвать %d', $grant->id), sprintf('pg:%d:x', $grant->id))];
+        }
+        $this->channel->send(new OutgoingMessage($chatId, "Сохранённые разрешения\n\n" . implode("\n", $lines), $replyTo, buttons: $rows));
+        return true;
+    }
+
     public function handleCallback(IncomingCallback $callback): void {
+        if (preg_match('/^pg:(\d+):x$/', $callback->data, $grant) === 1) {
+            $revoked = $this->approvals->revokeGrant((int) $grant[1]);
+            $this->channel->answerCallback($callback->callbackId, $revoked === null ? 'Уже отозвано.' : 'Отозвано.');
+            if ($revoked !== null) {
+                $this->logger->info('Grant revoked', ['grant' => $revoked->id, 'key' => $revoked->key]);
+            }
+            return;
+        }
         if (preg_match('/^ap:(\d+):([agd])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;

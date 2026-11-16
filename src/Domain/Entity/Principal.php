@@ -17,6 +17,7 @@ final class Principal {
         public readonly PrincipalKind $kind,
         public readonly Role $role,
         public readonly ?string $displayName,
+        public readonly PrincipalStatus $status = PrincipalStatus::Active,
     ) {}
 
     public function isOwner(): bool {

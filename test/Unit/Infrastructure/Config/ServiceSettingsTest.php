@@ -92,6 +92,13 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame(400000, $settings->tokenBudget);
         self::assertSame(900, $settings->runTimeout);
         self::assertSame(120, $settings->toolTimeout);
+        self::assertSame(1800, $settings->approvalTimeout);
+    }
+
+    public function testApprovalTimeoutIsAtMostADay(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('AGENT_APPROVAL_TIMEOUT');
+        AgentSettings::fromEnv(['AGENT_APPROVAL_TIMEOUT' => '86401']);
     }
 
     public function testAgentToolTimeoutCappedAt600(): void {

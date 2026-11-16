@@ -9,16 +9,18 @@ use Mercurius\Llm\ErrorKind;
 use Mercurius\Llm\LlmException;
 use Mercurius\Messenger\ParseMode;
 use OpenCCK\App\Service\ChatService;
+use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 final class ChatServiceTest extends AsyncTestCase {
-    public function testStrangerIsRefusedWithoutCallingTheModel(): void {
+    public function testStrangerWaitsForTheOwnerWithoutCallingTheModel(): void {
         $stack = new AgentStack();
+        $stack->principals->ensureOwner('telegram', '42', 'Owner');
         $stack->say('привет', '99');
         $stack->scheduler->awaitIdle();
 
-        self::assertSame([ChatService::REFUSAL], $stack->channel->texts('send'));
+        self::assertContains(VisitorService::WAITING, $stack->channel->texts('send'));
         self::assertSame([], $stack->llm->requests);
     }
 

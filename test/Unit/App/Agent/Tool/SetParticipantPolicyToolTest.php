@@ -22,7 +22,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
 
     protected function setUp(): void {
         $principals = new InMemoryPrincipalRepository();
-        $principals->identities['telegram:7'] = new Principal(7, PrincipalKind::Human, Role::User, 'Гость');
+        $principals->put(new Principal(7, PrincipalKind::Human, Role::User, 'Гость'), 'telegram', '7');
         $principals->ensureOwner('telegram', '42', 'Владелец');
         $this->policies = new InMemoryPolicyRepository();
         $this->tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)));

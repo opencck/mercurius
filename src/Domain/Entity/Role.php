@@ -13,4 +13,6 @@ enum Role: string {
     case Owner = 'owner';
     case Admin = 'admin';
     case User = 'user';
+    /** Talks with the agent but uses no tools; a stranger the owner let in. */
+    case Visitor = 'visitor';
 }

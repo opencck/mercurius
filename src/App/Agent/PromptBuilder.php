@@ -25,6 +25,7 @@ final class PromptBuilder {
             Role::Owner => 'владелец',
             Role::Admin => 'администратор',
             Role::User => 'пользователь',
+            Role::Visitor => 'посетитель: только разговор, без инструментов и без сведений о делах владельца',
         };
         return SystemPrompt::text() . "\n\n" . sprintf(
             "Контекст:\n- Собеседник: %s, %s.\n- Диалог начат: %s.",

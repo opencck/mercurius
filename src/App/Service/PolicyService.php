@@ -9,6 +9,7 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\PolicyRepository;
 
 /**
@@ -33,6 +34,10 @@ final class PolicyService {
             return $owner;
         }
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
+        if ($principal->role === Role::Visitor) {
+            // spec: BRIEF.md#участники-люди-и-агенты — a visitor talks, nothing more; for tools the owner makes them a user
+            return $base->capTo($owner);
+        }
         return ParticipantPolicy::fromArray($this->repository->find($principal->id) ?? [], $base)->capTo($owner);
     }
 

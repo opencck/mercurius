@@ -17,12 +17,14 @@ final class AgentSettings {
      * @param positive-int $tokenBudget input + output tokens per run
      * @param positive-int $runTimeout seconds per run, approval waits excluded
      * @param positive-int $toolTimeout seconds per tool call, at most 600
+     * @param positive-int $approvalTimeout seconds the owner has to answer an approval card; silence is a denial
      */
     private function __construct(
         public readonly int $maxTurns,
         public readonly int $tokenBudget,
         public readonly int $runTimeout,
         public readonly int $toolTimeout,
+        public readonly int $approvalTimeout,
     ) {}
 
     /**
@@ -35,6 +37,7 @@ final class AgentSettings {
             tokenBudget: Env::positiveInt($env, 'AGENT_TOKEN_BUDGET', 400_000, 50_000_000),
             runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 900, 86_400),
             toolTimeout: Env::positiveInt($env, 'AGENT_TOOL_TIMEOUT', 120, 600),
+            approvalTimeout: Env::positiveInt($env, 'AGENT_APPROVAL_TIMEOUT', 1800, 86_400),
         );
     }
 

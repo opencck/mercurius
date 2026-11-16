@@ -35,8 +35,8 @@ interface ApprovalRepository {
 
     public function addGrant(int $principalId, string $key): void;
 
-    /** @return list<Grant> */
-    public function grants(int $principalId): array;
+    /** @return list<Grant> active grants of one participant, or of everyone when null */
+    public function grants(?int $principalId = null): array;
 
     public function revokeGrant(int $id): ?Grant;
 }
