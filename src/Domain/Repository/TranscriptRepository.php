@@ -60,6 +60,9 @@ interface TranscriptRepository {
     /** Text the model gets instead of the message from now on; the original stays in the store. */
     public function compactContent(int $messageId, string $content): void;
 
+    /** Replaces a text in every stored message (a forgotten fact); returns the messages changed. */
+    public function redact(string $text, string $replacement): int;
+
     /** @return list<string> user messages of the conversation with $afterId < id <= $uptoId, in order */
     public function userMessages(int $conversationId, int $afterId, int $uptoId): array;
 

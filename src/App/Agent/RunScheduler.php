@@ -128,7 +128,8 @@ final class RunScheduler {
                         delay(self::DELIVERY_POLL);
                         continue;
                     }
-                    $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false);
+                    // A delivered report is the agent's own text, often quoting the web: no recall on it.
+                    $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false, recall: false);
                     if ($runId !== null) {
                         $onDelivered($runId);
                         return;
@@ -354,9 +355,8 @@ final class RunScheduler {
         if ($this->memory === null) {
             return $text;
         }
-        $scopes = $this->audience()->scopes($principal, $meta->id);
         try {
-            $facts = $this->memory->facts($text, $scopes, $meta->id);
+            $facts = $this->memory->facts($text, $this->audience()->scopes($principal, $meta->id), $meta->id);
         } catch (Throwable $e) {
             $this->logger->warning('Memory recall failed', ['conversation' => $meta->id, 'error' => $e::class]);
             return $text;
@@ -365,7 +365,7 @@ final class RunScheduler {
     }
 
     /** @return int|null the run the text started; null when it joined another run or nothing started */
-    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true): ?int {
+    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
@@ -395,7 +395,7 @@ final class RunScheduler {
             return null;
         }
         try {
-            $this->transcript->appendUser($conversationId, $run->id, $this->withFacts($principal, $meta, $text), $messageId);
+            $this->transcript->appendUser($conversationId, $run->id, $recall ? $this->withFacts($principal, $meta, $text) : $text, $messageId);
             $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval);
             $observer->start();
         } catch (Throwable $e) {

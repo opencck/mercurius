@@ -157,6 +157,21 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $this->db->execute('UPDATE messages SET compact_content = ? WHERE id = ?', [$content, $messageId]);
     }
 
+    public function redact(string $text, string $replacement): int {
+        if ($text === '') {
+            return 0;
+        }
+        $changed = 0;
+        foreach ($this->db->execute(
+            'UPDATE messages SET content = replace(content, ?, ?), compact_content = replace(compact_content, ?, ?)
+             WHERE strpos(content, ?) > 0 OR strpos(compact_content, ?) > 0 RETURNING id',
+            [$text, $replacement, $text, $replacement, $text, $text],
+        ) as $row) {
+            $changed++;
+        }
+        return $changed;
+    }
+
     public function userMessages(int $conversationId, int $afterId, int $uptoId): array {
         $texts = [];
         foreach ($this->db->execute(

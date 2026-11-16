@@ -63,13 +63,15 @@ final class Recall {
         $given = $conversationId === null ? [] : array_flip($this->store->recalled($conversationId, self::WINDOW));
         $now = ($this->now)();
 
+        // array keys of numeric words come back as ints
+        $known = array_map(strval(...), array_keys($weights));
         /** @var list<array{Fact, float}> $scored */
         $scored = [];
-        foreach ($this->store->candidates($scopes, array_keys($weights), self::CANDIDATES) as $fact) {
+        foreach ($this->store->candidates($scopes, $known, self::CANDIDATES) as $fact) {
             if (isset($given[$fact->id])) {
                 continue;
             }
-            $matched = array_values(array_intersect(array_keys($weights), $fact->keys));
+            $matched = array_values(array_intersect($known, $fact->keys));
             if ($matched === []) {
                 continue;
             }

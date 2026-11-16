@@ -31,7 +31,9 @@ final class ProposalsTest extends TestCase {
 
         $decided = $this->proposals->decide($proposal->id, true);
 
-        self::assertSame(Proposal::APPROVED, $decided?->status);
+        self::assertNotNull($decided);
+        self::assertSame(Proposal::APPROVED, $decided->proposal->status);
+        self::assertTrue($decided->applied);
         $fact = $this->store->recent(['owner'], 1)[0] ?? null;
         self::assertNotNull($fact);
         self::assertSame('Владелец пьёт кофе без сахара', $fact->text);
@@ -43,7 +45,7 @@ final class ProposalsTest extends TestCase {
     public function testRejectedAdditionStoresNothing(): void {
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'Факт', 'причина', ['owner'], null, null);
 
-        self::assertSame(Proposal::REJECTED, $this->proposals->decide($proposal->id, false)?->status);
+        self::assertSame(Proposal::REJECTED, $this->proposals->decide($proposal->id, false)?->proposal->status);
         self::assertSame([], $this->store->facts);
     }
 
@@ -85,6 +87,42 @@ final class ProposalsTest extends TestCase {
 
         $this->expectException(InvalidArgumentException::class);
         $this->proposals->propose(Proposal::ADD, null, '  номер паспорта лежит в ящике ', 'снова', ['owner'], null, null);
+    }
+
+    public function testForgettingTellsListenersAndBlocksPendingProposals(): void {
+        $pending = $this->proposals->propose(Proposal::ADD, null, 'Код от сейфа у мамы', 'r', ['owner'], null, null);
+        $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Код от сейфа у мамы', ['код'], 0.8, Fact::OWNER_SAID, null);
+        $this->store->setCard($pending->id, '42', '7');
+        $seen = [];
+        $this->proposals->onForget(static function (Fact $f, array $cards) use (&$seen): void {
+            $seen[] = [$f->id, $cards];
+        });
+
+        self::assertTrue($this->proposals->forget($fact->id));
+
+        self::assertSame([[$fact->id, [['42', '7']]]], $seen);
+        self::assertNull($this->store->proposal($pending->id), 'the pending proposal with the same text is gone');
+    }
+
+    public function testAcceptingAForgottenTextRejectsIt(): void {
+        $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'старое', ['стар'], 0.8, Fact::OWNER_SAID, null);
+        $change = $this->proposals->propose(Proposal::CHANGE, $fact->id, 'Тайна', 'r', ['owner'], null, null);
+        $other = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Тайна', ['тайн'], 0.8, Fact::OWNER_SAID, null);
+        $this->proposals->forget($other->id);
+
+        $decision = $this->proposals->decide($change->id, true);
+
+        self::assertSame(Proposal::REJECTED, $decision?->proposal->status);
+        self::assertSame('старое', $this->store->fact($fact->id)?->text);
+    }
+
+    public function testEndingAnEndedFactSaysNothingChanged(): void {
+        $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'было', ['был'], 0.8, Fact::OWNER_SAID, null);
+        $first = $this->proposals->propose(Proposal::END, $fact->id, '', 'r', ['owner'], null, null);
+        $second = $this->proposals->propose(Proposal::END, $fact->id, '', 'r', ['owner'], null, null);
+
+        self::assertTrue($this->proposals->decide($first->id, true)?->applied);
+        self::assertFalse($this->proposals->decide($second->id, true)?->applied);
     }
 
     public function testLayerOneOnlyForTheOwnerAndWithinItsLimit(): void {

@@ -60,6 +60,18 @@ interface MemoryStore {
 
     public function setCard(int $id, string $chatId, string $messageId): void;
 
+    /** Ties an applied proposal to the fact it made, so forgetting the fact removes the proposal too. */
+    public function linkProposal(int $proposalId, int $factId): void;
+
+    /**
+     * Cards of the proposals about a fact: tied to it, or adding its exact text.
+     * @return list<array{string, string}> chat id, message id
+     */
+    public function cards(int $factId): array;
+
+    /** An approved proposal whose change could not be applied goes back to pending. */
+    public function reopen(int $id): void;
+
     /** @return list<Proposal> */
     public function pending(): array;
 

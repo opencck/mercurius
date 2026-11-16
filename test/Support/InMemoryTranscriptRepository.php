@@ -96,6 +96,24 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         $this->compact[$messageId] = $content;
     }
 
+    public function redact(string $text, string $replacement): int {
+        $changed = 0;
+        $messages = [];
+        foreach ($this->messages as $row) {
+            $m = $row['message'];
+            if ($text !== '' && str_contains($m->content, $text)) {
+                $row['message'] = new Message($m->role, str_replace($text, $replacement, $m->content), $m->toolCalls, $m->toolCallId);
+                $changed++;
+            }
+            $messages[] = $row;
+        }
+        $this->messages = $messages;
+        foreach ($this->compact as $id => $content) {
+            $this->compact[$id] = str_replace($text, $replacement, $content);
+        }
+        return $changed;
+    }
+
     public function userMessages(int $conversationId, int $afterId, int $uptoId): array {
         $texts = [];
         foreach ($this->messages as $index => $row) {

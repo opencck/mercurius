@@ -79,6 +79,9 @@ final class MemoryProposeTool implements Tool {
             return ToolResult::error($e->getMessage());
         }
         $this->sent[$context->runId] = ($this->sent[$context->runId] ?? 0) + 1;
+        if (count($this->sent) > 100) {
+            $this->sent = array_slice($this->sent, -50, null, true);
+        }
         if (!$this->cards->show($proposal)) {
             return ToolResult::error(sprintf('Предложение №%d сохранено, но карточку владельцу отправить не удалось; он увидит его в /memory.', $proposal->id));
         }

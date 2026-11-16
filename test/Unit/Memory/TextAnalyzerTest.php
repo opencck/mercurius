@@ -39,4 +39,13 @@ final class TextAnalyzerTest extends TestCase {
         self::assertSame(array_values(array_unique($keys)), $keys);
         self::assertCount(1, array_filter($keys, static fn(string $k): bool => str_starts_with($k, 'сервер')));
     }
+
+    public function testIdentifiersAreNamesNotNumbersOrHyphenatedWords(): void {
+        foreach (['pve-01', 'gpt5', '10.0.0.1', 'snake_case', '/etc/hosts', 'v0.21.6'] as $key) {
+            self::assertTrue(\OpenCCK\Memory\Domain\TextAnalyzer::isIdentifier($key), $key);
+        }
+        foreach (['10', '2024', 'кто-то', 'e-mail', 'по-моему'] as $key) {
+            self::assertFalse(\OpenCCK\Memory\Domain\TextAnalyzer::isIdentifier($key), $key);
+        }
+    }
 }

@@ -95,7 +95,7 @@ final class PostgresMemoryStore implements MemoryStore {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                'UPDATE facts SET text = ?, keys = ?::text[], version = version + 1, updated_at = now() WHERE id = ? RETURNING ' . self::FACT,
+                "UPDATE facts SET text = ?, keys = ?::text[], version = version + 1, updated_at = now() WHERE id = ? AND status = 'active' RETURNING " . self::FACT,
                 [$text, $keys, $id],
             )->fetchRow();
             if ($row === null) {
@@ -127,7 +127,12 @@ final class PostgresMemoryStore implements MemoryStore {
     public function forgetFact(int $id, string $fingerprint): bool {
         $transaction = $this->db->beginTransaction();
         try {
-            // Versions and recalls go with the fact (ON DELETE CASCADE); only the fingerprint stays.
+            // Versions, recalls and tied proposals go with the fact (ON DELETE CASCADE); proposals that added the same
+            // text and were never tied go too. Only the fingerprint stays.
+            $transaction->execute(
+                "DELETE FROM memory_proposals WHERE fact_id IS NULL AND kind = 'add' AND text = (SELECT text FROM facts WHERE id = ?)",
+                [$id],
+            );
             $row = $transaction->execute('DELETE FROM facts WHERE id = ? RETURNING id', [$id])->fetchRow();
             if ($row === null) {
                 $transaction->rollback();
@@ -173,6 +178,26 @@ final class PostgresMemoryStore implements MemoryStore {
         $this->db->execute('UPDATE memory_proposals SET card_chat_id = ?, card_message_id = ? WHERE id = ?', [$chatId, $messageId, $id]);
     }
 
+    public function linkProposal(int $proposalId, int $factId): void {
+        $this->db->execute('UPDATE memory_proposals SET fact_id = ? WHERE id = ?', [$factId, $proposalId]);
+    }
+
+    public function cards(int $factId): array {
+        $cards = [];
+        foreach ($this->db->execute(
+            "SELECT card_chat_id, card_message_id FROM memory_proposals
+             WHERE card_message_id IS NOT NULL AND (fact_id = ? OR (fact_id IS NULL AND kind = 'add' AND text = (SELECT text FROM facts WHERE id = ?)))",
+            [$factId, $factId],
+        ) as $row) {
+            $cards[] = [self::str($row, 'card_chat_id'), self::str($row, 'card_message_id')];
+        }
+        return $cards;
+    }
+
+    public function reopen(int $id): void {
+        $this->db->execute("UPDATE memory_proposals SET status = 'pending', decided_at = NULL WHERE id = ? AND status = 'approved'", [$id]);
+    }
+
     public function pending(): array {
         $proposals = [];
         foreach ($this->db->query("SELECT " . self::PROPOSAL . " FROM memory_proposals WHERE status = 'pending' ORDER BY id") as $row) {
@@ -187,10 +212,21 @@ final class PostgresMemoryStore implements MemoryStore {
     }
 
     public function setCore(string $section, string $text): void {
-        $this->db->execute(
-            'INSERT INTO memory_core (section, version, text) SELECT ?, coalesce(max(version), 0) + 1, ? FROM memory_core WHERE section = ?',
-            [$section, $text, $section],
-        );
+        $transaction = $this->db->beginTransaction();
+        try {
+            // Two quick accepts would both read the same max(version): one writer at a time.
+            $transaction->execute('SELECT pg_advisory_xact_lock(hashtext(?)) AS locked', ['memory_core']);
+            $transaction->execute(
+                'INSERT INTO memory_core (section, version, text) SELECT ?, coalesce(max(version), 0) + 1, ? FROM memory_core WHERE section = ?',
+                [$section, $text, $section],
+            );
+            $transaction->commit();
+        } catch (Throwable $e) {
+            if ($transaction->isActive()) {
+                $transaction->rollback();
+            }
+            throw $e;
+        }
     }
 
     public function markRecalled(int $conversationId, array $factIds): void {

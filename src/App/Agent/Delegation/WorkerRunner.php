@@ -44,7 +44,8 @@ use function Amp\async;
  */
 final class WorkerRunner {
     /** Tools a worker never gets: no further delegation, no changes to roles and rights. */
-    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy'];
+    /** memory_*: a worker has no audience of its own; what it learns goes back in its report */
+    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy', 'memory_search', 'memory_propose'];
     /** Workers running side by side at most, when all of them only read. */
     private const PARALLEL = 3;
     /** Below this a worker cannot make even one call (answer cap 4096 plus its prompt): refuse instead of starting it. */

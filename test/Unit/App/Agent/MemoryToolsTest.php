@@ -32,7 +32,7 @@ final class MemoryToolsTest extends AsyncTestCase {
         $recall = new Recall($this->store, $analyzer);
         $audience = new ConversationAudience($stack->conversations);
         $proposals = new Proposals($this->store, $analyzer, new ContentScreen(), 'k');
-        $this->cards = new MemoryCards($proposals, $this->store, $stack->channel, '42');
+        $this->cards = new MemoryCards($proposals, $this->store, $stack->channel, '42', $stack->principals);
         $stack->scheduler->useMemory(new MemoryContext($this->store, $recall), $audience);
         $stack->registry->register(new MemorySearchTool($recall, $audience));
         $stack->registry->register(new MemoryProposeTool($proposals, $this->cards, $audience));
@@ -103,5 +103,24 @@ final class MemoryToolsTest extends AsyncTestCase {
 
         $tool = $this->lastMessage($stack);
         self::assertStringContainsString('Ничего не нашлось.', $tool);
+    }
+
+    public function testCardSaysWhoWhereAndOldTextAndForgettingClearsIt(): void {
+        $this->current = $stack = $this->stack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Сервер в Хельсинки', ['сервер'], 0.8, Fact::OWNER_SAID, null);
+        $proposals = new Proposals($this->store, new TextAnalyzer(), new ContentScreen(), 'k');
+        $proposals->onForget($this->cards->forgotten(...));
+
+        $proposal = $proposals->propose(\OpenCCK\Memory\Domain\Proposal::CHANGE, $fact->id, 'Сервер во Франкфурте', 'переехал', ['owner'], 1, null);
+        $this->cards->show($proposal);
+        $card = $stack->channel->texts('send')[0] ?? '';
+
+        self::assertStringContainsString('Было:', $card);
+        self::assertStringContainsString('Сервер в Хельсинки', $card);
+        self::assertStringContainsString('ваша память', $card);
+        self::assertStringContainsString('слова агента', $card);
+
+        $proposals->forget($fact->id);
+        self::assertContains('Память: факт #' . $fact->id . ' забыт владельцем.', $stack->channel->texts('edit'));
     }
 }

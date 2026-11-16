@@ -104,4 +104,10 @@ final class RecallTest extends TestCase {
         $facts = $this->recall->find('pve-01', ['owner']);
         self::assertStringContainsString(sprintf('[#%d] ', $facts[0]->id), Recall::format($facts));
     }
+
+    public function testABareNumberIsNotDecisive(): void {
+        $this->add('owner', 'Порт 10 закрыт на роутере');
+
+        self::assertSame([], $this->recall->find('напомни через 10 минут про звонок маме', ['owner']));
+    }
 }

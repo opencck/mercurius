@@ -76,6 +76,33 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertNotContains($proposal->id, array_map(static fn(Proposal $p): int => $p->id, $this->store->pending()));
     }
 
+    public function testForgettingRemovesProposalsAboutTheFact(): void {
+        $text = 'Подсказка к PIN ' . $this->scope;
+        $added = $this->store->propose(Proposal::ADD, null, $this->scope, $text, 'r', null, null);
+        $this->store->decide($added->id, Proposal::APPROVED);
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, $text, ['pin'], 0.8, Fact::OWNER_CONFIRMED, null);
+        $this->store->linkProposal($added->id, $fact->id);
+        $this->store->setCard($added->id, '1', '10');
+        $again = $this->store->propose(Proposal::ADD, null, $this->scope, $text, 'r', null, null);
+        $this->store->setCard($again->id, '1', '11');
+
+        self::assertEqualsCanonicalizing([['1', '10'], ['1', '11']], $this->store->cards($fact->id));
+        self::assertTrue($this->store->forgetFact($fact->id, 'fp2-' . $this->scope));
+        self::assertNull($this->store->proposal($added->id));
+        self::assertNull($this->store->proposal($again->id));
+    }
+
+    public function testEndedFactIsNotChangedAndApprovalCanBeReopened(): void {
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['был'], 0.5, Fact::AGENT, null);
+        $this->store->endFact($fact->id, 'всё');
+        self::assertNull($this->store->changeFact($fact->id, 'стало', ['стал'], 'x'));
+
+        $p = $this->store->propose(Proposal::SUMMARY, null, $this->scope, 'сводка', 'r', null, null);
+        $this->store->decide($p->id, Proposal::APPROVED);
+        $this->store->reopen($p->id);
+        self::assertSame(Proposal::PENDING, $this->store->proposal($p->id)?->status);
+    }
+
     public function testCoreKeepsTheLatestVersion(): void {
         $before = $this->store->core('summary');
         $this->store->setCore('summary', 'Первая ' . $this->scope);

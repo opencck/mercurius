@@ -83,6 +83,7 @@ use OpenCCK\App\Service\MemoryCommands;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\ContentScreen;
+use OpenCCK\Memory\Domain\Fact;
 use OpenCCK\Memory\App\Recall;
 use OpenCCK\Memory\Domain\TextAnalyzer;
 use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
@@ -269,7 +270,12 @@ $proposals = new Proposals(
     new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
     $memorySettings->key($telegram->token()),
 );
-$memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $logger);
+$memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $principals, $logger);
+$proposals->onForget($memoryCards->forgotten(...));
+// spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
+$proposals->onForget(static function (Fact $fact) use ($transcript): void {
+    $transcript->redact(sprintf('[#%d] %s', $fact->id, $fact->text), sprintf('[#%d] (забыто)', $fact->id));
+});
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $background->useScheduler($scheduler);

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OpenCCK\Memory\App;
 
+use Closure;
 use InvalidArgumentException;
+use Throwable;
 use OpenCCK\Memory\Domain\ContentScreen;
 use OpenCCK\Memory\Domain\Fact;
 use OpenCCK\Memory\Domain\MemoryStore;
@@ -27,12 +29,25 @@ final class Proposals {
     /** Trust of a fact the owner accepted. */
     private const CONFIRMED_TRUST = 0.8;
 
+    /** @var list<Closure(Fact, list<array{string, string}>): void> */
+    private array $forgetListeners = [];
+
     public function __construct(
         private readonly MemoryStore $store,
         private readonly TextAnalyzer $analyzer,
         private readonly ContentScreen $screen,
         private readonly string $key,
     ) {}
+
+    /**
+     * Called after a fact is forgotten, with the cards of the proposals about it, so the places that still show its
+     * text (cards, transcripts) can drop it.
+     *
+     * @param Closure(Fact, list<array{string, string}>): void $listener
+     */
+    public function onForget(Closure $listener): void {
+        $this->forgetListeners[] = $listener;
+    }
 
     /**
      * @param list<string> $readable the audience's scopes; a new fact goes to the first of them
@@ -48,9 +63,7 @@ final class Proposals {
         switch ($kind) {
             case Proposal::ADD:
                 $this->check($text, ContentScreen::FACT_MAX);
-                if ($this->store->forgotten($this->fingerprint($text))) {
-                    throw new InvalidArgumentException('Владелец велел забыть этот текст: снова он не записывается.');
-                }
+                $this->notForgotten($text);
                 break;
             case Proposal::CHANGE:
             case Proposal::END:
@@ -62,6 +75,7 @@ final class Proposals {
                 $scope = $fact->scope;
                 if ($kind === Proposal::CHANGE) {
                     $this->check($text, ContentScreen::FACT_MAX);
+                    $this->notForgotten($text);
                 } else {
                     $text = $fact->text;
                 }
@@ -84,27 +98,77 @@ final class Proposals {
         return $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId);
     }
 
-    /** Accepts or rejects a pending proposal once; an accepted one is applied. Null when it is already decided. */
-    public function decide(int $id, bool $approve): ?Proposal {
-        $proposal = $this->store->decide($id, $approve ? Proposal::APPROVED : Proposal::REJECTED);
-        if ($proposal === null || !$approve) {
-            return $proposal;
+    /**
+     * Accepts or rejects a pending proposal once; an accepted one is applied. Null when it is already decided.
+     * A text forgotten since the proposal was made is rejected instead. If applying fails, the proposal goes back to
+     * pending and the error goes on, so the owner can press again.
+     */
+    public function decide(int $id, bool $approve): ?Decision {
+        $pending = $this->store->proposal($id);
+        if ($approve && $pending !== null && in_array($pending->kind, [Proposal::ADD, Proposal::CHANGE], true)
+            && $this->store->forgotten($this->fingerprint($pending->text))) {
+            $rejected = $this->store->decide($id, Proposal::REJECTED);
+            return $rejected === null ? null : new Decision($rejected, false, 'Отклонено: этот текст велено забыть.');
         }
-        match ($proposal->kind) {
-            Proposal::ADD => $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::CONFIRMED_TRUST, Fact::OWNER_CONFIRMED, $proposal->runId),
-            Proposal::CHANGE => $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->analyzer->keys($proposal->text), $proposal->reason),
-            Proposal::END => $this->store->endFact((int) $proposal->factId, $proposal->reason),
-            Proposal::FORGET => $this->forget((int) $proposal->factId),
-            Proposal::PROFILE, Proposal::SUMMARY => $this->store->setCore($proposal->kind, $proposal->text),
-            default => null,
-        };
-        return $proposal;
+        $proposal = $this->store->decide($id, $approve ? Proposal::APPROVED : Proposal::REJECTED);
+        if ($proposal === null) {
+            return null;
+        }
+        if (!$approve) {
+            return new Decision($proposal, false, 'Отклонено.');
+        }
+        try {
+            $applied = $this->apply($proposal);
+        } catch (Throwable $e) {
+            $this->store->reopen($proposal->id);
+            throw $e;
+        }
+        return new Decision($proposal, $applied, $applied ? 'Принято: память изменена.' : 'Принято, но менять уже нечего: факта нет или он больше не действует.');
     }
 
-    /** Removes the fact with its versions; only a keyed fingerprint of its text stays. */
+    private function apply(Proposal $proposal): bool {
+        switch ($proposal->kind) {
+            case Proposal::ADD:
+                $fact = $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::CONFIRMED_TRUST, Fact::OWNER_CONFIRMED, $proposal->runId);
+                $this->store->linkProposal($proposal->id, $fact->id);
+                return true;
+            case Proposal::CHANGE:
+                return $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->analyzer->keys($proposal->text), $proposal->reason) !== null;
+            case Proposal::END:
+                return $this->store->endFact((int) $proposal->factId, $proposal->reason);
+            case Proposal::FORGET:
+                return $this->forget((int) $proposal->factId);
+            case Proposal::PROFILE:
+            case Proposal::SUMMARY:
+                $this->store->setCore($proposal->kind, $proposal->text);
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Removes the fact with its versions and the proposals about it; only a keyed fingerprint of its text stays.
+     * Listeners then clear the cards and transcripts that still show it.
+     */
     public function forget(int $factId): bool {
         $fact = $this->store->fact($factId);
-        return $fact !== null && $this->store->forgetFact($factId, $this->fingerprint($fact->text));
+        if ($fact === null) {
+            return false;
+        }
+        $cards = $this->store->cards($factId);
+        if (!$this->store->forgetFact($factId, $this->fingerprint($fact->text))) {
+            return false;
+        }
+        foreach ($this->forgetListeners as $listener) {
+            $listener($fact, $cards);
+        }
+        return true;
+    }
+
+    private function notForgotten(string $text): void {
+        if ($this->store->forgotten($this->fingerprint($text))) {
+            throw new InvalidArgumentException('Владелец велел забыть этот текст: снова он не записывается.');
+        }
     }
 
     private function fingerprint(string $text): string {

@@ -33,8 +33,6 @@ final class TextAnalyzer {
         'of', 'in', 'on', 'at', 'for', 'with', 'as', 'by', 'from', 'so', 'do', 'does', 'did', 'not', 'no', 'yes', 'ok',
         'i', 'you', 'he', 'she', 'we', 'they', 'me', 'my', 'your', 'our', 'their', 'what', 'which', 'who', 'please', 'thanks',
     ];
-    /** An identifier: has a digit, a dot between parts, a slash, an underscore or a hyphen between letters and digits. */
-    private const IDENTIFIER = '~^(?:/[\w.\-/]+|[\w]+(?:[._\-][\w]+)+|[a-z]+\d+[\w]*)$~u';
 
     /** @var array<string, true> */
     private readonly array $stop;
@@ -55,17 +53,25 @@ final class TextAnalyzer {
             if (isset($this->stop[$word]) || mb_strlen($word) < 2) {
                 continue;
             }
-            $key = self::isIdentifier($word) ? $word : $this->stem($word);
+            $key = self::isIdentifier($word) || preg_match('~\d~', $word) === 1 ? $word : $this->stem($word);
             if ($key !== '' && !isset($this->stop[$key])) {
                 $keys[$key] = true;
             }
         }
-        return array_keys($keys);
+        // PHP turns a numeric string key ("10") into an int: keys stay strings.
+        return array_map(strval(...), array_keys($keys));
     }
 
-    /** A key kept whole: names a host, a version, an address or a path. */
+    /**
+     * A key kept whole and decisive in recall: names a host, a version, an address or a path. Letters with digits
+     * (pve-01, gpt5), or parts joined by a dot, slash or underscore (10.0.0.1, snake_case, /etc/hosts). A bare number
+     * ("10 минут") or a hyphenated word ("кто-то", "e-mail") is an ordinary word.
+     */
     public static function isIdentifier(string $key): bool {
-        return preg_match(self::IDENTIFIER, $key) === 1 || preg_match('~\d~', $key) === 1;
+        if (preg_match('~^/|[\w][._/][\w]~u', $key) === 1) {
+            return true;
+        }
+        return preg_match('~\p{L}~u', $key) === 1 && preg_match('~\d~', $key) === 1;
     }
 
     private function stem(string $word): string {

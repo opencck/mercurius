@@ -61,7 +61,7 @@ final class InMemoryMemoryStore implements MemoryStore {
 
     public function changeFact(int $id, string $text, array $keys, string $reason): ?Fact {
         $f = $this->facts[$id] ?? null;
-        if ($f === null) {
+        if ($f === null || !$f->active) {
             return null;
         }
         $this->versions[$id][] = $f->text;
@@ -80,6 +80,12 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function forgetFact(int $id, string $fingerprint): bool {
         if (!isset($this->facts[$id])) {
             return false;
+        }
+        $text = $this->facts[$id]->text;
+        foreach ($this->proposals as $pid => $p) {
+            if ($p->factId === $id || ($p->factId === null && $p->kind === Proposal::ADD && $p->text === $text)) {
+                unset($this->proposals[$pid], $this->cards[$pid]);
+            }
         }
         unset($this->facts[$id], $this->versions[$id]);
         $this->tombstones[$fingerprint] = true;
@@ -110,6 +116,31 @@ final class InMemoryMemoryStore implements MemoryStore {
 
     public function setCard(int $id, string $chatId, string $messageId): void {
         $this->cards[$id] = [$chatId, $messageId];
+    }
+
+    public function linkProposal(int $proposalId, int $factId): void {
+        $p = $this->proposals[$proposalId] ?? null;
+        if ($p !== null) {
+            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId);
+        }
+    }
+
+    public function cards(int $factId): array {
+        $text = $this->facts[$factId]->text ?? null;
+        $cards = [];
+        foreach ($this->proposals as $pid => $p) {
+            if (isset($this->cards[$pid]) && ($p->factId === $factId || ($p->factId === null && $p->kind === Proposal::ADD && $p->text === $text))) {
+                $cards[] = $this->cards[$pid];
+            }
+        }
+        return $cards;
+    }
+
+    public function reopen(int $id): void {
+        $p = $this->proposals[$id] ?? null;
+        if ($p !== null && $p->status === Proposal::APPROVED) {
+            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId);
+        }
     }
 
     public function pending(): array {
