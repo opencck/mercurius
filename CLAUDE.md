@@ -213,6 +213,7 @@
 | `.mcp.json.example` | да | Образец без адреса и пароля; заодно показывает, как подключить MCP OpenRouter |
 | `.claude/settings.local.json` | нет | Локальные настройки Claude Code |
 | `graphify-out/` | нет | Граф знаний, пересобирается командой `/graphify` |
+| `storage/app`, `storage/postgres`, `storage/workspace` | только каталоги с `.keep` | Данные контейнеров (решение владельца 2026-11-16 — каталоги проекта, не тома Docker): приложение, база PostgreSQL (`pgdata/`), рабочие каталоги участников в песочнице |
 | `.claude/skills/skill-opencck/`, `.claude/skills/graphify/` | нет | Локальные скиллы без своего репозитория |
 
 Значения секретов не выводи в ответах, логах, коммитах и сообщениях коммитов.

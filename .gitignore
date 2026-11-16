@@ -25,8 +25,13 @@ graphify-out/
 # Локальная настройка PHPStan; в git — phpstan.neon.dist
 phpstan.neon
 
-# Данные и логи приложения во время работы (тома Docker и рабочая область агента)
-/storage/
+# Данные во время работы — каталоги проекта, смонтированные в контейнеры: storage/app (приложение),
+# storage/postgres (база), storage/workspace (рабочие каталоги участников в песочнице). Сами каталоги
+# в git есть (.keep), их содержимое — нет.
+/storage/*
+!/storage/*/
+/storage/*/*
+!/storage/*/.keep
 /var/log/
 *.log
 

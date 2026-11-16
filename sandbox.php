@@ -29,6 +29,8 @@ if (!is_string($token) || strlen($token) < 16) {
 putenv('SANDBOX_TOKEN');
 
 $logger = LoggerFactory::create('info');
+// /workspace is a project directory mounted from the host: participants may pass through it, not list it.
+@chmod('/workspace', 0711);
 $workspace = new Workspace('/workspace');
 $users = new Users($workspace);
 $files = new Files($workspace, $users);
