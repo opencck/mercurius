@@ -55,12 +55,17 @@ final class TextAnalyzer {
             if (isset($this->stop[$word]) || mb_strlen($word) < 2) {
                 continue;
             }
-            $key = preg_match(self::IDENTIFIER, $word) === 1 || preg_match('~\d~', $word) === 1 ? $word : $this->stem($word);
+            $key = self::isIdentifier($word) ? $word : $this->stem($word);
             if ($key !== '' && !isset($this->stop[$key])) {
                 $keys[$key] = true;
             }
         }
         return array_keys($keys);
+    }
+
+    /** A key kept whole: names a host, a version, an address or a path. */
+    public static function isIdentifier(string $key): bool {
+        return preg_match(self::IDENTIFIER, $key) === 1 || preg_match('~\d~', $key) === 1;
     }
 
     private function stem(string $word): string {
