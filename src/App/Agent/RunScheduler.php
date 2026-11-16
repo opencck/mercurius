@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
+use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
@@ -57,6 +58,10 @@ final class RunScheduler {
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
+    private ?BackgroundDelegations $background = null;
+    /** @var array<int, Future<void>> deliveries waiting for the conversation's run to end */
+    private array $deliveries = [];
+    private int $nextDelivery = 0;
 
     public function __construct(
         private readonly AgentLoop $loop,
@@ -77,6 +82,46 @@ final class RunScheduler {
 
     public function useApprovals(ApprovalService $approvals): void {
         $this->approvals = $approvals;
+    }
+
+    public function useBackground(BackgroundDelegations $background): void {
+        $this->background = $background;
+    }
+
+    /**
+     * A message from the agent itself (a background delegation's report): a steering note of the running run, or the
+     * text of a new run once the conversation is free.
+     *
+     * spec: BRIEF.md#часть-3--фоновое-делегирование — delivery
+     */
+    public function deliver(Principal $principal, int $conversationId, string $text): void {
+        $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
+        if ($run !== null) {
+            $this->transcript->inbox($run->id, $text);
+            return;
+        }
+        if (isset($this->pending[$conversationId])) {
+            $this->pending[$conversationId]['texts'][] = $text;
+            return;
+        }
+        $id = $this->nextDelivery++;
+        $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text): void {
+            try {
+                while (isset($this->active[$conversationId])) {
+                    $this->active[$conversationId]['future']->await();
+                }
+                $run = $this->runs->active($conversationId);
+                if ($run !== null) {
+                    $this->transcript->inbox($run->id, $text);
+                    return;
+                }
+                $this->start($principal, $conversationId, $text, null);
+            } catch (Throwable $e) {
+                $this->logger->error('Could not deliver a message', ['conversation' => $conversationId, 'error' => $e::class]);
+            } finally {
+                unset($this->deliveries[$id]);
+            }
+        });
     }
 
     /** Hands a message over and returns at once. */
@@ -109,8 +154,13 @@ final class RunScheduler {
         ];
     }
 
-    /** Stops the conversation's run; false when nothing runs. */
+    /** Stops the conversation's run and its background delegations; false when nothing runs. */
     public function stop(int $conversationId): bool {
+        $background = $this->background?->stop($conversationId) ?? false;
+        return $this->stopRun($conversationId) || $background;
+    }
+
+    private function stopRun(int $conversationId): bool {
         if (isset($this->pending[$conversationId])) {
             $this->pending[$conversationId]['future']->ignore();
             unset($this->pending[$conversationId]);
@@ -182,6 +232,10 @@ final class RunScheduler {
     public function resumeAll(): void {
         foreach ($this->runs->unfinished() as $run) {
             try {
+                if ($run->parentRunId !== null && $this->background?->owns($run->id) === true) {
+                    // spec: BRIEF.md#часть-3--фоновое-делегирование — a background worker goes on with its delegation
+                    continue;
+                }
                 if ($run->parentRunId !== null) {
                     // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker belonged to a delegation call that the
                     // restart interrupted; its orchestrator learns that from the call, the worker does not go on alone.
@@ -220,8 +274,8 @@ final class RunScheduler {
 
     /** Waits until no run is pending or running. */
     public function awaitIdle(): void {
-        while ($this->pending !== [] || $this->active !== []) {
-            $futures = array_merge(array_column($this->pending, 'future'), array_column($this->active, 'future'));
+        while ($this->pending !== [] || $this->active !== [] || $this->deliveries !== []) {
+            $futures = array_merge(array_column($this->pending, 'future'), array_column($this->active, 'future'), array_values($this->deliveries));
             Future\awaitAll($futures);
         }
     }

@@ -8,6 +8,7 @@ use Amp\Future;
 use DomainException;
 use Mercurius\Llm\Role;
 use OpenCCK\App\Agent\AgentLoop;
+use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\SilentObserver;
@@ -19,6 +20,7 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\StopReason;
+use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
@@ -85,13 +87,14 @@ final class WorkerRunner {
     ) {}
 
     /**
-     * @param list<WorkerTask> $tasks
-     * @return list<WorkerReport>
+     * Reserves the workers' tokens from the orchestrator's budget, leaving it room to read the reports and answer.
+     *
+     * @param positive-int $count
+     * @return array{Run, int, int} the orchestrator, the tokens reserved, each part's share
      * @throws DomainException when the orchestrator's budget cannot cover the workers
      */
-    public function run(ToolContext $parent, array $tasks): array {
+    public function reserve(ToolContext $parent, int $count): array {
         $orchestrator = $this->runs->find($parent->runId) ?? throw new DomainException('Запуск-оркестратор не найден.');
-        $count = count($tasks);
         $left = $orchestrator->limits->tokenBudget - $orchestrator->tokensUsed - $orchestrator->tokensReserved;
         // The orchestrator must still be able to read the reports and answer.
         $headroom = max(self::HEADROOM, intdiv($orchestrator->limits->tokenBudget, 5));
@@ -99,23 +102,66 @@ final class WorkerRunner {
         if ($reserved < $count * self::MIN_TOKENS || !$this->runs->reserve($orchestrator->id, $reserved)) {
             throw new DomainException(sprintf('Не хватает бюджета токенов на воркеров: осталось %d, нужно не меньше %d.', max(0, $left), $count * self::MIN_TOKENS));
         }
-        $share = intdiv($reserved, $count);
+        return [$orchestrator, $reserved, intdiv($reserved, $count)];
+    }
+
+    /** Replaces the reservation with what the workers spent. */
+    public function settle(int $orchestratorId, int $reserved, int $spent): void {
+        $this->runs->settleAuxiliary($orchestratorId, $reserved, $spent);
+    }
+
+    /**
+     * Synchronous delegation: the workers run inside the orchestrator's call, within its time.
+     *
+     * @param list<WorkerTask> $tasks
+     * @return list<WorkerReport>
+     * @throws DomainException when the orchestrator's budget cannot cover the workers
+     */
+    public function run(ToolContext $parent, array $tasks): array {
+        $count = max(1, count($tasks));
+        [$orchestrator, $reserved, $share] = $this->reserve($parent, $count);
         $spent = 0;
         try {
-            $jobs = [];
-            foreach ($tasks as $index => $task) {
-                $jobs[$index] = fn(): WorkerReport => $parent->cancellation->isRequested()
-                    ? new WorkerReport($index + 1, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена')
-                    : $this->one($parent, $orchestrator, $index + 1, $task, $share);
+            $numbered = [];
+            foreach ($tasks as $i => $task) {
+                $numbered[$i + 1] = $task;
             }
-            $reports = $this->readOnly($parent, $tasks) ? $this->side($jobs) : array_map(static fn(\Closure $job): WorkerReport => $job(), $jobs);
+            $reports = $this->runTasks($parent, $orchestrator, $numbered, $share, min(self::RUN_TIMEOUT, $this->secondsLeft($orchestrator, 0)));
             foreach ($reports as $report) {
                 $spent += $report->tokens;
             }
-            return array_values($reports);
+            return $reports;
         } finally {
-            $this->runs->settleAuxiliary($orchestrator->id, $reserved, $spent);
+            $this->settle($orchestrator->id, $reserved, $spent);
         }
+    }
+
+    /**
+     * Runs parts: read-only ones side by side, the rest one by one. Parts a restart interrupted continue their runs.
+     *
+     * @param array<int, WorkerTask> $tasks position (from 1) => part
+     * @param int $seconds time each part may take, its retry included
+     * @param array<int, array{?int, ?int}> $existing position => runs of the first try and of the retry, if started
+     * @param (\Closure(int, int, int): void)|null $onRun position, attempt (1 or 2), run id — as soon as a run starts
+     * @param (\Closure(WorkerReport): void)|null $onReport each part's final report
+     * @return list<WorkerReport> by position
+     */
+    public function runTasks(ToolContext $parent, Run $orchestrator, array $tasks, int $share, int $seconds, array $existing = [], ?\Closure $onRun = null, ?\Closure $onReport = null): array {
+        $jobs = [];
+        foreach ($tasks as $position => $task) {
+            $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport): WorkerReport {
+                $report = $parent->cancellation->isRequested() && !isset($existing[$position])
+                    ? new WorkerReport($position, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена', StopReason::Stopped)
+                    : $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $existing[$position] ?? [null, null], $onRun);
+                if ($onReport !== null) {
+                    $onReport($report);
+                }
+                return $report;
+            };
+        }
+        $reports = $this->readOnly($parent, array_values($tasks)) ? $this->side($jobs) : array_map(static fn(\Closure $job): WorkerReport => $job(), $jobs);
+        ksort($reports);
+        return array_values($reports);
     }
 
     /**
@@ -139,6 +185,11 @@ final class WorkerRunner {
         // Every job returns a WorkerReport; the futures lose the type on the way.
         /** @var array<int, WorkerReport> $reports */
         return $reports;
+    }
+
+    /** @return list<string> the tools a part gets: asked for, allowed to the orchestrator, existing, not forbidden */
+    public function allowedTools(ToolContext $parent, WorkerTask $task): array {
+        return $this->tools($parent, $task);
     }
 
     /** @param list<WorkerTask> $tasks */
@@ -170,35 +221,46 @@ final class WorkerRunner {
 
     /**
      * One part of the task: the model from the profile or the role, then, if the model let the worker down, one more
-     * try on a stronger model within what is left of the worker's share.
+     * try on a stronger model within what is left of the worker's share and time.
      *
      * spec: BRIEF.md#часть-2--профиль-задачи-выбор-модели-каскад — cascade
+     * spec: BRIEF.md#часть-3--фоновое-делегирование — runs a restart interrupted go on
+     *
+     * @param array{?int, ?int} $existing runs of the first try and of the retry, when a restart interrupted the part
+     * @param (\Closure(int, int, int): void)|null $onRun
      */
-    private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget): WorkerReport {
+    private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, int $seconds, array $existing = [null, null], ?\Closure $onRun = null): WorkerReport {
+        [$firstRun, $retryRun] = $existing;
         $tools = $this->tools($parent, $task);
         $chat = sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index);
         $started = hrtime(true);
-        $model = $this->model($task, $tools !== [], 0, $orchestrator);
-        $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat, 0);
-        // The first try took its time: the retry gets only what is left before the workers' deadline.
+        $model = $firstRun !== null ? ($this->runs->find($firstRun)->model ?? '') : $this->model($task, $tools !== [], 0, $orchestrator);
+        $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat, $seconds, $firstRun, $onRun === null ? null : static fn(int $id) => $onRun($index, 1, $id));
         $elapsed = intdiv(hrtime(true) - $started, 1_000_000_000);
+        // A retry the restart interrupted goes on whatever the conditions: it has started already.
         if (
-            !in_array($first->stopReason, self::CASCADE, true)
-            || $budget - $first->tokens < self::MIN_TOKENS
-            || $this->secondsLeft($orchestrator, $elapsed) < self::RETRY_MIN_SECONDS
-            || $parent->cancellation->isRequested()
+            $retryRun === null && (
+                !in_array($first->stopReason, self::CASCADE, true)
+                || $budget - $first->tokens < self::MIN_TOKENS
+                || $seconds - $elapsed < self::RETRY_MIN_SECONDS
+                || $parent->cancellation->isRequested()
+            )
         ) {
             return $first;
         }
-        $stronger = $this->model($task, $tools !== [], 2, $orchestrator);
-        if ($stronger === $model) {
-            $stronger = (string) $this->roles->model(ModelRole::STRONG);
+        if ($retryRun !== null) {
+            $stronger = $this->runs->find($retryRun)->model ?? '';
+        } else {
+            $stronger = $this->model($task, $tools !== [], 2, $orchestrator);
+            if ($stronger === $model) {
+                $stronger = (string) $this->roles->model(ModelRole::STRONG);
+            }
+            if ($stronger === $model) {
+                return $first;
+            }
+            $this->logger->info('Worker cascades to a stronger model', ['parent' => $orchestrator->id, 'task' => $index, 'from' => $model, 'to' => $stronger]);
         }
-        if ($stronger === $model) {
-            return $first;
-        }
-        $this->logger->info('Worker cascades to a stronger model', ['parent' => $orchestrator->id, 'task' => $index, 'from' => $model, 'to' => $stronger]);
-        $second = $this->attempt($parent, $orchestrator, $index, $task, $budget - $first->tokens, $stronger, $chat . '-retry', $elapsed);
+        $second = $this->attempt($parent, $orchestrator, $index, $task, $budget - $first->tokens, $stronger, $chat . '-retry', $seconds - $elapsed, $retryRun, $onRun === null ? null : static fn(int $id) => $onRun($index, 2, $id));
         return new WorkerReport(
             $index,
             $second->runId,
@@ -242,22 +304,44 @@ final class WorkerRunner {
         return intdiv($orchestrator->limits->runTimeout * 1000 - $orchestrator->activeMs, 1000) - self::MARGIN - $elapsed;
     }
 
-    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $elapsed): WorkerReport {
+    /**
+     * One run of a worker: a new one, or the one a restart interrupted. A finished run only gives its report.
+     *
+     * @param (\Closure(int): void)|null $onStarted gets the run id as soon as a new run exists
+     */
+    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null): WorkerReport {
         try {
-            $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
-            $this->conversations->setMeta($conversation, self::PROMPT, $model);
-            // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
-            $limits = new RunLimits(
-                $this->workerMaxTurns,
-                max(1, $budget),
-                max(10, min(self::RUN_TIMEOUT - $elapsed, $this->secondsLeft($orchestrator, $elapsed))),
-                $orchestrator->limits->toolTimeout,
-            );
-            $run = $this->runs->start($conversation, $parent->principal->id, $model, $limits, $orchestrator->id);
-            if ($run === null) {
-                return new WorkerReport($index, null, 'failed', $model, 0, 0, '', 'не удалось начать запуск воркера', StopReason::InternalError);
+            if ($existing !== null) {
+                $run = $this->runs->find($existing) ?? throw new DomainException('Запуск воркера не найден.');
+                if (!$run->status->isActive()) {
+                    return $this->report($index, $run);
+                }
+                // spec: BRIEF.md#устойчивость — writes that were running when the server stopped are not repeated
+                foreach ($this->transcript->pendingCalls($run->id) as $call) {
+                    if ($call->status === ToolCallStatus::Running && $call->danger !== DangerClass::Read) {
+                        $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, RunScheduler::INTERRUPTED);
+                    }
+                }
+                $limits = $run->limits;
+            } else {
+                $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
+                $this->conversations->setMeta($conversation, self::PROMPT, $model);
+                // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
+                $limits = new RunLimits(
+                    $this->workerMaxTurns,
+                    max(1, $budget),
+                    max(10, $seconds),
+                    $orchestrator->limits->toolTimeout,
+                );
+                $run = $this->runs->start($conversation, $parent->principal->id, $model, $limits, $orchestrator->id);
+                if ($run === null) {
+                    return new WorkerReport($index, null, 'failed', $model, 0, 0, '', 'не удалось начать запуск воркера', StopReason::InternalError);
+                }
+                if ($onStarted !== null) {
+                    $onStarted($run->id);
+                }
+                $this->transcript->appendUser($conversation, $run->id, self::brief($task));
             }
-            $this->transcript->appendUser($conversation, $run->id, self::brief($task));
             $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
@@ -273,16 +357,20 @@ final class WorkerRunner {
             }
             return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, $spent, '', 'внутренняя ошибка', StopReason::InternalError);
         }
+        return $this->report($index, $final);
+    }
+
+    private function report(int $index, Run $run): WorkerReport {
         return new WorkerReport(
             $index,
-            $final->id,
-            self::status($final->stopReason),
-            $model,
-            $final->turns,
-            $final->tokensUsed,
-            $this->summary($final->id),
-            $final->stopReason?->label(),
-            $final->stopReason,
+            $run->id,
+            self::status($run->stopReason),
+            $run->model,
+            $run->turns,
+            $run->tokensUsed,
+            $this->summary($run->id),
+            $run->stopReason?->label(),
+            $run->stopReason,
         );
     }
 

@@ -41,6 +41,7 @@ final class AgentStack {
     public readonly CallbackRouter $callbacks;
     public readonly AgentLoop $loop;
     public readonly VisitorService $visitors;
+    public readonly PolicyService $policies;
     private int $messageId = 0;
 
     public function __construct(
@@ -62,13 +63,14 @@ final class AgentStack {
         $this->approvals = new InMemoryApprovalRepository();
         $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800);
         $loop = $this->loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
+        $this->policies = new PolicyService(new InMemoryPolicyRepository(), $limits);
         $this->scheduler = new RunScheduler(
             $loop,
             $this->runs,
             $this->transcript,
             $this->conversations,
             $this->principals,
-            new PolicyService(new InMemoryPolicyRepository(), $limits),
+            $this->policies,
             $this->channel,
             'test/model',
             debounce: $debounce,

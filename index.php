@@ -18,6 +18,7 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\Context\ContextCompactor;
+use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
 use OpenCCK\App\Agent\Model\ModelRoles;
@@ -74,6 +75,7 @@ use OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository;
 use OpenCCK\Infrastructure\Repository\PostgresModelRoleRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresDelegationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
@@ -201,7 +203,9 @@ $loop = new AgentLoop(
     events: $tracer,
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
-$tools->register(new DelegateTaskTool(new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger))));
+$workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger));
+$background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
+$tools->register(new DelegateTaskTool($workers, $background));
 $scheduler = new RunScheduler(
     $loop,
     $runs,
@@ -216,6 +220,8 @@ $scheduler = new RunScheduler(
     events: $tracer,
 );
 $scheduler->useApprovals($approvals);
+$scheduler->useBackground($background);
+$background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
 $visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
 $chat = new ChatService(
@@ -248,7 +254,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
 (new App($logger))
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
-    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals))
+    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(

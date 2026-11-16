@@ -27,8 +27,23 @@ final class ScriptedLlm implements LlmClient {
     /** seconds every call waits before answering; cancellable */
     public float $delay = 0.0;
 
+    /**
+     * Answers for a given model, taken before the common script: workers and the orchestrator run side by side, so
+     * the order of their calls is not fixed.
+     *
+     * @var array<string, list<ChatResponse|LlmException>>
+     */
+    public array $byModel = [];
+
     /** @param list<ChatResponse|LlmException> $script */
     public function __construct(private array $script = []) {}
+
+    private function next(ChatRequest $request): ChatResponse|LlmException {
+        if (isset($this->byModel[$request->model]) && $this->byModel[$request->model] !== []) {
+            return array_shift($this->byModel[$request->model]);
+        }
+        return array_shift($this->script) ?? self::text('готово');
+    }
 
     public static function text(string $text, int $input = 100, int $output = 10): ChatResponse {
         return new ChatResponse($text, [], FinishReason::Stop, new Usage($input, $output), 'test/model', 'gen');
@@ -47,7 +62,7 @@ final class ScriptedLlm implements LlmClient {
         if ($this->delay > 0) {
             delay($this->delay, cancellation: $cancellation);
         }
-        $next = array_shift($this->script) ?? self::text('готово');
+        $next = $this->next($request);
         if ($next instanceof LlmException) {
             throw $next;
         }
@@ -59,7 +74,7 @@ final class ScriptedLlm implements LlmClient {
         if ($this->delay > 0) {
             delay($this->delay, cancellation: $cancellation);
         }
-        $next = array_shift($this->script) ?? self::text('готово');
+        $next = $this->next($request);
         if ($next instanceof LlmException) {
             throw $next;
         }

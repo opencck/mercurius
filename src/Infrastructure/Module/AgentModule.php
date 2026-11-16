@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Module;
 
 use OpenCCK\App\Agent\ApprovalService;
+use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\Infrastructure\API\AppModuleInterface;
 use Psr\Log\LoggerInterface;
@@ -17,6 +18,7 @@ use Throwable;
  * are closed at start, the rest by a timer.
  *
  * spec: BRIEF.md#устойчивость
+ * spec: BRIEF.md#часть-3--фоновое-делегирование — background workers go on after a restart
  * spec: BRIEF.md#подтверждения-и-запреты — silence past the timeout is a denial
  */
 final class AgentModule implements AppModuleInterface {
@@ -27,10 +29,14 @@ final class AgentModule implements AppModuleInterface {
         private readonly LoggerInterface $logger,
         private readonly ?ApprovalService $approvals = null,
         private readonly float $expiryInterval = 30.0,
+        private readonly ?BackgroundDelegations $background = null,
     ) {}
 
     public function start(): void {
+        // Runs first, so a delivered report joins a resumed run instead of racing it; background workers are left
+        // to their delegations.
         $this->scheduler->resumeAll();
+        $this->background?->resumeAll();
         $this->logger->info('Agent runs resumed');
         if ($this->approvals !== null) {
             $this->expire();
@@ -43,6 +49,7 @@ final class AgentModule implements AppModuleInterface {
             EventLoop::cancel($this->timer);
             $this->timer = null;
         }
+        $this->background?->shutdown();
         $this->scheduler->shutdown();
         $this->logger->info('Agent runs paused');
     }
