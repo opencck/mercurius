@@ -64,7 +64,7 @@ final class ToolCallValidator {
             /** @var array<string, mixed> $args */
             $args = $decoded;
 
-            $key = $call->name . "\0" . self::canonical($args);
+            $key = $call->name . "\0" . CanonicalJson::encode($args);
             if (isset($seen[$key])) {
                 $result[] = $this->invalid($call, $tool, $args, sprintf('Повтор вызова %s в этом же ответе: смотри его результат.', $seen[$key]));
                 continue;
@@ -108,17 +108,4 @@ final class ToolCallValidator {
         );
     }
 
-    private static function canonical(mixed $value): string {
-        return json_encode(self::sortKeys($value), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    }
-
-    private static function sortKeys(mixed $value): mixed {
-        if (!is_array($value)) {
-            return $value;
-        }
-        if (!array_is_list($value)) {
-            ksort($value);
-        }
-        return array_map(self::sortKeys(...), $value);
-    }
 }
