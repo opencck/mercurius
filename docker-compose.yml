@@ -68,6 +68,8 @@ services:
       target: sandbox
     image: mercurius-sandbox:${APP_VERSION:-dev}
     restart: unless-stopped
+    # tini as PID 1 reaps killed orphans; otherwise zombies stay and count against the process limit.
+    init: true
     environment:
       SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
     cpus: ${SANDBOX_CPUS:-2}
@@ -125,6 +127,7 @@ services:
     build:
       context: .
       target: sandbox-test
+    init: true
     cap_drop:
       - ALL
     cap_add:
