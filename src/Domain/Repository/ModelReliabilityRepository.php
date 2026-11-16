@@ -22,4 +22,11 @@ interface ModelReliabilityRepository {
      * @return array<string, array{runs: int, failures: int, last: int}> last — unix seconds
      */
     public function failures(DateTimeImmutable $since): array;
+
+    /**
+     * Duration of successful model calls since the date by model ref, in milliseconds.
+     *
+     * @return array<string, array{calls: int, p50: int, p95: int}>
+     */
+    public function latency(DateTimeImmutable $since): array;
 }

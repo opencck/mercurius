@@ -91,5 +91,9 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertSame(5, $failures[$model]['runs']);
         self::assertSame(1, $failures[$model]['failures']);
         self::assertGreaterThan(time() - 600, $failures[$model]['last']);
+        (new \OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository($this->db))->record(new LlmCallRecord(null, 'agent', $model, 'stop', null, 10, 1, 0, 0, 0, 0.001, 1500));
+        $latency = (new \OpenCCK\Infrastructure\Repository\PostgresModelReliabilityRepository($this->db))->latency($since);
+        self::assertSame(1, $latency[$model]['calls']);
+        self::assertSame(1500, $latency[$model]['p95']);
     }
 }

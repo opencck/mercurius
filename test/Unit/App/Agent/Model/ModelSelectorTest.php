@@ -163,6 +163,10 @@ final class ModelSelectorTest extends AsyncTestCase {
                     'openrouter:a/mid' => ['runs' => 5, 'failures' => 5, 'last' => time() - 4 * 86400],
                 ];
             }
+
+            public function latency(\DateTimeImmutable $since): array {
+                return [];
+            }
         };
         $selector = new ModelSelector($this->stores, $this->roles, $this->stores, new NullLogger(), $reliability);
 
@@ -194,6 +198,27 @@ final class ModelSelectorTest extends AsyncTestCase {
         [$model] = (new ModelSelector($this->stores, $roles, $this->stores, new NullLogger()))->choose(TaskProfile::fromArray(['text' => 5]), true, null);
 
         self::assertSame('openai:gpt-x', (string) $model);
+    }
+
+    public function testUrgentPartSkipsModelsSlowHere(): void {
+        $this->standard();
+        $reliability = new class implements \OpenCCK\Domain\Repository\ModelReliabilityRepository {
+            public function failures(\DateTimeImmutable $since): array {
+                return [];
+            }
+
+            public function latency(\DateTimeImmutable $since): array {
+                return ['openrouter:a/unscored' => ['calls' => 9, 'p50' => 40_000, 'p95' => 300_000]];
+            }
+        };
+        $selector = new ModelSelector($this->stores, $this->roles, $this->stores, new NullLogger(), $reliability);
+
+        [$calm] = $selector->choose(TaskProfile::fromArray(['text' => 2]), true, null);
+        [$urgent, $reason] = $selector->choose(TaskProfile::fromArray(['text' => 2, 'urgency' => 8]), true, null);
+
+        self::assertSame('openrouter:a/unscored', (string) $calm, 'not urgent: the cheapest');
+        self::assertNotSame('openrouter:a/unscored', (string) $urgent);
+        self::assertStringContainsString('медленных', $reason);
     }
 
     public function testZeroPricedModelIsSkipped(): void {

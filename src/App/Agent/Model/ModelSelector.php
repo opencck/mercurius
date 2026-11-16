@@ -48,6 +48,11 @@ final class ModelSelector {
 
     /** @var array{at: int, models: array<string, true>}|null */
     private ?array $unreliableCache = null;
+    /** An urgent part (urgency at least this) skips models slow here. */
+    private const URGENT = 7;
+    /** Slow: p95 of a call above this, over at least SLOW_MIN_CALLS calls. */
+    private const SLOW_P95_MS = 60_000;
+    private const SLOW_MIN_CALLS = 5;
 
     public function __construct(
         private readonly ModelCatalogRepository $catalog,
@@ -65,6 +70,8 @@ final class ModelSelector {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
         $unreliable = $this->unreliable();
+        // spec: BRIEF.md#выбор — urgency: the catalog has no latency, our own calls do
+        $slow = $profile->score('urgency') >= self::URGENT ? $this->slow() : [];
         // Thresholds come from the models that could be chosen at all, so a top score is reachable. Models that often
         // failed here stay in that set: dropping them would lower the bar for the rest.
         // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — every provider with a key; refs keep the provider
@@ -99,6 +106,7 @@ final class ModelSelector {
         }
         $candidates = [];
         $skipped = 0;
+        $slowSkipped = 0;
         foreach ($eligible as $i => $m) {
             if (!self::meets($m, $required, $highest)) {
                 continue;
@@ -108,9 +116,15 @@ final class ModelSelector {
                 $skipped++;
                 continue;
             }
+            if (isset($slow[(string) $ref])) {
+                $slowSkipped++;
+                continue;
+            }
             $candidates[] = ['ref' => $ref, 'info' => $m];
         }
-        $needs = self::describe($required, $needsTools, $profile, $window) . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '');
+        $needs = self::describe($required, $needsTools, $profile, $window)
+            . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '')
+            . ($slowSkipped > 0 ? sprintf('; без %d медленных у нас (p95 > %d с)', $slowSkipped, intdiv(self::SLOW_P95_MS, 1000)) : '');
         usort(
             $candidates,
             /**
@@ -165,6 +179,26 @@ final class ModelSelector {
         }
         $this->unreliableCache = ['at' => $now, 'models' => $unreliable];
         return $unreliable;
+    }
+
+    /** @return array<string, true> model refs slow here, for urgent parts */
+    private function slow(): array {
+        if ($this->reliability === null) {
+            return [];
+        }
+        try {
+            $stats = $this->reliability->latency(new DateTimeImmutable(sprintf('-%d days', self::DAYS)));
+        } catch (Throwable $e) {
+            $this->logger->error('Could not read model latency', ['error' => $e::class]);
+            return [];
+        }
+        $slow = [];
+        foreach ($stats as $model => $row) {
+            if ($row['calls'] >= self::SLOW_MIN_CALLS && $row['p95'] > self::SLOW_P95_MS) {
+                $slow[$model] = true;
+            }
+        }
+        return $slow;
     }
 
     /** @return array{ModelRef, string} */
