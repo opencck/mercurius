@@ -529,3 +529,10 @@ ssh-mcp — MCP-сервер на TypeScript (Node, библиотека `ssh2`)
 | Флаги командной строки | `README.md` L1067–L1108 |
 | Почему классификатор менялся и какие были обходы | `CHANGELOG.md` L77–L165 (версии 2.19.0–2.23.0) |
 | Какие свойства классификатора проверяются тестами | `test/property/classifier.property.test.ts`; `docs/superpowers/specs/2026-10-23-classifier-invariant-properties-design.md` |
+
+## Дополнение: сверка 2026-11-16
+
+Непрочитанное, что нужно фазе 7: `test/differential/corpus.json@e04ebf2` — около 6 тыс. строк команд, в основном
+попытки обхода; `test/property/classifier.property.test.ts` — инварианты классификатора. Оба — тесты для пакета
+`command-policy`. Ещё: `src/ssh/channel-retry.ts` (повтор канала для Dropbear), `src/ssh/sftp.ts` (790 строк, образец
+SFTP), журнал с цепочкой хешей — `src/audit/store.ts:L63-L103`.

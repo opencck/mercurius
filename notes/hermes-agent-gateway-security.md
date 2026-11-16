@@ -867,3 +867,18 @@ reviewed: 2026-11-16
 - имена MCP-инструментов: `mcp_<server>_<tool>` в руководстве, `mcp__<server>__<tool>` в коде и справочнике (см. 8.3);
 - таймаут вызова MCP по умолчанию: 120 и 300 в одном файле (см. 8.1);
 - порядок проверок авторизации в `security.md` (L476–L485), в `gateway-internals.md` (L719–L727) и в коде (`authz_mixin.py` L855–L939) описан по-разному; в разделе 4 приведён порядок из кода.
+
+## Дополнение: доставка в Telegram (сверка 2026-11-16)
+
+- Итоговая правка не ограничивается частотой: «завершённый ответ доставляется всегда»
+  (`plugins/platforms/telegram/adapter.py@e96221fa:L3537-L3549`, `edit_message`).
+- При флуде интервал правок растёт по `retry_after`, после трёх ударов — запасной режим
+  (`gateway/stream_consumer_transport.py@e96221fa:L669-L694`); невидимый хвост уходит новым сообщением
+  (`gateway/stream_consumer_fallback.py@e96221fa:L206`, `_send_fallback_final`; ожидание флуда до 5 с — `L475-L487`).
+- Итог долгого запуска — новым сообщением, превью удаляется: правка не уведомляет
+  (`stream_consumer_transport.py@e96221fa:L247-L255`, `_should_send_fresh_final`).
+- `sendMessageDraft` в личке с бюджетом 20 вызовов за 5 с / 40 за 30 с (`telegram_draft_budget.py@e96221fa:L1-L40`).
+- Карточка подтверждения: если полный текст команды показать нельзя — только «Отказать»
+  (`gateway/platforms/base.py@e96221fa:L2744-L2763`); не отправилась — вызов сразу блокируется
+  (`tools/approval.py@e96221fa:L950`).
+- Группы и темы форума: `telegram_group_observe.py`, `telegram_topic_routing.py` (фаза 10).

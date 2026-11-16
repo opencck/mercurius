@@ -1077,3 +1077,38 @@ ShareGPT; в `state.db` не пишут. `trajectory_compressor.py` не чит�
 `tools/AGENTS.md` и `agent-loop.md`, 10 / 1 / 250 в коде; умолчание `max_iterations` родителя — 500 в документации,
 `sys.maxsize` в сигнатуре конструктора (значение из конфига `agent.max_turns` в `agent_init.py` не проверено).
 Остальные утверждения, взятые из документации, по коду не сверялись.
+
+## Дополнение: модули, найденные при сверке 2026-11-16
+
+Сверка сделанного в Меркурии с hermes (`e96221fa`) нашла модули, которых конспект не называл. Строки проверены.
+
+**Поток и его жизнь** (`agent/`): `chat_completion_stream_monitor.py` — убивает поток после тишины
+(`L294-L297`); таймер продлевают только настоящие чанки, не keep-alive (`chat_completion_helpers.py:L2835-L2842`,
+`_count_chunk`; правило прямо — `auxiliary_client.py:L1115-L1123`); порог 180 с, растёт до 240/300 с для промптов
+больше 50/100 тыс. токенов (`chat_completion_helpers.py:L620-L654`), для моделей рассуждения — 240–600 с
+(`reasoning_timeouts.py:L18-L56`), не больше половины оставшегося бюджета запуска (`L676-L686`). Ещё:
+`auxiliary_stream_watchdog.py`, `stream_max_lifetime.py`, `chat_completion_nonstream.py`, `sleep_clock.py`.
+
+**Обрезанный и пустой ответ:** `turn_truncation.py:L313-L379` (`_continue_text` — продолжение до 4 раз со склейкой),
+`L456-L520` (`recover_from_truncation`); `turn_empty_response.py:L105-L155` (`_retry_empty`, до 3 повторов);
+`empty_response_guard.py:L8-L33` (два пустых подряд — детерминированный сбой).
+
+**Рассуждение между ходами:** `chat_completion_helpers.py:L1665-L1676`, `L3111-L3121` (сохранение
+`reasoning_details` байт в байт), `transports/chat_completions.py:L300-L312` (возврат шлюзу), `reasoning_carriers.py`,
+`replayed_reasoning.py`, `anthropic_thinking_replay.py`, `message_sanitization.py`. Параметры рассуждения — только
+моделям, что их принимают: `reasoning_params.py:L91-L122` (`_supports_reasoning_extra_body`).
+
+**Кеш промпта:** `prompt_caching.py:L416-L451` (`apply_anthropic_cache_control`, раскладка «system и 3»),
+`agent_runtime_helpers.py:L1740-L1800` (политика для Claude через OpenRouter), `prompt_cache_boundary.py`,
+`prompt_cache_scope.py` (`prompt_cache_key`). `micro_compaction.py` выключен по умолчанию: ломает кеш.
+
+**Смена модели при отказе:** `turn_recovery.py:L1922-L1959`, `chat_completion_helpers.py:L2034-L2090`
+(`try_activate_fallback`); «no endpoints found that support tool use» — model_not_found (`error_classifier.py:L350-L353`).
+Исчерпанный баланс — фразы `error_classifier.py:L115`.
+
+**Для следующих фаз:** A2A v1.0 — `plugins/platforms/a2a/` (`protocol.py`, `security.py`, `tools.py`, `adapter.py`;
+фаза 13); почта — `plugins/platforms/email/adapter.py` (проверка SPF/DKIM/DMARC `L379`), `skills/email/himalaya`;
+поиск — `plugins/web/*` (searxng, ddgs, brave, tavily, exa), `tools/web_tools*.py`, `read_extract.py` (фаза 8);
+`tools/tool_search.py`, `tools/osv_check.py` (фаза 9); `tools/checkpoint_manager.py`, Kanban (`hermes_cli/kanban_*.py`,
+`tools/kanban_tools.py`), `gateway/platforms/webhook.py`, `cron/missed_runs.py` (фаза 10); `hermes_cli/backup*.py`,
+`config_migrations.py`, `doctor*.py`, `gateway/platforms/api_server.py` (фаза 12).
