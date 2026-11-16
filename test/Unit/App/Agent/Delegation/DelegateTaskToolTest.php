@@ -19,6 +19,7 @@ use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Test\Support\AgentStack;
+use OpenCCK\Test\Support\FakeKeyedTool;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryModelStores;
 use OpenCCK\Test\Support\ScriptedLlm;
@@ -125,7 +126,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
         self::assertSame([], array_filter($stack->channel->texts('send'), static fn(string $t): bool => str_starts_with($t, 'Подтвердите')));
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
-        self::assertStringContainsString('нельзя', $llm->requests[2]->messages[3]->content);
+        self::assertStringContainsString('необратимые действия недоступны', $llm->requests[2]->messages[3]->content);
     }
 
     public function testNotEnoughBudgetRefuses(): void {
@@ -338,6 +339,28 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $report = self::report($llm);
         self::assertStringContainsString('Проверка: принято', $report);
         self::assertSame(1, substr_count($report, 'Проверка:'), 'the failed part is not checked');
+    }
+
+    public function testWorkerCannotDoIrreversibleEvenWithAGrant(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'отправь', 'tools' => ['send'], 'role' => 'cheap']]),
+            ScriptedLlm::calls(new ToolCall('s1', 'send', '{}')),
+            ScriptedLlm::text('не смог отправить'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $send = new FakeKeyedTool('send', 'send:x');
+        $stack->registry->register($send);
+        // The owner saved a grant for this action: the orchestrator could use it, a worker may not.
+        $stack->approvals->addGrant(1, 'send:x');
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(0, $send->runs);
+        $refusal = array_filter($llm->requests[2]->messages, static fn($m): bool => $m->role === Role::Tool && str_contains($m->content, 'необратимые действия'));
+        self::assertNotEmpty($refusal);
+        self::assertStringContainsString('не смог отправить', self::report($llm));
     }
 
     public function testLongSummaryIsCut(): void {

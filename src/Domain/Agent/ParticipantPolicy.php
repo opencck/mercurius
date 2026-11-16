@@ -26,6 +26,8 @@ final class ParticipantPolicy {
         public readonly bool $mayRequestApproval,
         /** only calls that read run: the danger is judged per call, by its arguments (a POST is not a read) */
         public readonly bool $readOnly = false,
+        /** irreversible calls may run (by approval or a saved grant); a worker never has this right */
+        public readonly bool $irreversible = true,
     ) {}
 
     public function allowsTool(string $name): bool {

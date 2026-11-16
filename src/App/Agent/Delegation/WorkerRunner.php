@@ -456,7 +456,7 @@ final class WorkerRunner {
                 }
                 $this->transcript->appendUser($conversation, $run->id, self::brief($task));
             }
-            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly);
+            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly, false);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);

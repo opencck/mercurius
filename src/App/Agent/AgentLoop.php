@@ -453,6 +453,10 @@ final class AgentLoop {
         if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
             return ToolResult::error('Здесь доступно только чтение: этот вызов меняет данные и не выполнен.');
         }
+        // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker gets no irreversible action, a saved grant included
+        if (!$state->policy->irreversible && $call->executable() && $call->danger === DangerClass::Irreversible) {
+            return ToolResult::error('Воркеру необратимые действия недоступны, даже по сохранённому разрешению. Не выполнено: опиши в итоге, что нужно сделать, — решит оркестратор.');
+        }
         if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
             return true;
         }
