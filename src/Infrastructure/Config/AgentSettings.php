@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Config;
 
+use OpenCCK\Domain\Agent\RunLimits;
+
 /**
  * Limits of one agent run. They are the owner's limits and the ceiling for every other participant.
  *
@@ -34,5 +36,9 @@ final class AgentSettings {
             runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 900, 86_400),
             toolTimeout: Env::positiveInt($env, 'AGENT_TOOL_TIMEOUT', 120, 600),
         );
+    }
+
+    public function ownerLimits(): RunLimits {
+        return new RunLimits($this->maxTurns, $this->tokenBudget, $this->runTimeout, $this->toolTimeout);
     }
 }
