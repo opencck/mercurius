@@ -60,7 +60,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
     && docker-php-ext-install pcntl sockets \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && echo 'zend.assertions=-1' > /usr/local/etc/php/conf.d/mercurius.ini
 COPY --from=golang:1.23-bookworm /usr/local/go /usr/local/go
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 ENV PATH=/usr/local/go/bin:$PATH
