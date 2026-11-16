@@ -64,6 +64,8 @@ final class WorkerRunner {
     public const UNCHECKED = 'не проверено';
     /** Characters of the verifier's reasons kept in the report. */
     private const VERDICT_NOTE = 1000;
+    /** A line that starts with the verdict. */
+    public const VERDICT_LINE = '/^[\s*_]*ВЕРДИКТ[\s*_]*[:—–-][\s*_]*(принято|отклонено)(?!\p{L})[\s*_.!]*/imu';
 
     public const VERIFY_PROMPT = <<<'TXT'
         Ты — проверяющий: отдельный агент с чистым контекстом. Тебе дают цель части задачи, требование к ответу и
@@ -340,29 +342,44 @@ final class WorkerRunner {
             fn(string $name): bool => $this->registry->get($name)?->danger([]) === DangerClass::Read,
         ));
         $check = new WorkerTask(self::verifyBrief($task, $report->summary), '', '', $reads, ModelRole::STRONG, $task->profile);
+        // The model that wrote the answer: after a cascade the report's model is a description, the run knows.
+        $answered = $report->runId === null ? $report->model : ($this->runs->find($report->runId)->model ?? $report->model);
         if ($existing !== null) {
             $model = $this->runs->find($existing)->model ?? '';
         } else {
             $model = $this->model($task, $reads !== [], 2, $orchestrator);
-            // A fresh pair of eyes: not the model that wrote the answer.
-            if ($model === $report->model) {
+            // A fresh pair of eyes: not the model that wrote the answer, if there is another one.
+            if ($model === $answered) {
                 $model = (string) $this->roles->model(ModelRole::STRONG);
             }
         }
+        $same = $model === $answered;
         $chat = sprintf('run%d-%s%s-%d-verify', $orchestrator->id, $parent->callId, $tag, $index);
-        $verdict = $this->attempt($parent, $orchestrator, $index, $check, $budget, $model, $chat, $seconds, $existing, $onRun === null ? null : static fn(int $id) => $onRun($index, 3, $id), self::VERIFY_PROMPT);
+        $verdict = $this->attempt($parent, $orchestrator, $index, $check, $budget, $model, $chat, $seconds, $existing, $onRun === null ? null : static fn(int $id) => $onRun($index, 3, $id), self::VERIFY_PROMPT, true);
         if ($verdict->status !== 'done') {
             return $report->withVerdict(self::UNCHECKED, sprintf('проверяющий не закончил (%s), запуск #%d', $verdict->reason ?? $verdict->status, (int) $verdict->runId), $verdict->tokens);
         }
-        preg_match_all('/ВЕРДИКТ:\s*(принято|отклонено)/iu', $verdict->summary, $m);
-        $last = $m[1] === [] ? null : $m[1][array_key_last($m[1])];
-        if (!is_string($last)) {
+        $word = self::verdict($verdict->summary);
+        if ($word === null) {
             return $report->withVerdict(self::UNCHECKED, sprintf('проверяющий не дал вердикта, запуск #%d', (int) $verdict->runId), $verdict->tokens);
         }
-        // The last verdict counts: the verifier may quote the format before giving its own.
-        $word = mb_strtolower($last);
-        $reasons = trim((string) preg_replace('/ВЕРДИКТ:\s*(принято|отклонено)\.?/iu', '', $verdict->summary));
-        return $report->withVerdict($word, mb_substr($reasons, 0, self::VERDICT_NOTE) . sprintf(' (проверяющий %s, запуск #%d)', $model, (int) $verdict->runId), $verdict->tokens);
+        $reasons = trim((string) preg_replace(self::VERDICT_LINE, '', $verdict->summary, 1));
+        return $report->withVerdict(
+            $word,
+            mb_substr($reasons, 0, self::VERDICT_NOTE) . sprintf(' (проверяющий %s%s, запуск #%d)', $model, $same ? ' — та же модель, другой нет' : '', (int) $verdict->runId),
+            $verdict->tokens,
+        );
+    }
+
+    /**
+     * The verdict is the first line that starts with it, as the prompt asks: the reasons may quote the worker's answer,
+     * and a verdict planted there must not count. Bold and dashes are tolerated.
+     */
+    public static function verdict(string $text): ?string {
+        if (preg_match(self::VERDICT_LINE, $text, $m) !== 1) {
+            return null;
+        }
+        return mb_strtolower($m[1]);
     }
 
     private static function verifyBrief(WorkerTask $task, string $answer): string {
@@ -406,7 +423,7 @@ final class WorkerRunner {
      *
      * @param (\Closure(int): void)|null $onStarted gets the run id as soon as a new run exists
      */
-    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null, string $prompt = self::PROMPT): WorkerReport {
+    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null, string $prompt = self::PROMPT, bool $readOnly = false): WorkerReport {
         try {
             if ($existing !== null) {
                 $run = $this->runs->find($existing) ?? throw new DomainException('Запуск воркера не найден.');
@@ -439,7 +456,7 @@ final class WorkerRunner {
                 }
                 $this->transcript->appendUser($conversation, $run->id, self::brief($task));
             }
-            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false);
+            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);

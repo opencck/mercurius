@@ -41,6 +41,13 @@ final class ModelSelector {
     private const FAILURE_SHARE = 0.5;
     private const MIN_RUNS = 3;
     private const DAYS = 14;
+    /** An excluded model gets a trial run again after this many seconds without runs: it cannot improve otherwise. */
+    private const PROBE_AFTER = 3 * 86400;
+    /** Seconds the failure rates are kept between choices. */
+    private const STATS_TTL = 60;
+
+    /** @var array{at: int, models: array<string, true>}|null */
+    private ?array $unreliableCache = null;
 
     public function __construct(
         private readonly ModelCatalogRepository $catalog,
@@ -58,19 +65,12 @@ final class ModelSelector {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
         $unreliable = $this->unreliable();
-        $skipped = 0;
-        // Thresholds come from the models that could be chosen at all, so a top score is reachable.
-        $eligible = [];
-        foreach ($this->catalog->models(ModelRef::OPENROUTER) as $m) {
-            if (!$this->eligible($m, $needsTools, $profile, $window, $ceiling)) {
-                continue;
-            }
-            if (isset($unreliable[(string) new ModelRef(ModelRef::OPENROUTER, $m->id)])) {
-                $skipped++;
-                continue;
-            }
-            $eligible[] = $m;
-        }
+        // Thresholds come from the models that could be chosen at all, so a top score is reachable. Models that often
+        // failed here stay in that set: dropping them would lower the bar for the rest.
+        $eligible = array_values(array_filter(
+            $this->catalog->models(ModelRef::OPENROUTER),
+            fn(ModelInfo $m): bool => $this->eligible($m, $needsTools, $profile, $window, $ceiling),
+        ));
         $bump = (float) max(0, $profile->score('error_cost') - 5) / 2.0 + (float) $raise;
         $required = [];
         $missing = [];
@@ -90,8 +90,19 @@ final class ModelSelector {
             // Without the index nothing shows a model is good enough: not the cheapest one at random.
             return $this->fallback($conversationId, sprintf('в каталоге нет оценок (%s) — роль strong', implode(', ', $missing)));
         }
+        $candidates = [];
+        $skipped = 0;
+        foreach ($eligible as $m) {
+            if (!self::meets($m, $required, $highest)) {
+                continue;
+            }
+            if (isset($unreliable[(string) new ModelRef(ModelRef::OPENROUTER, $m->id)])) {
+                $skipped++;
+                continue;
+            }
+            $candidates[] = $m;
+        }
         $needs = self::describe($required, $needsTools, $profile, $window) . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '');
-        $candidates = array_values(array_filter($eligible, static fn(ModelInfo $m): bool => self::meets($m, $required, $highest)));
         usort($candidates, static fn(ModelInfo $a, ModelInfo $b): int => self::price($a) <=> self::price($b));
         $chosen = $candidates[0] ?? null;
         if ($chosen === null) {
@@ -115,6 +126,10 @@ final class ModelSelector {
         if ($this->reliability === null) {
             return [];
         }
+        $now = time();
+        if ($this->unreliableCache !== null && $now - $this->unreliableCache['at'] < self::STATS_TTL) {
+            return $this->unreliableCache['models'];
+        }
         try {
             $stats = $this->reliability->failures(new DateTimeImmutable(sprintf('-%d days', self::DAYS)));
         } catch (Throwable $e) {
@@ -123,10 +138,15 @@ final class ModelSelector {
         }
         $unreliable = [];
         foreach ($stats as $model => $row) {
-            if ($row['runs'] >= self::MIN_RUNS && (float) $row['failures'] >= self::FAILURE_SHARE * (float) $row['runs']) {
+            if (
+                $row['runs'] >= self::MIN_RUNS
+                && (float) $row['failures'] >= self::FAILURE_SHARE * (float) $row['runs']
+                && $now - $row['last'] < self::PROBE_AFTER
+            ) {
                 $unreliable[$model] = true;
             }
         }
+        $this->unreliableCache = ['at' => $now, 'models' => $unreliable];
         return $unreliable;
     }
 

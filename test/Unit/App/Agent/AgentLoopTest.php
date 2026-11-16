@@ -72,8 +72,8 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     /** @param positive-int $maxTokens */
-    private function execute(ScriptedLlm $llm, Run $run, int $maxTokens = 100, ?\Amp\Cancellation $cancellation = null): Run {
-        $policy = new ParticipantPolicy(null, $run->limits, null, true);
+    private function execute(ScriptedLlm $llm, Run $run, int $maxTokens = 100, ?\Amp\Cancellation $cancellation = null, bool $readOnly = false): Run {
+        $policy = new ParticipantPolicy(null, $run->limits, null, true, $readOnly);
         return $this->loop($llm, $maxTokens)->run($run, $policy, $this->owner, $this->observer, $cancellation ?? new NullCancellation());
     }
 
@@ -188,6 +188,24 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertLessThan(5.0, microtime(true) - $started, 'the first call is cut at 1 s, the summary takes 3 s');
         self::assertCount(2, $llm->requests);
         self::assertSame([], $llm->requests[1]->tools);
+    }
+
+    public function testReadOnlyPolicyRefusesEveryCallThatWrites(): void {
+        $write = new FakeTool('w', DangerClass::Write);
+        $read = new FakeTool('r');
+        $this->registry->register($write);
+        $this->registry->register($read);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'w', '{"q":"1"}'), new ToolCall('c2', 'r', '{"q":"2"}')),
+            ScriptedLlm::text('итог'),
+        ]);
+
+        $this->execute($llm, $this->start(), readOnly: true);
+
+        self::assertSame([], $write->calls, 'the write never ran');
+        self::assertCount(1, $read->calls);
+        $refusals = array_filter(self::lastMessages($llm), static fn(Message $m): bool => str_contains($m->content, 'только чтение'));
+        self::assertCount(1, $refusals);
     }
 
     public function testTokenBudgetStopsBeforeModelCall(): void {

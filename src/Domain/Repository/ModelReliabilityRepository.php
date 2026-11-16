@@ -15,6 +15,11 @@ interface ModelReliabilityRepository {
     /** Endings where the model let the worker down. */
     public const FAILURES = ['model_failed', 'invalid_calls', 'truncated', 'loop_guard'];
 
-    /** @return array<string, array{runs: int, failures: int}> finished worker runs by model ref since the date */
+    /**
+     * Worker runs that ended with an answer or with a failure of the model (stops and limits say nothing about it),
+     * by model ref since the date, with the time of the latest one.
+     *
+     * @return array<string, array{runs: int, failures: int, last: int}> last — unix seconds
+     */
     public function failures(DateTimeImmutable $since): array;
 }

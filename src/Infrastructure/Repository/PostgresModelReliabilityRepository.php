@@ -20,17 +20,19 @@ final class PostgresModelReliabilityRepository implements ModelReliabilityReposi
         $placeholders = implode(', ', array_fill(0, count(self::FAILURES), '?'));
         $stats = [];
         foreach ($this->db->execute(
-            "SELECT model, count(*)::int AS runs, (count(*) FILTER (WHERE stop_reason IN ({$placeholders})))::int AS failures
+            "SELECT model, count(*)::int AS runs, (count(*) FILTER (WHERE stop_reason <> 'answered'))::int AS failures,
+                    extract(epoch FROM max(created_at))::bigint AS last
              FROM runs
-             WHERE parent_run_id IS NOT NULL AND status NOT IN ('running', 'waiting_approval') AND created_at >= to_timestamp(?)
+             WHERE parent_run_id IS NOT NULL AND created_at >= to_timestamp(?) AND stop_reason IN ('answered', {$placeholders})
              GROUP BY model",
-            [...self::FAILURES, $since->getTimestamp()],
+            [$since->getTimestamp(), ...self::FAILURES],
         ) as $row) {
             $model = $row['model'] ?? null;
             $runs = $row['runs'] ?? null;
             $failures = $row['failures'] ?? null;
-            if (is_string($model) && is_int($runs) && is_int($failures)) {
-                $stats[$model] = ['runs' => $runs, 'failures' => $failures];
+            $last = $row['last'] ?? null;
+            if (is_string($model) && is_int($runs) && is_int($failures) && is_int($last)) {
+                $stats[$model] = ['runs' => $runs, 'failures' => $failures, 'last' => $last];
             }
         }
         return $stats;

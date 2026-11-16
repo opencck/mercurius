@@ -80,14 +80,19 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
                 (SELECT count(*) FROM runs WHERE parent_run_id IS NULL AND created_at >= to_timestamp(?))::int AS top,
                 (SELECT count(DISTINCT parent_run_id) FROM runs WHERE parent_run_id IS NOT NULL AND created_at >= to_timestamp(?))::int AS delegating,
                 (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
-                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id NOT LIKE '%-verify' AND c.chat_id NOT LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS workers,
+                  WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id NOT LIKE '%-verify' AND c.chat_id NOT LIKE '%-retry'
+                    AND r.created_at >= to_timestamp(?))::int AS workers,
                 (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
-                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS cascades,
+                  WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS cascades,
                 (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
-                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?))::int AS verifiers,
-                (SELECT count(DISTINCT r.id) FROM runs r JOIN conversations c ON c.id = r.conversation_id JOIN messages m ON m.run_id = r.id
-                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-verify' AND m.role = 'assistant'
-                    AND m.content ILIKE '%ВЕРДИКТ: отклонено%' AND r.created_at >= to_timestamp(?))::int AS rejected,
+                  WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?))::int AS verifiers,
+                -- the same rule as the code: the first line that starts with a verdict, in the verifier's final answer
+                (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
+                  WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?)
+                    AND substring(
+                          (SELECT m.content FROM messages m WHERE m.run_id = r.id AND m.role = 'assistant'
+                             AND (m.tool_calls IS NULL OR jsonb_array_length(m.tool_calls) = 0) ORDER BY m.id DESC LIMIT 1)
+                          FROM '(?:^|\n)[[:space:]*_]*[Вв][Ее][Рр][Дд][Ии][Кк][Тт][[:space:]*_]*[:—–-][[:space:]*_]*([А-Яа-я]+)') IN ('отклонено', 'Отклонено', 'ОТКЛОНЕНО'))::int AS rejected,
                 (SELECT count(*) FROM delegations WHERE created_at >= to_timestamp(?))::int AS background",
             array_fill(0, 7, $since->getTimestamp()),
         )->fetchRow() ?? [];

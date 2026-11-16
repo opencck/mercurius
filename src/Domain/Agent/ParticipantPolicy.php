@@ -24,6 +24,8 @@ final class ParticipantPolicy {
         public readonly RunLimits $run,
         public readonly ?SandboxLimits $sandbox,
         public readonly bool $mayRequestApproval,
+        /** only calls that read run: the danger is judged per call, by its arguments (a POST is not a read) */
+        public readonly bool $readOnly = false,
     ) {}
 
     public function allowsTool(string $name): bool {

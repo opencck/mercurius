@@ -449,6 +449,10 @@ final class AgentLoop {
      *         ToolResult — do not run, this is the result
      */
     private function admit(RunState $state, ValidatedCall $call): bool|string|ToolResult {
+        // spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — the verifier reads; no grant lets it write
+        if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
+            return ToolResult::error('Здесь доступно только чтение: этот вызов меняет данные и не выполнен.');
+        }
         if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
             return true;
         }

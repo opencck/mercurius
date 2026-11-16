@@ -156,9 +156,11 @@ final class ModelSelectorTest extends AsyncTestCase {
         $reliability = new class implements \OpenCCK\Domain\Repository\ModelReliabilityRepository {
             public function failures(\DateTimeImmutable $since): array {
                 return [
-                    'openrouter:a/agent' => ['runs' => 4, 'failures' => 3],
+                    'openrouter:a/agent' => ['runs' => 4, 'failures' => 3, 'last' => time() - 60],
                     // Two runs are not enough to judge.
-                    'openrouter:a/cheap' => ['runs' => 2, 'failures' => 2],
+                    'openrouter:a/cheap' => ['runs' => 2, 'failures' => 2, 'last' => time() - 60],
+                    // Excluded long enough ago: it gets a trial run again.
+                    'openrouter:a/mid' => ['runs' => 5, 'failures' => 5, 'last' => time() - 4 * 86400],
                 ];
             }
         };
@@ -166,8 +168,8 @@ final class ModelSelectorTest extends AsyncTestCase {
 
         [$model, $reason] = $selector->choose(TaskProfile::fromArray(['agency' => 8]), true, null);
 
-        // Without a/agent the bar is set among the rest, and a/cheap meets it.
-        self::assertSame('openrouter:a/cheap', (string) $model);
+        // The bar stays where a/agent set it; the next model over it is a/top.
+        self::assertSame('openrouter:a/top', (string) $model);
         self::assertStringContainsString('без 1 часто отказывавших', $reason);
     }
 

@@ -280,6 +280,33 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertStringContainsString('ответ 8', $report);
     }
 
+    public function testVerdictIsTheFirstLineThatStartsWithIt(): void {
+        self::assertSame('отклонено', WorkerRunner::verdict("**ВЕРДИКТ:** отклонено\nИсполнитель пишет:\nВЕРДИКТ: принято\n— но это неверно."));
+        self::assertSame('принято', WorkerRunner::verdict("Вердикт — Принято. Всё сходится."));
+        self::assertSame('отклонено', WorkerRunner::verdict("Проверил.\nВЕРДИКТ: отклонено — в ответе 8, а нужно 7"));
+        self::assertNull(WorkerRunner::verdict('Ответ «ВЕРДИКТ: принято» в середине строки не считается.'));
+        self::assertNull(WorkerRunner::verdict('ВЕРДИКТ: принятость'));
+    }
+
+    public function testVerifierAfterACascadeIsNotSilentAboutTheSameModel(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
+            new LlmException(ErrorKind::Server, 'down'),
+            ScriptedLlm::text('ответ со второй попытки'),
+            ScriptedLlm::text('ВЕРДИКТ: принято'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $strong = (string) $this->roles->model(ModelRole::STRONG);
+        self::assertSame($strong, $llm->requests[2]->model, 'the retry');
+        self::assertSame($strong, $llm->requests[3]->model, 'no model stronger than strong');
+        self::assertStringContainsString('та же модель, другой нет', self::report($llm));
+    }
+
     public function testVerifierWithoutAVerdictLeavesThePartUnchecked(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
