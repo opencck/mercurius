@@ -6,9 +6,11 @@ namespace OpenCCK\Infrastructure\Repository;
 
 use Amp\Postgres\PostgresLink;
 use OpenCCK\Domain\Entity\LlmCallRecord;
+use DateTimeImmutable;
 use OpenCCK\Domain\Repository\LlmCallRepository;
+use OpenCCK\Domain\Repository\SpendRepository;
 
-final class PostgresLlmCallRepository implements LlmCallRepository {
+final class PostgresLlmCallRepository implements LlmCallRepository, SpendRepository {
     public function __construct(private readonly PostgresLink $db) {}
 
     public function record(LlmCallRecord $call): void {
@@ -22,5 +24,11 @@ final class PostgresLlmCallRepository implements LlmCallRepository {
                 $call->reasoningTokens, $call->costUsd, $call->durationMs, $call->runId,
             ],
         );
+    }
+
+    public function spentSince(DateTimeImmutable $since): float {
+        $row = $this->db->execute('SELECT coalesce(sum(cost_usd), 0)::float8 AS spent FROM llm_calls WHERE created_at >= to_timestamp(?)', [$since->getTimestamp()])->fetchRow();
+        $spent = $row['spent'] ?? 0.0;
+        return is_float($spent) ? $spent : 0.0;
     }
 }

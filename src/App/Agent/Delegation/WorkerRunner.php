@@ -102,6 +102,8 @@ final class WorkerRunner {
         private readonly int $workerTokenBudget,
         private readonly LoggerInterface $logger,
         private readonly ?ModelSelector $selector = null,
+        /** worker runs one run may start, retries and verifiers included */
+        private readonly int $maxWorkersPerRun = 10,
     ) {}
 
     /**
@@ -113,6 +115,11 @@ final class WorkerRunner {
      */
     public function reserve(ToolContext $parent, int $count): array {
         $orchestrator = $this->runs->find($parent->runId) ?? throw new DomainException('Запуск-оркестратор не найден.');
+        // spec: BRIEF.md#часть-1--синхронное-делегирование — a cap on workers per run in code, not in the prompt
+        $started = $this->runs->childCount($orchestrator->id);
+        if ($started + $count > $this->maxWorkersPerRun) {
+            throw new DomainException(sprintf('Потолок воркеров на запуск — %d, начато %d: поручи меньше частей или сделай сам.', $this->maxWorkersPerRun, $started));
+        }
         $left = $orchestrator->limits->tokenBudget - $orchestrator->tokensUsed - $orchestrator->tokensReserved;
         // The orchestrator must still be able to read the reports and answer.
         $headroom = max(self::HEADROOM, intdiv($orchestrator->limits->tokenBudget, 5));
@@ -279,7 +286,8 @@ final class WorkerRunner {
         // A retry the restart interrupted goes on whatever the conditions: it has started already.
         if (
             $retryRun === null && (
-                !in_array($first->stopReason, self::CASCADE, true)
+                $this->runs->childCount($orchestrator->id) >= $this->maxWorkersPerRun
+                || !in_array($first->stopReason, self::CASCADE, true)
                 || $budget - $first->tokens < self::MIN_TOKENS
                 || $seconds - $elapsed < self::RETRY_MIN_SECONDS
                 || $parent->cancellation->isRequested()
@@ -330,6 +338,9 @@ final class WorkerRunner {
      */
     private function verify(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, WorkerReport $report, int $budget, int $seconds, ?int $existing, ?\Closure $onRun, string $tag): WorkerReport {
         if ($existing === null) {
+            if ($this->runs->childCount($orchestrator->id) >= $this->maxWorkersPerRun) {
+                return $report->withVerdict(self::UNCHECKED, 'потолок воркеров на запуск');
+            }
             if ($budget < self::MIN_TOKENS) {
                 return $report->withVerdict(self::UNCHECKED, 'не хватило бюджета');
             }

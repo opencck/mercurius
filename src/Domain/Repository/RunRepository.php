@@ -44,6 +44,9 @@ interface RunRepository {
     /** Moves the run from one status to another atomically; null when it was not in the expected status. */
     public function transition(int $runId, RunStatus $from, RunStatus $to): ?Run;
 
+    /** Runs started under the run: workers, cascade retries, verifiers. */
+    public function childCount(int $parentRunId): int;
+
     /** @return list<Run> runs paused for the owner's decision */
     public function waitingApproval(): array;
 }

@@ -112,6 +112,23 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('openai:gpt-6-luna', $settings->model);
     }
 
+    public function testSpendCapsAndWorkerCap(): void {
+        $off = \OpenCCK\Infrastructure\Config\AgentSettings::fromEnv([]);
+        $set = \OpenCCK\Infrastructure\Config\AgentSettings::fromEnv(['AGENT_DAILY_SPEND_CAP' => '5', 'AGENT_MONTHLY_SPEND_CAP' => '50.5', 'AGENT_MAX_WORKERS_PER_RUN' => '4']);
+
+        self::assertSame(0.0, $off->dailySpendCap, 'no cap until the owner sets one');
+        self::assertSame(10, $off->maxWorkersPerRun);
+        self::assertSame(5.0, $set->dailySpendCap);
+        self::assertSame(50.5, $set->monthlySpendCap);
+        self::assertSame(4, $set->maxWorkersPerRun);
+    }
+
+    public function testNegativeSpendCapIsRefused(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('AGENT_DAILY_SPEND_CAP');
+        \OpenCCK\Infrastructure\Config\AgentSettings::fromEnv(['AGENT_DAILY_SPEND_CAP' => '-1']);
+    }
+
     public function testLlmBadEffort(): void {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('LLM_REASONING_EFFORT');

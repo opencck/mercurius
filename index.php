@@ -30,6 +30,7 @@ use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\Model\RequestClassifier;
 use OpenCCK\App\Agent\RunScheduler;
+use OpenCCK\App\Agent\SpendGuard;
 use OpenCCK\App\Agent\Tool\AddressGuard;
 use OpenCCK\App\Agent\Tool\HttpRequestTool;
 use OpenCCK\App\Agent\Tool\ListFilesTool;
@@ -216,9 +217,10 @@ $loop = new AgentLoop(
     ),
     events: $tracer,
     fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),
+    spend: new SpendGuard($llmCalls, $agentSettings->dailySpendCap, $agentSettings->monthlySpendCap, $logger),
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
-$workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)));
+$workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)), $agentSettings->maxWorkersPerRun);
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
 $tools->register(new WorkerReportTool($runs, $transcript));

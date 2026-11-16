@@ -113,6 +113,7 @@ final class AgentLoop {
         private readonly ?ContextCompactor $compactor = null,
         private readonly AgentEvents $events = new NullEvents(),
         private readonly ?FallbackModels $fallback = null,
+        private readonly ?SpendGuard $spend = null,
     ) {
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
@@ -169,6 +170,12 @@ final class AgentLoop {
             $reserved = $this->reserve($state);
             if ($reserved === null) {
                 return StopReason::TokenBudget;
+            }
+            $over = $this->spend?->exceeded();
+            if ($over !== null) {
+                $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
+                $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
+                return StopReason::SpendCap;
             }
 
             $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;

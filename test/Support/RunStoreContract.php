@@ -51,6 +51,17 @@ abstract class RunStoreContract extends AsyncTestCase {
         return new StoredToolCall($id, $position, 'fake', ['q' => $id], '{"q":"' . $id . '"}', $danger, $status);
     }
 
+    public function testChildRunsAreCounted(): void {
+        $parent = $this->startRun();
+        $this->runs->finish($parent, RunStatus::Done, StopReason::Answered);
+        self::assertSame(0, $this->runs->childCount($parent));
+
+        $child = $this->runs->start($this->conversationId, $this->principalId, 'm/w', self::limits(), $parent);
+        self::assertNotNull($child);
+
+        self::assertSame(1, $this->runs->childCount($parent));
+    }
+
     public function testStartRefusesSecondActiveRun(): void {
         $this->startRun();
 

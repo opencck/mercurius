@@ -116,6 +116,12 @@ final class PostgresRunRepository implements RunRepository {
         return $row === null ? null : self::run($row);
     }
 
+    public function childCount(int $parentRunId): int {
+        $row = $this->db->execute('SELECT count(*)::int AS n FROM runs WHERE parent_run_id = ?', [$parentRunId])->fetchRow();
+        $n = $row['n'] ?? 0;
+        return is_int($n) ? $n : 0;
+    }
+
     public function waitingApproval(): array {
         $runs = [];
         foreach ($this->db->query('SELECT ' . self::COLUMNS . " FROM runs WHERE status = 'waiting_approval' ORDER BY id") as $row) {

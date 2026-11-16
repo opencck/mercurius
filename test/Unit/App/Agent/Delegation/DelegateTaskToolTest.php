@@ -403,6 +403,37 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertTrue($result->isError);
     }
 
+    public function testWorkerCapPerRunCannotBePromptedAround(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз'], ['goal' => 'два'], ['goal' => 'три']]),
+            ScriptedLlm::text('понял'),
+        ]);
+        $stack = new AgentStack($llm, new RunLimits(30, 1_000_000, 900, 120));
+        $stores = new InMemoryModelStores();
+        $roles = new ModelRoles($stores, $stores);
+        $roles->seed();
+        $stack->registry->register(new DelegateTaskTool(new WorkerRunner(
+            $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->registry, $roles, 15, 100_000, new NullLogger(), null, 2,
+        )));
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('Потолок воркеров на запуск — 2', (string) self::toolText($llm));
+        self::assertNull($stack->runs->find(2), 'no worker started');
+    }
+
+    private static function toolText(ScriptedLlm $llm): ?string {
+        foreach ($llm->requests as $request) {
+            foreach ($request->messages as $message) {
+                if ($message->role === Role::Tool) {
+                    return $message->content;
+                }
+            }
+        }
+        return null;
+    }
+
     public function testLongSummaryIsCut(): void {
         $llm = new ScriptedLlm([self::delegate([['goal' => 'много']]), ScriptedLlm::text(str_repeat('слово ', 3000)), ScriptedLlm::text('итог')]);
         $stack = $this->stack($llm);

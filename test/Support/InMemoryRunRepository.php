@@ -94,6 +94,10 @@ final class InMemoryRunRepository implements RunRepository {
         return $this->runs[$runId] = $this->with($run, status: $to);
     }
 
+    public function childCount(int $parentRunId): int {
+        return count(array_filter($this->runs, static fn(Run $r): bool => $r->parentRunId === $parentRunId));
+    }
+
     public function waitingApproval(): array {
         return array_values(array_filter($this->runs, static fn(Run $r): bool => $r->status === RunStatus::WaitingApproval));
     }

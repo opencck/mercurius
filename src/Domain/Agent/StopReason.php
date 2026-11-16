@@ -21,6 +21,7 @@ enum StopReason: string {
     case ModelFailed = 'model_failed';
     case Stopped = 'stopped';
     case InternalError = 'internal_error';
+    case SpendCap = 'spend_cap';
 
     /** A limit ran out: the model gets one last call without tools to sum up. */
     public function isLimit(): bool {
@@ -49,6 +50,7 @@ enum StopReason: string {
             self::ModelFailed => 'модель недоступна',
             self::Stopped => 'остановлено владельцем',
             self::InternalError => 'внутренняя ошибка',
+            self::SpendCap => 'достигнут лимит расхода в деньгах (AGENT_DAILY_SPEND_CAP, AGENT_MONTHLY_SPEND_CAP)',
         };
     }
 }

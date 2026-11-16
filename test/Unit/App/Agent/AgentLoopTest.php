@@ -276,6 +276,22 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('failure', $stores->decisions[0]->method);
     }
 
+    public function testSpendCapStopsBeforeTheNextModelCall(): void {
+        $this->registry->register(new FakeTool('t'));
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 't', '{"q":"1"}')), ScriptedLlm::text('не должно быть')]);
+        // Every call cost $1; the day allows $1.
+        $this->calls->record(new \OpenCCK\Domain\Entity\LlmCallRecord(null, 'agent', 'm', 'stop', null, 1, 1, 0, 0, 0, 1.0, 10));
+        $guard = new \OpenCCK\App\Agent\SpendGuard($this->calls, 1.0, 0.0, new \Psr\Log\NullLogger());
+        $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, spend: $guard);
+
+        $run = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame(StopReason::SpendCap, $run->stopReason);
+        self::assertSame([], $llm->requests, 'no call over the cap');
+        self::assertSame(0, $run->tokensReserved);
+        self::assertStringContainsString('лимит расхода', (string) $this->observer->final);
+    }
+
     public function testTokenBudgetStopsBeforeModelCall(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('итог')]);
 
