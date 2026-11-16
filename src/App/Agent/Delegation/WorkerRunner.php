@@ -9,6 +9,7 @@ use DomainException;
 use Mercurius\Llm\Role;
 use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\SilentObserver;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
@@ -51,6 +52,8 @@ final class WorkerRunner {
     private const RUN_TIMEOUT = 840;
     /** Seconds left to the orchestrator after its workers' deadline, to sum up. */
     private const MARGIN = 30;
+    /** Endings where the model let the worker down: worth one more try on a stronger model. */
+    private const CASCADE = [StopReason::ModelFailed, StopReason::InvalidCalls, StopReason::Truncated, StopReason::LoopGuard, StopReason::InternalError];
 
     public const PROMPT = <<<'TXT'
         Ты — воркер: сфокусированный исполнитель части задачи, которую тебе поручил агент-оркестратор. Беседы с
@@ -76,6 +79,7 @@ final class WorkerRunner {
         private readonly int $workerMaxTurns,
         private readonly int $workerTokenBudget,
         private readonly LoggerInterface $logger,
+        private readonly ?ModelSelector $selector = null,
     ) {}
 
     /**
@@ -162,11 +166,57 @@ final class WorkerRunner {
         return $tools;
     }
 
+    /**
+     * One part of the task: the model from the profile or the role, then, if the model let the worker down, one more
+     * try on a stronger model within what is left of the worker's share.
+     *
+     * spec: BRIEF.md#часть-2--профиль-задачи-выбор-модели-каскад — cascade
+     */
     private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget): WorkerReport {
+        $tools = $this->tools($parent, $task);
+        $chat = sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index);
+        $model = $this->model($task, $tools !== [], 0);
+        $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat);
+        if (!in_array($first->stopReason, self::CASCADE, true) || $budget - $first->tokens < self::MIN_TOKENS || $parent->cancellation->isRequested()) {
+            return $first;
+        }
+        $stronger = $this->model($task, $tools !== [], 2);
+        if ($stronger === $model) {
+            $stronger = (string) $this->roles->model(ModelRole::STRONG);
+        }
+        if ($stronger === $model) {
+            return $first;
+        }
+        $this->logger->info('Worker cascades to a stronger model', ['parent' => $orchestrator->id, 'task' => $index, 'from' => $model, 'to' => $stronger]);
+        $second = $this->attempt($parent, $orchestrator, $index, $task, $budget - $first->tokens, $stronger, $chat . '-retry');
+        return new WorkerReport(
+            $index,
+            $second->runId,
+            $second->status,
+            sprintf('%s → %s (каскад: %s)', $model, $stronger, $first->reason ?? $first->status),
+            $first->turns + $second->turns,
+            $first->tokens + $second->tokens,
+            $second->summary,
+            $second->reason,
+            $second->stopReason,
+        );
+    }
+
+    /** The model of a part: chosen by its profile, else the model of its role. */
+    private function model(WorkerTask $task, bool $needsTools, int $raise): string {
+        if ($task->profile !== null && $this->selector !== null) {
+            return (string) $this->selector->choose($task->profile, $needsTools, null, $raise)[0];
+        }
+        if ($raise > 0) {
+            return (string) $this->roles->model(ModelRole::STRONG);
+        }
         $role = in_array($task->role, [ModelRole::CHEAP, ModelRole::MAIN, ModelRole::STRONG], true) ? $task->role : ModelRole::MAIN;
-        $model = (string) $this->roles->model($role);
+        return (string) $this->roles->model($role);
+    }
+
+    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat): WorkerReport {
         try {
-            $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index));
+            $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
             $this->conversations->setMeta($conversation, self::PROMPT, $model);
             // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
             $left = intdiv($orchestrator->limits->runTimeout * 1000 - $orchestrator->activeMs, 1000) - self::MARGIN;
@@ -178,7 +228,7 @@ final class WorkerRunner {
             );
             $run = $this->runs->start($conversation, $parent->principal->id, $model, $limits, $orchestrator->id);
             if ($run === null) {
-                return new WorkerReport($index, null, 'failed', $model, 0, 0, '', 'не удалось начать запуск воркера');
+                return new WorkerReport($index, null, 'failed', $model, 0, 0, '', 'не удалось начать запуск воркера', StopReason::InternalError);
             }
             $this->transcript->appendUser($conversation, $run->id, self::brief($task));
             $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false);
@@ -194,7 +244,7 @@ final class WorkerRunner {
                 } catch (Throwable) {
                 }
             }
-            return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, $spent, '', 'внутренняя ошибка');
+            return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, $spent, '', 'внутренняя ошибка', StopReason::InternalError);
         }
         return new WorkerReport(
             $index,
@@ -205,6 +255,7 @@ final class WorkerRunner {
             $final->tokensUsed,
             $this->summary($final->id),
             $final->stopReason?->label(),
+            $final->stopReason,
         );
     }
 

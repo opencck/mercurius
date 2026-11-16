@@ -11,7 +11,9 @@ use Mercurius\Llm\Role;
 use Mercurius\Llm\ToolCall;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
+use Mercurius\Llm\ModelCatalog\ModelInfo;
 use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Agent\RunLimits;
@@ -30,9 +32,15 @@ use function Amp\delay;
  */
 final class DelegateTaskToolTest extends AsyncTestCase {
     private ModelRoles $roles;
+    private InMemoryModelStores $stores;
 
     private function stack(ScriptedLlm $llm, RunLimits $limits = new RunLimits(30, 1_000_000, 900, 120)): AgentStack {
-        $stores = new InMemoryModelStores();
+        $stores = $this->stores = new InMemoryModelStores();
+        $stores->replace('openrouter', [
+            new ModelInfo('a/cheap', 'cheap', 200_000, 0.1 / 1e6, 0.6 / 1e6, ['text'], ['text'], ['tools'], null, null, null, 24.0, 71.0, 42.0),
+            new ModelInfo('a/agent', 'agent', 200_000, 0.15 / 1e6, 0.5 / 1e6, ['text'], ['text'], ['tools'], null, null, null, 28.0, 71.0, 51.0),
+            new ModelInfo('a/top', 'top', 200_000, 5.0 / 1e6, 25.0 / 1e6, ['text'], ['text'], ['tools'], null, null, null, 44.0, 78.0, 57.0),
+        ]);
         $this->roles = new ModelRoles($stores, $stores);
         $this->roles->seed();
         $stack = new AgentStack($llm, $limits);
@@ -40,6 +48,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->registry->register(new FakeTool('push', DangerClass::Irreversible));
         $stack->registry->register(new DelegateTaskTool(new WorkerRunner(
             $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->registry, $this->roles, 15, 100_000, new NullLogger(),
+            new ModelSelector($stores, $this->roles, $stores, new NullLogger()),
         )));
         return $stack;
     }
@@ -154,7 +163,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testFailedWorkerIsAValueNotAnError(): void {
         $down = new LlmException(ErrorKind::Server, 'down');
-        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз']]), $down, ScriptedLlm::text('итог без воркера')]);
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз']]), $down, $down, ScriptedLlm::text('итог без воркера')]);
         $stack = $this->stack($llm);
 
         $stack->say('задача');
@@ -180,6 +189,37 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Stopped, $stack->runs->find(1)?->status);
         self::assertSame(RunStatus::Stopped, $stack->runs->find(2)?->status);
+        self::assertNull($stack->runs->find(3), 'a stopped worker is not retried');
+    }
+
+    public function testProfileChoosesTheModel(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'много шагов с инструментами', 'tools' => ['read'], 'profile' => ['agency' => 6]]]), ScriptedLlm::text('готово'), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame('openrouter:a/agent', $llm->requests[1]->model);
+        self::assertSame('profile', $this->stores->decisions[0]->method);
+    }
+
+    public function testFailedWorkerIsRetriedOnAStrongerModel(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'cheap']]),
+            new LlmException(ErrorKind::Server, 'down'),
+            ScriptedLlm::text('со второй попытки'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $llm->requests[2]->model);
+        $report = self::report($llm);
+        self::assertStringContainsString('каскад', $report);
+        self::assertStringContainsString('со второй попытки', $report);
+        self::assertSame(1, $stack->runs->find(3)?->parentRunId);
     }
 
     public function testLongSummaryIsCut(): void {

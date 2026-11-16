@@ -1,0 +1,126 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Agent\Model;
+
+use Amp\PHPUnit\AsyncTestCase;
+use Mercurius\Llm\ModelCatalog\ModelInfo;
+use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Model\ModelSelector;
+use OpenCCK\App\Agent\Model\TaskProfile;
+use OpenCCK\Domain\Agent\ModelRole;
+use OpenCCK\Test\Support\InMemoryModelStores;
+use Psr\Log\NullLogger;
+
+/**
+ * Choosing a model for a part of a task: the cheapest one whose catalog indices meet the profile.
+ */
+final class ModelSelectorTest extends AsyncTestCase {
+    private InMemoryModelStores $stores;
+    private ModelRoles $roles;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->stores = new InMemoryModelStores();
+        $this->roles = new ModelRoles($this->stores, $this->stores);
+        $this->roles->seed();
+    }
+
+    /**
+     * Price per million: input / output; indices: intelligence, coding, agentic.
+     *
+     * @param array{float, float, float}|null $scores
+     * @param list<string> $modalities
+     */
+    private static function model(string $id, float $in, float $out, ?array $scores, array $modalities = ['text'], int $window = 200_000, bool $tools = true): ModelInfo {
+        return new ModelInfo($id, $id, $window, $in / 1e6, $out / 1e6, $modalities, ['text'], $tools ? ['tools'] : [], null, null, null, $scores[0] ?? null, $scores[1] ?? null, $scores[2] ?? null);
+    }
+
+    private function catalog(ModelInfo ...$models): void {
+        $this->stores->replace('openrouter', array_values($models));
+    }
+
+    private function selector(): ModelSelector {
+        return new ModelSelector($this->stores, $this->roles, $this->stores, new NullLogger());
+    }
+
+    private function standard(): void {
+        $this->catalog(
+            self::model('a/tiny', 0.05, 0.1, [10.0, 30.0, 20.0]),
+            self::model('a/cheap', 0.1, 0.6, [24.0, 71.0, 42.0]),
+            self::model('a/mid', 0.4, 1.6, [30.0, 76.0, 40.0], ['text', 'image']),
+            self::model('a/agent', 0.15, 0.5, [28.0, 71.0, 51.0]),
+            self::model('a/top', 5.0, 25.0, [44.0, 78.0, 57.0], ['text', 'image']),
+            self::model('a/unscored', 0.01, 0.02, null),
+            self::model('a/notools', 0.01, 0.02, [50.0, 80.0, 60.0], tools: false),
+        );
+    }
+
+    public function testSimplePartGetsTheCheapestModel(): void {
+        $this->standard();
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), true, 7);
+
+        self::assertSame('openrouter:a/unscored', (string) $model, 'all scores ≤ 3: an unscored cheap model is fine');
+        self::assertSame('profile', $this->stores->decisions[0]->class);
+    }
+
+    public function testAgencyNeedsAnAgenticModel(): void {
+        $this->standard();
+
+        [$model, $reason] = $this->selector()->choose(TaskProfile::fromArray(['agency' => 6]), true, 7);
+
+        self::assertSame('openrouter:a/agent', (string) $model);
+        self::assertStringContainsString('агентность', $reason);
+    }
+
+    public function testErrorCostRaisesTheBar(): void {
+        $this->standard();
+
+        [$plain] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6]), true, null);
+        [$careful] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6, 'error_cost' => 10]), true, null);
+
+        self::assertSame('openrouter:a/mid', (string) $plain);
+        self::assertSame('openrouter:a/top', (string) $careful);
+    }
+
+    public function testImagesNeedAVisionModel(): void {
+        $this->standard();
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['images' => 7]), true, null);
+
+        self::assertSame('openrouter:a/mid', (string) $model);
+    }
+
+    public function testLargeContextNeedsALargeWindow(): void {
+        $this->catalog(self::model('a/small', 0.1, 0.2, [30.0, 70.0, 40.0], window: 32_000), self::model('a/large', 0.3, 0.9, [30.0, 70.0, 40.0], window: 1_000_000));
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['context' => 7]), true, null);
+
+        self::assertSame('openrouter:a/large', (string) $model);
+    }
+
+    public function testEmptyCatalogFallsBackToTheStrongRole(): void {
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 9]), true, null);
+
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), (string) $model);
+        self::assertSame('fallback', $this->stores->decisions[0]->method);
+    }
+
+    public function testEscalationRaisesTheRequirements(): void {
+        $this->standard();
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6]), true, null, raise: 2);
+
+        self::assertSame('openrouter:a/top', (string) $model);
+    }
+
+    public function testProfileIsClampedAndUnknownAxesIgnored(): void {
+        $profile = TaskProfile::fromArray(['code' => 42, 'reasoning' => -3, 'magic' => 9, 'text' => 'много']);
+
+        self::assertSame(10, $profile->score('code'));
+        self::assertSame(1, $profile->score('reasoning'));
+        self::assertSame(1, $profile->score('text'));
+    }
+}

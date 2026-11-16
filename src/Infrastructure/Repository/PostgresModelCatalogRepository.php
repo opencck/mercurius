@@ -18,8 +18,9 @@ final class PostgresModelCatalogRepository implements ModelCatalogRepository {
         try {
             $tx->execute('DELETE FROM model_catalog WHERE provider = ?', [$provider]);
             $insert = $tx->prepare(
-                'INSERT INTO model_catalog (provider, id, name, context_length, input_price, output_price, input_modalities, supported_parameters, max_completion_tokens)
-                 VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?) ON CONFLICT (provider, id) DO NOTHING',
+                'INSERT INTO model_catalog (provider, id, name, context_length, input_price, output_price, input_modalities, supported_parameters,
+                    max_completion_tokens, intelligence_index, coding_index, agentic_index)
+                 VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?) ON CONFLICT (provider, id) DO NOTHING',
             );
             foreach ($models as $model) {
                 $insert->execute([
@@ -32,6 +33,9 @@ final class PostgresModelCatalogRepository implements ModelCatalogRepository {
                     json_encode($model->inputModalities, JSON_THROW_ON_ERROR),
                     json_encode($model->supportedParameters, JSON_THROW_ON_ERROR),
                     $model->maxCompletionTokens,
+                    $model->intelligenceIndex,
+                    $model->codingIndex,
+                    $model->agenticIndex,
                 ]);
             }
             $tx->commit();
@@ -42,32 +46,46 @@ final class PostgresModelCatalogRepository implements ModelCatalogRepository {
         }
     }
 
+    private const COLUMNS = 'id, name, context_length, input_price, output_price, input_modalities::text AS input_modalities,
+        supported_parameters::text AS supported_parameters, max_completion_tokens, intelligence_index, coding_index, agentic_index';
+
     public function find(ModelRef $model): ?ModelInfo {
-        $row = $this->db->execute(
-            'SELECT name, context_length, input_price, output_price, input_modalities::text AS input_modalities,
-                    supported_parameters::text AS supported_parameters, max_completion_tokens
-             FROM model_catalog WHERE provider = ? AND id = ?',
-            [$model->provider, $model->model],
-        )->fetchRow();
-        if ($row === null) {
-            return null;
+        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM model_catalog WHERE provider = ? AND id = ?', [$model->provider, $model->model])->fetchRow();
+        return $row === null ? null : self::info($row);
+    }
+
+    public function models(string $provider): array {
+        $models = [];
+        foreach ($this->db->execute('SELECT ' . self::COLUMNS . ' FROM model_catalog WHERE provider = ? ORDER BY id', [$provider]) as $row) {
+            $models[] = self::info($row);
         }
-        $name = $row['name'] ?? null;
-        $window = $row['context_length'] ?? null;
-        $in = $row['input_price'] ?? null;
-        $out = $row['output_price'] ?? null;
-        $max = $row['max_completion_tokens'] ?? null;
+        return $models;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function info(array $row): ModelInfo {
+        $id = isset($row['id']) && is_string($row['id']) ? $row['id'] : '';
         return new ModelInfo(
-            $model->model,
-            is_string($name) ? $name : $model->model,
-            is_int($window) ? $window : null,
-            is_float($in) ? $in : null,
-            is_float($out) ? $out : null,
+            $id,
+            isset($row['name']) && is_string($row['name']) ? $row['name'] : $id,
+            isset($row['context_length']) && is_int($row['context_length']) ? $row['context_length'] : null,
+            self::score($row, 'input_price'),
+            self::score($row, 'output_price'),
             self::strings($row['input_modalities'] ?? null),
             [],
             self::strings($row['supported_parameters'] ?? null),
-            is_int($max) ? $max : null,
+            isset($row['max_completion_tokens']) && is_int($row['max_completion_tokens']) ? $row['max_completion_tokens'] : null,
+            null,
+            null,
+            self::score($row, 'intelligence_index'),
+            self::score($row, 'coding_index'),
+            self::score($row, 'agentic_index'),
         );
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function score(array $row, string $key): ?float {
+        return isset($row[$key]) && is_float($row[$key]) ? $row[$key] : null;
     }
 
     public function fetchedAt(string $provider): ?DateTimeImmutable {

@@ -6,6 +6,7 @@ namespace OpenCCK\App\Agent\Delegation;
 
 use DomainException;
 use Mercurius\Llm\ToolDefinition;
+use OpenCCK\App\Agent\Model\TaskProfile;
 use OpenCCK\App\Agent\Tool\LongRunning;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
@@ -47,6 +48,12 @@ final class DelegateTaskTool implements Tool, LongRunning {
                             'output' => ['type' => 'string', 'description' => 'Какой нужен ответ'],
                             'tools' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Инструменты воркера'],
                             'role' => ['type' => 'string', 'enum' => ['cheap', 'main', 'strong']],
+                            'profile' => [
+                                'type' => 'object',
+                                'description' => 'Вместо role: оценки 1–10, что нужно от модели; код подберёт самую дешёвую подходящую. Цена ошибки поднимает планку',
+                                'properties' => array_fill_keys(TaskProfile::AXES, ['type' => 'integer', 'minimum' => 1, 'maximum' => 10]),
+                                'additionalProperties' => false,
+                            ],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
@@ -87,6 +94,7 @@ final class DelegateTaskTool implements Tool, LongRunning {
                     self::field($item, 'output') ?? '',
                     self::names($item),
                     self::field($item, 'role') ?? 'main',
+                    isset($item['profile']) && is_array($item['profile']) ? TaskProfile::fromArray($item['profile']) : null,
                 );
             }
         }

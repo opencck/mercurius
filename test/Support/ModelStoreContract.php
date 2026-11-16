@@ -41,6 +41,21 @@ abstract class ModelStoreContract extends AsyncTestCase {
         self::assertNull($this->catalog->fetchedAt('openai'));
     }
 
+    public function testScoresAreKeptAndAllModelsListed(): void {
+        $this->catalog->replace('openrouter', [
+            new ModelInfo('a/scored', 'a', 1000, 0.000001, 0.000002, ['text'], ['text'], ['tools'], null, null, null, 44.2, 78.0, 56.5),
+            new ModelInfo('a/plain', 'b', 1000, null, null),
+        ]);
+
+        $scored = $this->catalog->find(ModelRef::parse('a/scored'));
+        self::assertNotNull($scored);
+        self::assertSame(44.2, $scored->intelligenceIndex);
+        self::assertSame(78.0, $scored->codingIndex);
+        self::assertSame(56.5, $scored->agenticIndex);
+        self::assertNull($this->catalog->find(ModelRef::parse('a/plain'))?->agenticIndex);
+        self::assertSame(['a/plain', 'a/scored'], array_map(static fn(ModelInfo $m): string => $m->id, $this->catalog->models('openrouter')));
+    }
+
     public function testSeedAddsOnlyMissingRoles(): void {
         $this->roles->set(ModelRole::MAIN, ModelRef::parse('x/main'), 'выбрал владелец', ModelRole::SET_BY_OWNER);
 

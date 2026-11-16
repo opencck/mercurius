@@ -36,6 +36,12 @@ final class InMemoryModelStores implements ModelCatalogRepository, ModelRoleRepo
         return $this->models[$model->provider][$model->model] ?? null;
     }
 
+    public function models(string $provider): array {
+        $models = $this->models[$provider] ?? [];
+        ksort($models);
+        return array_values($models);
+    }
+
     public function fetchedAt(string $provider): ?DateTimeImmutable {
         return ($this->models[$provider] ?? []) === [] ? null : ($this->fetched[$provider] ?? null);
     }

@@ -18,6 +18,9 @@ interface ModelCatalogRepository {
 
     public function find(ModelRef $model): ?ModelInfo;
 
+    /** @return list<ModelInfo> every model of the provider, by id */
+    public function models(string $provider): array;
+
     /** When the provider's catalog was last loaded; null when it is empty. */
     public function fetchedAt(string $provider): ?DateTimeImmutable;
 }

@@ -21,6 +21,7 @@ use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
 use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\Model\RequestClassifier;
 use OpenCCK\App\Agent\RunScheduler;
@@ -126,11 +127,12 @@ $modelCatalog = new PostgresModelCatalogRepository($db);
 $catalogSources = [ModelRef::OPENROUTER => (new OpenRouterCatalog($openRouterHttp, $llmSettings->apiKey()))->fetch(...)];
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog);
 $modelRoles->seed();
+$routingDecisions = new PostgresRoutingDecisionRepository($db);
 $modelRouter = new ModelRouter(
     new RequestClassifier($llm, static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP), $logger),
     $modelRoles,
     $modelCatalog,
-    new PostgresRoutingDecisionRepository($db),
+    $routingDecisions,
     $llmSettings->contextWindow,
     $logger,
 );
@@ -199,7 +201,7 @@ $loop = new AgentLoop(
     events: $tracer,
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
-$tools->register(new DelegateTaskTool(new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger)));
+$tools->register(new DelegateTaskTool(new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger))));
 $scheduler = new RunScheduler(
     $loop,
     $runs,
