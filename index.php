@@ -15,6 +15,9 @@ use Mercurius\Messenger\Telegram\UpdateParser;
 use Mercurius\Messenger\Telegram\WebhookProcessor;
 use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\RunScheduler;
+use OpenCCK\App\Agent\Tool\AddressGuard;
+use OpenCCK\App\Agent\Tool\HttpRequestTool;
+use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Service\AccessService;
@@ -86,7 +89,11 @@ $principals = new PostgresPrincipalRepository($db);
 $conversations = new PostgresConversationRepository($db);
 $runs = new PostgresRunRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
+$policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits());
+$addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
+$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
+$tools->register(new SetParticipantPolicyTool($principals, $policies));
 $loop = new AgentLoop(
     $llm,
     $runs,
@@ -106,7 +113,7 @@ $scheduler = new RunScheduler(
     $transcript,
     $conversations,
     $principals,
-    new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits()),
+    $policies,
     $channel,
     $llmSettings->model,
     $logger,
