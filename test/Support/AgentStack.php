@@ -10,6 +10,7 @@ use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
+use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
@@ -43,6 +44,7 @@ final class AgentStack {
         RunLimits $limits = new RunLimits(30, 100_000, 900, 120),
         float $debounce = 0.0,
         int $maxMessageLength = 4096,
+        ?ModelRouter $router = null,
     ) {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
@@ -65,6 +67,7 @@ final class AgentStack {
             'test/model',
             debounce: $debounce,
             editInterval: 0.0,
+            router: $router,
         );
         $this->scheduler->useApprovals($this->approvalService);
         $this->approvalService->onDecision($this->scheduler->resumeRun(...));

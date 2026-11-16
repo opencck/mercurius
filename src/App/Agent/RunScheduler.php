@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
+use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Run;
@@ -68,6 +69,7 @@ final class RunScheduler {
         private readonly float $debounce = 0.35,
         private readonly float $debounceCap = 1.0,
         private readonly float $editInterval = 1.5,
+        private readonly ?ModelRouter $router = null,
     ) {}
 
     public function useApprovals(ApprovalService $approvals): void {
@@ -245,11 +247,15 @@ final class RunScheduler {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
             return;
         }
+        $model = $meta->model ?? $this->model;
         if ($meta->systemPrompt === null) {
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable()), $this->model);
+            // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
+            $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable()), $model);
+            $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);
-        $run = $this->runs->start($conversationId, $principal->id, $meta->model ?? $this->model, $policy->run);
+        $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run);
         if ($run === null) {
             // Lost a race with another start: the text joins the run that won.
             $active = $this->runs->active($conversationId);

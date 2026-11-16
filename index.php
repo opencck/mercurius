@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Dotenv\Dotenv;
 use Mercurius\Llm\LlmException;
+use Mercurius\Llm\ModelCatalog\OpenRouterCatalog;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
 use Mercurius\Llm\RetryingClient;
 use Mercurius\Messenger\ChatDispatcher;
@@ -17,12 +18,16 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\Context\ContextCompactor;
+use OpenCCK\App\Agent\Model\ModelRoles;
+use OpenCCK\App\Agent\Model\ModelRouter;
+use OpenCCK\App\Agent\Model\RequestClassifier;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\AddressGuard;
 use OpenCCK\App\Agent\Tool\HttpRequestTool;
 use OpenCCK\App\Agent\Tool\ListFilesTool;
 use OpenCCK\App\Agent\Tool\ReadFileTool;
 use OpenCCK\App\Agent\Tool\RunCommandTool;
+use OpenCCK\App\Agent\Tool\SetModelRoleTool;
 use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
@@ -46,13 +51,20 @@ use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
 use OpenCCK\Infrastructure\Database\Migrator;
 use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Logger\LoggerFactory;
+use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\ModelRole;
+use OpenCCK\Infrastructure\Llm\ProviderRouter;
 use OpenCCK\Infrastructure\Module\AgentModule;
+use OpenCCK\Infrastructure\Module\ModelCatalogModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
+use OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository;
+use OpenCCK\Infrastructure\Repository\PostgresModelRoleRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
@@ -86,13 +98,29 @@ $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectory(PATH_ROOT . '/migrations'));
 $logger->info('Migrations checked', ['applied' => $applied]);
 
-// Model: OpenRouter, through VLESS when VLESS_URI is set.
-$llm = new RetryingClient(
-    new OpenRouterClient(HttpClients::create($llmSettings->routeUri(), $logger), $llmSettings->apiKey(), appName: 'Mercurius', appUrl: $config->appUrl),
-    onRetry: static fn(LlmException $e, int $attempt, float $delay) => $logger->warning(
-        'Retrying model call',
-        ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
+// Models: one client per provider, chosen by the model's prefix; OpenRouter goes through VLESS when VLESS_URI is set.
+$openRouterHttp = HttpClients::create($llmSettings->routeUri(), $logger);
+$llm = new ProviderRouter([
+    ModelRef::OPENROUTER => new RetryingClient(
+        new OpenRouterClient($openRouterHttp, $llmSettings->apiKey(), appName: 'Mercurius', appUrl: $config->appUrl),
+        onRetry: static fn(LlmException $e, int $attempt, float $delay) => $logger->warning(
+            'Retrying model call',
+            ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
+        ),
     ),
+]);
+// Model catalog per provider, model roles, the choice of a conversation's model.
+$modelCatalog = new PostgresModelCatalogRepository($db);
+$catalogSources = [ModelRef::OPENROUTER => (new OpenRouterCatalog($openRouterHttp, $llmSettings->apiKey()))->fetch(...)];
+$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog);
+$modelRoles->seed();
+$modelRouter = new ModelRouter(
+    new RequestClassifier($llm, static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP), $logger),
+    $modelRoles,
+    $modelCatalog,
+    new PostgresRoutingDecisionRepository($db),
+    $llmSettings->contextWindow,
+    $logger,
 );
 $logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'model' => $llmSettings->model]);
 
@@ -110,6 +138,7 @@ $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
+$tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);
@@ -139,7 +168,18 @@ $loop = new AgentLoop(
     approvals: $approvalStore,
     gate: $approvals,
     // Context compaction: the window and the cheap model come from the settings until the model catalog.
-    compactor: new ContextCompactor($llm, $transcript, $conversations, $runs, $llmCalls, $llmSettings->contextWindow, $llmSettings->cheapModel, $logger),
+    compactor: new ContextCompactor(
+        $llm,
+        $transcript,
+        $conversations,
+        $runs,
+        $llmCalls,
+        $llmSettings->contextWindow,
+        $llmSettings->cheapModel,
+        $logger,
+        windowOf: $modelRouter->window(...),
+        cheapModelOf: $modelRouter->cheapModel(...),
+    ),
 );
 $scheduler = new RunScheduler(
     $loop,
@@ -151,6 +191,7 @@ $scheduler = new RunScheduler(
     $channel,
     $llmSettings->model,
     $logger,
+    router: $modelRouter,
 );
 $scheduler->useApprovals($approvals);
 $approvals->onDecision($scheduler->resumeRun(...));
@@ -182,6 +223,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals))
+    ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,

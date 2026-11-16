@@ -46,9 +46,11 @@ final class ContextCompactor {
     private readonly Closure $clock;
 
     /**
-     * @param positive-int $window tokens of the model's window
-     * @param non-empty-string $cheapModel
+     * @param positive-int $window tokens of the model's window when $windowOf is not given or does not know the model
+     * @param non-empty-string $cheapModel model of the summary when $cheapModelOf is not given
      * @param (Closure(): DateTimeImmutable)|null $clock
+     * @param (Closure(string): int)|null $windowOf window of a model, from the model catalog
+     * @param (Closure(): string)|null $cheapModelOf the model of the cheap role as of now
      */
     public function __construct(
         private readonly LlmClient $llm,
@@ -60,6 +62,8 @@ final class ContextCompactor {
         private readonly string $cheapModel,
         private readonly LoggerInterface $logger,
         ?Closure $clock = null,
+        private readonly ?Closure $windowOf = null,
+        private readonly ?Closure $cheapModelOf = null,
     ) {
         $this->clock = $clock ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -71,19 +75,19 @@ final class ContextCompactor {
      * @param positive-int $historyLimit
      */
     public function ensure(Run $run, string $systemPrompt, int $historyLimit, int $estimate, bool $force = false, ?Cancellation $cancellation = null): bool {
-        if (!$force && $estimate < ContextBudget::threshold($this->window)) {
+        if (!$force && $estimate < ContextBudget::threshold($this->windowFor($run->model))) {
             return false;
         }
         $compaction = $this->conversations->compaction($run->conversationId);
         $entries = $this->entries($run, $historyLimit, $compaction->uptoId);
-        $tailStart = self::boundary($entries, ContextBudget::tail($this->window));
+        $tailStart = self::boundary($entries, ContextBudget::tail($this->windowFor($run->model)));
         $pruned = $this->prune(array_slice($entries, 0, $tailStart));
         if ($pruned) {
             $this->logger->info('Old tool results pruned', ['run' => $run->id]);
             // The anchor counted the old texts: from now on the estimate goes by characters until the next call.
             $this->runs->settleAuxiliary($run->id, 0, 0);
             $entries = $this->entries($run, $historyLimit, $compaction->uptoId);
-            if (!$force && $this->estimate($systemPrompt, $this->summaryMessage($run->conversationId), $entries) < ContextBudget::threshold($this->window)) {
+            if (!$force && $this->estimate($systemPrompt, $this->summaryMessage($run->conversationId), $entries) < ContextBudget::threshold($this->windowFor($run->model))) {
                 return true;
             }
         }
@@ -94,7 +98,7 @@ final class ContextCompactor {
 
         $now = ($this->clock)();
         $cooling = $compaction->cooldownUntil !== null && $now < $compaction->cooldownUntil;
-        if ($cooling && !$force && $estimate < ContextBudget::critical($this->window)) {
+        if ($cooling && !$force && $estimate < ContextBudget::critical($this->windowFor($run->model))) {
             return $pruned;
         }
         $body = null;
@@ -106,7 +110,7 @@ final class ContextCompactor {
                     $now->modify(sprintf('+%d seconds', self::BACKOFF[max(0, min($compaction->failures, 2))])),
                 );
                 $this->logger->warning('Context summary failed', ['run' => $run->id, 'failures' => $failures]);
-                if (!$force && $estimate < ContextBudget::critical($this->window)) {
+                if (!$force && $estimate < ContextBudget::critical($this->windowFor($run->model))) {
                     return $pruned;
                 }
             }
@@ -132,7 +136,7 @@ final class ContextCompactor {
         if ($compaction->summary === null) {
             return null;
         }
-        $budget = intdiv($this->window * 4, 10);
+        $budget = intdiv($this->windowFor($this->conversations->meta($conversationId)?->model) * 4, 10);
         $shown = [];
         $users = $this->transcript->userMessages($conversationId, 0, $compaction->uptoId);
         for ($i = count($users) - 1; $i >= 0; $i--) {
@@ -159,13 +163,14 @@ final class ContextCompactor {
     private function summarise(Run $run, ?string $previous, array $middle, ?Cancellation $cancellation): ?string {
         // Masked whole: the earlier summary may carry what a user typed.
         $text = SecretMasker::mask(($previous === null ? '' : "Прежнее резюме (обнови его):\n" . $previous . "\n\n") . "Новая часть переписки:\n" . $this->render($middle));
-        $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->window);
+        $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->windowFor($run->model));
         $reserved = ContextBudget::tokens(SummaryPrompt::SYSTEM . $text) + $maxTokens;
         if (!$this->runs->reserve($run->id, $reserved)) {
             $this->logger->warning('No budget for a context summary', ['run' => $run->id]);
             return null;
         }
-        $request = new ChatRequest($this->cheapModel, [Message::system(SummaryPrompt::SYSTEM), Message::user($text)], [], $maxTokens);
+        $model = $this->cheapModelOf !== null ? ($this->cheapModelOf)() : $this->cheapModel;
+        $request = new ChatRequest($model, [Message::system(SummaryPrompt::SYSTEM), Message::user($text)], [], $maxTokens);
         $started = microtime(true);
         $usage = new Usage();
         $error = null;
@@ -186,7 +191,7 @@ final class ContextCompactor {
             return null;
         } finally {
             $this->runs->settleAuxiliary($run->id, $reserved, max(0, $usage->totalTokens()));
-            $this->record($run, $error, $started, $usage);
+            $this->record($run, $model, $error, $started, $usage);
         }
     }
 
@@ -239,12 +244,12 @@ final class ContextCompactor {
         return $tokens;
     }
 
-    private function record(Run $run, ?string $error, float $started, Usage $usage): void {
+    private function record(Run $run, string $model, ?string $error, float $started, Usage $usage): void {
         try {
             $this->calls->record(new LlmCallRecord(
                 conversationId: $run->conversationId,
                 purpose: 'compaction',
-                model: $this->cheapModel,
+                model: $model,
                 finishReason: $error === null ? 'stop' : null,
                 errorKind: $error,
                 inputTokens: max(0, $usage->inputTokens),
@@ -258,6 +263,12 @@ final class ContextCompactor {
         } catch (Throwable $e) {
             $this->logger->error('Could not record model usage', ['error' => $e::class]);
         }
+    }
+
+    /** @return positive-int */
+    private function windowFor(?string $model): int {
+        $window = $model !== null && $this->windowOf !== null ? ($this->windowOf)($model) : $this->window;
+        return max(1, $window);
     }
 
     private static function cut(string $text, int $chars): string {
