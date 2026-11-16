@@ -173,6 +173,19 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertStringContainsString('без 1 часто отказывавших', $reason);
     }
 
+    public function testEveryProviderWithAKeyIsSearched(): void {
+        $this->standard();
+        $this->stores->replace('openai', [self::model('gpt-cheaper', 0.01, 0.05, [30.0, 76.0, 52.0])]);
+        $roles = new ModelRoles($this->stores, $this->stores, ['openrouter', 'openai']);
+        $selector = new ModelSelector($this->stores, $roles, $this->stores, new NullLogger());
+
+        [$model] = $selector->choose(TaskProfile::fromArray(['agency' => 8]), true, null);
+        [$without] = $this->selector()->choose(TaskProfile::fromArray(['agency' => 8]), true, null);
+
+        self::assertSame('openai:gpt-cheaper', (string) $model);
+        self::assertStringStartsWith('openrouter:', (string) $without, 'no key, no OpenAI models');
+    }
+
     public function testZeroPricedModelIsSkipped(): void {
         $this->catalog(self::model('a/promo', 0.0, 0.0, [50.0, 80.0, 60.0]), self::model('a/paid', 0.1, 0.2, [30.0, 70.0, 40.0]));
 

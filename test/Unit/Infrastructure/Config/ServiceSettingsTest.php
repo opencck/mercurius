@@ -80,6 +80,38 @@ final class ServiceSettingsTest extends TestCase {
         self::assertStringNotContainsString('id@host', print_r($settings, true));
     }
 
+    public function testEitherProviderKeyIsEnough(): void {
+        $openAi = LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj-secret']);
+        $both = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'OPENAI_API_KEY' => 'sk-proj']);
+
+        self::assertSame(['openai'], $openAi->providers());
+        self::assertNull($openAi->openRouterKey());
+        self::assertSame('sk-proj-secret', $openAi->openAiKey());
+        self::assertSame('openai:gpt-6.1-terra', $openAi->model, 'no OpenRouter: an OpenAI model by default');
+        self::assertSame('openai:gpt-6-luna', $openAi->cheapModel);
+        self::assertStringNotContainsString('sk-proj-secret', print_r($openAi, true));
+        self::assertSame(['openrouter', 'openai'], $both->providers());
+        self::assertSame('z-ai/glm-5.3-flash', $both->model);
+    }
+
+    public function testSomeProviderKeyIsNeeded(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('OPENAI_API_KEY');
+        LlmSettings::fromEnv([]);
+    }
+
+    public function testModelOfAProviderWithoutAKeyIsRefused(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('LLM_MODEL');
+        LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj', 'LLM_MODEL' => 'z-ai/glm-5.3-flash']);
+    }
+
+    public function testOpenAiModelIsAccepted(): void {
+        $settings = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'OPENAI_API_KEY' => 'sk-proj', 'LLM_MODEL' => 'openai:gpt-6-luna']);
+
+        self::assertSame('openai:gpt-6-luna', $settings->model);
+    }
+
     public function testLlmBadEffort(): void {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('LLM_REASONING_EFFORT');

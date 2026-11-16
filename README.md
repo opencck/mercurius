@@ -13,7 +13,7 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - Irreversible actions (`git push`, `ssh`, uploads, non-GET HTTP) wait for the owner's approval card; "allow always" saves a grant for that exact action and target; `/permissions` lists and revokes grants.
 - Participants: a stranger who writes waits for the owner's decision; each participant has their own tools and limits.
 - Context compaction: old tool results are cut first, then the middle of the conversation is summarised by a cheap model.
-- Model roles (cheap, main, strong, media) chosen by a rough class of the first request; models of any provider (OpenRouter now); the agent and the owner change roles with a reason.
+- Model roles (cheap, main, strong, media) chosen by a rough class of the first request; models of any provider (OpenRouter and the OpenAI API); the agent and the owner change roles with a reason.
 - Traces of every run: steps with time, tokens and cost; `/usage`, `/runs`, `/trace <id>`; Prometheus metrics behind a token.
 
 ## Planned
@@ -23,13 +23,13 @@ An orchestrator that splits a task across worker agents on different models; lon
 ## Running it
 
 1. Clone with submodules: `git clone git@github.com:opencck/mercurius.git && cd mercurius && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger`.
-2. Copy `.env.example` to `.env` and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your Telegram user id), `OPENROUTER_API_KEY`, `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Every variable is explained in the file.
+2. Copy `.env.example` to `.env` and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Every variable is explained in the file.
 3. `docker compose up -d --build`. The app applies database migrations at start.
 4. Write to your bot. Commands: `/new`, `/stop`, `/permissions`, `/usage [days]`, `/runs`, `/trace <id>`.
 
 ## Stack
 
-PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), PostgreSQL; models through OpenRouter. Every repository runs PHPUnit, PHPStan and Psalm (`composer check`).
+PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), PostgreSQL; models through OpenRouter and the OpenAI API. Every repository runs PHPUnit, PHPStan and Psalm (`composer check`).
 
 ## Repositories
 

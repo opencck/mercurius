@@ -51,6 +51,29 @@ final class ModelRolesTest extends AsyncTestCase {
         self::assertSame('openrouter:google/gemini-3.8-flash', (string) $this->roles->model(ModelRole::MEDIA));
     }
 
+    public function testOnlyOpenAiGetsOpenAiRoles(): void {
+        $roles = new ModelRoles($this->stores, $this->stores, ['openai']);
+        $roles->seed();
+
+        self::assertSame('openai:gpt-6-luna', (string) $roles->model(ModelRole::CHEAP));
+        self::assertSame('openai:gpt-6.1-terra', (string) $roles->model(ModelRole::MAIN));
+        self::assertSame('openai:gpt-6.1-sol', (string) $roles->model(ModelRole::STRONG));
+    }
+
+    public function testRoleOfAProviderWithoutAKeyFallsBack(): void {
+        // The table was filled with OpenRouter; then only the OpenAI key is left.
+        $roles = new ModelRoles($this->stores, $this->stores, ['openai']);
+
+        self::assertSame('openai:gpt-6.1-terra', (string) $roles->model(ModelRole::MAIN));
+    }
+
+    public function testModelOfAProviderWithoutAKeyIsRefused(): void {
+        $result = $this->call($this->user, ['role' => 'main', 'model' => 'openai:gpt-6-luna', 'reason' => 'прямой доступ к OpenAI дешевле']);
+
+        self::assertTrue($result->isError);
+        self::assertStringContainsString('нет ключа', $result->content);
+    }
+
     public function testAgentChangesARoleWithAReason(): void {
         $result = $this->call($this->user, ['role' => 'main', 'model' => 'x/tools', 'reason' => 'быстрее и дешевле на наших задачах']);
 

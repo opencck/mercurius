@@ -13,7 +13,7 @@
 - Необратимые действия (`git push`, `ssh`, отправка данных, HTTP кроме GET) ждут карточки подтверждения владельца; «Разрешать всегда» сохраняет разрешение на это действие и эту цель; `/permissions` — список и отзыв.
 - Участники: незнакомец, написавший боту, ждёт решения владельца; у каждого участника свои инструменты и лимиты.
 - Сжатие контекста: сначала обрезаются старые результаты инструментов, затем середина беседы пересказывается дешёвой моделью.
-- Роли моделей (дешёвая, основная, сильная, медиа) выбираются по грубому классу первого запроса; модели любого провайдера (сейчас OpenRouter); агент и владелец меняют роли с указанием причины.
+- Роли моделей (дешёвая, основная, сильная, медиа) выбираются по грубому классу первого запроса; модели любого провайдера (OpenRouter и OpenAI API); агент и владелец меняют роли с указанием причины.
 - Трассы каждого запуска: шаги со временем, токенами и стоимостью; `/usage`, `/runs`, `/trace <номер>`; метрики Prometheus под токеном.
 
 ## В планах
@@ -23,13 +23,13 @@
 ## Как запустить
 
 1. Клонировать с сабмодулями: `git clone git@github.com:opencck/mercurius.git && cd mercurius && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger`.
-2. Скопировать `.env.example` в `.env` и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (ваш id в Telegram), `OPENROUTER_API_KEY`, `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Каждая переменная пояснена в файле.
+2. Скопировать `.env.example` в `.env` и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (достаточно одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Каждая переменная пояснена в файле.
 3. `docker compose up -d --build`. Миграции базы применяются при старте.
 4. Напишите боту. Команды: `/new`, `/stop`, `/permissions`, `/usage [дни]`, `/runs`, `/trace <номер>`.
 
 ## Стек
 
-PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), PostgreSQL; модели — через OpenRouter. В каждом репозитории — PHPUnit, PHPStan и Psalm (`composer check`).
+PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), PostgreSQL; модели — через OpenRouter и OpenAI API. В каждом репозитории — PHPUnit, PHPStan и Psalm (`composer check`).
 
 ## Репозитории
 

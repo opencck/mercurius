@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Dotenv\Dotenv;
 use Mercurius\Llm\LlmException;
+use Mercurius\Llm\ModelCatalog\OpenAICatalog;
 use Mercurius\Llm\ModelCatalog\OpenRouterCatalog;
+use Mercurius\Llm\OpenAI\OpenAIClient;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
 use Mercurius\Llm\RetryingClient;
 use Mercurius\Messenger\ChatDispatcher;
@@ -114,21 +116,30 @@ $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectory(PATH_ROOT . '/migrations'));
 $logger->info('Migrations checked', ['applied' => $applied]);
 
-// Models: one client per provider, chosen by the model's prefix; OpenRouter goes through VLESS when VLESS_URI is set.
-$openRouterHttp = HttpClients::create($llmSettings->routeUri(), $logger);
-$llm = new ProviderRouter([
-    ModelRef::OPENROUTER => new RetryingClient(
-        new OpenRouterClient($openRouterHttp, $llmSettings->apiKey(), appName: 'Mercurius', appUrl: $config->appUrl),
-        onRetry: static fn(LlmException $e, int $attempt, float $delay) => $logger->warning(
-            'Retrying model call',
-            ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
-        ),
-    ),
-]);
+// Models: one client per provider with a key, chosen by the model's prefix; both go through VLESS when VLESS_URI is set.
+// spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+$modelHttp = HttpClients::create($llmSettings->routeUri(), $logger);
+$onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logger->warning(
+    'Retrying model call',
+    ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
+);
+$clients = [];
+$catalogSources = [];
+$openRouterKey = $llmSettings->openRouterKey();
+if ($openRouterKey !== null) {
+    $clients[ModelRef::OPENROUTER] = new RetryingClient(new OpenRouterClient($modelHttp, $openRouterKey, appName: 'Mercurius', appUrl: $config->appUrl), onRetry: $onRetry);
+    $catalogSources[ModelRef::OPENROUTER] = (new OpenRouterCatalog($modelHttp, $openRouterKey))->fetch(...);
+}
+$openAiKey = $llmSettings->openAiKey();
+if ($openAiKey !== null) {
+    $clients[ModelRef::OPENAI] = new RetryingClient(new OpenAIClient($modelHttp, $openAiKey), onRetry: $onRetry);
+    // The OpenAI list has ids only: the public OpenRouter catalog describes them.
+    $catalogSources[ModelRef::OPENAI] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
+}
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);
-$catalogSources = [ModelRef::OPENROUTER => (new OpenRouterCatalog($openRouterHttp, $llmSettings->apiKey()))->fetch(...)];
-$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog);
+$llm = new ProviderRouter($clients, $modelCatalog);
+$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $llmSettings->providers());
 $modelRoles->seed();
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 $modelRouter = new ModelRouter(
@@ -139,7 +150,7 @@ $modelRouter = new ModelRouter(
     $llmSettings->contextWindow,
     $logger,
 );
-$logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'model' => $llmSettings->model]);
+$logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'providers' => $llmSettings->providers(), 'model' => $llmSettings->model]);
 
 // Channel: Telegram.
 $telegramApi = new TelegramApi($telegram->token(), HttpClients::create());

@@ -26,6 +26,27 @@ final class ProviderRouterTest extends AsyncTestCase {
         self::assertSame('z-ai/glm', $openRouter->requests[0]->model);
     }
 
+    public function testProviderWithoutCostGetsAnEstimateAndKeepsItsName(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $stores->replace('openai', [new \Mercurius\Llm\ModelCatalog\ModelInfo('gpt-6-luna', 'luna', 1_000_000, 0.000001, 0.000002)]);
+        $openAi = new ScriptedLlm([
+            new \Mercurius\Llm\ChatResponse('ок', [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(1000, 100), 'gpt-6-luna-2026-09-22', 'c1'),
+            new \Mercurius\Llm\ChatResponse('ок', [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(1000, 100), 'gpt-6-luna-2026-09-22', 'c2'),
+        ]);
+        $router = new ProviderRouter(['openai' => $openAi, 'openrouter' => new ScriptedLlm()], $stores);
+
+        $response = $router->complete(new ChatRequest('openai:gpt-6-luna', [Message::user('привет')]));
+        $end = null;
+        foreach ($router->stream(new ChatRequest('openai:gpt-6-luna', [Message::user('привет')])) as $event) {
+            $end = $event;
+        }
+
+        self::assertEqualsWithDelta(0.0012, $response->usage->costUsd, 1e-9);
+        self::assertSame('openai:gpt-6-luna-2026-09-22', $response->model);
+        self::assertInstanceOf(\Mercurius\Llm\StreamEnd::class, $end);
+        self::assertEqualsWithDelta(0.0012, $end->response->usage->costUsd, 1e-9);
+    }
+
     public function testUnknownProviderIsABadRequest(): void {
         $router = new ProviderRouter(['openrouter' => new ScriptedLlm()]);
 

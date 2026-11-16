@@ -67,10 +67,17 @@ final class ModelSelector {
         $unreliable = $this->unreliable();
         // Thresholds come from the models that could be chosen at all, so a top score is reachable. Models that often
         // failed here stay in that set: dropping them would lower the bar for the rest.
-        $eligible = array_values(array_filter(
-            $this->catalog->models(ModelRef::OPENROUTER),
-            fn(ModelInfo $m): bool => $this->eligible($m, $needsTools, $profile, $window, $ceiling),
-        ));
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — every provider with a key; refs keep the provider
+        $eligible = [];
+        $providerOf = [];
+        foreach ($this->roles->providers() as $provider) {
+            foreach ($this->catalog->models($provider) as $m) {
+                if ($this->eligible($m, $needsTools, $profile, $window, $ceiling)) {
+                    $providerOf[count($eligible)] = $provider;
+                    $eligible[] = $m;
+                }
+            }
+        }
         $bump = (float) max(0, $profile->score('error_cost') - 5) / 2.0 + (float) $raise;
         $required = [];
         $missing = [];
@@ -92,23 +99,31 @@ final class ModelSelector {
         }
         $candidates = [];
         $skipped = 0;
-        foreach ($eligible as $m) {
+        foreach ($eligible as $i => $m) {
             if (!self::meets($m, $required, $highest)) {
                 continue;
             }
-            if (isset($unreliable[(string) new ModelRef(ModelRef::OPENROUTER, $m->id)])) {
+            $ref = new ModelRef($providerOf[$i], $m->id);
+            if (isset($unreliable[(string) $ref])) {
                 $skipped++;
                 continue;
             }
-            $candidates[] = $m;
+            $candidates[] = ['ref' => $ref, 'info' => $m];
         }
         $needs = self::describe($required, $needsTools, $profile, $window) . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '');
-        usort($candidates, static fn(ModelInfo $a, ModelInfo $b): int => self::price($a) <=> self::price($b));
+        usort(
+            $candidates,
+            /**
+             * @param array{ref: ModelRef, info: ModelInfo} $a
+             * @param array{ref: ModelRef, info: ModelInfo} $b
+             */
+            static fn(array $a, array $b): int => self::price($a['info']) <=> self::price($b['info']),
+        );
         $chosen = $candidates[0] ?? null;
         if ($chosen === null) {
             return $this->fallback($conversationId, sprintf('по профилю (%s) подходящих моделей нет — роль strong', $needs));
         }
-        $model = new ModelRef(ModelRef::OPENROUTER, $chosen->id);
+        $model = $chosen['ref'];
         $reason = sprintf('самая дешёвая из %d подходящих: %s', count($candidates), $needs);
         $this->record($conversationId, 'profile', 'profile', (string) $model, $reason);
         return [$model, $reason];
