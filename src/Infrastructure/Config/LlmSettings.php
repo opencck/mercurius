@@ -22,6 +22,8 @@ final class LlmSettings {
      * @param 'none'|'minimal'|'low'|'medium'|'high'|'xhigh'|'max' $reasoningEffort
      * @param positive-int $maxTokens
      * @param positive-int $historyLimit
+     * @param positive-int $contextWindow tokens of the model's window; the model catalog will replace it
+     * @param non-empty-string $cheapModel model of auxiliary calls (compaction); the model roles will replace it
      */
     private function __construct(
         #[SensitiveParameter] string $apiKey,
@@ -30,6 +32,8 @@ final class LlmSettings {
         public readonly string $reasoningEffort,
         public readonly int $maxTokens,
         public readonly int $historyLimit,
+        public readonly int $contextWindow,
+        public readonly string $cheapModel,
     ) {
         $this->apiKey = $apiKey;
         $this->routeUri = $routeUri;
@@ -40,9 +44,10 @@ final class LlmSettings {
      * @throws ConfigException
      */
     public static function fromEnv(array $env): self {
-        $model = Env::raw($env, 'LLM_MODEL') ?? 'z-ai/glm-5.3-flash';
-        if (!preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $model)) {
-            throw ConfigException::invalid('LLM_MODEL', 'an OpenRouter model id like author/slug');
+        $model = self::model($env, 'LLM_MODEL', 'z-ai/glm-5.3-flash');
+        $window = Env::positiveInt($env, 'LLM_CONTEXT_WINDOW', 131_072, 10_000_000);
+        if ($window < 4096) {
+            throw ConfigException::invalid('LLM_CONTEXT_WINDOW', 'at least 4096 tokens');
         }
 
         return new self(
@@ -52,7 +57,23 @@ final class LlmSettings {
             reasoningEffort: self::effort(Env::oneOf($env, 'LLM_REASONING_EFFORT', self::EFFORTS, 'low')),
             maxTokens: Env::positiveInt($env, 'LLM_MAX_TOKENS', 4096, 200_000),
             historyLimit: Env::positiveInt($env, 'LLM_HISTORY_LIMIT', 40, 1000),
+            contextWindow: $window,
+            cheapModel: self::model($env, 'LLM_CHEAP_MODEL', 'openai/gpt-5.6-luna'),
         );
+    }
+
+    /**
+     * @param array<array-key, mixed> $env
+     * @param non-empty-string $default
+     * @return non-empty-string
+     * @throws ConfigException
+     */
+    private static function model(array $env, string $name, string $default): string {
+        $model = Env::raw($env, $name) ?? $default;
+        if (preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $model) !== 1) {
+            throw ConfigException::invalid($name, 'an OpenRouter model id like author/slug');
+        }
+        return $model;
     }
 
     /** @return 'none'|'minimal'|'low'|'medium'|'high'|'xhigh'|'max' */
@@ -86,6 +107,8 @@ final class LlmSettings {
             'reasoningEffort' => $this->reasoningEffort,
             'maxTokens' => $this->maxTokens,
             'historyLimit' => $this->historyLimit,
+            'contextWindow' => $this->contextWindow,
+            'cheapModel' => $this->cheapModel,
         ];
     }
 }

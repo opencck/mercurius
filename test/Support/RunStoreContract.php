@@ -13,6 +13,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\StoredToolCall;
 use OpenCCK\Domain\Agent\ToolCallStatus;
+use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 
@@ -26,6 +27,7 @@ use function Amp\Future\await;
 abstract class RunStoreContract extends AsyncTestCase {
     protected RunRepository $runs;
     protected TranscriptRepository $transcript;
+    protected ConversationRepository $conversations;
     protected int $principalId;
     protected int $conversationId;
 
@@ -183,6 +185,66 @@ abstract class RunStoreContract extends AsyncTestCase {
         $history = $this->transcript->history($this->conversationId, $second, 10);
         self::assertSame(['старое', 'вопрос 1', 'ответ 1'], array_map(static fn($m) => $m->content, $history));
         self::assertSame(['ответ 1'], array_map(static fn($m) => $m->content, $this->transcript->history($this->conversationId, $second, 1)));
+    }
+
+    public function testEntriesAfterTheBoundaryOnly(): void {
+        $id = $this->startRun();
+        $this->transcript->appendUser($this->conversationId, $id, 'задача');
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('c1', 0)]);
+        $this->transcript->appendToolResult($this->conversationId, $id, 'c1', ToolCallStatus::Done, 'результат');
+        $entries = $this->transcript->runEntries($id);
+
+        self::assertSame(['задача', '', 'результат'], array_map(static fn($e) => $e->message->content, $entries));
+        self::assertSame('fake', $entries[2]->toolName);
+        self::assertNull($entries[0]->toolName);
+        self::assertTrue($entries[0]->id < $entries[1]->id && $entries[1]->id < $entries[2]->id);
+        self::assertSame(['результат'], array_map(static fn($e) => $e->message->content, $this->transcript->runEntries($id, $entries[1]->id)));
+    }
+
+    public function testCompactContentReplacesTheTextEverywhere(): void {
+        $id = $this->startRun();
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('c1', 0)]);
+        $this->transcript->appendToolResult($this->conversationId, $id, 'c1', ToolCallStatus::Done, str_repeat('x', 500));
+        $tool = $this->transcript->runEntries($id)[1];
+
+        $this->transcript->compactContent($tool->id, 'коротко');
+
+        self::assertSame('коротко', $this->transcript->runEntries($id)[1]->message->content);
+        self::assertSame('коротко', $this->transcript->runMessages($id)[1]->content);
+        self::assertSame('c1', $this->transcript->runEntries($id)[1]->message->toolCallId);
+    }
+
+    public function testUserMessagesOfARange(): void {
+        $first = $this->startRun();
+        $this->transcript->appendUser($this->conversationId, $first, 'раз');
+        $this->transcript->appendAssistant($this->conversationId, $first, 'ответ', []);
+        $this->transcript->appendUser($this->conversationId, $first, 'два');
+        $this->transcript->appendUser($this->conversationId, $first, 'три');
+        $ids = array_map(static fn($e) => $e->id, $this->transcript->runEntries($first));
+
+        self::assertSame(['раз', 'два'], $this->transcript->userMessages($this->conversationId, 0, $ids[2]));
+        self::assertSame(['два'], $this->transcript->userMessages($this->conversationId, $ids[0], $ids[2]));
+        $this->runs->finish($first, RunStatus::Done, StopReason::Answered);
+        $second = $this->startRun();
+        self::assertSame(['раз', 'ответ', 'два', 'три'], array_map(static fn($e) => $e->message->content, $this->transcript->historyEntries($this->conversationId, $second, 10)));
+        self::assertSame(['два', 'три'], array_map(static fn($e) => $e->message->content, $this->transcript->historyEntries($this->conversationId, $second, 10, $ids[1])));
+    }
+
+    public function testCompactionSurvivesInTheStore(): void {
+        $empty = $this->conversations->compaction($this->conversationId);
+        self::assertNull($empty->summary);
+        self::assertSame(0, $empty->uptoId);
+
+        self::assertSame(1, $this->conversations->compactionFailed($this->conversationId, new \DateTimeImmutable('+60 seconds')));
+        self::assertSame(2, $this->conversations->compactionFailed($this->conversationId, new \DateTimeImmutable('+300 seconds')));
+        self::assertNotNull($this->conversations->compaction($this->conversationId)->cooldownUntil);
+
+        $this->conversations->saveSummary($this->conversationId, 'резюме', 42);
+        $saved = $this->conversations->compaction($this->conversationId);
+        self::assertSame('резюме', $saved->summary);
+        self::assertSame(42, $saved->uptoId);
+        self::assertSame(0, $saved->failures);
+        self::assertNull($saved->cooldownUntil);
     }
 
     public function testConsumeInboxReturnsEachMessageOnce(): void {

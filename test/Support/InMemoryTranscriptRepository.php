@@ -9,6 +9,7 @@ use Mercurius\Llm\Message;
 use Mercurius\Llm\Role;
 use Mercurius\Llm\ToolCall;
 use OpenCCK\Domain\Agent\StoredToolCall;
+use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 
@@ -19,6 +20,8 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     public array $calls = [];
     /** @var array<int, list<string>> */
     public array $inboxes = [];
+    /** @var array<int, string> message id => text the model gets instead */
+    public array $compact = [];
     /** @var (Closure(): void)|null called first in appendAssistant; throw from it to test save-before-execute */
     public ?Closure $beforeAssistant = null;
     /** @var (Closure(): void)|null called first in appendToolResult */
@@ -61,13 +64,62 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     }
 
     public function runMessages(int $runId): array {
-        $messages = [];
-        foreach ($this->messages as $row) {
-            if ($row['run'] === $runId) {
-                $messages[] = $row['message'];
+        return array_map(static fn(TranscriptEntry $e): Message => $e->message, $this->runEntries($runId));
+    }
+
+    public function runEntries(int $runId, int $afterId = 0): array {
+        $entries = [];
+        foreach ($this->messages as $index => $row) {
+            $id = $index + 1;
+            if ($row['run'] === $runId && $id > $afterId) {
+                $entries[] = $this->entry($id, $row['message'], $row['run']);
             }
         }
-        return $messages;
+        return $entries;
+    }
+
+    public function historyEntries(int $conversationId, int $beforeRunId, int $limit, int $afterId = 0): array {
+        $entries = [];
+        foreach ($this->messages as $index => $row) {
+            $message = $row['message'];
+            if ($row['conversation'] !== $conversationId || ($row['run'] !== null && $row['run'] >= $beforeRunId) || $index + 1 <= $afterId) {
+                continue;
+            }
+            if ($message->role === Role::User || ($message->role === Role::Assistant && $message->toolCalls === [] && $message->content !== '')) {
+                $entries[] = $this->entry($index + 1, $message, null);
+            }
+        }
+        return array_slice($entries, -$limit);
+    }
+
+    public function compactContent(int $messageId, string $content): void {
+        $this->compact[$messageId] = $content;
+    }
+
+    public function userMessages(int $conversationId, int $afterId, int $uptoId): array {
+        $texts = [];
+        foreach ($this->messages as $index => $row) {
+            if ($row['conversation'] === $conversationId && $row['message']->role === Role::User && $index + 1 > $afterId && $index + 1 <= $uptoId) {
+                $texts[] = $row['message']->content;
+            }
+        }
+        return $texts;
+    }
+
+    private function entry(int $id, Message $message, ?int $runId): TranscriptEntry {
+        $content = $this->compact[$id] ?? null;
+        if ($content !== null) {
+            $message = match ($message->role) {
+                Role::Tool => Message::toolResult($message->toolCallId ?? '', $content),
+                Role::User => Message::user($content),
+                default => Message::assistant($content, $message->toolCalls),
+            };
+        }
+        $tool = null;
+        if ($message->role === Role::Tool && $runId !== null) {
+            $tool = ($this->calls[$runId][$message->toolCallId ?? ''] ?? null)?->name;
+        }
+        return new TranscriptEntry($id, $message, $tool);
     }
 
     public function history(int $conversationId, int $beforeRunId, int $limit): array {

@@ -6,6 +6,7 @@ namespace OpenCCK\Domain\Repository;
 
 use Mercurius\Llm\Message;
 use OpenCCK\Domain\Agent\StoredToolCall;
+use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 
 /**
@@ -40,6 +41,27 @@ interface TranscriptRepository {
      * @return list<Message>
      */
     public function history(int $conversationId, int $beforeRunId, int $limit): array;
+
+    /**
+     * Messages of the run after $afterId, with ids and tool names, in order.
+     *
+     * @return list<TranscriptEntry>
+     */
+    public function runEntries(int $runId, int $afterId = 0): array;
+
+    /**
+     * Like history(), with ids, and only messages after $afterId.
+     *
+     * @param positive-int $limit
+     * @return list<TranscriptEntry>
+     */
+    public function historyEntries(int $conversationId, int $beforeRunId, int $limit, int $afterId = 0): array;
+
+    /** Text the model gets instead of the message from now on; the original stays in the store. */
+    public function compactContent(int $messageId, string $content): void;
+
+    /** @return list<string> user messages of the conversation with $afterId < id <= $uptoId, in order */
+    public function userMessages(int $conversationId, int $afterId, int $uptoId): array;
 
     /** @return list<StoredToolCall> calls of the run that have no result yet (pending, running, awaiting approval), in order */
     public function pendingCalls(int $runId): array;

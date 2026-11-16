@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Integration;
 
 use Amp\Postgres\PostgresConnection;
+use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 use OpenCCK\Test\Support\RunStoreContract;
@@ -22,6 +23,7 @@ final class PostgresRunStoreTest extends RunStoreContract {
         [$this->principalId, $this->conversationId] = TestDatabase::conversation($this->db);
         $this->runs = new PostgresRunRepository($this->db);
         $this->transcript = new PostgresTranscriptRepository($this->db);
+        $this->conversations = new PostgresConversationRepository($this->db);
     }
 
     protected function tearDown(): void {

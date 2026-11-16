@@ -85,6 +85,20 @@ final class ServiceSettingsTest extends TestCase {
         LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_REASONING_EFFORT' => 'extreme']);
     }
 
+    public function testCompactionSettings(): void {
+        $settings = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k']);
+
+        self::assertSame(131072, $settings->contextWindow);
+        self::assertSame('openai/gpt-5.6-luna', $settings->cheapModel);
+        self::assertSame(16384, LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_CONTEXT_WINDOW' => '16384'])->contextWindow);
+    }
+
+    public function testContextWindowHasAFloor(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('LLM_CONTEXT_WINDOW');
+        LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_CONTEXT_WINDOW' => '100']);
+    }
+
     public function testAgentDefaults(): void {
         $settings = AgentSettings::fromEnv([]);
 

@@ -9,6 +9,7 @@ use Mercurius\Llm\Message;
 use Mercurius\Llm\ToolCall;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\StoredToolCall;
+use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Throwable;
@@ -98,7 +99,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
     public function runMessages(int $runId): array {
         $messages = [];
         foreach ($this->db->execute(
-            'SELECT role, content, tool_calls::text AS tool_calls, tool_call_id FROM messages WHERE run_id = ? ORDER BY id',
+            'SELECT role, COALESCE(compact_content, content) AS content, tool_calls::text AS tool_calls, tool_call_id FROM messages WHERE run_id = ? ORDER BY id',
             [$runId],
         ) as $row) {
             $messages[] = self::message($row);
@@ -109,7 +110,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
     public function history(int $conversationId, int $beforeRunId, int $limit): array {
         $result = $this->db->execute(
             "SELECT role, content, NULL AS tool_calls, NULL AS tool_call_id FROM (
-                SELECT id, role, content FROM messages
+                SELECT id, role, COALESCE(compact_content, content) AS content FROM messages
                 WHERE conversation_id = ? AND (run_id IS NULL OR run_id < ?)
                   AND (role = 'user' OR (role = 'assistant' AND tool_calls IS NULL AND content <> ''))
                 ORDER BY id DESC LIMIT ?
@@ -121,6 +122,59 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
             $messages[] = self::message($row);
         }
         return $messages;
+    }
+
+    public function runEntries(int $runId, int $afterId = 0): array {
+        $entries = [];
+        foreach ($this->db->execute(
+            "SELECT m.id, m.role, COALESCE(m.compact_content, m.content) AS content, m.tool_calls::text AS tool_calls, m.tool_call_id, c.name AS tool_name
+             FROM messages m LEFT JOIN tool_calls c ON m.role = 'tool' AND c.run_id = m.run_id AND c.call_id = m.tool_call_id
+             WHERE m.run_id = ? AND m.id > ? ORDER BY m.id",
+            [$runId, $afterId],
+        ) as $row) {
+            $entries[] = new TranscriptEntry(self::id($row), self::message($row), self::nullableString($row, 'tool_name'));
+        }
+        return $entries;
+    }
+
+    public function historyEntries(int $conversationId, int $beforeRunId, int $limit, int $afterId = 0): array {
+        $entries = [];
+        foreach ($this->db->execute(
+            "SELECT id, role, content, NULL AS tool_calls, NULL AS tool_call_id FROM (
+                SELECT id, role, COALESCE(compact_content, content) AS content FROM messages
+                WHERE conversation_id = ? AND (run_id IS NULL OR run_id < ?) AND id > ?
+                  AND (role = 'user' OR (role = 'assistant' AND tool_calls IS NULL AND content <> ''))
+                ORDER BY id DESC LIMIT ?
+             ) last ORDER BY id",
+            [$conversationId, $beforeRunId, $afterId, $limit],
+        ) as $row) {
+            $entries[] = new TranscriptEntry(self::id($row), self::message($row));
+        }
+        return $entries;
+    }
+
+    public function compactContent(int $messageId, string $content): void {
+        $this->db->execute('UPDATE messages SET compact_content = ? WHERE id = ?', [$content, $messageId]);
+    }
+
+    public function userMessages(int $conversationId, int $afterId, int $uptoId): array {
+        $texts = [];
+        foreach ($this->db->execute(
+            "SELECT content FROM messages WHERE conversation_id = ? AND role = 'user' AND id > ? AND id <= ? ORDER BY id",
+            [$conversationId, $afterId, $uptoId],
+        ) as $row) {
+            $texts[] = self::string($row, 'content');
+        }
+        return $texts;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function id(array $row): int {
+        $id = $row['id'] ?? null;
+        if (!is_int($id)) {
+            throw new UnexpectedValueException('Malformed messages row: id');
+        }
+        return $id;
     }
 
     public function pendingCalls(int $runId): array {

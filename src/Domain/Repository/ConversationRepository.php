@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Repository;
 
+use DateTimeImmutable;
+use OpenCCK\Domain\Agent\Compaction;
 use OpenCCK\Domain\Agent\ConversationMeta;
 
 /**
@@ -20,4 +22,12 @@ interface ConversationRepository {
 
     /** Fixes the system prompt and model of the conversation when it opens; they do not change afterwards. */
     public function setMeta(int $conversationId, string $systemPrompt, string $model): void;
+
+    public function compaction(int $conversationId): Compaction;
+
+    /** Saves a new summary covering messages up to $uptoId and clears failed attempts. */
+    public function saveSummary(int $conversationId, string $summary, int $uptoId): void;
+
+    /** Records a failed summary and the pause before the next attempt; returns failures in a row. */
+    public function compactionFailed(int $conversationId, DateTimeImmutable $cooldownUntil): int;
 }

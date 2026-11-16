@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Repository;
 
 use Amp\Postgres\PostgresLink;
+use DateTimeImmutable;
+use OpenCCK\Domain\Agent\Compaction;
 use OpenCCK\Domain\Agent\ConversationMeta;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use UnexpectedValueException;
@@ -59,6 +61,41 @@ final class PostgresConversationRepository implements ConversationRepository {
             throw new UnexpectedValueException('Malformed conversations row');
         }
         return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model);
+    }
+
+    public function compaction(int $conversationId): Compaction {
+        $row = $this->db->execute(
+            'SELECT summary, summary_upto, compaction_failures, extract(epoch FROM compaction_cooldown_until)::bigint AS cooldown
+             FROM conversations WHERE id = ?',
+            [$conversationId],
+        )->fetchRow() ?? [];
+        $summary = $row['summary'] ?? null;
+        $upto = $row['summary_upto'] ?? 0;
+        $failures = $row['compaction_failures'] ?? 0;
+        $cooldown = $row['cooldown'] ?? null;
+        return new Compaction(
+            is_string($summary) ? $summary : null,
+            is_int($upto) ? $upto : 0,
+            is_int($failures) ? $failures : 0,
+            is_int($cooldown) ? (new DateTimeImmutable())->setTimestamp($cooldown) : null,
+        );
+    }
+
+    public function saveSummary(int $conversationId, string $summary, int $uptoId): void {
+        $this->db->execute(
+            'UPDATE conversations SET summary = ?, summary_upto = ?, compaction_failures = 0, compaction_cooldown_until = NULL WHERE id = ?',
+            [$summary, $uptoId, $conversationId],
+        );
+    }
+
+    public function compactionFailed(int $conversationId, DateTimeImmutable $cooldownUntil): int {
+        $row = $this->db->execute(
+            'UPDATE conversations SET compaction_failures = compaction_failures + 1, compaction_cooldown_until = to_timestamp(?)
+             WHERE id = ? RETURNING compaction_failures',
+            [$cooldownUntil->getTimestamp(), $conversationId],
+        )->fetchRow();
+        $failures = $row['compaction_failures'] ?? 0;
+        return is_int($failures) ? $failures : 0;
     }
 
     public function setMeta(int $conversationId, string $systemPrompt, string $model): void {
