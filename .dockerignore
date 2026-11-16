@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.env
+.env.*
+.mcp.json
+docs
+notes
+plans
+references
+graphify-out
+storage
+var
+vendor
+*.md
