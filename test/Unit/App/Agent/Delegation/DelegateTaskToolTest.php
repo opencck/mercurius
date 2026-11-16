@@ -366,6 +366,43 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertStringContainsString('не смог отправить', self::report($llm));
     }
 
+    public function testFullAnswerOfACutReportCanBeRead(): void {
+        $long = 'Начало. ' . str_repeat('середина ', 2000) . 'Конец.';
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'cheap']]),
+            ScriptedLlm::text($long),
+            ScriptedLlm::calls(new ToolCall('w1', 'worker_report', '{"run":2}')),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $stack->registry->register(new \OpenCCK\App\Agent\Delegation\WorkerReportTool($stack->runs, $stack->transcript));
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $report = self::report($llm);
+        self::assertStringContainsString('Начало.', $report);
+        self::assertStringContainsString('Конец.', $report, 'the tail is kept too');
+        self::assertStringContainsString('worker_report {"run": 2}', $report);
+        $full = '';
+        foreach ($llm->requests[3]->messages as $message) {
+            if ($message->role === Role::Tool && str_contains($message->content, 'Конец.') && !str_contains($message->content, 'Задача 1')) {
+                $full = $message->content;
+            }
+        }
+        self::assertStringContainsString(str_repeat('середина ', 50), $full);
+    }
+
+    public function testWorkerReportOfAnotherTaskIsRefused(): void {
+        $stack = $this->stack(new ScriptedLlm());
+        $tool = new \OpenCCK\App\Agent\Delegation\WorkerReportTool($stack->runs, $stack->transcript);
+        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Владелец');
+
+        $result = $tool->execute(['run' => 99], new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $owner, new \Amp\NullCancellation()));
+
+        self::assertTrue($result->isError);
+    }
+
     public function testLongSummaryIsCut(): void {
         $llm = new ScriptedLlm([self::delegate([['goal' => 'много']]), ScriptedLlm::text(str_repeat('слово ', 3000)), ScriptedLlm::text('итог')]);
         $stack = $this->stack($llm);

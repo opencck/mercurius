@@ -22,6 +22,7 @@ use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
+use OpenCCK\App\Agent\Delegation\WorkerReportTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
 use OpenCCK\App\Agent\Model\FallbackModels;
 use OpenCCK\App\Agent\Model\ModelRoles;
@@ -220,6 +221,7 @@ $loop = new AgentLoop(
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
+$tools->register(new WorkerReportTool($runs, $transcript));
 $scheduler = new RunScheduler(
     $loop,
     $runs,

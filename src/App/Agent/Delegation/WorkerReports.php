@@ -19,7 +19,12 @@ final class WorkerReports {
         foreach ($reports as $report) {
             $summary = $report->summary === '' ? '(итога нет)' : $report->summary;
             if (mb_strlen($summary) > $cap) {
-                $summary = mb_substr($summary, 0, $cap) . sprintf("\n… [итог обрезан; полный — в запуске #%d, владелец видит его через /trace]", (int) $report->runId);
+                // The head says what was found, the tail how it ended; the middle is one call away.
+                $head = (int) floor((float) $cap * 0.7);
+                $tail = $cap - $head;
+                $summary = mb_substr($summary, 0, $head)
+                    . sprintf("\n… [итог обрезан; полный — %s {\"run\": %d}] …\n", WorkerReportTool::NAME, (int) $report->runId)
+                    . mb_substr($summary, -$tail);
             }
             $lines[] = '';
             $lines[] = sprintf(
