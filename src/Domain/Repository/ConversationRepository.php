@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Repository;
 
+use OpenCCK\Domain\Agent\ConversationMeta;
+
 use OpenCCK\Domain\Entity\ChatTurn;
 
 interface ConversationRepository {
@@ -23,4 +25,9 @@ interface ConversationRepository {
      * @return list<ChatTurn>
      */
     public function recent(int $conversationId, int $limit): array;
+
+    public function meta(int $conversationId): ?ConversationMeta;
+
+    /** Fixes the system prompt and model of the conversation when it opens; they do not change afterwards. */
+    public function setMeta(int $conversationId, string $systemPrompt, string $model): void;
 }

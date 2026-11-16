@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Repository;
 
+
 use Amp\Postgres\PostgresLink;
+use OpenCCK\Domain\Agent\ConversationMeta;
 use OpenCCK\Domain\Entity\ChatTurn;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use UnexpectedValueException;
@@ -65,5 +67,33 @@ final class PostgresConversationRepository implements ConversationRepository {
             $turns[] = new ChatTurn($role, $content);
         }
         return $turns;
+    }
+
+    public function meta(int $conversationId): ?ConversationMeta {
+        $row = $this->db->execute(
+            'SELECT id, principal_id, channel, chat_id, system_prompt, model FROM conversations WHERE id = ?',
+            [$conversationId],
+        )->fetchRow();
+        if ($row === null) {
+            return null;
+        }
+        $id = $row['id'] ?? null;
+        $principalId = $row['principal_id'] ?? null;
+        $channel = $row['channel'] ?? null;
+        $chatId = $row['chat_id'] ?? null;
+        $prompt = $row['system_prompt'] ?? null;
+        $model = $row['model'] ?? null;
+        if (!is_int($id) || !is_int($principalId) || !is_string($channel) || !is_string($chatId)
+            || ($prompt !== null && !is_string($prompt)) || ($model !== null && !is_string($model))) {
+            throw new UnexpectedValueException('Malformed conversations row');
+        }
+        return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model);
+    }
+
+    public function setMeta(int $conversationId, string $systemPrompt, string $model): void {
+        $this->db->execute(
+            'UPDATE conversations SET system_prompt = ?, model = ? WHERE id = ? AND system_prompt IS NULL',
+            [$systemPrompt, $model, $conversationId],
+        );
     }
 }
