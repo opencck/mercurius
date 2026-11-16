@@ -2,7 +2,7 @@
 FROM php:8.2-cli-bookworm AS base
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev libev-dev git unzip \
+    && apt-get install -y --no-install-recommends libpq-dev libev4 libev-dev git unzip \
     && docker-php-ext-install pgsql pcntl sockets \
     && pecl install ev \
     && docker-php-ext-enable ev opcache \
