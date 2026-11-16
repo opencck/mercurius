@@ -36,10 +36,12 @@ use OpenCCK\App\Agent\Tool\WriteFileTool;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
+use OpenCCK\App\Service\MetricsText;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Infrastructure\API\App;
+use OpenCCK\Infrastructure\API\Handler\MetricsHandler;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
 use OpenCCK\Infrastructure\API\Server;
 use OpenCCK\Infrastructure\Config\AgentSettings;
@@ -59,10 +61,12 @@ use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Infrastructure\Llm\ProviderRouter;
 use OpenCCK\Infrastructure\Module\AgentModule;
 use OpenCCK\Infrastructure\Module\ModelCatalogModule;
+use OpenCCK\Infrastructure\Module\TraceRetentionModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
+use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
 use OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository;
 use OpenCCK\Infrastructure\Repository\PostgresModelRoleRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
@@ -229,6 +233,9 @@ if ($webhookSecret !== null) {
     $routes[] = ['POST', '/telegram/webhook', new TelegramWebhookHandler(new WebhookProcessor($webhookSecret, $parser, $dispatcher, $deduplicator, $logger))];
 }
 
+// Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.
+$routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db)), $traceSettings->metricsToken())];
+
 $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
 
 (new App($logger))
@@ -236,6 +243,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
+    ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,
