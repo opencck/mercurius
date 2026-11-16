@@ -17,6 +17,7 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\FakeTool;
 use RuntimeException;
 
@@ -75,6 +76,58 @@ final class ToolExecutorTest extends AsyncTestCase {
         $result = (new ToolExecutor(maxResultChars: 10))->run(self::call($tool), $this->context(), 5);
 
         self::assertSame(str_repeat('я', 10) . "\n… [обрезано: показано 10 из 30 символов]", $result->content);
+    }
+
+    private static function sandboxContext(bool $withSandbox = true): ToolContext {
+        return new ToolContext(
+            5,
+            1,
+            new Principal(7, PrincipalKind::Human, Role::Owner, null),
+            new NullCancellation(),
+            new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), $withSandbox ? new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1) : null, true),
+            'call/1',
+        );
+    }
+
+    public function testLargeResultIsSpilledWithPreviewAndPath(): void {
+        $sandbox = new FakeSandbox();
+        $tool = new FakeTool('big', handler: static fn(): ToolResult => ToolResult::ok(str_repeat('я', 60)));
+        $result = (new ToolExecutor(maxResultChars: 50, sandbox: $sandbox, previewChars: 10))->run(self::call($tool), self::sandboxContext(), 5);
+
+        $path = '.mercurius/results/5/call_1.txt';
+        self::assertSame(str_repeat('я', 60), $sandbox->files[7][$path]);
+        self::assertSame(str_repeat('я', 10) . "\n…\n[Полный результат (60 символов) сохранён: " . $path . '. Читай его через read_file.]', $result->content);
+    }
+
+    public function testReadFileIsNeverSpilled(): void {
+        $sandbox = new FakeSandbox();
+        $sandbox->files[7]['f'] = str_repeat("строка\n", 20);
+        $call = new ValidatedCall(new ToolCall('c1', 'read_file'), new \OpenCCK\App\Agent\Tool\ReadFileTool($sandbox), ['path' => 'f'], null, DangerClass::Read);
+
+        $result = (new ToolExecutor(maxResultChars: 50, sandbox: $sandbox))->run($call, self::sandboxContext(), 5);
+
+        self::assertStringNotContainsString('сохранён', $result->content);
+        self::assertSame(['read 7 f 1 500'], $sandbox->calls);
+    }
+
+    public function testSpillFailureFallsBackToTruncation(): void {
+        $sandbox = new FakeSandbox();
+        $sandbox->failure = 'Рабочий каталог заполнен';
+        $tool = new FakeTool('big', handler: static fn(): ToolResult => ToolResult::ok(str_repeat('a', 60)));
+
+        $result = (new ToolExecutor(maxResultChars: 50, sandbox: $sandbox))->run(self::call($tool), self::sandboxContext(), 5);
+
+        self::assertStringEndsWith('[обрезано: показано 50 из 60 символов]', $result->content);
+    }
+
+    public function testNoSandboxFallsBackToTruncation(): void {
+        $sandbox = new FakeSandbox();
+        $tool = new FakeTool('big', handler: static fn(): ToolResult => ToolResult::ok(str_repeat('a', 60)));
+
+        $result = (new ToolExecutor(maxResultChars: 50, sandbox: $sandbox))->run(self::call($tool), self::sandboxContext(false), 5);
+
+        self::assertStringEndsWith('[обрезано: показано 50 из 60 символов]', $result->content);
+        self::assertSame([], $sandbox->calls);
     }
 
     public function testNulBytesAreReplaced(): void {

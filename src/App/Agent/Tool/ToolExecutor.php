@@ -7,6 +7,8 @@ namespace OpenCCK\App\Agent\Tool;
 use Amp\CancelledException;
 use Amp\CompositeCancellation;
 use Amp\TimeoutCancellation;
+use OpenCCK\App\Agent\Sandbox\Sandbox;
+use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -19,10 +21,15 @@ use Throwable;
  * spec: BRIEF.md#лимиты — timeout per tool call
  */
 final class ToolExecutor {
-    /** @param positive-int $maxResultChars */
+    /**
+     * @param positive-int $maxResultChars results longer than this go to a file in the sandbox, or are cut without one
+     * @param positive-int $previewChars what stays in the context of a spilled result
+     */
     public function __construct(
         private readonly int $maxResultChars = 50_000,
         private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly ?Sandbox $sandbox = null,
+        private readonly int $previewChars = 1500,
     ) {}
 
     /** @param positive-int $timeoutSeconds */
@@ -49,11 +56,40 @@ final class ToolExecutor {
         }
 
         // PostgreSQL text cannot hold NUL, and a fetched body may contain it.
-        $content = $this->truncate(str_replace("\0", "\u{FFFD}", $result->content));
+        $content = str_replace("\0", "\u{FFFD}", $result->content);
+        $content = $tool instanceof Unspillable ? $this->truncate($content) : ($this->spill($content, $context) ?? $this->truncate($content));
         if ($tool->untrusted()) {
             $content = UntrustedWrapper::wrap($name, $content);
         }
         return new ToolResult($content, $result->isError);
+    }
+
+    /**
+     * A long result goes into the participant's sandbox home; the context gets its beginning and the path.
+     * Null when it is short or there is nowhere to put it (no sandbox, write failed).
+     *
+     * spec: BRIEF.md#инструменты — a large result is saved to a file, a preview and the path stay in the context
+     * ref: references/hermes-agent/tools/tool_result_storage.py@e96221f:L278-L300, L424 (generate_preview,
+     *      maybe_persist_tool_result) — persist instead of cutting, preview with the path; the threshold is fixed here
+     *      until the model catalogue gives the window size
+     */
+    private function spill(string $content, ToolContext $context): ?string {
+        $length = mb_strlen($content);
+        $limits = $context->policy?->sandbox;
+        if ($length <= $this->maxResultChars || $this->sandbox === null || $limits === null) {
+            return null;
+        }
+        $callId = preg_replace('/[^A-Za-z0-9_-]/', '_', $context->callId) ?? '';
+        $callId = $callId === '' ? 'call' : $callId;
+        $path = sprintf('.mercurius/results/%d/%s.txt', $context->runId, $callId);
+        try {
+            $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
+        } catch (SandboxFailure $e) {
+            $this->logger->warning('Could not spill a tool result', ['run' => $context->runId]);
+            return null;
+        }
+        return mb_substr($content, 0, $this->previewChars)
+            . sprintf("\n…\n[Полный результат (%d символов) сохранён: %s. Читай его через read_file.]", $length, $path);
     }
 
     private function truncate(string $content): string {
