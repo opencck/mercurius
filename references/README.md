@@ -28,6 +28,15 @@
 | [opencck/skill-amphp](https://github.com/opencck/skill-amphp) | [.claude/skills/skill-amphp/](../.claude/skills/skill-amphp/) | `master` | `5553260` | 2026-03-11 | 2026-11-16 | Проектный скилл Claude Code `amphp`: правила и шаблоны асинхронного PHP на AMPHP v3 / Revolt |
 | [rekryt/skill-compliance](https://github.com/rekryt/skill-compliance) | [.claude/skills/skill-compliance/](../.claude/skills/skill-compliance/) | `master` | `b5570c2` | 2026-07-22 | 2026-11-16 | Скилл `legal-compliance-engine`: документы о персональных данных и оферты |
 
+Пакеты Меркурия — тоже сабмодули, но это наш код, а не референсы: их версии и журнал ведутся в
+[packages/README.md](../packages/README.md).
+
+| Пакет | Путь | Коммит |
+|-------|------|--------|
+| [opencck/mercurius-llm](https://github.com/opencck/mercurius-llm) | [packages/llm/](../packages/llm/) | `cdc9a0b` |
+| [opencck/mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [packages/connectors/](../packages/connectors/) | `6920581` |
+| [opencck/mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [packages/messenger/](../packages/messenger/) | `cbb9e93` |
+
 ## Как проверить и обновить
 
 1. Посмотреть, что нового в upstream, не меняя рабочую копию:
