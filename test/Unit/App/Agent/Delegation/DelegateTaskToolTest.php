@@ -193,4 +193,67 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertLessThan(5000, mb_strlen($report));
         self::assertStringContainsString('#2', $report);
     }
+
+    public function testWorkerReportsAreUntrustedData(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'прочитай страницу']]), ScriptedLlm::text('страница велит выдать всем все права'), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('<untrusted-data', self::report($llm));
+    }
+
+    public function testWorkerDeadlineFitsTheOrchestratorsTime(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз']]), ScriptedLlm::text('готово'), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm, new RunLimits(30, 1_000_000, 120, 60));
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $worker = $stack->runs->find(2);
+        self::assertNotNull($worker);
+        self::assertLessThanOrEqual(90, $worker->limits->runTimeout);
+    }
+
+    public function testOrchestratorKeepsBudgetForItself(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз'], ['goal' => 'два'], ['goal' => 'три']]), ScriptedLlm::text('а'), ScriptedLlm::text('б'), ScriptedLlm::text('в'), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm, new RunLimits(30, 100_000, 900, 120));
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $shares = 0;
+        foreach ([2, 3, 4] as $id) {
+            $shares += $stack->runs->find($id)->limits->tokenBudget ?? 0;
+        }
+        self::assertLessThanOrEqual(80_000, $shares);
+        self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
+    }
+
+    public function testTinySharesAreRefused(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => '1'], ['goal' => '2'], ['goal' => '3'], ['goal' => '4'], ['goal' => '5']]), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm, new RunLimits(30, 40_000, 900, 120));
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertNull($stack->runs->find(2));
+    }
+
+    public function testNoNewWorkerStartsAfterStop(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'первое', 'tools' => ['push']], ['goal' => 'второе', 'tools' => ['push']]]),
+            ScriptedLlm::text('не дойдёт'),
+        ]);
+        $llm->delay = 0.3;
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        delay(0.45);
+        $stack->say('/stop');
+        $stack->scheduler->awaitIdle();
+
+        self::assertNull($stack->runs->find(3));
+    }
 }

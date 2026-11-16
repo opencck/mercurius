@@ -62,8 +62,9 @@ final class DelegateTaskTool implements Tool, LongRunning {
         return DangerClass::Write;
     }
 
+    /** Workers read pages and files: their reports carry what they read, so they are data, not instructions. */
     public function untrusted(): bool {
-        return false;
+        return true;
     }
 
     public function timeout(): int {
@@ -127,7 +128,7 @@ final class DelegateTaskTool implements Tool, LongRunning {
         foreach ($reports as $report) {
             $summary = $report->summary === '' ? '(итога нет)' : $report->summary;
             if (mb_strlen($summary) > $cap) {
-                $summary = mb_substr($summary, 0, $cap) . sprintf("\n… [итог длиннее, полностью — в запуске #%d]", (int) $report->runId);
+                $summary = mb_substr($summary, 0, $cap) . sprintf("\n… [итог обрезан; полный — в запуске #%d, владелец видит его через /trace]", (int) $report->runId);
             }
             $lines[] = '';
             $lines[] = sprintf(

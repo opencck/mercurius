@@ -43,10 +43,14 @@ final class WorkerRunner {
     public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy'];
     /** Workers running side by side at most, when all of them only read. */
     private const PARALLEL = 3;
-    /** Below this a worker cannot do anything useful: refuse instead of starting it. */
-    private const MIN_TOKENS = 2000;
+    /** Below this a worker cannot make even one call (answer cap 4096 plus its prompt): refuse instead of starting it. */
+    private const MIN_TOKENS = 8000;
+    /** Tokens the orchestrator keeps for itself to read the reports and answer: at least this, or a fifth of its budget. */
+    private const HEADROOM = 20_000;
     /** Seconds a worker may take: inside the delegation tool's own timeout. */
     private const RUN_TIMEOUT = 840;
+    /** Seconds left to the orchestrator after its workers' deadline, to sum up. */
+    private const MARGIN = 30;
 
     public const PROMPT = <<<'TXT'
         Ты — воркер: сфокусированный исполнитель части задачи, которую тебе поручил агент-оркестратор. Беседы с
@@ -83,7 +87,9 @@ final class WorkerRunner {
         $orchestrator = $this->runs->find($parent->runId) ?? throw new DomainException('Запуск-оркестратор не найден.');
         $count = count($tasks);
         $left = $orchestrator->limits->tokenBudget - $orchestrator->tokensUsed - $orchestrator->tokensReserved;
-        $reserved = min($left, $count * $this->workerTokenBudget);
+        // The orchestrator must still be able to read the reports and answer.
+        $headroom = max(self::HEADROOM, intdiv($orchestrator->limits->tokenBudget, 5));
+        $reserved = min($left - $headroom, $count * $this->workerTokenBudget);
         if ($reserved < $count * self::MIN_TOKENS || !$this->runs->reserve($orchestrator->id, $reserved)) {
             throw new DomainException(sprintf('Не хватает бюджета токенов на воркеров: осталось %d, нужно не меньше %d.', max(0, $left), $count * self::MIN_TOKENS));
         }
@@ -92,7 +98,9 @@ final class WorkerRunner {
         try {
             $jobs = [];
             foreach ($tasks as $index => $task) {
-                $jobs[$index] = fn(): WorkerReport => $this->one($parent, $orchestrator, $index + 1, $task, $share);
+                $jobs[$index] = fn(): WorkerReport => $parent->cancellation->isRequested()
+                    ? new WorkerReport($index + 1, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена')
+                    : $this->one($parent, $orchestrator, $index + 1, $task, $share);
             }
             $reports = $this->readOnly($parent, $tasks) ? $this->side($jobs) : array_map(static fn(\Closure $job): WorkerReport => $job(), $jobs);
             foreach ($reports as $report) {
@@ -160,10 +168,12 @@ final class WorkerRunner {
         try {
             $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index));
             $this->conversations->setMeta($conversation, self::PROMPT, $model);
+            // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
+            $left = intdiv($orchestrator->limits->runTimeout * 1000 - $orchestrator->activeMs, 1000) - self::MARGIN;
             $limits = new RunLimits(
                 $this->workerMaxTurns,
                 max(1, $budget),
-                min(self::RUN_TIMEOUT, $orchestrator->limits->runTimeout),
+                max(10, min(self::RUN_TIMEOUT, $left)),
                 $orchestrator->limits->toolTimeout,
             );
             $run = $this->runs->start($conversation, $parent->principal->id, $model, $limits, $orchestrator->id);
@@ -175,7 +185,16 @@ final class WorkerRunner {
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);
-            return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, 0, '', 'внутренняя ошибка');
+            $spent = 0;
+            if (isset($run)) {
+                // What the worker spent before failing still counts, and its run must not stay open.
+                $spent = $this->runs->find($run->id)->tokensUsed ?? 0;
+                try {
+                    $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
+                } catch (Throwable) {
+                }
+            }
+            return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, $spent, '', 'внутренняя ошибка');
         }
         return new WorkerReport(
             $index,
