@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `cdc9a0b` | 2026-11-16 | Единый интерфейс вызова LLM, адаптер OpenRouter |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `0e50a11` | 2026-11-16 | Канал связи и адаптер Telegram |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `cbb9e93` | 2026-11-16 | Канал связи и адаптер Telegram |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) подключаются в своих фазах.
 
@@ -25,6 +25,12 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-16 — messenger: разметка сверена с hermes
+
+- `mercurius-messenger` `cbb9e93`: конвертер сверен с адаптером Telegram в hermes-agent (`telegram_markdown.py`,
+  `telegram_split.py`, `gateway/platforms/helpers.py`): плоский текст без маркеров при отказе разметки, проверка адресов
+  ссылок, голые URL вне выделения, таблицы — группами пунктов. Ссылки `ref:` — в коде.
 
 ### 2026-11-16 — messenger: разметка ответов модели
 
