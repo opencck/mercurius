@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `cdc9a0b` | 2026-11-16 | Единый интерфейс вызова LLM, адаптер OpenRouter |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `a1a2f2a` | 2026-11-16 | Канал связи и адаптер Telegram |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `0e50a11` | 2026-11-16 | Канал связи и адаптер Telegram |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) подключаются в своих фазах.
 
@@ -18,12 +18,19 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 - Код пакета правится в его каталоге и коммитится в его репозиторий (`master`), затем в основном репозитории
   коммитится новый указатель сабмодуля.
-- В основном `composer.json` пакеты подключены Composer-репозиториями типа `path`, поэтому приложение сразу видит
-  изменения в `packages/<имя>/`.
+- В основном `composer.json` пакеты подключены Composer-репозиториями типа `path` с копированием (`symlink: false`).
+  Версия у пакета всегда `dev-master`, поэтому `composer update` копию не обновляет: после правки пакета —
+  `rm -rf vendor/opencck/mercurius-<имя> && composer install`.
 - В Docker-образ пакеты попадают при сборке из каталога `packages/` (после `git submodule update --init`).
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-16 — messenger: разметка ответов модели
+
+- `mercurius-messenger` `0e50a11`: режим `ParseMode::Markdown` и `MarkdownToTelegramHtml` — Markdown, который пишет
+  модель, уходит в Telegram как HTML; при отказе Telegram — исходный текст без разметки. Приложение отправляет ответы
+  модели в этом режиме, служебные тексты — плоским текстом.
 
 ### 2026-11-16 — подключены llm, connectors, messenger
 

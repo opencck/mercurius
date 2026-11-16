@@ -13,6 +13,8 @@ use Mercurius\Messenger\SendResult;
 final class FakeChannel implements Channel {
     /** @var list<array{string, string, string}> [action, chatId or messageId, text] */
     public array $log = [];
+    /** @var list<array{string, string, ParseMode}> [action, text, parse mode] */
+    public array $modes = [];
     private int $nextId = 100;
 
     /** @param positive-int $maxLength */
@@ -25,6 +27,7 @@ final class FakeChannel implements Channel {
     public function send(OutgoingMessage $message): SendResult {
         $id = (string) $this->nextId++;
         $this->log[] = ['send', $message->chatId, $message->text];
+        $this->modes[] = ['send', $message->text, $message->parseMode];
         return $this->sendFails
             ? SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down')
             : SendResult::ok($id);
@@ -32,6 +35,7 @@ final class FakeChannel implements Channel {
 
     public function edit(string $chatId, string $messageId, string $text, ParseMode $parseMode = ParseMode::Plain): SendResult {
         $this->log[] = ['edit', $messageId, $text];
+        $this->modes[] = ['edit', $text, $parseMode];
         return SendResult::ok($messageId);
     }
 

@@ -17,6 +17,7 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\MessageHandler;
 use Mercurius\Messenger\OutgoingMessage;
+use Mercurius\Messenger\ParseMode;
 use Mercurius\Messenger\TextSplitter;
 use OpenCCK\Domain\Entity\ChatTurn;
 use OpenCCK\Domain\Entity\LlmCallRecord;
@@ -124,7 +125,7 @@ final class ChatService implements MessageHandler {
                     $text .= $event->text;
                     $now = ($this->clock)();
                     if ($messageId !== null && $now - $lastEdit >= $this->editInterval && trim($text) !== '' && $text !== $shown) {
-                        $this->channel->edit($message->chatId, $messageId, $text . ' ' . self::PLACEHOLDER);
+                        $this->channel->edit($message->chatId, $messageId, $text . ' ' . self::PLACEHOLDER, ParseMode::Markdown);
                         $shown = $text;
                         $lastEdit = $now;
                     }
@@ -132,7 +133,7 @@ final class ChatService implements MessageHandler {
                     $response = $event->response;
                     $this->record($conversationId, $response->model !== '' ? $response->model : $this->model, $response->finishReason->value, null, $started, $response->usage);
                     $final = trim($response->text) !== '' ? $response->text : self::EMPTY_ANSWER;
-                    $this->deliver($message, $messageId, $final);
+                    $this->deliver($message, $messageId, $final, ParseMode::Markdown);
                     return $final;
                 }
             }
@@ -150,22 +151,25 @@ final class ChatService implements MessageHandler {
         }
     }
 
-    /** Final text: replaces the placeholder with the first part, sends the rest as new messages. */
-    private function deliver(IncomingMessage $message, ?string $messageId, string $text): void {
+    /**
+     * Final text: replaces the placeholder with the first part, sends the rest as new messages.
+     * Model answers are Markdown, which the channel converts to its own markup; service texts are plain.
+     */
+    private function deliver(IncomingMessage $message, ?string $messageId, string $text, ParseMode $mode = ParseMode::Plain): void {
         if ($messageId === null) {
-            $this->reply($message, $text);
+            $this->reply($message, $text, $mode);
             return;
         }
         $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split($text);
         $first = array_shift($parts) ?? $text;
-        $this->channel->edit($message->chatId, $messageId, $first);
+        $this->channel->edit($message->chatId, $messageId, $first, $mode);
         foreach ($parts as $part) {
-            $this->channel->send(new OutgoingMessage($message->chatId, $part));
+            $this->channel->send(new OutgoingMessage($message->chatId, $part, parseMode: $mode));
         }
     }
 
-    private function reply(IncomingMessage $message, string $text): void {
-        $result = $this->channel->send(new OutgoingMessage($message->chatId, $text, $message->messageId));
+    private function reply(IncomingMessage $message, string $text, ParseMode $mode = ParseMode::Plain): void {
+        $result = $this->channel->send(new OutgoingMessage($message->chatId, $text, $message->messageId, $mode));
         if (!$result->success) {
             $this->logger->warning('Reply was not delivered', ['kind' => $result->errorKind?->value]);
         }

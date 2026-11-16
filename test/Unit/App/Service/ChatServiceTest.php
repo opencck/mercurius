@@ -9,6 +9,7 @@ use Mercurius\Llm\ErrorKind;
 use Mercurius\Llm\LlmException;
 use Mercurius\Llm\Role as LlmRole;
 use Mercurius\Messenger\IncomingMessage;
+use Mercurius\Messenger\ParseMode;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\Test\Support\FakeChannel;
@@ -112,6 +113,18 @@ final class ChatServiceTest extends TestCase {
         $this->service($llm, $channel)->handle($this->message('много'));
 
         self::assertGreaterThan(1, count($channel->texts('send')));
+    }
+
+    public function testModelAnswerIsMarkdownAndServiceTextsArePlain(): void {
+        $channel = new FakeChannel(maxLength: 20);
+        $llm = new FakeLlm(['**жирный** ', str_repeat('слово ', 10)]);
+        $this->service($llm, $channel)->handle($this->message('много'));
+
+        foreach ($channel->modes as [$action, $text, $mode]) {
+            $expected = $text === '…' ? ParseMode::Plain : ParseMode::Markdown;
+            self::assertSame($expected, $mode, $action . ': ' . $text);
+        }
+        self::assertGreaterThan(2, count($channel->modes));
     }
 
     public function testNonTextMessageGetsAHint(): void {
