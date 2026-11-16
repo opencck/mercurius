@@ -6,7 +6,10 @@ namespace OpenCCK\Test\Support;
 
 use DateTimeImmutable;
 use Mercurius\Messenger\IncomingMessage;
+use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Agent\AgentLoop;
+use OpenCCK\App\Agent\ApprovalService;
+use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
@@ -28,6 +31,9 @@ final class AgentStack {
     public readonly FakeChannel $channel;
     public readonly RunScheduler $scheduler;
     public readonly ChatService $chat;
+    public readonly InMemoryApprovalRepository $approvals;
+    public readonly ApprovalService $approvalService;
+    public readonly CallbackRouter $callbacks;
     private int $messageId = 0;
 
     public function __construct(
@@ -43,7 +49,9 @@ final class AgentStack {
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->channel = new FakeChannel(max(1, $maxMessageLength));
-        $loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10);
+        $this->approvals = new InMemoryApprovalRepository(fn(int $runId): int => $this->runs->find($runId)->conversationId ?? 0);
+        $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800);
+        $loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
         $this->scheduler = new RunScheduler(
             $loop,
             $this->runs,
@@ -56,7 +64,15 @@ final class AgentStack {
             debounce: $debounce,
             editInterval: 0.0,
         );
+        $this->scheduler->useApprovals($this->approvalService);
+        $this->approvalService->onDecision($this->scheduler->resumeRun(...));
+        $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService]);
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42'), $this->conversations, $this->scheduler, $this->channel);
+    }
+
+    /** A press on a button, as the channel delivers it. */
+    public function press(string $data, string $userId = '42', string $messageId = '1'): void {
+        $this->callbacks->handleCallback(new IncomingCallback('telegram', 'cb' . ++$this->messageId, '42', $userId, 'Owner', $messageId, $data, (string) $this->messageId));
     }
 
     public function message(string $text, string $userId = '42'): IncomingMessage {

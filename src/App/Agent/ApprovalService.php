@@ -1,0 +1,168 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\App\Agent;
+
+use Closure;
+use DateTimeImmutable;
+use Mercurius\Messenger\Button;
+use Mercurius\Messenger\CallbackHandler;
+use Mercurius\Messenger\Channel;
+use Mercurius\Messenger\IncomingCallback;
+use Mercurius\Messenger\OutgoingMessage;
+use OpenCCK\App\Agent\Tool\GrantKeyed;
+use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\ValidatedCall;
+use OpenCCK\Domain\Agent\Approval;
+use OpenCCK\Domain\Agent\ApprovalStatus;
+use OpenCCK\Domain\Agent\Run;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Repository\ApprovalRepository;
+use OpenCCK\Domain\Repository\PrincipalRepository;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+/**
+ * Approvals in the owner's private chat: a card with the action shown in full (secrets masked), three buttons,
+ * an atomic decision, then the card is edited and the run resumes. Silence past the timeout is a denial; so is a
+ * text from the owner while the run waits, with that text as the reason.
+ *
+ * spec: BRIEF.md#подтверждения-и-запреты
+ * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L3844-L3861 (_send_exec_approval_prompt),
+ *      L4347-L4389 (_handle_exec_approval_callback) — short id in the button, decide first then edit the card,
+ *      "already decided" for a second press; the approval lives in the database here, not in process memory
+ */
+final class ApprovalService implements ApprovalGate, CallbackHandler {
+    /** Longer actions go to the owner as a file next to the card: you cannot approve what you cannot see. */
+    private const CARD_LIMIT = 3000;
+
+    /** @var (Closure(int): void)|null resumes a run after its approval is decided */
+    private ?Closure $resume = null;
+
+    /** @param positive-int $timeoutSeconds AGENT_APPROVAL_TIMEOUT */
+    public function __construct(
+        private readonly ApprovalRepository $approvals,
+        private readonly PrincipalRepository $principals,
+        private readonly Channel $channel,
+        private readonly string $ownerChatId,
+        private readonly int $timeoutSeconds,
+        private readonly LoggerInterface $logger = new NullLogger(),
+    ) {}
+
+    /** @param Closure(int): void $resume */
+    public function onDecision(Closure $resume): void {
+        $this->resume = $resume;
+    }
+
+    public function request(Run $run, ValidatedCall $call, Principal $principal): void {
+        $args = $call->args ?? [];
+        $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($args) : null;
+        $label = $call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name;
+        $shown = SecretMasker::mask(json_encode($args, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
+        $approval = $this->approvals->create(
+            $run->id,
+            $call->call->id,
+            $principal->id,
+            $call->call->name,
+            $label . "\n" . $call->call->name . ' ' . $shown,
+            $key,
+            new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)),
+        );
+
+        $inFile = mb_strlen($shown) > self::CARD_LIMIT;
+        if ($inFile) {
+            $this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, 'Действие целиком');
+        }
+        $text = sprintf(
+            "Подтвердите действие\n\n%s\nИнструмент: %s\nАргументы:\n%s\n\nПросит: %s\nЖду до %s UTC; молчание — отказ.",
+            $label,
+            $call->call->name,
+            $inFile ? '(целиком — в файле выше)' : $shown,
+            $principal->displayName ?? ('участник ' . $principal->id),
+            (new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)))->setTimezone(new \DateTimeZone('UTC'))->format('H:i'),
+        );
+        $row = [new Button('Разрешить', sprintf('ap:%d:a', $approval->id))];
+        if ($key !== null) {
+            $row[] = new Button('Разрешать всегда', sprintf('ap:%d:g', $approval->id));
+        }
+        $row[] = new Button('Отказать', sprintf('ap:%d:d', $approval->id));
+        $sent = $this->channel->send(new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]));
+        if ($sent->success && $sent->messageId !== null) {
+            $this->approvals->setCard($approval->id, $this->ownerChatId, $sent->messageId);
+        }
+        $this->logger->info('Approval requested', ['approval' => $approval->id, 'run' => $run->id, 'tool' => $call->call->name]);
+    }
+
+    public function handleCallback(IncomingCallback $callback): void {
+        if (preg_match('/^ap:(\d+):([agd])$/', $callback->data, $match) !== 1) {
+            $this->channel->answerCallback($callback->callbackId);
+            return;
+        }
+        $id = (int) $match[1];
+        $approval = $this->approvals->find($id);
+        $decided = $approval === null ? null : $this->approvals->decide(
+            $id,
+            $match[2] === 'd' ? ApprovalStatus::Denied : ApprovalStatus::Approved,
+            $match[2] === 'd' ? 'Отказано владельцем.' : null,
+            $this->principals->findByIdentity($callback->channel, $callback->userId)?->id,
+        );
+        if ($decided === null) {
+            $this->channel->answerCallback($callback->callbackId, 'Уже решено.');
+            return;
+        }
+        if ($match[2] === 'g' && $decided->grantKey !== null) {
+            $this->approvals->addGrant($decided->principalId, $decided->grantKey);
+        }
+        $this->channel->answerCallback($callback->callbackId, match ($match[2]) {
+            'a' => 'Разрешено.',
+            'g' => 'Разрешено и запомнено.',
+            default => 'Отказано.',
+        });
+        $this->closeCard($decided, match ($match[2]) {
+            'a' => 'Разрешено владельцем.',
+            'g' => sprintf('Разрешено владельцем и запомнено: %s.', $decided->grantKey ?? 'без ключа'),
+            default => 'Отказано владельцем.',
+        });
+        $this->continue($decided);
+    }
+
+    /** The owner wrote while a run of this conversation waits: that is a denial with their words as the reason. */
+    public function denyPending(int $conversationId, string $reason): bool {
+        $pending = $this->approvals->pendingInConversation($conversationId);
+        $decided = $pending === null ? null : $this->approvals->decide($pending->id, ApprovalStatus::Denied, $reason, null);
+        if ($decided === null) {
+            return false;
+        }
+        $this->closeCard($decided, 'Отказано: владелец ответил текстом.');
+        return true;
+    }
+
+    /** Closes approvals nobody answered in time. */
+    public function expireDue(): void {
+        foreach ($this->approvals->due(new DateTimeImmutable()) as $approval) {
+            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Expired, null, null);
+            if ($decided !== null) {
+                $this->closeCard($decided, 'Время вышло — молчание не согласие.');
+                $this->continue($decided);
+            }
+        }
+    }
+
+    private function closeCard(Approval $approval, string $outcome): void {
+        if ($approval->cardChatId === null || $approval->cardMessageId === null) {
+            return;
+        }
+        $this->channel->edit(
+            $approval->cardChatId,
+            $approval->cardMessageId,
+            sprintf("Действие\n\n%s\n\n%s", $approval->summary, $outcome),
+        );
+    }
+
+    private function continue(Approval $approval): void {
+        if ($this->resume !== null) {
+            ($this->resume)($approval->runId);
+        }
+    }
+}

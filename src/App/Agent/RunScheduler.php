@@ -13,6 +13,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Run;
+use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Entity\Principal;
@@ -52,6 +53,7 @@ final class RunScheduler {
     private array $active = [];
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, future: Future<void>}> */
     private array $pending = [];
+    private ?ApprovalService $approvals = null;
 
     public function __construct(
         private readonly AgentLoop $loop,
@@ -68,11 +70,20 @@ final class RunScheduler {
         private readonly float $editInterval = 1.5,
     ) {}
 
+    public function useApprovals(ApprovalService $approvals): void {
+        $this->approvals = $approvals;
+    }
+
     /** Hands a message over and returns at once. */
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId): void {
         $text = trim($message->text);
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
+        // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
+        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($conversationId, $text) === true) {
+            $this->resumeRun($run->id);
+            return;
+        }
         if ($run !== null) {
             $this->transcript->inbox($run->id, $text, $message->messageId);
             return;
@@ -105,7 +116,50 @@ final class RunScheduler {
             $this->active[$conversationId]['cancellation']->cancel();
             return true;
         }
+        $run = $this->runs->active($conversationId);
+        if ($run !== null && $run->status === RunStatus::WaitingApproval) {
+            $this->stopWaiting($run);
+            return true;
+        }
         return false;
+    }
+
+    /** Continues a run whose approval was decided; does nothing if the run no longer waits. */
+    public function resumeRun(int $runId): void {
+        $run = $this->runs->find($runId);
+        if ($run === null || $run->status !== RunStatus::WaitingApproval) {
+            return;
+        }
+        // The fiber that paused the run may still be finishing its last step.
+        while (isset($this->active[$run->conversationId])) {
+            $this->active[$run->conversationId]['future']->await();
+        }
+        $meta = $this->conversations->meta($run->conversationId);
+        $principal = $this->principals->find($run->principalId);
+        if ($meta === null || $principal === null) {
+            $this->logger->error('Run cannot continue: conversation or participant is gone', ['run' => $run->id]);
+            return;
+        }
+        $this->runs->setStatus($run->id, RunStatus::Running);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval);
+        $observer->start();
+        $this->launch($this->runs->find($run->id) ?? $run, $principal, $observer);
+    }
+
+    /** /stop while the run waits: the approval is denied, open calls are closed, the run is stopped. */
+    private function stopWaiting(Run $run): void {
+        $this->approvals?->denyPending($run->conversationId, 'Остановлено владельцем.');
+        foreach ($this->transcript->pendingCalls($run->id) as $call) {
+            $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, 'Остановлено владельцем.');
+        }
+        $this->transcript->appendAssistant($run->conversationId, $run->id, AgentLoop::STOPPED_NOTE, []);
+        $this->runs->finish($run->id, StopReason::Stopped->status(), StopReason::Stopped);
+        $this->transcript->consumeInbox($run->id);
+        $meta = $this->conversations->meta($run->conversationId);
+        if ($meta !== null) {
+            $this->channel->send(new OutgoingMessage($meta->chatId, 'Остановлено.'));
+        }
+        $this->logger->info('Waiting run stopped', ['run' => $run->id]);
     }
 
     /** Continues runs a restart interrupted. Write and irreversible calls that were running are not repeated. */
