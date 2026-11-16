@@ -6,6 +6,8 @@ namespace OpenCCK\App\Agent\Context;
 
 use Closure;
 use DateTimeImmutable;
+use Amp\Cancellation;
+use Amp\CancelledException;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\LlmException;
@@ -68,7 +70,7 @@ final class ContextCompactor {
      *
      * @param positive-int $historyLimit
      */
-    public function ensure(Run $run, string $systemPrompt, int $historyLimit, int $estimate, bool $force = false): bool {
+    public function ensure(Run $run, string $systemPrompt, int $historyLimit, int $estimate, bool $force = false, ?Cancellation $cancellation = null): bool {
         if (!$force && $estimate < ContextBudget::threshold($this->window)) {
             return false;
         }
@@ -79,9 +81,9 @@ final class ContextCompactor {
         if ($pruned) {
             $this->logger->info('Old tool results pruned', ['run' => $run->id]);
             // The anchor counted the old texts: from now on the estimate goes by characters until the next call.
-            $this->runs->settle($run->id, 0, 0, 0);
+            $this->runs->settleAuxiliary($run->id, 0, 0);
             $entries = $this->entries($run, $historyLimit, $compaction->uptoId);
-            if (!$force && $this->estimate($systemPrompt, $compaction->summary, $entries) < ContextBudget::threshold($this->window)) {
+            if (!$force && $this->estimate($systemPrompt, $this->summaryMessage($run->conversationId), $entries) < ContextBudget::threshold($this->window)) {
                 return true;
             }
         }
@@ -97,7 +99,7 @@ final class ContextCompactor {
         }
         $body = null;
         if (!$cooling && $compaction->failures < count(self::BACKOFF)) {
-            $body = $this->summarise($run, $compaction->summary, $middle);
+            $body = $this->summarise($run, $compaction->summary, $middle, $cancellation);
             if ($body === null) {
                 $failures = $this->conversations->compactionFailed(
                     $run->conversationId,
@@ -113,13 +115,40 @@ final class ContextCompactor {
         $body ??= $this->stub($compaction->summary, $middle);
 
         $uptoId = $middle[count($middle) - 1]->id;
-        $users = $this->transcript->userMessages($run->conversationId, 0, $uptoId);
-        $summary = SummaryPrompt::HEADER . "\n\n" . trim($body)
-            . ($users === [] ? '' : "\n\n" . SummaryPrompt::USERS . "\n" . implode("\n", array_map(static fn(string $u): string => '- ' . $u, $users)));
-        $this->conversations->saveSummary($run->conversationId, $summary, $uptoId);
-        $this->runs->settle($run->id, 0, 0, 0);
+        // Only the body is stored; the header and the user messages are added when the context is built.
+        $this->conversations->saveSummary($run->conversationId, trim($body), $uptoId);
+        $this->runs->settleAuxiliary($run->id, 0, 0);
         $this->logger->info('Context compacted', ['run' => $run->id, 'messages' => count($middle), 'upto' => $uptoId, 'stub' => $stubbed]);
         return true;
+    }
+
+    /**
+     * The message the model gets in place of the compacted part: the reference-only header, the summary, then the
+     * user messages of that part verbatim — the newest first to fit, each at most 2000 characters, all of them at
+     * most a tenth of the window; null when nothing was compacted.
+     */
+    public function summaryMessage(int $conversationId): ?string {
+        $compaction = $this->conversations->compaction($conversationId);
+        if ($compaction->summary === null) {
+            return null;
+        }
+        $budget = intdiv($this->window * 4, 10);
+        $shown = [];
+        $users = $this->transcript->userMessages($conversationId, 0, $compaction->uptoId);
+        for ($i = count($users) - 1; $i >= 0; $i--) {
+            if ($budget < 100) {
+                break;
+            }
+            // The newest message that does not fit whole is cut to what is left.
+            $line = '- ' . self::cut($users[$i], min(2000, $budget - 3));
+            $budget -= mb_strlen($line);
+            array_unshift($shown, $line);
+        }
+        $hidden = count($users) - count($shown);
+        $list = $shown === [] && $hidden === 0 ? '' : "\n\n" . SummaryPrompt::USERS . "\n"
+            . ($hidden > 0 ? sprintf("(ранних сообщений не показано: %d; они сохранены в истории)\n", $hidden) : '')
+            . implode("\n", $shown);
+        return SummaryPrompt::HEADER . "\n\n" . $compaction->summary . $list;
     }
 
     /**
@@ -127,8 +156,9 @@ final class ContextCompactor {
      *
      * @param list<TranscriptEntry> $middle
      */
-    private function summarise(Run $run, ?string $previous, array $middle): ?string {
-        $text = ($previous === null ? '' : "Прежнее резюме (обнови его):\n" . $previous . "\n\n") . "Новая часть переписки:\n" . $this->render($middle);
+    private function summarise(Run $run, ?string $previous, array $middle, ?Cancellation $cancellation): ?string {
+        // Masked whole: the earlier summary may carry what a user typed.
+        $text = SecretMasker::mask(($previous === null ? '' : "Прежнее резюме (обнови его):\n" . $previous . "\n\n") . "Новая часть переписки:\n" . $this->render($middle));
         $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->window);
         $reserved = ContextBudget::tokens(SummaryPrompt::SYSTEM . $text) + $maxTokens;
         if (!$this->runs->reserve($run->id, $reserved)) {
@@ -140,10 +170,13 @@ final class ContextCompactor {
         $usage = new Usage();
         $error = null;
         try {
-            $response = $this->llm->complete($request);
+            $response = $this->llm->complete($request, $cancellation);
             $usage = $response->usage;
             $summary = trim($response->text);
             return $summary === '' ? null : $summary;
+        } catch (CancelledException $e) {
+            $error = 'cancelled';
+            throw $e;
         } catch (LlmException $e) {
             $error = $e->kind->value;
             return null;
@@ -152,7 +185,7 @@ final class ContextCompactor {
             $this->logger->error('Context summary call failed', ['run' => $run->id, 'error' => $e::class]);
             return null;
         } finally {
-            $this->runs->settle($run->id, $reserved, max(0, $usage->totalTokens()), 0);
+            $this->runs->settleAuxiliary($run->id, $reserved, max(0, $usage->totalTokens()));
             $this->record($run, $error, $started, $usage);
         }
     }
@@ -174,7 +207,7 @@ final class ContextCompactor {
             $lines[] = 'Вызывались инструменты: ' . implode(', ', array_map(static fn(string $name, int $n): string => sprintf('%s ×%d', $name, $n), array_keys($tools), $tools)) . '.';
         }
         if ($previous !== null) {
-            $lines[] = "Прежнее резюме:\n" . str_replace(SummaryPrompt::HEADER . "\n\n", '', $previous);
+            $lines[] = "Прежнее резюме:\n" . $previous;
         }
         return implode("\n\n", $lines);
     }

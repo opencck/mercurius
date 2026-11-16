@@ -162,9 +162,9 @@ final class ContextCompactorTest extends AsyncTestCase {
         self::assertSame([], $request->tools);
         self::assertStringContainsString('думаю', $request->messages[1]->content);
         $compaction = $this->conversations->compaction(1);
-        self::assertNotNull($compaction->summary);
-        self::assertStringStartsWith(SummaryPrompt::HEADER, $compaction->summary);
-        self::assertStringContainsString('Цель: задача. Сделано: подумал.', $compaction->summary);
+        self::assertSame('Цель: задача. Сделано: подумал.', $compaction->summary);
+        self::assertStringStartsWith(SummaryPrompt::HEADER, (string) $this->compactor()->summaryMessage(1));
+        self::assertSame(0, $this->runs->find($this->run->id)?->turns, 'compaction takes no turn of the run');
         // The tail starts at the call whose result is the last message.
         self::assertSame(4, $compaction->uptoId);
     }
@@ -175,7 +175,7 @@ final class ContextCompactorTest extends AsyncTestCase {
 
         $this->compactor()->ensure($this->run, 'system', 40, 4000);
 
-        $summary = (string) $this->conversations->compaction(1)->summary;
+        $summary = (string) $this->compactor()->summaryMessage(1);
         self::assertStringContainsString("- исходная задача\n- уточнение посреди задачи", $summary);
     }
 
@@ -218,7 +218,7 @@ final class ContextCompactorTest extends AsyncTestCase {
         $compaction = $this->conversations->compaction(1);
         self::assertSame(0, $compaction->failures);
         self::assertStringContainsString(SummaryPrompt::STUB, (string) $compaction->summary);
-        self::assertStringContainsString('- исходная задача', (string) $compaction->summary);
+        self::assertStringContainsString('- исходная задача', (string) $compactor->summaryMessage(1));
     }
 
     public function testNearlyFullDuringCooldownUsesTheStub(): void {
@@ -231,5 +231,58 @@ final class ContextCompactorTest extends AsyncTestCase {
 
         self::assertCount(1, $this->llm->requests);
         self::assertStringContainsString(SummaryPrompt::STUB, (string) $this->conversations->compaction(1)->summary);
+    }
+
+    public function testStubsDoNotRepeatTheUserList(): void {
+        $this->longRun();
+        $this->failThreeTimes();
+        $compactor = $this->compactor();
+        $compactor->ensure($this->run, 'system', 40, 4000);
+        $this->say(str_repeat('снова ', 2000));
+        $this->tool(str_repeat('w', 4400));
+        $this->failThreeTimes();
+
+        $compactor->ensure($this->run, 'system', 40, 4000);
+
+        self::assertSame([], $this->llm->requests);
+        self::assertSame(1, substr_count((string) $compactor->summaryMessage(1), '- исходная задача'));
+        self::assertSame(0, substr_count((string) $this->conversations->compaction(1)->summary, '- исходная задача'));
+    }
+
+    private function failThreeTimes(): void {
+        for ($i = 0; $i < 3; $i++) {
+            $this->conversations->compactionFailed(1, $this->now->modify('-1 second'));
+        }
+    }
+
+    public function testUserListIsCappedNewestFirst(): void {
+        for ($i = 1; $i <= 20; $i++) {
+            $this->user(sprintf('сообщение %02d ', $i) . str_repeat('а', 3000));
+        }
+        $this->conversations->saveSummary(1, 'резюме', 1000);
+
+        $message = (string) $this->compactor()->summaryMessage(1);
+
+        self::assertLessThan(self::WINDOW * 4, mb_strlen($message));
+        self::assertStringContainsString('сообщение 20', $message);
+        self::assertStringNotContainsString('сообщение 01', $message);
+        self::assertStringContainsString('ранних сообщений не показано', $message);
+    }
+
+    public function testSecretsOfEarlierUserMessagesDoNotReachTheCheapModel(): void {
+        $this->user('пароль от базы password=hunter2');
+        $this->longRun();
+        $this->llm = new ScriptedLlm([ScriptedLlm::text('первое'), ScriptedLlm::text('второе')]);
+        $compactor = $this->compactor();
+        $compactor->ensure($this->run, 'system', 40, 4000);
+        $this->say(str_repeat('снова ', 2000));
+        $this->tool(str_repeat('w', 4400));
+
+        $compactor->ensure($this->run, 'system', 40, 4000);
+
+        self::assertCount(2, $this->llm->requests);
+        foreach ($this->llm->requests as $request) {
+            self::assertStringNotContainsString('hunter2', $request->messages[1]->content);
+        }
     }
 }

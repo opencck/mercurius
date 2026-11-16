@@ -247,6 +247,21 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertNull($saved->cooldownUntil);
     }
 
+    public function testAuxiliarySpendTakesNoTurnAndResetsTheAnchor(): void {
+        $id = $this->startRun(1000);
+        self::assertTrue($this->runs->reserve($id, 300));
+        $this->runs->settle($id, 300, 200, 150);
+
+        self::assertTrue($this->runs->reserve($id, 100));
+        $this->runs->settleAuxiliary($id, 100, 40);
+
+        $run = $this->fetchRun($id);
+        self::assertSame(1, $run->turns);
+        self::assertSame(240, $run->tokensUsed);
+        self::assertSame(0, $run->tokensReserved);
+        self::assertSame(0, $run->promptAnchor);
+    }
+
     public function testConsumeInboxReturnsEachMessageOnce(): void {
         $id = $this->startRun();
         $this->transcript->inbox($id, 'раз');

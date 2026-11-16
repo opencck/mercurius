@@ -29,6 +29,9 @@ interface RunRepository {
     /** Replaces a reservation with the actual spend and counts one turn. */
     public function settle(int $runId, int $reserved, int $actual, int $promptAnchor): void;
 
+    /** Spend of an auxiliary call (compaction): tokens count, the turn does not; the prompt anchor is reset. */
+    public function settleAuxiliary(int $runId, int $reserved, int $actual): void;
+
     public function addActiveTime(int $runId, int $ms): void;
 
     public function markWarned(int $runId): void;

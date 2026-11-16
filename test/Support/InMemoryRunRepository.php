@@ -60,6 +60,16 @@ final class InMemoryRunRepository implements RunRepository {
         );
     }
 
+    public function settleAuxiliary(int $runId, int $reserved, int $actual): void {
+        $run = $this->runs[$runId];
+        $this->runs[$runId] = $this->with(
+            $run,
+            tokensReserved: max(0, $run->tokensReserved - $reserved),
+            tokensUsed: $run->tokensUsed + $actual,
+            promptAnchor: 0,
+        );
+    }
+
     public function addActiveTime(int $runId, int $ms): void {
         $this->runs[$runId] = $this->with($this->runs[$runId], activeMs: $this->runs[$runId]->activeMs + $ms);
     }

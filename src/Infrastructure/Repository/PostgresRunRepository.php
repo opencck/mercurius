@@ -81,6 +81,14 @@ final class PostgresRunRepository implements RunRepository {
         );
     }
 
+    public function settleAuxiliary(int $runId, int $reserved, int $actual): void {
+        $this->db->execute(
+            'UPDATE runs SET tokens_reserved = GREATEST(0, tokens_reserved - ?), tokens_used = tokens_used + ?, prompt_anchor = 0, updated_at = now()
+             WHERE id = ?',
+            [$reserved, $actual, $runId],
+        );
+    }
+
     public function addActiveTime(int $runId, int $ms): void {
         $this->db->execute('UPDATE runs SET active_ms = active_ms + ?, updated_at = now() WHERE id = ?', [$ms, $runId]);
     }

@@ -144,7 +144,7 @@ final class AgentLoop {
             if ($reason !== null) {
                 return $reason;
             }
-            if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state)) === true) {
+            if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), cancellation: $state->cancellation) === true) {
                 $this->loadContext($state);
             }
             $reserved = $this->reserve($state);
@@ -157,7 +157,7 @@ final class AgentLoop {
                 // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
                 if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
                     $state->overflowRetried = true;
-                    $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true);
+                    $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true, cancellation: $state->cancellation);
                     $this->loadContext($state);
                     continue;
                 }
@@ -260,7 +260,7 @@ final class AgentLoop {
     /** Summary and history as of now: after a compaction they change. */
     private function loadContext(RunState $state): void {
         $compaction = $this->conversations->compaction($state->run->conversationId);
-        $state->summary = $compaction->summary;
+        $state->summary = $this->compactor?->summaryMessage($state->run->conversationId);
         $state->uptoId = $compaction->uptoId;
         $state->history = array_map(
             static fn(TranscriptEntry $e): Message => $e->message,
