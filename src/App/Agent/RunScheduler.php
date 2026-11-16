@@ -250,6 +250,12 @@ final class RunScheduler {
             $this->logger->error('Could not close calls of a crashed run', ['run' => $run->id, 'error' => $e::class]);
         }
         try {
+            // Closes the task in the history, so the next run does not take it up again.
+            $this->transcript->appendAssistant($run->conversationId, $run->id, self::CRASHED, []);
+        } catch (Throwable $e) {
+            $this->logger->error('Could not close the history of a crashed run', ['run' => $run->id, 'error' => $e::class]);
+        }
+        try {
             $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
             $observer->finished($this->runs->find($run->id) ?? $run, self::CRASHED, StopReason::InternalError);
         } catch (Throwable $e) {

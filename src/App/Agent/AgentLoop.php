@@ -58,6 +58,8 @@ use function Amp\Future\await;
 final class AgentLoop {
     /** Output cap of the closing summary after a limit. */
     private const SUMMARY_TOKENS = 1000;
+    /** Saved as the answer of a stopped run: the model sees the task as closed, not as waiting. */
+    public const STOPPED_NOTE = 'Задача остановлена владельцем по команде /stop. Не продолжай её, пока владелец не попросит снова.';
     private const WARN_SHARE = 0.8;
 
     private readonly ToolCallValidator $validator;
@@ -411,6 +413,8 @@ final class AgentLoop {
             $text .= $this->report($state, $reason);
         } else {
             $text = 'Не удалось завершить задачу.' . $this->report($state, $reason);
+            // Closes the task in the history: without an answer the next run would take it up again.
+            $this->saveAnswer($state, $text);
         }
 
         $this->flushTime($state);
@@ -426,6 +430,8 @@ final class AgentLoop {
         foreach ($this->transcript->pendingCalls($state->run->id) as $call) {
             $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->callId, ToolCallStatus::Interrupted, 'Остановлено владельцем.');
         }
+        // Closes the task in the history, so the next run does not take a stopped task up again.
+        $this->saveAnswer($state, self::STOPPED_NOTE);
         $this->flushTime($state);
         $this->runs->finish($state->run->id, StopReason::Stopped->status(), StopReason::Stopped);
         $final = $this->runs->find($state->run->id) ?? $state->run;

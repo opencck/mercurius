@@ -6,6 +6,7 @@ namespace OpenCCK\Test\Unit\App\Agent;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Llm\ToolCall;
+use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
@@ -44,6 +45,8 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
         $stack->say('ещё раз');
         $stack->scheduler->awaitIdle();
         self::assertSame(RunStatus::Done, self::status($stack, 2));
+        $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
+        self::assertSame(['задача', RunScheduler::CRASHED, 'ещё раз'], $contents);
     }
 
     /** C1: /stop during the closing summary call stops the run instead of crashing it. */
@@ -79,6 +82,37 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
         self::assertTrue($stack->scheduler->stop(1));
         $stack->scheduler->awaitIdle();
         self::assertSame(RunStatus::Stopped, self::status($stack, 2));
+    }
+
+    /** Found on the server: a stopped task must look closed in the history, or the next run picks it up again. */
+    public function testStoppedTaskIsClosedInHistory(): void {
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'slow', '{}')), ScriptedLlm::text('новое')]));
+        $stack->registry->register(new FakeTool('slow', delay: 5.0));
+
+        $stack->say('старая задача');
+        delay(0.1);
+        $stack->say('/stop');
+        $stack->scheduler->awaitIdle();
+        $stack->say('новая задача');
+        $stack->scheduler->awaitIdle();
+
+        $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
+        self::assertSame(['старая задача', AgentLoop::STOPPED_NOTE, 'новая задача'], $contents);
+    }
+
+    /** A run that failed for a reason other than a limit is closed in the history as well. */
+    public function testFailedTaskIsClosedInHistory(): void {
+        $stack = new AgentStack(new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'down'), ScriptedLlm::text('ок')]));
+
+        $stack->say('первая');
+        $stack->scheduler->awaitIdle();
+        $stack->say('вторая');
+        $stack->scheduler->awaitIdle();
+
+        $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
+        self::assertSame('первая', $contents[0]);
+        self::assertStringStartsWith('Не удалось завершить задачу.', $contents[1]);
+        self::assertSame('вторая', $contents[2]);
     }
 
     /** I2: a failure while starting a run is reported, not thrown into the event loop. */
