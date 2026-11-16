@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\API\Middleware;
 
 use Amp\Http\Server\Middleware;
+use Amp\Http\Server\Middleware\Forwarded;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
@@ -18,13 +19,25 @@ use Throwable;
 final class AccessLogMiddleware implements Middleware {
     public function __construct(private readonly LoggerInterface $logger) {}
 
+    /** Real client behind a trusted proxy (X-Forwarded-For), otherwise the socket peer. */
+    private static function clientAddress(Request $request): string {
+        if ($request->hasAttribute(Forwarded::class)) {
+            /** @var mixed $forwarded */
+            $forwarded = $request->getAttribute(Forwarded::class);
+            if ($forwarded instanceof Forwarded) {
+                return $forwarded->getFor()->toString();
+            }
+        }
+        return $request->getClient()->getRemoteAddress()->toString();
+    }
+
     public function handleRequest(Request $request, RequestHandler $requestHandler): Response {
         $start = microtime(true);
         $context = [
             'request_id' => RequestIdMiddleware::of($request),
             'method' => $request->getMethod(),
             'path' => $request->getUri()->getPath(),
-            'client' => $request->getClient()->getRemoteAddress()->toString(),
+            'client' => self::clientAddress($request),
         ];
 
         try {
