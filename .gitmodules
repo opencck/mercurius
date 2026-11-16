@@ -2,3 +2,33 @@
 	path = references/claude-cookbooks
 	url = https://github.com/anthropics/claude-cookbooks.git
 	shallow = true
+[submodule ".claude/skills/skill-amphp"]
+	path = .claude/skills/skill-amphp
+	url = https://github.com/opencck/skill-amphp
+[submodule "references/amphp-ssh"]
+	path = references/amphp-ssh
+	url = https://github.com/rekryt/amphp-ssh
+	shallow = true
+[submodule "references/amphp-vless"]
+	path = references/amphp-vless
+	url = https://github.com/rekryt/amphp-vless
+	shallow = true
+[submodule "references/ssh-mcp"]
+	path = references/ssh-mcp
+	url = https://github.com/tufantunc/ssh-mcp
+	shallow = true
+[submodule ".claude/skills/skill-compliance"]
+	path = .claude/skills/skill-compliance
+	url = git@github.com:rekryt/skill-compliance.git
+[submodule "references/hermes-agent"]
+	path = references/hermes-agent
+	url = https://github.com/NousResearch/hermes-agent
+	shallow = true
+[submodule "references/hermes-plugin-holographic"]
+	path = references/hermes-plugin-holographic
+	url = https://github.com/itpartypattaya/hermes-plugin-holographic
+	shallow = true
+[submodule "references/hermes-dreaming"]
+	path = references/hermes-dreaming
+	url = https://github.com/itpartypattaya/hermes-dreaming
+	shallow = true

@@ -1,0 +1,15 @@
+# Граф знаний graphify — генерируется локально командой /graphify
+graphify-out/
+
+# Секреты и локальные настройки
+.env
+.env.*
+!.env.example
+
+# Локальные настройки Claude Code и MCP: содержат адрес сервера и пароль
+.mcp.json
+.claude/settings.local.json
+
+# Локальные скиллы без своего репозитория (скиллы-сабмодули в git входят)
+.claude/skills/skill-opencck/
+.claude/skills/graphify/

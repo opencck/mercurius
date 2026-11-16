@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ssh-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "ssh-mcp", "--", "--host=<адрес сервера>", "--port=22", "--user=<пользователь>"],
+      "env": {
+        "SSH_MCP_PASSWORD": "<пароль>"
+      }
+    }
+  }
+}
