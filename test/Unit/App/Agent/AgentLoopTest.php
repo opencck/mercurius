@@ -208,6 +208,55 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertCount(1, $refusals);
     }
 
+    public function testCutOffAnswerIsContinuedAndStitched(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::cut('Первая часть, '), ScriptedLlm::text('вторая часть.')]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        self::assertSame('Первая часть, вторая часть.', $this->observer->final);
+        $tail = array_slice($llm->requests[1]->messages, -2);
+        self::assertSame(LlmRole::Assistant, $tail[0]->role);
+        self::assertSame('Первая часть, ', $tail[0]->content);
+        self::assertSame(AgentLoop::CONTINUE_NOTE, $tail[1]->content);
+        $saved = $this->transcript->runMessages($run->id);
+        $last = end($saved);
+        self::assertNotFalse($last);
+        self::assertSame('Первая часть, вторая часть.', $last->content, 'one stitched answer in the history');
+    }
+
+    public function testEmptyAnswerIsRetriedWithAHint(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::text(''), ScriptedLlm::text('Ответ.')]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        self::assertSame('Ответ.', $this->observer->final);
+        $messages = $llm->requests[1]->messages;
+        $last = end($messages);
+        self::assertNotFalse($last);
+        self::assertSame(AgentLoop::EMPTY_NOTE, $last->content);
+    }
+
+    public function testEmptyAnswersGiveUpAfterThreeRetries(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text(''), ScriptedLlm::text('лишний')]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertCount(4, $llm->requests);
+        self::assertStringContainsString('пустой ответ', (string) $this->observer->final);
+    }
+
+    public function testBrokenStreamIsRetriedOnce(): void {
+        $down = new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'reset');
+        $llm = new ScriptedLlm([$down, ScriptedLlm::text('Ответ.')]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        self::assertSame('Ответ.', $this->observer->final);
+    }
+
     public function testTokenBudgetStopsBeforeModelCall(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('итог')]);
 

@@ -12,6 +12,7 @@ use Closure;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\ChatResponse;
 use Mercurius\Llm\ErrorKind;
+use Mercurius\Llm\FinishReason;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\LlmException;
 use Mercurius\Llm\Message;
@@ -71,6 +72,12 @@ use function Amp\Future\await;
 final class AgentLoop {
     /** Output cap of the closing summary after a limit. */
     /** Seconds for the summary call after a limit: past the deadline it still gets its own short time. */
+    /** Continuations of an answer cut off by the output limit. */
+    private const MAX_CONTINUATIONS = 4;
+    /** Retries of an empty answer. */
+    private const MAX_EMPTY_RETRIES = 3;
+    public const CONTINUE_NOTE = 'Ответ оборвался на лимите длины. Продолжи ровно с места обрыва, без повторов и вступлений.';
+    public const EMPTY_NOTE = 'Ответ пришёл пустым. Дай ответ по существу.';
     private const SUMMARY_SECONDS = 60.0;
     private const SUMMARY_TOKENS = 1000;
     /** Saved as the answer of a stopped run: the model sees the task as closed, not as waiting. */
@@ -163,11 +170,17 @@ final class AgentLoop {
             }
 
             $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
-            $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens), $reserved, max(1.0, $left));
+            $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens, null, $this->tail($state)), $reserved, max(1.0, $left));
             if ($response === null) {
                 if ($this->elapsedMs($state) >= $state->run->limits->runTimeout * 1000) {
                     // The deadline cut the call off: a limit, with a summary, not a failure of the model.
                     return StopReason::Deadline;
+                }
+                // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L345 — a stream that broke after
+                //      it began is a stub, not a verdict: nothing was saved yet, so the call is made once more
+                if (in_array($state->lastError, [ErrorKind::Server, ErrorKind::Network, ErrorKind::Timeout], true) && !$state->streamRetried) {
+                    $state->streamRetried = true;
+                    continue;
                 }
                 // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
                 if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
@@ -179,8 +192,25 @@ final class AgentLoop {
                 return StopReason::ModelFailed;
             }
             $state->overflowRetried = false;
+            $state->streamRetried = false;
             if (!$response->hasToolCalls()) {
-                $this->saveAnswer($state, $response->text);
+                // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L379 (_continue_text) — an answer
+                //      cut off by the output limit is continued and stitched, up to 4 times
+                if ($response->finishReason === FinishReason::Length && $state->continuations < self::MAX_CONTINUATIONS) {
+                    $state->continuations++;
+                    $state->partial .= $response->text;
+                    continue;
+                }
+                $text = $state->partial . $response->text;
+                // ref: references/hermes-agent/agent/turn_empty_response.py@e96221fa:L105-L155 (_retry_empty) — an empty
+                //      answer is asked again with a hint, up to 3 times
+                if (trim($text) === '' && $state->emptyRetries < self::MAX_EMPTY_RETRIES) {
+                    $state->emptyRetries++;
+                    continue;
+                }
+                $state->partial = '';
+                $state->finalText = $text;
+                $this->saveAnswer($state, $text);
                 return StopReason::Answered;
             }
 
@@ -290,12 +320,26 @@ final class AgentLoop {
     }
 
     /**
+     * What this call adds after the history without saving it: the fragment of a cut-off answer with a request to go
+     * on, or a hint after an empty answer.
+     *
+     * @return list<Message>
+     */
+    private function tail(RunState $state): array {
+        if ($state->partial !== '') {
+            return [Message::assistant($state->partial), Message::user(self::CONTINUE_NOTE)];
+        }
+        return $state->emptyRetries > 0 ? [Message::user(self::EMPTY_NOTE)] : [];
+    }
+
+    /**
      * @param list<\Mercurius\Llm\ToolDefinition> $tools
      * @param positive-int $maxTokens
+     * @param list<Message> $tail messages for this call only, not saved
      */
-    private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null): ChatRequest {
+    private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null, array $tail = []): ChatRequest {
         $summary = $state->summary === null ? [] : [Message::user($state->summary)];
-        $messages = [Message::system($state->systemPrompt), ...$summary, ...$state->history, ...$this->contextMessages($state)];
+        $messages = [Message::system($state->systemPrompt), ...$summary, ...$state->history, ...$this->contextMessages($state), ...$tail];
         $state->messagesAtCall = count($this->transcript->runMessages($state->run->id));
         if ($closingPrompt !== null) {
             $messages[] = Message::user($closingPrompt);
@@ -563,7 +607,7 @@ final class AgentLoop {
         $run = $state->run;
         if ($reason === StopReason::Answered) {
             $messages = $this->transcript->runMessages($run->id);
-            $text = $messages === [] ? '' : $messages[array_key_last($messages)]->content;
+            $text = $state->finalText ?? ($messages === [] ? '' : $messages[array_key_last($messages)]->content);
             $text = trim($text) === '' ? 'Модель вернула пустой ответ.' : $text;
         } elseif ($reason->isLimit()) {
             $summary = $this->callModel(

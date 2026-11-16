@@ -26,6 +26,10 @@ final class FakeChannel implements Channel {
 
     /** seconds every send waits, to imitate Telegram rate limits */
     public float $sendDelay = 0.0;
+    /** @var list<SendResult> results the next edits return before the default success */
+    public array $editResults = [];
+    /** @var list<SendResult> results the next sends return before the default success */
+    public array $sendResults = [];
     /** @var array<array-key, list<list<\Mercurius\Messenger\Button>>> buttons each message got last, by message id */
     public array $buttons = [];
     /** @var list<array{string, ?string, bool}> answered callbacks: id, text, alert */
@@ -39,6 +43,11 @@ final class FakeChannel implements Channel {
         }
         $id = (string) $this->nextId++;
         $this->buttons[$id] = $message->buttons;
+        $scripted = array_shift($this->sendResults);
+        if ($scripted !== null && !$scripted->success) {
+            $this->log[] = ['send-failed', $message->chatId, $message->text];
+            return $scripted;
+        }
         $this->log[] = ['send', $message->chatId, $message->text];
         $this->modes[] = ['send', $message->text, $message->parseMode];
         return $this->sendFails
@@ -47,6 +56,11 @@ final class FakeChannel implements Channel {
     }
 
     public function edit(string $chatId, string $messageId, string $text, ParseMode $parseMode = ParseMode::Plain, array $buttons = []): SendResult {
+        $scripted = array_shift($this->editResults);
+        if ($scripted !== null && !$scripted->success) {
+            $this->log[] = ['edit-failed', $messageId, $text];
+            return $scripted;
+        }
         $this->log[] = ['edit', $messageId, $text];
         $this->modes[] = ['edit', $text, $parseMode];
         $this->buttons[$messageId] = $buttons;

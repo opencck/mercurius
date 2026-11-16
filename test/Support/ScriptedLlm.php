@@ -49,6 +49,11 @@ final class ScriptedLlm implements LlmClient {
         return new ChatResponse($text, [], FinishReason::Stop, new Usage($input, $output), 'test/model', 'gen');
     }
 
+    /** An answer cut off by the output limit. */
+    public static function cut(string $text): ChatResponse {
+        return new ChatResponse($text, [], FinishReason::Length, new Usage(100, 10), 'test/model', 'gen');
+    }
+
     public static function calls(ToolCall ...$calls): ChatResponse {
         return new ChatResponse('', array_values($calls), FinishReason::ToolCalls, new Usage(100, 10), 'test/model', 'gen');
     }

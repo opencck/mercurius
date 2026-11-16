@@ -27,6 +27,14 @@ final class RunState {
     public bool $paused = false;
     /** the provider said the context is too long once in this iteration; the next time the run fails */
     public bool $overflowRetried = false;
+    /** Text of an answer cut off by the output limit, continued by the next call. */
+    public string $partial = '';
+    public int $continuations = 0;
+    public int $emptyRetries = 0;
+    /** A call that broke mid-stream was repeated once. */
+    public bool $streamRetried = false;
+    /** The answer as delivered, when it was stitched from parts. */
+    public ?string $finalText = null;
     /** the last model call failed with this kind */
     public ?\Mercurius\Llm\ErrorKind $lastError = null;
     /** clock value up to which active time is saved */

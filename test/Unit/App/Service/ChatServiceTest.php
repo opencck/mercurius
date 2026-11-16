@@ -71,7 +71,7 @@ final class ChatServiceTest extends AsyncTestCase {
     }
 
     public function testModelFailureIsReported(): void {
-        $stack = new AgentStack(new ScriptedLlm([new LlmException(ErrorKind::Network, 'down')]));
+        $stack = new AgentStack(new ScriptedLlm([new LlmException(ErrorKind::Network, 'down'), new LlmException(ErrorKind::Network, 'down')]));
         $stack->say('привет');
         $stack->scheduler->awaitIdle();
 

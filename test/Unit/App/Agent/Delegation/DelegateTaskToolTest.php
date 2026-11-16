@@ -165,7 +165,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     public function testFailedWorkerIsAValueNotAnError(): void {
         $down = new LlmException(ErrorKind::Server, 'down');
         // On the strong role there is nothing stronger to retry on: one failure is the whole story.
-        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'strong']]), $down, ScriptedLlm::text('итог без воркера')]);
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'strong']]), $down, $down, ScriptedLlm::text('итог без воркера')]);
         $stack = $this->stack($llm);
 
         $stack->say('задача');
@@ -240,6 +240,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'раз', 'role' => 'cheap']]),
             new LlmException(ErrorKind::Server, 'down'),
+            new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('со второй попытки'),
             ScriptedLlm::text('итог'),
         ]);
@@ -248,7 +249,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->say('задача');
         $stack->scheduler->awaitIdle();
 
-        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $llm->requests[2]->model);
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $llm->requests[3]->model);
         $report = self::report($llm);
         self::assertStringContainsString('каскад', $report);
         self::assertStringContainsString('со второй попытки', $report);
@@ -293,6 +294,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
             new LlmException(ErrorKind::Server, 'down'),
+            new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('ответ со второй попытки'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
             ScriptedLlm::text('итог'),
@@ -303,8 +305,8 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         $strong = (string) $this->roles->model(ModelRole::STRONG);
-        self::assertSame($strong, $llm->requests[2]->model, 'the retry');
-        self::assertSame($strong, $llm->requests[3]->model, 'no model stronger than strong');
+        self::assertSame($strong, $llm->requests[3]->model, 'the retry');
+        self::assertSame($strong, $llm->requests[4]->model, 'no model stronger than strong');
         self::assertStringContainsString('та же модель, другой нет', self::report($llm));
     }
 
@@ -328,6 +330,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             self::delegate([['goal' => 'раз', 'role' => 'strong', 'profile' => ['error_cost' => 9]], ['goal' => 'два', 'role' => 'strong']]),
             ScriptedLlm::text('ответ раз'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
+            new LlmException(ErrorKind::Server, 'down'),
             new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('итог'),
         ]);
