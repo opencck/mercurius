@@ -43,7 +43,12 @@ final class ScriptedLlm implements LlmClient {
     }
 
     public function complete(ChatRequest $request, ?Cancellation $cancellation = null): ChatResponse {
-        throw new LogicException('The loop streams');
+        $this->requests[] = $request;
+        $next = array_shift($this->script) ?? self::text('готово');
+        if ($next instanceof LlmException) {
+            throw $next;
+        }
+        return $next;
     }
 
     public function stream(ChatRequest $request, ?Cancellation $cancellation = null): iterable {
