@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Infrastructure\Repository;
+
+use Amp\Postgres\PostgresLink;
+use OpenCCK\Domain\Entity\LlmCallRecord;
+use OpenCCK\Domain\Repository\LlmCallRepository;
+
+final class PostgresLlmCallRepository implements LlmCallRepository {
+    public function __construct(private readonly PostgresLink $db) {}
+
+    public function record(LlmCallRecord $call): void {
+        $this->db->execute(
+            'INSERT INTO llm_calls (conversation_id, purpose, model, finish_reason, error_kind, input_tokens, output_tokens,
+                cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_usd, duration_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $call->conversationId, $call->purpose, $call->model, $call->finishReason, $call->errorKind,
+                $call->inputTokens, $call->outputTokens, $call->cacheReadTokens, $call->cacheWriteTokens,
+                $call->reasoningTokens, $call->costUsd, $call->durationMs,
+            ],
+        );
+    }
+}

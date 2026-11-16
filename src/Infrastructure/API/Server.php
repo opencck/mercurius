@@ -7,6 +7,7 @@ namespace OpenCCK\Infrastructure\API;
 use Amp\Http\HttpStatus;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Middleware\ForwardedHeaderType;
+use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\RequestHandler\ClosureRequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Server\Router;
@@ -28,13 +29,17 @@ final class Server implements AppModuleInterface {
 
     private ?SocketHttpServer $httpServer = null;
 
-    /** @param int<1, 65535> $port */
+    /**
+     * @param int<1, 65535> $port
+     * @param list<array{non-empty-string, non-empty-string, RequestHandler}> $routes extra routes: method, path, handler
+     */
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly string $host,
         private readonly int $port,
         private readonly HealthService $health,
         private readonly string $version,
+        private readonly array $routes = [],
     ) {}
 
     public function start(): void {
@@ -48,6 +53,9 @@ final class Server implements AppModuleInterface {
             ['content-type' => 'application/json; charset=utf-8'],
             json_encode(['name' => 'mercurius', 'version' => $this->version], JSON_THROW_ON_ERROR),
         )));
+        foreach ($this->routes as [$method, $path, $routeHandler]) {
+            $router->addRoute($method, $path, $routeHandler);
+        }
 
         $handler = stackMiddleware($router, new RequestIdMiddleware(), new AccessLogMiddleware($this->logger));
 
