@@ -28,6 +28,7 @@ use OpenCCK\App\Agent\Tool\ListFilesTool;
 use OpenCCK\App\Agent\Tool\ReadFileTool;
 use OpenCCK\App\Agent\Tool\RunCommandTool;
 use OpenCCK\App\Agent\Tool\SetModelRoleTool;
+use OpenCCK\App\Agent\Trace\Tracer;
 use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
@@ -46,6 +47,7 @@ use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
 use OpenCCK\Infrastructure\Config\SandboxSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
+use OpenCCK\Infrastructure\Config\TraceSettings;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
 use OpenCCK\Infrastructure\Database\Migrator;
@@ -66,6 +68,7 @@ use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
+use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 use Revolt\EventLoop;
@@ -82,6 +85,7 @@ try {
     $llmSettings = LlmSettings::fromEnv($_ENV);
     $agentSettings = AgentSettings::fromEnv($_ENV);
     $sandboxSettings = SandboxSettings::fromEnv($_ENV);
+    $traceSettings = TraceSettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
     exit(78); // EX_CONFIG
@@ -149,9 +153,12 @@ if ($sandbox !== null) {
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
 }
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
+// Tracing: steps of every run, masked payloads.
+$traces = new PostgresTraceRepository($db);
+$tracer = new Tracer($traces, $modelCatalog, $logger);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
-$approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger);
+$approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger, $tracer);
 $llmCalls = new PostgresLlmCallRepository($db);
 $loop = new AgentLoop(
     $llm,
@@ -179,7 +186,9 @@ $loop = new AgentLoop(
         $logger,
         windowOf: $modelRouter->window(...),
         cheapModelOf: $modelRouter->cheapModel(...),
+        events: $tracer,
     ),
+    events: $tracer,
 );
 $scheduler = new RunScheduler(
     $loop,

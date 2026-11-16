@@ -19,6 +19,8 @@ use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
 use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Tool\BatchPlanner;
+use OpenCCK\App\Agent\Trace\AgentEvents;
+use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
@@ -96,6 +98,7 @@ final class AgentLoop {
         private readonly ?ApprovalRepository $approvals = null,
         private readonly ?ApprovalGate $gate = null,
         private readonly ?ContextCompactor $compactor = null,
+        private readonly AgentEvents $events = new NullEvents(),
     ) {
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
@@ -116,6 +119,7 @@ final class AgentLoop {
             ($this->clock)(),
         );
         $this->loadContext($state);
+        $this->events->runStarted($run->id, (string) ModelRef::parse($run->model));
 
         try {
             // finish() is inside: /stop during the closing summary call must stop the run, not escape.
@@ -306,8 +310,10 @@ final class AgentLoop {
             }
         } catch (CancelledException $e) {
             $this->runs->settle($state->run->id, $reserved, 0, $state->run->promptAnchor);
+            $this->events->modelCalled($state->run->id, 'agent', $request, null, 'cancelled', ($this->clock)() - $started);
             throw $e;
         } catch (LlmException $e) {
+            $this->events->modelCalled($state->run->id, 'agent', $request, null, $e->kind->value, ($this->clock)() - $started);
             $state->lastError = $e->kind;
             $this->logger->error('Model call failed', ['run' => $state->run->id, 'kind' => $e->kind->value, 'status' => $e->status]);
             $this->settle($state, $reserved, new Usage());
@@ -315,11 +321,13 @@ final class AgentLoop {
             return null;
         } catch (Throwable $e) {
             $this->logger->error('Model call failed', ['run' => $state->run->id, 'error' => $e::class]);
+            $this->events->modelCalled($state->run->id, 'agent', $request, null, 'unknown', ($this->clock)() - $started);
             $this->settle($state, $reserved, new Usage());
             $this->record($state, $request->model, null, 'unknown', $started, new Usage());
             return null;
         }
         $state->lastError = null;
+        $this->events->modelCalled($state->run->id, 'agent', $request, $response, null, ($this->clock)() - $started);
         $this->settle($state, $reserved, $response->usage);
         $this->record($state, $response->model !== '' ? $response->model : $request->model, $response->finishReason->value, null, $started, $response->usage);
         return $response;
@@ -466,7 +474,10 @@ final class AgentLoop {
         $remaining = max(1, (int) floor(($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000));
         $timeout = max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
         $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id);
-        return $this->executor->run($call, $context, $timeout);
+        $started = ($this->clock)();
+        $result = $this->executor->run($call, $context, $timeout);
+        $this->events->toolFinished($state->run->id, $call->call->name, $call->args, $result, ($this->clock)() - $started);
+        return $result;
     }
 
     private function writeResult(RunState $state, ValidatedCall $call, ToolResult $result): void {
@@ -541,6 +552,7 @@ final class AgentLoop {
         $this->flushTime($state);
         $this->runs->finish($run->id, $reason->status(), $reason);
         $final = $this->runs->find($run->id) ?? $run;
+        $this->events->runFinished($run->id, $reason->status()->value, $reason->value, $final->activeMs);
         $state->observer->finished($final, $text, $reason);
         $this->logger->info('Run finished', ['run' => $run->id, 'reason' => $reason->value, 'turns' => $final->turns, 'tokens' => $final->tokensUsed]);
         return $final;
@@ -556,6 +568,7 @@ final class AgentLoop {
         $this->flushTime($state);
         $this->runs->finish($state->run->id, StopReason::Stopped->status(), StopReason::Stopped);
         $final = $this->runs->find($state->run->id) ?? $state->run;
+        $this->events->runFinished($state->run->id, 'stopped', StopReason::Stopped->value, $final->activeMs);
         $state->observer->finished($final, 'Остановлено.', StopReason::Stopped);
         $this->logger->info('Run stopped', ['run' => $state->run->id]);
         return $final;
@@ -590,6 +603,7 @@ final class AgentLoop {
         try {
             $this->calls->record(new LlmCallRecord(
                 conversationId: $state->run->conversationId,
+                runId: $state->run->id,
                 purpose: 'agent',
                 model: (string) ModelRef::parse($model),
                 finishReason: $finishReason,

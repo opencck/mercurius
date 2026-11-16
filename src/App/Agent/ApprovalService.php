@@ -14,6 +14,8 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
+use OpenCCK\App\Agent\Trace\AgentEvents;
+use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\Run;
@@ -51,6 +53,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         private readonly string $ownerChatId,
         private readonly int $timeoutSeconds,
         private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly AgentEvents $events = new NullEvents(),
     ) {}
 
     /** @param Closure(int): void $resume */
@@ -186,6 +189,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
     }
 
     private function closeCard(Approval $approval, string $outcome): void {
+        $this->events->approvalDecided($approval->runId, $approval->tool, $approval->status->value, 0.0);
         if ($approval->cardChatId === null || $approval->cardMessageId === null) {
             return;
         }

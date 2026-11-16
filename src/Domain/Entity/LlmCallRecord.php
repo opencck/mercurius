@@ -30,5 +30,6 @@ final class LlmCallRecord {
         public readonly int $reasoningTokens,
         public readonly ?float $costUsd,
         public readonly int $durationMs,
+        public readonly ?int $runId = null,
     ) {}
 }

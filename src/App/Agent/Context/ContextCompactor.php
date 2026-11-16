@@ -15,6 +15,8 @@ use Mercurius\Llm\Message;
 use Mercurius\Llm\Role;
 use Mercurius\Llm\Usage;
 use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Trace\AgentEvents;
+use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Repository\ConversationRepository;
@@ -64,6 +66,7 @@ final class ContextCompactor {
         ?Closure $clock = null,
         private readonly ?Closure $windowOf = null,
         private readonly ?Closure $cheapModelOf = null,
+        private readonly AgentEvents $events = new NullEvents(),
     ) {
         $this->clock = $clock ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -174,6 +177,7 @@ final class ContextCompactor {
         $started = microtime(true);
         $usage = new Usage();
         $error = null;
+        $response = null;
         try {
             $response = $this->llm->complete($request, $cancellation);
             $usage = $response->usage;
@@ -192,6 +196,7 @@ final class ContextCompactor {
         } finally {
             $this->runs->settleAuxiliary($run->id, $reserved, max(0, $usage->totalTokens()));
             $this->record($run, $model, $error, $started, $usage);
+            $this->events->modelCalled($run->id, 'compaction', $request, $response, $error, microtime(true) - $started);
         }
     }
 
@@ -248,6 +253,7 @@ final class ContextCompactor {
         try {
             $this->calls->record(new LlmCallRecord(
                 conversationId: $run->conversationId,
+                runId: $run->id,
                 purpose: 'compaction',
                 model: $model,
                 finishReason: $error === null ? 'stop' : null,
