@@ -96,7 +96,7 @@ final class LlmSettings {
             throw ConfigException::invalid($name, 'a model like author/slug (OpenRouter) or provider:id');
         }
         if ($ref->provider === ModelRef::OPENROUTER && preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $ref->model) !== 1) {
-            throw ConfigException::invalid($name, 'an OpenRouter model id like author/slug');
+            throw ConfigException::invalid($name, 'an OpenRouter model id like author/slug, or provider:id such as openai:gpt-6-luna');
         }
         if (!in_array($ref->provider, $providers, true)) {
             throw ConfigException::invalid($name, sprintf('a model of a provider with a key (%s), not %s', implode(', ', $providers), $ref->provider));

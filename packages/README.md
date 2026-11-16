@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `96f5145` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `d0ae5b6` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `6744d13` | 2026-11-16 | Канал связи и адаптер Telegram |
 
@@ -27,6 +27,10 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 ## Журнал
 
 ### 2026-11-16 — llm: клиент и каталог OpenAI
+
+- `mercurius-llm` `d0ae5b6`: исчерпанный баланс OpenAI (429 `insufficient_quota`) — `InsufficientCredits`, а не повтор;
+  усилие `max` для OpenAI — `xhigh`; из каталога OpenAI исключены семейства только для `/v1/responses` (codex, `-pro`,
+  поиск, звук, изображения) — по ревью.
 
 - `mercurius-llm` `96f5145`: `OpenAI\OpenAIClient` на общем с OpenRouter коде протокола Chat Completions
   (`max_completion_tokens`, `reasoning_effort` строкой, без `temperature` при усилии рассуждения),

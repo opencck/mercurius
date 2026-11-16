@@ -66,9 +66,16 @@ final class ProviderRouter implements LlmClient {
     private function route(ChatRequest $request): array {
         $ref = ModelRef::parse($request->model);
         $client = $this->clients[$ref->provider] ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
-        if ($ref->model === $request->model) {
-            return [$client, $request, $ref];
+        $bare = $ref->model === $request->model ? $request : $request->withModel($ref->model);
+        // ref: references/hermes-agent/agent/reasoning_params.py@e96221fa:L91-L122 (_supports_reasoning_extra_body) —
+        //      the catalog's supported_parameters decide; the OpenAI API answers 400 to reasoning_effort for models
+        //      without reasoning, where OpenRouter only ignored it. An unknown model keeps the effort.
+        if ($bare->reasoningEffort !== null && $this->prices !== null) {
+            $info = $this->prices->find($ref);
+            if ($info !== null && array_intersect(['reasoning', 'reasoning_effort'], $info->supportedParameters) === []) {
+                $bare = $bare->withReasoningEffort(null);
+            }
         }
-        return [$client, $request->withModel($ref->model), $ref];
+        return [$client, $bare, $ref];
     }
 }

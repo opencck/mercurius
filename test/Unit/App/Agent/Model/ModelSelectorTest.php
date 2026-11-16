@@ -186,6 +186,16 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertStringStartsWith('openrouter:', (string) $without, 'no key, no OpenAI models');
     }
 
+    public function testPriceTieGoesToTheDirectProvider(): void {
+        $this->catalog(self::model('openai/gpt-x', 0.1, 0.2, [40.0, 70.0, 50.0]));
+        $this->stores->replace('openai', [self::model('gpt-x', 0.1, 0.2, [40.0, 70.0, 50.0])]);
+        $roles = new ModelRoles($this->stores, $this->stores, ['openrouter', 'openai']);
+
+        [$model] = (new ModelSelector($this->stores, $roles, $this->stores, new NullLogger()))->choose(TaskProfile::fromArray(['text' => 5]), true, null);
+
+        self::assertSame('openai:gpt-x', (string) $model);
+    }
+
     public function testZeroPricedModelIsSkipped(): void {
         $this->catalog(self::model('a/promo', 0.0, 0.0, [50.0, 80.0, 60.0]), self::model('a/paid', 0.1, 0.2, [30.0, 70.0, 40.0]));
 

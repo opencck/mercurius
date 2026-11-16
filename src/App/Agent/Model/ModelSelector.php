@@ -117,7 +117,9 @@ final class ModelSelector {
              * @param array{ref: ModelRef, info: ModelInfo} $a
              * @param array{ref: ModelRef, info: ModelInfo} $b
              */
-            static fn(array $a, array $b): int => self::price($a['info']) <=> self::price($b['info']),
+            // The same model directly and through OpenRouter costs the same in the catalog; OpenRouter adds its fee.
+            static fn(array $a, array $b): int => [self::price($a['info']), $a['ref']->provider === ModelRef::OPENROUTER]
+                <=> [self::price($b['info']), $b['ref']->provider === ModelRef::OPENROUTER],
         );
         $chosen = $candidates[0] ?? null;
         if ($chosen === null) {

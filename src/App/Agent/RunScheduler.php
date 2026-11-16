@@ -16,6 +16,7 @@ use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
@@ -81,6 +82,8 @@ final class RunScheduler {
         private readonly float $editInterval = 1.5,
         private readonly ?ModelRouter $router = null,
         private readonly AgentEvents $events = new NullEvents(),
+        /** @var list<string> providers with a key; empty — not checked */
+        private readonly array $providers = [],
     ) {}
 
     public function useApprovals(ApprovalService $approvals): void {
@@ -324,6 +327,12 @@ final class RunScheduler {
             return null;
         }
         $model = $meta->model ?? $this->model;
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — the conversation was opened with a provider whose key
+        // is gone: its runs go to the default model instead of failing every time
+        if ($meta->systemPrompt !== null && $this->providers !== [] && !in_array(ModelRef::parse($model)->provider, $this->providers, true)) {
+            $this->logger->warning('Conversation model has no provider key; the default one is used', ['conversation' => $conversationId, 'model' => $model]);
+            $model = $this->model;
+        }
         if ($meta->systemPrompt === null) {
             // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;

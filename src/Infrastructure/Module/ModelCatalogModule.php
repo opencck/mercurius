@@ -24,6 +24,8 @@ use function Amp\async;
  * spec: BRIEF.md#модели — the catalog is loaded daily and at start when older than a day, per provider
  */
 final class ModelCatalogModule implements AppModuleInterface {
+    /** Seconds before a failed first load is tried again. */
+    private const RETRY = 600.0;
     private const DAY = 86_400;
 
     private ?string $timer = null;
@@ -74,12 +76,30 @@ final class ModelCatalogModule implements AppModuleInterface {
             $models = $fetch();
             if ($models === []) {
                 $this->logger->warning('Model catalog came empty; the old one stays', ['provider' => $provider]);
+                $this->retry($provider, $fetch);
                 return;
             }
             $this->catalog->replace($provider, $models);
             $this->logger->info('Model catalog loaded', ['provider' => $provider, 'models' => count($models)]);
         } catch (Throwable $e) {
             $this->logger->warning('Model catalog was not loaded; the old one stays', ['provider' => $provider, 'error' => $e::class]);
+            $this->retry($provider, $fetch);
         }
+    }
+
+    /**
+     * A provider with no catalog yet cannot be chosen or priced: it is tried again in minutes, not on the next day.
+     *
+     * @param Closure(): list<ModelInfo> $fetch
+     */
+    private function retry(string $provider, Closure $fetch): void {
+        if ($this->timer === null || $this->catalog->fetchedAt($provider) !== null) {
+            return;
+        }
+        EventLoop::delay(self::RETRY, function () use ($provider, $fetch): void {
+            if ($this->timer !== null) {
+                $this->loads[] = async($this->load(...), $provider, $fetch);
+            }
+        });
     }
 }

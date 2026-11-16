@@ -52,8 +52,11 @@ final class ModelRolesTest extends AsyncTestCase {
     }
 
     public function testOnlyOpenAiGetsOpenAiRoles(): void {
-        $roles = new ModelRoles($this->stores, $this->stores, ['openai']);
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $roles = new ModelRoles($stores, $stores, ['openai']);
         $roles->seed();
+
+        self::assertSame('openai:gpt-6.1-terra', (string) $roles->all()[ModelRole::MAIN]->model, 'stored, not a fallback');
 
         self::assertSame('openai:gpt-6-luna', (string) $roles->model(ModelRole::CHEAP));
         self::assertSame('openai:gpt-6.1-terra', (string) $roles->model(ModelRole::MAIN));

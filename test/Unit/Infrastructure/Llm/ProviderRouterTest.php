@@ -47,6 +47,36 @@ final class ProviderRouterTest extends AsyncTestCase {
         self::assertEqualsWithDelta(0.0012, $end->response->usage->costUsd, 1e-9);
     }
 
+    public function testOpenRouterKeepsItsBareNameAndItsCost(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $stores->replace('openrouter', [new \Mercurius\Llm\ModelCatalog\ModelInfo('a/m', 'm', 1000, 0.001, 0.002)]);
+        $openRouter = new ScriptedLlm([new \Mercurius\Llm\ChatResponse('ок', [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(10, 1, costUsd: 0.5), 'a/m', 'g')]);
+        $router = new ProviderRouter(['openrouter' => $openRouter], $stores);
+
+        $response = $router->complete(new ChatRequest('a/m', [Message::user('привет')]));
+
+        self::assertSame('a/m', $response->model);
+        self::assertSame(0.5, $response->usage->costUsd, 'a reported cost is not replaced');
+    }
+
+    public function testReasoningGoesOnlyToModelsThatTakeIt(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $stores->replace('openai', [
+            new \Mercurius\Llm\ModelCatalog\ModelInfo('gpt-4o', '4o', 128_000, 0.000001, 0.000002, ['text'], ['text'], ['tools', 'max_tokens']),
+            new \Mercurius\Llm\ModelCatalog\ModelInfo('gpt-6-luna', 'luna', 1_000_000, 0.000001, 0.000002, ['text'], ['text'], ['tools', 'reasoning', 'reasoning_effort']),
+        ]);
+        $openAi = new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b'), ScriptedLlm::text('c')]);
+        $router = new ProviderRouter(['openai' => $openAi], $stores);
+
+        $router->complete(new ChatRequest('openai:gpt-4o', [Message::user('x')], reasoningEffort: 'low'));
+        $router->complete(new ChatRequest('openai:gpt-6-luna', [Message::user('x')], reasoningEffort: 'low'));
+        $router->complete(new ChatRequest('openai:unknown', [Message::user('x')], reasoningEffort: 'low'));
+
+        self::assertNull($openAi->requests[0]->reasoningEffort);
+        self::assertSame('low', $openAi->requests[1]->reasoningEffort);
+        self::assertSame('low', $openAi->requests[2]->reasoningEffort, 'unknown models keep it');
+    }
+
     public function testUnknownProviderIsABadRequest(): void {
         $router = new ProviderRouter(['openrouter' => new ScriptedLlm()]);
 

@@ -230,6 +230,7 @@ $scheduler = new RunScheduler(
     $logger,
     router: $modelRouter,
     events: $tracer,
+    providers: $llmSettings->providers(),
 );
 $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
