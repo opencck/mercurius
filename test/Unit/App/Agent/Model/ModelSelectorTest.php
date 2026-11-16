@@ -63,13 +63,13 @@ final class ModelSelectorTest extends AsyncTestCase {
         [$model] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), true, 7);
 
         self::assertSame('openrouter:a/unscored', (string) $model, 'all scores ≤ 3: an unscored cheap model is fine');
-        self::assertSame('profile', $this->stores->decisions[0]->class);
+        self::assertSame('profile', $this->stores->decisions[0]->method);
     }
 
     public function testAgencyNeedsAnAgenticModel(): void {
         $this->standard();
 
-        [$model, $reason] = $this->selector()->choose(TaskProfile::fromArray(['agency' => 6]), true, 7);
+        [$model, $reason] = $this->selector()->choose(TaskProfile::fromArray(['agency' => 8]), true, 7);
 
         self::assertSame('openrouter:a/agent', (string) $model);
         self::assertStringContainsString('агентность', $reason);
@@ -78,8 +78,8 @@ final class ModelSelectorTest extends AsyncTestCase {
     public function testErrorCostRaisesTheBar(): void {
         $this->standard();
 
-        [$plain] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6]), true, null);
-        [$careful] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6, 'error_cost' => 10]), true, null);
+        [$plain] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 8]), true, null);
+        [$careful] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 8, 'error_cost' => 10]), true, null);
 
         self::assertSame('openrouter:a/mid', (string) $plain);
         self::assertSame('openrouter:a/top', (string) $careful);
@@ -106,12 +106,54 @@ final class ModelSelectorTest extends AsyncTestCase {
 
         self::assertSame((string) $this->roles->model(ModelRole::STRONG), (string) $model);
         self::assertSame('fallback', $this->stores->decisions[0]->method);
+        self::assertSame('strong', $this->stores->decisions[0]->role);
+    }
+
+    public function testCatalogWithoutIndicesFallsBackForDemandingWork(): void {
+        $this->catalog(self::model('a/one', 0.1, 0.2, null), self::model('a/two', 0.2, 0.4, null));
+
+        [$model, $reason] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 7]), true, null);
+        [$simple] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), true, null);
+
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), (string) $model);
+        self::assertStringContainsString('нет оценок', $reason);
+        self::assertSame('openrouter:a/one', (string) $simple, 'simple work may go to an unscored model');
+    }
+
+    public function testCostOfErrorAloneRaisesEveryAxis(): void {
+        $this->standard();
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['error_cost' => 10]), true, null);
+
+        self::assertNotSame('openrouter:a/unscored', (string) $model);
+        self::assertNotSame('openrouter:a/tiny', (string) $model);
+    }
+
+    public function testNothingPricierThanTheStrongRole(): void {
+        $strong = $this->roles->model(ModelRole::STRONG)->model;
+        $this->catalog(
+            self::model('a/cheap', 0.1, 0.6, [24.0, 71.0, 42.0]),
+            self::model($strong, 5.0, 25.0, [44.0, 78.0, 57.0]),
+            self::model('a/pro', 15.0, 120.0, [50.0, 80.0, 60.0]),
+        );
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 10]), true, null);
+
+        self::assertSame('openrouter:' . $strong, (string) $model);
+    }
+
+    public function testZeroPricedModelIsSkipped(): void {
+        $this->catalog(self::model('a/promo', 0.0, 0.0, [50.0, 80.0, 60.0]), self::model('a/paid', 0.1, 0.2, [30.0, 70.0, 40.0]));
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), true, null);
+
+        self::assertSame('openrouter:a/paid', (string) $model);
     }
 
     public function testEscalationRaisesTheRequirements(): void {
         $this->standard();
 
-        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 6]), true, null, raise: 2);
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 8]), true, null, raise: 2);
 
         self::assertSame('openrouter:a/top', (string) $model);
     }
@@ -122,5 +164,19 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertSame(10, $profile->score('code'));
         self::assertSame(1, $profile->score('reasoning'));
         self::assertSame(1, $profile->score('text'));
+    }
+
+    public function testScoresAcceptNumbersInAnyForm(): void {
+        $profile = TaskProfile::fromArray(['code' => '7', 'reasoning' => 6.6, 'agency' => 5.0]);
+
+        self::assertSame(7, $profile->score('code'));
+        self::assertSame(7, $profile->score('reasoning'));
+        self::assertSame(5, $profile->score('agency'));
+    }
+
+    public function testOnlyCapabilitiesMakeAProfileDemanding(): void {
+        self::assertFalse(TaskProfile::fromArray([])->demanding());
+        self::assertFalse(TaskProfile::fromArray(['error_cost' => 10, 'urgency' => 9])->demanding());
+        self::assertTrue(TaskProfile::fromArray(['images' => 6])->demanding());
     }
 }

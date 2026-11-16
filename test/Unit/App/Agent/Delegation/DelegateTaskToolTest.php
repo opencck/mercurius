@@ -163,7 +163,8 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testFailedWorkerIsAValueNotAnError(): void {
         $down = new LlmException(ErrorKind::Server, 'down');
-        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз']]), $down, $down, ScriptedLlm::text('итог без воркера')]);
+        // On the strong role there is nothing stronger to retry on: one failure is the whole story.
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'strong']]), $down, ScriptedLlm::text('итог без воркера')]);
         $stack = $this->stack($llm);
 
         $stack->say('задача');
@@ -171,6 +172,37 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
         self::assertStringContainsString('failed', self::report($llm));
+        self::assertNull($stack->runs->find(3), 'no retry on the same model');
+    }
+
+    public function testProfileAskingForNothingKeepsTheRole(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз', 'role' => 'cheap', 'profile' => ['error_cost' => 9]]]), ScriptedLlm::text('готово'), ScriptedLlm::text('итог')]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame((string) $this->roles->model(ModelRole::CHEAP), $llm->requests[1]->model);
+        self::assertSame([], $this->stores->decisions);
+    }
+
+    public function testLimitStopIsNotRetried(): void {
+        // A worker that keeps calling a tool runs into its turn limit: that is the task, not the model.
+        $calls = [self::delegate([['goal' => 'раз', 'role' => 'cheap', 'tools' => ['read']]])];
+        for ($i = 0; $i < 20; $i++) {
+            $calls[] = ScriptedLlm::calls(new ToolCall('r' . $i, 'read', json_encode(['path' => 'f' . $i], JSON_THROW_ON_ERROR)));
+        }
+        $calls[] = ScriptedLlm::text('итог воркера');
+        $calls[] = ScriptedLlm::text('итог');
+        $llm = new ScriptedLlm($calls);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertNull($stack->runs->find(3));
+        self::assertStringContainsString('limit', self::report($llm));
+        self::assertStringNotContainsString('каскад', self::report($llm));
     }
 
     public function testStopStopsTheWorker(): void {

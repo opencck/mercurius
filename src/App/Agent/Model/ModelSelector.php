@@ -16,7 +16,8 @@ use Throwable;
 /**
  * The cheapest model that meets a task profile. Each score becomes a requirement on a catalog index — score s asks for
  * at least the (s × 10)-th percentile of that index among catalog models; a high cost of error raises every score.
- * Hard needs (tools, images, audio, window) filter first. Nothing fits — the strong role.
+ * Hard needs (tools, images, audio, window, a price not above the strong role's) filter first; thresholds are taken
+ * among the models left. Nothing fits, or the catalog has no index for a demanding score — the strong role.
  *
  * spec: BRIEF.md#часть-2--профиль-задачи-выбор-модели-каскад
  * spec: BRIEF.md#выбор — hard needs, then the cheapest capable model with a margin growing with the cost of error
@@ -47,47 +48,67 @@ final class ModelSelector {
      * @return array{ModelRef, string} the model and why
      */
     public function choose(TaskProfile $profile, bool $needsTools, ?int $conversationId, int $raise = 0): array {
-        $models = $this->catalog->models(ModelRef::OPENROUTER);
+        $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
+        $ceiling = $this->ceiling();
+        // Thresholds come from the models that could be chosen at all, so a top score is reachable.
+        $eligible = array_values(array_filter(
+            $this->catalog->models(ModelRef::OPENROUTER),
+            fn(ModelInfo $m): bool => $this->eligible($m, $needsTools, $profile, $window, $ceiling),
+        ));
         $bump = (float) max(0, $profile->score('error_cost') - 5) / 2.0 + (float) $raise;
         $required = [];
+        $missing = [];
         $highest = 0.0;
         foreach (self::INDEX as $axis => $index) {
-            if ($profile->score($axis) <= 1 && $raise === 0) {
-                continue;
-            }
+            // Every axis counts, a missing one as 1: the cost of error raises them all.
             $score = min(10.0, (float) $profile->score($axis) + $bump);
             $highest = max($highest, $score);
-            $threshold = self::percentile(self::values($models, $index), $score / 10.0);
+            $threshold = self::percentile(self::values($eligible, $index), $score / 10.0);
             if ($threshold !== null) {
                 $required[$index] = max($required[$index] ?? 0.0, $threshold);
+            } elseif ($score > self::UNSCORED_OK) {
+                $missing[$index] = self::NAMES[$index];
             }
         }
-        $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
-        $candidates = [];
-        foreach ($models as $model) {
-            if (!$this->fits($model, $needsTools, $profile, $window, $required, $highest)) {
-                continue;
-            }
-            $candidates[] = $model;
+        if ($missing !== []) {
+            // Without the index nothing shows a model is good enough: not the cheapest one at random.
+            return $this->fallback($conversationId, sprintf('в каталоге нет оценок (%s) — роль strong', implode(', ', $missing)));
         }
-        usort($candidates, static fn(ModelInfo $a, ModelInfo $b): int => self::price($a) <=> self::price($b));
         $needs = self::describe($required, $needsTools, $profile, $window);
+        $candidates = array_values(array_filter($eligible, static fn(ModelInfo $m): bool => self::meets($m, $required, $highest)));
+        usort($candidates, static fn(ModelInfo $a, ModelInfo $b): int => self::price($a) <=> self::price($b));
         $chosen = $candidates[0] ?? null;
         if ($chosen === null) {
-            $model = $this->roles->model(ModelRole::STRONG);
-            $reason = sprintf('по профилю (%s) подходящих моделей нет — роль strong', $needs);
-            $this->record($conversationId, 'fallback', (string) $model, $reason);
-            return [$model, $reason];
+            return $this->fallback($conversationId, sprintf('по профилю (%s) подходящих моделей нет — роль strong', $needs));
         }
         $model = new ModelRef(ModelRef::OPENROUTER, $chosen->id);
         $reason = sprintf('самая дешёвая из %d подходящих: %s', count($candidates), $needs);
-        $this->record($conversationId, 'profile', (string) $model, $reason);
+        $this->record($conversationId, 'profile', 'profile', (string) $model, $reason);
         return [$model, $reason];
     }
 
-    /** @param array<string, float> $required */
-    private function fits(ModelInfo $model, bool $needsTools, TaskProfile $profile, int $window, array $required, float $highest): bool {
-        if ($model->inputPricePerToken === null || $model->outputPricePerToken === null || str_ends_with($model->id, ':free')) {
+    /** @return array{ModelRef, string} */
+    private function fallback(?int $conversationId, string $reason): array {
+        $model = $this->roles->model(ModelRole::STRONG);
+        $this->record($conversationId, 'fallback', ModelRole::STRONG, (string) $model, $reason);
+        return [$model, $reason];
+    }
+
+    /**
+     * The blended price of the strong role: a profile never buys a pricier model than the owner's strongest one (the
+     * same guard as for moving roles). Null when the strong model is not in the catalog or has no price.
+     */
+    private function ceiling(): ?float {
+        $strong = $this->catalog->find($this->roles->model(ModelRole::STRONG));
+        return $strong === null || $strong->inputPricePerToken === null || $strong->outputPricePerToken === null ? null : self::price($strong);
+    }
+
+    /** Hard needs: a price above zero (no free or promo entries), not above the strong role's; tools, images, audio, window. */
+    private function eligible(ModelInfo $model, bool $needsTools, TaskProfile $profile, int $window, ?float $ceiling): bool {
+        if ($model->inputPricePerToken === null || $model->outputPricePerToken === null || self::price($model) <= 0.0 || str_ends_with($model->id, ':free')) {
+            return false;
+        }
+        if ($ceiling !== null && self::price($model) > $ceiling) {
             return false;
         }
         if ($needsTools && !$model->supportsTools()) {
@@ -99,9 +120,11 @@ final class ModelSelector {
         if ($profile->score('audio') >= 5 && !in_array('audio', $model->inputModalities, true)) {
             return false;
         }
-        if ($window > 0 && ($model->contextLength ?? 0) < $window) {
-            return false;
-        }
+        return $window === 0 || ($model->contextLength ?? 0) >= $window;
+    }
+
+    /** @param array<string, float> $required */
+    private static function meets(ModelInfo $model, array $required, float $highest): bool {
         foreach ($required as $index => $threshold) {
             $value = self::index($model, $index);
             if ($value === null) {
@@ -176,9 +199,9 @@ final class ModelSelector {
         return $parts === [] ? 'без требований' : implode(', ', $parts);
     }
 
-    private function record(?int $conversationId, string $method, string $model, string $reason): void {
+    private function record(?int $conversationId, string $method, string $role, string $model, string $reason): void {
         try {
-            $this->decisions->record(new RoutingDecision($conversationId, 'profile', $method, 'profile', $model, $reason));
+            $this->decisions->record(new RoutingDecision($conversationId, 'profile', $method, $role, $model, $reason));
         } catch (Throwable $e) {
             $this->logger->error('Could not record a routing decision', ['error' => $e::class]);
         }

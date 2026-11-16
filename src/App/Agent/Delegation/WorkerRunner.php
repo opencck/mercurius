@@ -53,7 +53,9 @@ final class WorkerRunner {
     /** Seconds left to the orchestrator after its workers' deadline, to sum up. */
     private const MARGIN = 30;
     /** Endings where the model let the worker down: worth one more try on a stronger model. */
-    private const CASCADE = [StopReason::ModelFailed, StopReason::InvalidCalls, StopReason::Truncated, StopReason::LoopGuard, StopReason::InternalError];
+    private const CASCADE = [StopReason::ModelFailed, StopReason::InvalidCalls, StopReason::Truncated, StopReason::LoopGuard];
+    /** Seconds a retry needs at least to be worth starting. */
+    private const RETRY_MIN_SECONDS = 60;
 
     public const PROMPT = <<<'TXT'
         Ты — воркер: сфокусированный исполнитель части задачи, которую тебе поручил агент-оркестратор. Беседы с
@@ -175,12 +177,20 @@ final class WorkerRunner {
     private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget): WorkerReport {
         $tools = $this->tools($parent, $task);
         $chat = sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index);
-        $model = $this->model($task, $tools !== [], 0);
-        $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat);
-        if (!in_array($first->stopReason, self::CASCADE, true) || $budget - $first->tokens < self::MIN_TOKENS || $parent->cancellation->isRequested()) {
+        $started = hrtime(true);
+        $model = $this->model($task, $tools !== [], 0, $orchestrator);
+        $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat, 0);
+        // The first try took its time: the retry gets only what is left before the workers' deadline.
+        $elapsed = intdiv(hrtime(true) - $started, 1_000_000_000);
+        if (
+            !in_array($first->stopReason, self::CASCADE, true)
+            || $budget - $first->tokens < self::MIN_TOKENS
+            || $this->secondsLeft($orchestrator, $elapsed) < self::RETRY_MIN_SECONDS
+            || $parent->cancellation->isRequested()
+        ) {
             return $first;
         }
-        $stronger = $this->model($task, $tools !== [], 2);
+        $stronger = $this->model($task, $tools !== [], 2, $orchestrator);
         if ($stronger === $model) {
             $stronger = (string) $this->roles->model(ModelRole::STRONG);
         }
@@ -188,12 +198,18 @@ final class WorkerRunner {
             return $first;
         }
         $this->logger->info('Worker cascades to a stronger model', ['parent' => $orchestrator->id, 'task' => $index, 'from' => $model, 'to' => $stronger]);
-        $second = $this->attempt($parent, $orchestrator, $index, $task, $budget - $first->tokens, $stronger, $chat . '-retry');
+        $second = $this->attempt($parent, $orchestrator, $index, $task, $budget - $first->tokens, $stronger, $chat . '-retry', $elapsed);
         return new WorkerReport(
             $index,
             $second->runId,
             $second->status,
-            sprintf('%s → %s (каскад: %s)', $model, $stronger, $first->reason ?? $first->status),
+            sprintf(
+                'каскад: %s%s (%s) → %s',
+                $model,
+                $first->runId === null ? '' : ', запуск #' . $first->runId,
+                $first->reason ?? $first->status,
+                $stronger,
+            ),
             $first->turns + $second->turns,
             $first->tokens + $second->tokens,
             $second->summary,
@@ -202,10 +218,17 @@ final class WorkerRunner {
         );
     }
 
-    /** The model of a part: chosen by its profile, else the model of its role. */
-    private function model(WorkerTask $task, bool $needsTools, int $raise): string {
-        if ($task->profile !== null && $this->selector !== null) {
-            return (string) $this->selector->choose($task->profile, $needsTools, null, $raise)[0];
+    /**
+     * The model of a part: chosen by its profile when it asks for something, else the model of its role. A failing
+     * catalog falls back to the role, so one part cannot sink the others.
+     */
+    private function model(WorkerTask $task, bool $needsTools, int $raise, Run $orchestrator): string {
+        if ($task->profile !== null && $task->profile->demanding() && $this->selector !== null) {
+            try {
+                return (string) $this->selector->choose($task->profile, $needsTools, $orchestrator->conversationId, $raise)[0];
+            } catch (Throwable $e) {
+                $this->logger->error('Model selection failed', ['parent' => $orchestrator->id, 'error' => $e::class]);
+            }
         }
         if ($raise > 0) {
             return (string) $this->roles->model(ModelRole::STRONG);
@@ -214,16 +237,20 @@ final class WorkerRunner {
         return (string) $this->roles->model($role);
     }
 
-    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat): WorkerReport {
+    /** Seconds the orchestrator has for its workers, past what they already took, keeping its margin to sum up. */
+    private function secondsLeft(Run $orchestrator, int $elapsed): int {
+        return intdiv($orchestrator->limits->runTimeout * 1000 - $orchestrator->activeMs, 1000) - self::MARGIN - $elapsed;
+    }
+
+    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $elapsed): WorkerReport {
         try {
             $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
             $this->conversations->setMeta($conversation, self::PROMPT, $model);
             // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
-            $left = intdiv($orchestrator->limits->runTimeout * 1000 - $orchestrator->activeMs, 1000) - self::MARGIN;
             $limits = new RunLimits(
                 $this->workerMaxTurns,
                 max(1, $budget),
-                max(10, min(self::RUN_TIMEOUT, $left)),
+                max(10, min(self::RUN_TIMEOUT - $elapsed, $this->secondsLeft($orchestrator, $elapsed))),
                 $orchestrator->limits->toolTimeout,
             );
             $run = $this->runs->start($conversation, $parent->principal->id, $model, $limits, $orchestrator->id);
