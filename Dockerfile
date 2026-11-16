@@ -21,6 +21,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 COPY composer.json composer.lock ./
+# Packages are git submodules installed as Composer path repositories (copied, not symlinked).
+COPY packages ./packages
 RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
 
 COPY index.php ./

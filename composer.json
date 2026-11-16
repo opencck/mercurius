@@ -4,14 +4,18 @@
     "type": "project",
     "license": "MIT",
     "require": {
-        "php": ">=8.2",
         "ext-json": "*",
-        "opencck/server": "^1.1.1",
+        "php": ">=8.2",
         "amphp/amp": "^3",
         "amphp/file": "^3",
+        "amphp/http-client": "^5",
         "amphp/log": "^2",
         "amphp/postgres": "^2.2",
         "monolog/monolog": "^3",
+        "opencck/mercurius-connectors": "dev-master",
+        "opencck/mercurius-llm": "dev-master",
+        "opencck/mercurius-messenger": "dev-master",
+        "opencck/server": "^1.1.1",
         "psr/log": "^3",
         "revolt/event-loop": "^1",
         "vlucas/phpdotenv": "^5.6"
@@ -50,5 +54,38 @@
             "@phpstan",
             "@psalm"
         ]
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/llm",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-llm": "dev-master"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/connectors",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-connectors": "dev-master"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/messenger",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-messenger": "dev-master"
+                }
+            }
+        }
+    ],
+    "minimum-stability": "stable"
 }

@@ -32,3 +32,15 @@
 	path = references/hermes-dreaming
 	url = https://github.com/itpartypattaya/hermes-dreaming
 	shallow = true
+[submodule "packages/llm"]
+	path = packages/llm
+	url = https://github.com/opencck/mercurius-llm.git
+	branch = master
+[submodule "packages/connectors"]
+	path = packages/connectors
+	url = https://github.com/opencck/mercurius-connectors.git
+	branch = master
+[submodule "packages/messenger"]
+	path = packages/messenger
+	url = https://github.com/opencck/mercurius-messenger.git
+	branch = master
