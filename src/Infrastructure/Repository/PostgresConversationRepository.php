@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Repository;
 
-
 use Amp\Postgres\PostgresLink;
 use OpenCCK\Domain\Agent\ConversationMeta;
-use OpenCCK\Domain\Entity\ChatTurn;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use UnexpectedValueException;
 
@@ -40,33 +38,6 @@ final class PostgresConversationRepository implements ConversationRepository {
             'UPDATE conversations SET closed_at = now() WHERE channel = ? AND chat_id = ? AND closed_at IS NULL',
             [$channel, $chatId],
         );
-    }
-
-    public function append(int $conversationId, string $role, string $content, ?string $externalMessageId = null): void {
-        $this->db->execute(
-            'INSERT INTO messages (conversation_id, role, content, external_message_id) VALUES (?, ?, ?, ?)',
-            [$conversationId, $role, $content, $externalMessageId],
-        );
-    }
-
-    public function recent(int $conversationId, int $limit): array {
-        $result = $this->db->execute(
-            'SELECT role, content FROM (
-                SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ?
-             ) last ORDER BY id',
-            [$conversationId, $limit],
-        );
-
-        $turns = [];
-        foreach ($result as $row) {
-            $role = $row['role'] ?? null;
-            $content = $row['content'] ?? null;
-            if (($role !== 'user' && $role !== 'assistant') || !is_string($content)) {
-                throw new UnexpectedValueException('Malformed messages row');
-            }
-            $turns[] = new ChatTurn($role, $content);
-        }
-        return $turns;
     }
 
     public function meta(int $conversationId): ?ConversationMeta {

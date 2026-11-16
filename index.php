@@ -13,9 +13,14 @@ use Mercurius\Messenger\Telegram\TelegramApi;
 use Mercurius\Messenger\Telegram\TelegramChannel;
 use Mercurius\Messenger\Telegram\UpdateParser;
 use Mercurius\Messenger\Telegram\WebhookProcessor;
+use OpenCCK\App\Agent\AgentLoop;
+use OpenCCK\App\Agent\RunScheduler;
+use OpenCCK\App\Agent\Tool\ToolExecutor;
+use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
+use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Infrastructure\API\App;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
 use OpenCCK\Infrastructure\API\Server;
@@ -32,7 +37,10 @@ use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
+use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
+use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 
 require __DIR__ . '/vendor/autoload.php';
 
@@ -73,16 +81,41 @@ $logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'di
 $telegramApi = new TelegramApi($telegram->token(), HttpClients::create());
 $channel = new TelegramChannel($telegramApi, logger: $logger);
 
-$chat = new ChatService(
-    new AccessService(new PostgresPrincipalRepository($db), TelegramChannel::NAME, $telegram->ownerId),
-    new PostgresConversationRepository($db),
-    new PostgresLlmCallRepository($db),
+// Agent: runs, tools, scheduler.
+$principals = new PostgresPrincipalRepository($db);
+$conversations = new PostgresConversationRepository($db);
+$runs = new PostgresRunRepository($db);
+$transcript = new PostgresTranscriptRepository($db);
+$tools = new ToolRegistry();
+$loop = new AgentLoop(
     $llm,
+    $runs,
+    $transcript,
+    $conversations,
+    new PostgresLlmCallRepository($db),
+    $tools,
+    new ToolExecutor(logger: $logger),
+    $llmSettings->maxTokens,
+    $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
+    $llmSettings->historyLimit,
+    $logger,
+);
+$scheduler = new RunScheduler(
+    $loop,
+    $runs,
+    $transcript,
+    $conversations,
+    $principals,
+    new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits()),
     $channel,
     $llmSettings->model,
-    $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
-    $llmSettings->maxTokens,
-    $llmSettings->historyLimit,
+    $logger,
+);
+$chat = new ChatService(
+    new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId),
+    $conversations,
+    $scheduler,
+    $channel,
     $logger,
 );
 

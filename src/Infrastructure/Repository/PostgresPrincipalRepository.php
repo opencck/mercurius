@@ -17,6 +17,12 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
 
     public function __construct(private readonly PostgresLink $db) {}
 
+    public function find(int $id): ?Principal {
+        $row = $this->db->execute('SELECT id, kind, role, display_name FROM principals WHERE id = ?', [$id])->fetchRow();
+
+        return $row === null ? null : self::hydrate($row);
+    }
+
     public function findByIdentity(string $channel, string $externalId): ?Principal {
         $row = $this->db->execute(
             'SELECT p.id, p.kind, p.role, p.display_name FROM channel_identities i JOIN principals p ON p.id = i.principal_id

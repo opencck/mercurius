@@ -4,132 +4,87 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Service;
 
-use DateTimeImmutable;
+use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Llm\ErrorKind;
 use Mercurius\Llm\LlmException;
-use Mercurius\Llm\Role as LlmRole;
-use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\ParseMode;
-use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
-use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\FakeLlm;
-use OpenCCK\Test\Support\InMemoryConversationRepository;
-use OpenCCK\Test\Support\InMemoryLlmCallRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
-use PHPUnit\Framework\TestCase;
+use OpenCCK\Test\Support\AgentStack;
+use OpenCCK\Test\Support\ScriptedLlm;
 
-final class ChatServiceTest extends TestCase {
-    private InMemoryConversationRepository $conversations;
-    private InMemoryLlmCallRepository $calls;
-    private FakeChannel $channel;
-    private float $now = 0.0;
-
-    protected function setUp(): void {
-        $this->conversations = new InMemoryConversationRepository();
-        $this->calls = new InMemoryLlmCallRepository();
-        $this->channel = new FakeChannel();
-    }
-
-    private function service(FakeLlm $llm, ?FakeChannel $channel = null): ChatService {
-        return new ChatService(
-            new AccessService(new InMemoryPrincipalRepository(), 'telegram', '42'),
-            $this->conversations,
-            $this->calls,
-            $llm,
-            $channel ?? $this->channel,
-            'test/model',
-            'low',
-            1000,
-            10,
-            clock: function (): float {
-                $this->now += 1.0;
-                return $this->now;
-            },
-        );
-    }
-
-    private function message(string $text, string $userId = '42'): IncomingMessage {
-        return new IncomingMessage('telegram', '42', $userId, 'owner', 'Owner', $text, '7', null, true, new DateTimeImmutable(), '1');
-    }
-
+final class ChatServiceTest extends AsyncTestCase {
     public function testStrangerIsRefusedWithoutCallingTheModel(): void {
-        $llm = new FakeLlm();
-        $this->service($llm)->handle($this->message('привет', '99'));
+        $stack = new AgentStack();
+        $stack->say('привет', '99');
+        $stack->scheduler->awaitIdle();
 
-        self::assertSame([ChatService::REFUSAL], $this->channel->texts('send'));
-        self::assertSame([], $llm->requests);
-    }
-
-    public function testAnswerIsStreamedIntoOneMessageAndRecorded(): void {
-        $llm = new FakeLlm(['Привет', ', мир', '!']);
-        $this->service($llm)->handle($this->message('скажи привет'));
-
-        self::assertSame(['…'], $this->channel->texts('send'));
-        $edits = $this->channel->texts('edit');
-        self::assertSame('Привет, мир!', end($edits));
-        self::assertCount(1, $this->calls->calls);
-        self::assertSame('stop', $this->calls->calls[0]->finishReason);
-        self::assertSame(10, $this->calls->calls[0]->inputTokens);
-        self::assertSame(['скажи привет', 'Привет, мир!'], array_map(static fn($t) => $t->content, $this->conversations->messages[1]));
-    }
-
-    public function testHistoryIsSentWithSystemPrompt(): void {
-        $llm = new FakeLlm(['ответ']);
-        $service = $this->service($llm);
-        $service->handle($this->message('первый'));
-        $service->handle($this->message('второй'));
-
-        $messages = $llm->requests[1]->messages;
-        self::assertSame(LlmRole::System, $messages[0]->role);
-        self::assertSame(['первый', 'ответ', 'второй'], array_map(static fn($m) => $m->content, array_slice($messages, 1)));
-        self::assertSame('low', $llm->requests[1]->reasoningEffort);
-    }
-
-    public function testNewCommandStartsAFreshConversation(): void {
-        $llm = new FakeLlm(['ответ']);
-        $service = $this->service($llm);
-        $service->handle($this->message('первый'));
-        $service->handle($this->message('/new'));
-        $service->handle($this->message('второй'));
-
-        self::assertCount(2, $llm->requests[1]->messages);
-        self::assertContains(ChatService::NEW_CONVERSATION, $this->channel->texts('send'));
-    }
-
-    public function testModelFailureIsReportedAndRecorded(): void {
-        $llm = new FakeLlm(error: new LlmException(ErrorKind::RateLimited, 'slow down', 429));
-        $this->service($llm)->handle($this->message('вопрос'));
-
-        $edits = $this->channel->texts('edit');
-        self::assertSame(ChatService::FAILURE, end($edits));
-        self::assertSame('rate_limited', $this->calls->calls[0]->errorKind);
-        self::assertCount(1, $this->conversations->messages[1]);
-    }
-
-    public function testLongAnswerIsSplitIntoContinuations(): void {
-        $channel = new FakeChannel(maxLength: 20);
-        $llm = new FakeLlm([str_repeat('слово ', 10)]);
-        $this->service($llm, $channel)->handle($this->message('много'));
-
-        self::assertGreaterThan(1, count($channel->texts('send')));
-    }
-
-    public function testModelAnswerIsMarkdownAndServiceTextsArePlain(): void {
-        $channel = new FakeChannel(maxLength: 20);
-        $llm = new FakeLlm(['**жирный** ', str_repeat('слово ', 10)]);
-        $this->service($llm, $channel)->handle($this->message('много'));
-
-        foreach ($channel->modes as [$action, $text, $mode]) {
-            $expected = $text === '…' ? ParseMode::Plain : ParseMode::Markdown;
-            self::assertSame($expected, $mode, $action . ': ' . $text);
-        }
-        self::assertGreaterThan(2, count($channel->modes));
+        self::assertSame([ChatService::REFUSAL], $stack->channel->texts('send'));
+        self::assertSame([], $stack->llm->requests);
     }
 
     public function testNonTextMessageGetsAHint(): void {
-        $this->service(new FakeLlm())->handle($this->message('   '));
+        $stack = new AgentStack();
+        $stack->say('  ');
 
-        self::assertSame([ChatService::NOT_TEXT], $this->channel->texts('send'));
+        self::assertSame([ChatService::NOT_TEXT], $stack->channel->texts('send'));
+    }
+
+    public function testStartGreets(): void {
+        $stack = new AgentStack();
+        $stack->say('/start');
+
+        self::assertSame([ChatService::GREETING], $stack->channel->texts('send'));
+        self::assertSame([], $stack->llm->requests);
+    }
+
+    public function testNewCommandStartsAFreshConversation(): void {
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('один'), ScriptedLlm::text('два')]));
+        $stack->say('первый');
+        $stack->scheduler->awaitIdle();
+        $stack->say('/new');
+        $stack->say('второй');
+        $stack->scheduler->awaitIdle();
+
+        self::assertContains(ChatService::NEW_CONVERSATION, $stack->channel->texts('send'));
+        $messages = $stack->llm->requests[1]->messages;
+        self::assertCount(2, $messages);
+        self::assertSame('второй', $messages[1]->content);
+    }
+
+    public function testHistoryOfEarlierRunsIsSent(): void {
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ответ 1'), ScriptedLlm::text('ответ 2')]));
+        $stack->say('вопрос 1');
+        $stack->scheduler->awaitIdle();
+        $stack->say('вопрос 2');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(['вопрос 1', 'ответ 1', 'вопрос 2'], array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1)));
+    }
+
+    public function testStopWhenIdle(): void {
+        $stack = new AgentStack();
+        $stack->say('/stop');
+
+        self::assertSame([ChatService::NOTHING_TO_STOP], $stack->channel->texts('send'));
+    }
+
+    public function testModelFailureIsReported(): void {
+        $stack = new AgentStack(new ScriptedLlm([new LlmException(ErrorKind::Network, 'down')]));
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+
+        $edits = $stack->channel->texts('edit');
+        self::assertStringContainsString('Остановлено: модель недоступна.', (string) end($edits));
+        self::assertSame('network', $stack->calls->calls[0]->errorKind);
+    }
+
+    public function testModelAnswerIsMarkdownAndServiceTextsArePlain(): void {
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('**жирный**')]));
+        $stack->say('/start');
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+
+        self::assertContains(['send', ChatService::GREETING, ParseMode::Plain], $stack->channel->modes);
+        self::assertContains(['edit', '**жирный**', ParseMode::Markdown], $stack->channel->modes);
     }
 }

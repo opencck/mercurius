@@ -14,6 +14,15 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
     public array $identities = [];
     private ?Principal $owner = null;
 
+    public function find(int $id): ?Principal {
+        foreach ($this->identities as $principal) {
+            if ($principal->id === $id) {
+                return $principal;
+            }
+        }
+        return null;
+    }
+
     public function findByIdentity(string $channel, string $externalId): ?Principal {
         return $this->identities[$channel . ':' . $externalId] ?? null;
     }
