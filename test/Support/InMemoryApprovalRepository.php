@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Support;
 
-use Closure;
 use DateTimeImmutable;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
@@ -20,9 +19,6 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
     private array $grants = [];
     private int $next = 1;
     private int $nextGrant = 1;
-
-    /** @param Closure(int): int $conversationOfRun run id => conversation id */
-    public function __construct(private readonly Closure $conversationOfRun) {}
 
     public function create(int $runId, string $callId, int $principalId, string $tool, string $summary, ?string $grantKey, DateTimeImmutable $expiresAt): Approval {
         $approval = new Approval($this->next++, $runId, $callId, $principalId, $tool, $summary, $grantKey, ApprovalStatus::Pending);
@@ -48,6 +44,9 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         if ($a === null || $a->status !== ApprovalStatus::Pending) {
             return null;
         }
+        if ($status !== ApprovalStatus::Expired && $this->expires[$id] <= new DateTimeImmutable()) {
+            return null;
+        }
         return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId);
     }
 
@@ -61,9 +60,9 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         return $due;
     }
 
-    public function pendingInConversation(int $conversationId): ?Approval {
-        foreach ($this->approvals as $approval) {
-            if ($approval->status === ApprovalStatus::Pending && ($this->conversationOfRun)($approval->runId) === $conversationId) {
+    public function pendingForRun(int $runId): ?Approval {
+        foreach (array_reverse($this->approvals) as $approval) {
+            if ($approval->status === ApprovalStatus::Pending && $approval->runId === $runId) {
                 return $approval;
             }
         }

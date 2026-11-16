@@ -76,6 +76,18 @@ final class InMemoryRunRepository implements RunRepository {
         $this->runs[$runId] = $this->with($this->runs[$runId], status: $status);
     }
 
+    public function transition(int $runId, RunStatus $from, RunStatus $to): ?Run {
+        $run = $this->runs[$runId] ?? null;
+        if ($run === null || $run->status !== $from) {
+            return null;
+        }
+        return $this->runs[$runId] = $this->with($run, status: $to);
+    }
+
+    public function waitingApproval(): array {
+        return array_values(array_filter($this->runs, static fn(Run $r): bool => $r->status === RunStatus::WaitingApproval));
+    }
+
     private function with(
         Run $run,
         ?RunStatus $status = null,

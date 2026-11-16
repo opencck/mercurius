@@ -100,6 +100,22 @@ final class PostgresRunRepository implements RunRepository {
         $this->db->execute('UPDATE runs SET status = ?, updated_at = now() WHERE id = ?', [$status->value, $runId]);
     }
 
+    public function transition(int $runId, RunStatus $from, RunStatus $to): ?Run {
+        $row = $this->db->execute(
+            'UPDATE runs SET status = ?, updated_at = now() WHERE id = ? AND status = ? RETURNING ' . self::COLUMNS,
+            [$to->value, $runId, $from->value],
+        )->fetchRow();
+        return $row === null ? null : self::run($row);
+    }
+
+    public function waitingApproval(): array {
+        $runs = [];
+        foreach ($this->db->query('SELECT ' . self::COLUMNS . " FROM runs WHERE status = 'waiting_approval' ORDER BY id") as $row) {
+            $runs[] = self::run($row);
+        }
+        return $runs;
+    }
+
     /** @param array<string, mixed> $row */
     private static function run(array $row): Run {
         return new Run(

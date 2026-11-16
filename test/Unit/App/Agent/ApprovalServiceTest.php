@@ -10,6 +10,7 @@ use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeKeyedTool;
+use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 use function Amp\delay;
@@ -140,6 +141,38 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertSame(ApprovalStatus::Denied, $this->stack->approvals->find(1)?->status);
     }
 
+    public function testRunDecidedJustBeforeARestartContinuesAtStart(): void {
+        $this->waitingRun();
+        // The decision was saved, then the server stopped before the run went on.
+        $this->stack->approvals->decide(1, ApprovalStatus::Approved, null, 1);
+
+        $this->stack->scheduler->resumeAll();
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status);
+        self::assertSame(1, $this->push->runs);
+    }
+
+    public function testStoppedRunIsNotRevivedByALatePress(): void {
+        $this->waitingRun();
+        $this->stack->say('/stop');
+        delay(0.05);
+
+        $this->stack->scheduler->resumeRun(1);
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertSame(RunStatus::Stopped, $this->stack->runs->find(1)?->status);
+        self::assertSame(1, count($this->stack->llm->requests));
+    }
+
+    public function testStopClosesTheCardAsStopped(): void {
+        $this->waitingRun();
+        $this->stack->say('/stop');
+        delay(0.05);
+
+        self::assertStringContainsString('Остановлено владельцем', implode("\n", $this->stack->channel->texts('edit')));
+    }
+
     public function testWaitingRunIsLeftAloneOnRestartAndAPressContinuesIt(): void {
         $this->waitingRun();
 
@@ -152,5 +185,24 @@ final class ApprovalServiceTest extends AsyncTestCase {
         $this->stack->scheduler->awaitIdle();
         self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status);
         self::assertSame(1, $this->push->runs);
+    }
+
+    public function testSecretsDoNotReachTheCardTheStoreOrTheStatus(): void {
+        $stack = new AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c0', 'read', '{"token":"tok-zzzz-9999"}')),
+            ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"https://bob:hunter2@github.com/x.git","headers":{"X-Api-Key":"abcd1234"}}')),
+        ]));
+        $stack->registry->register(new FakeKeyedTool('push', 'git-push:origin'));
+        $stack->registry->register(new FakeTool('read'));
+        $stack->say('отправь');
+        $stack->scheduler->awaitIdle();
+
+        $shown = implode("\n", array_merge($stack->channel->texts('send'), $stack->channel->texts('edit')))
+            . ($stack->approvals->find(1)->summary ?? '');
+        self::assertStringContainsString('Выполняю read', $shown);
+        self::assertStringNotContainsString('tok-zzzz-9999', $shown);
+        self::assertStringNotContainsString('hunter2', $shown);
+        self::assertStringNotContainsString('abcd1234', $shown);
+        self::assertStringContainsString('github.com/x.git', $shown);
     }
 }

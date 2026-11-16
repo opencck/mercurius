@@ -21,13 +21,14 @@ interface ApprovalRepository {
 
     public function forCall(int $runId, string $callId): ?Approval;
 
-    /** Decides a pending approval atomically; null when it was already decided or expired. */
+    /** Decides a pending approval atomically; null when it was already decided, or its time is up and the decision is not Expired. */
     public function decide(int $id, ApprovalStatus $status, ?string $reason, ?int $decidedBy): ?Approval;
 
     /** @return list<Approval> pending approvals whose time is up */
     public function due(DateTimeImmutable $now): array;
 
-    public function pendingInConversation(int $conversationId): ?Approval;
+    /** The approval a run waits for, if any. */
+    public function pendingForRun(int $runId): ?Approval;
 
     public function setCard(int $id, string $chatId, string $messageId): void;
 

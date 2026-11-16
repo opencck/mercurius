@@ -61,8 +61,8 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
     public function request(Run $run, ValidatedCall $call, Principal $principal): void {
         $args = $call->args ?? [];
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($args) : null;
-        $label = $call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name;
-        $shown = SecretMasker::mask(json_encode($args, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
+        $label = SecretMasker::mask($call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name);
+        $shown = SecretMasker::mask(json_encode(SecretMasker::maskArgs($args), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         $approval = $this->approvals->create(
             $run->id,
             $call->call->id,
@@ -155,15 +155,23 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $this->continue($decided);
     }
 
-    /** The owner wrote while a run of this conversation waits: that is a denial with their words as the reason. */
-    public function denyPending(int $conversationId, string $reason): bool {
-        $pending = $this->approvals->pendingInConversation($conversationId);
+    /**
+     * Denies what the run waits for without resuming it: the owner wrote instead of pressing (their words are the
+     * reason), stopped the run, or the run failed. The card gets the outcome.
+     */
+    public function denyPending(int $runId, string $reason, string $outcome): bool {
+        $pending = $this->approvals->pendingForRun($runId);
         $decided = $pending === null ? null : $this->approvals->decide($pending->id, ApprovalStatus::Denied, $reason, null);
         if ($decided === null) {
             return false;
         }
-        $this->closeCard($decided, 'Отказано: владелец ответил текстом.');
+        $this->closeCard($decided, $outcome);
         return true;
+    }
+
+    /** Whether the run still waits for a decision; false once it was decided, or when it was never asked. */
+    public function isPending(int $runId): bool {
+        return $this->approvals->pendingForRun($runId) !== null;
     }
 
     /** Closes approvals nobody answered in time. */

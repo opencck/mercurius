@@ -51,7 +51,7 @@ final class AgentStack {
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->channel = new FakeChannel(max(1, $maxMessageLength));
-        $this->approvals = new InMemoryApprovalRepository(fn(int $runId): int => $this->runs->find($runId)->conversationId ?? 0);
+        $this->approvals = new InMemoryApprovalRepository();
         $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800);
         $loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
         $this->scheduler = new RunScheduler(

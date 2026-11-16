@@ -114,6 +114,17 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(RunStatus::Running, $this->fetchRun($id)->status);
     }
 
+    public function testTransitionHappensOnlyFromTheExpectedStatus(): void {
+        $id = $this->startRun();
+        $this->runs->setStatus($id, RunStatus::WaitingApproval);
+
+        self::assertContains($id, array_map(static fn($r) => $r->id, $this->runs->waitingApproval()));
+        self::assertSame(RunStatus::Running, $this->runs->transition($id, RunStatus::WaitingApproval, RunStatus::Running)?->status);
+        self::assertNull($this->runs->transition($id, RunStatus::WaitingApproval, RunStatus::Stopped));
+        self::assertSame(RunStatus::Running, $this->fetchRun($id)->status);
+        self::assertNotContains($id, array_map(static fn($r) => $r->id, $this->runs->waitingApproval()));
+    }
+
     public function testAwaitingCallIsStillPending(): void {
         $id = $this->startRun();
         $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('c1', 0, DangerClass::Irreversible)]);

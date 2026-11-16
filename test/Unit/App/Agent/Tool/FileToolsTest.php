@@ -126,7 +126,7 @@ final class FileToolsTest extends TestCase {
 
         self::assertSame(DangerClass::Write, $tool->danger(['command' => 'ls']));
         self::assertSame(DangerClass::Irreversible, $tool->danger(['command' => 'git push origin master']));
-        self::assertSame('git-push:origin', $tool->grantKey(['command' => 'git push origin master']));
+        self::assertSame('git-push:github.com/opencck/x.git', $tool->grantKey(['command' => 'git push https://github.com/opencck/x.git master']));
         self::assertNull($tool->grantKey(['command' => 'ls']));
     }
 

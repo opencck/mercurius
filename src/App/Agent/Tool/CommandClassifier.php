@@ -30,48 +30,97 @@ final class CommandClassifier {
         '/\|\s*(sudo\s+)?(sh|bash|zsh|dash|python3?|perl|ruby|node|php)(\s|$)/',
     ];
 
+    /** Programs that run another program given in their arguments. */
+    private const WRAPPERS = ['timeout', 'nice', 'time', 'stdbuf', 'ionice', 'setsid', 'xargs', 'watch', 'flock', 'parallel',
+        'chronic', 'strace', 'ltrace', 'script', 'unbuffer', 'taskset', 'chroot', 'doas', 'su', 'runuser', 'busybox', 'find'];
+    private const OUTWARD = ['git', 'ssh', 'sftp', 'scp', 'rsync', 'curl', 'wget'];
+
+    /**
+     * A grant key is given only to a single plain command with one outward action: in a chain a grant could cover a
+     * second action, or a local step could change where the first one goes (a remote URL, insteadOf, a proxy).
+     */
     public function classify(string $command): Classification {
         foreach (self::OPAQUE as $pattern) {
             if (preg_match($pattern, $command) === 1) {
                 return new Classification(DangerClass::Irreversible, null, 'команда, которую нельзя разобрать с уверенностью');
             }
         }
-        foreach (preg_split('/&&|\|\||;|\||\n/', $command) ?: [] as $segment) {
-            $found = $this->segment(self::tokens($segment));
+        // Redirections such as 2>&1 and &>file are not separators.
+        $plain = preg_replace('/\d*>&\d*-?|&>>?|<&\d*/', ' > ', $command) ?? $command;
+        $findings = [];
+        $commands = 0;
+        foreach (preg_split('/&&|\|\||;|\||\n|&/', $plain) ?: [] as $segment) {
+            $tokens = self::tokens($segment);
+            if ($tokens === []) {
+                continue;
+            }
+            $commands++;
+            $found = $this->segment($tokens);
             if ($found !== null) {
-                return $found;
+                $findings[] = $found;
             }
         }
-        return new Classification(DangerClass::Write, null, 'команда в песочнице');
+        if ($findings === []) {
+            return new Classification(DangerClass::Write, null, 'команда в песочнице');
+        }
+        if ($commands === 1 && count($findings) === 1) {
+            return $findings[0];
+        }
+        return new Classification(DangerClass::Irreversible, null, implode('; ', array_map(static fn(Classification $c): string => $c->label, $findings)));
     }
 
     /** @param list<string> $tokens */
     private function segment(array $tokens): ?Classification {
+        // Groups and subshells: "( git push )", "(git push)", "{ git push; }".
+        $tokens = array_values(array_filter(
+            array_map(static fn(string $t): string => trim($t, '(){}'), $tokens),
+            static fn(string $t): bool => $t !== '',
+        ));
+        $prefixed = false;
         while ($tokens !== [] && (preg_match('/^\w+=/', $tokens[0]) === 1 || in_array($tokens[0], ['sudo', 'nohup', 'exec', 'command', 'env'], true))) {
+            // Variables and env change how the program behaves (proxy, ssh command, git config): no key.
+            $prefixed = $prefixed || preg_match('/^\w+=/', $tokens[0]) === 1 || $tokens[0] === 'env';
             array_shift($tokens);
         }
         if ($tokens === []) {
             return null;
         }
         $program = basename(array_shift($tokens));
-        return match ($program) {
+        if (in_array($program, self::WRAPPERS, true)) {
+            return self::wraps($tokens) ? new Classification(DangerClass::Irreversible, null, $program . ' запускает внешнее действие') : null;
+        }
+        $found = match ($program) {
             'git' => $this->git($tokens),
             'ssh', 'sftp' => $this->remoteShell($program, $tokens),
             'scp', 'rsync' => $this->copy($program, $tokens),
             'curl', 'wget' => $this->upload($program, $tokens),
             default => null,
         };
+        return $found !== null && $prefixed ? new Classification($found->danger, null, $found->label) : $found;
+    }
+
+    /** @param list<string> $tokens */
+    private static function wraps(array $tokens): bool {
+        foreach ($tokens as $token) {
+            if (in_array(basename($token), self::OUTWARD, true)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @param list<string> $tokens */
     private function git(array $tokens): ?Classification {
-        $args = self::positional($tokens, ['-C', '-c', '--git-dir', '--work-tree']);
+        $args = self::positional($tokens, ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env']);
         if (($args[0] ?? null) !== 'push') {
             return null;
         }
-        $target = $args[1] ?? 'default';
-        $target = self::urlTarget($target) ?? $target;
-        return new Classification(DangerClass::Irreversible, 'git-push:' . $target, 'git push в ' . $target);
+        $optionsBefore = ($tokens[0] ?? '') !== 'push';
+        $remote = $args[1] ?? null;
+        $url = $remote === null ? null : self::urlTarget($remote);
+        $label = 'git push в ' . ($remote ?? 'удалённый репозиторий по умолчанию');
+        // A remote name can be pointed anywhere by a local write (git remote set-url), so only an address has a key.
+        return new Classification(DangerClass::Irreversible, $url === null || $optionsBefore ? null : 'git-push:' . $url, $label);
     }
 
     /** @param list<string> $tokens */

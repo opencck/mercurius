@@ -80,7 +80,7 @@ final class RunScheduler {
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
         // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
-        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($conversationId, $text) === true) {
+        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, 'Отказано: владелец ответил текстом.') === true) {
             $this->resumeRun($run->id);
             return;
         }
@@ -117,11 +117,7 @@ final class RunScheduler {
             return true;
         }
         $run = $this->runs->active($conversationId);
-        if ($run !== null && $run->status === RunStatus::WaitingApproval) {
-            $this->stopWaiting($run);
-            return true;
-        }
-        return false;
+        return $run !== null && $run->status === RunStatus::WaitingApproval && $this->stopWaiting($run);
     }
 
     /** Continues a run whose approval was decided; does nothing if the run no longer waits. */
@@ -140,15 +136,28 @@ final class RunScheduler {
             $this->logger->error('Run cannot continue: conversation or participant is gone', ['run' => $run->id]);
             return;
         }
-        $this->runs->setStatus($run->id, RunStatus::Running);
+        // Only one of a press, a text, /stop and a restart takes the run out of waiting.
+        $claimed = $this->runs->transition($run->id, RunStatus::WaitingApproval, RunStatus::Running);
+        if ($claimed === null) {
+            return;
+        }
         $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval);
         $observer->start();
-        $this->launch($this->runs->find($run->id) ?? $run, $principal, $observer);
+        $this->launch($claimed, $principal, $observer);
     }
 
     /** /stop while the run waits: the approval is denied, open calls are closed, the run is stopped. */
-    private function stopWaiting(Run $run): void {
-        $this->approvals?->denyPending($run->conversationId, 'Остановлено владельцем.');
+    private function stopWaiting(Run $run): bool {
+        if ($this->runs->transition($run->id, RunStatus::WaitingApproval, RunStatus::Stopped) === null) {
+            // A decision took the run first; it is running now and stops the usual way.
+            if (isset($this->active[$run->conversationId])) {
+                $this->stopping[$run->conversationId] = true;
+                $this->active[$run->conversationId]['cancellation']->cancel();
+                return true;
+            }
+            return false;
+        }
+        $this->approvals?->denyPending($run->id, 'Остановлено владельцем.', 'Остановлено владельцем.');
         foreach ($this->transcript->pendingCalls($run->id) as $call) {
             $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, 'Остановлено владельцем.');
         }
@@ -160,6 +169,7 @@ final class RunScheduler {
             $this->channel->send(new OutgoingMessage($meta->chatId, 'Остановлено.'));
         }
         $this->logger->info('Waiting run stopped', ['run' => $run->id]);
+        return true;
     }
 
     /** Continues runs a restart interrupted. Write and irreversible calls that were running are not repeated. */
@@ -169,6 +179,16 @@ final class RunScheduler {
                 $this->resume($run);
             } catch (Throwable $e) {
                 $this->logger->error('Could not resume a run', ['run' => $run->id, 'error' => $e::class]);
+            }
+        }
+        // A decision saved just before the server stopped: the run waits for nothing any more.
+        foreach ($this->runs->waitingApproval() as $run) {
+            try {
+                if ($this->approvals !== null && !$this->approvals->isPending($run->id)) {
+                    $this->resumeRun($run->id);
+                }
+            } catch (Throwable $e) {
+                $this->logger->error('Could not resume a decided run', ['run' => $run->id, 'error' => $e::class]);
             }
         }
     }
@@ -296,6 +316,11 @@ final class RunScheduler {
 
     /** A run that crashed is closed as failed, so the conversation is free and the owner knows. */
     private function fail(Run $run, ChannelRunObserver $observer): void {
+        try {
+            $this->approvals?->denyPending($run->id, 'Задача прервана из-за внутренней ошибки.', 'Задача прервана из-за внутренней ошибки.');
+        } catch (Throwable $e) {
+            $this->logger->error('Could not close the approval of a crashed run', ['run' => $run->id, 'error' => $e::class]);
+        }
         try {
             foreach ($this->transcript->pendingCalls($run->id) as $call) {
                 $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Failed, 'Не выполнено: внутренняя ошибка.');

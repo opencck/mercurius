@@ -43,12 +43,14 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
     private FakeTool $push;
     /** @var list<string> call ids the gate was asked about */
     public array $asked = [];
+    /** @var list<array{?RunStatus, ?ToolCallStatus}> run and call status when the gate was asked */
+    public array $statesAtRequest = [];
 
     protected function setUp(): void {
         parent::setUp();
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
-        $this->approvals = new InMemoryApprovalRepository(static fn(int $runId): int => 1);
+        $this->approvals = new InMemoryApprovalRepository();
         $this->observer = new RecordingObserver();
         $this->registry = new ToolRegistry();
         $this->push = new FakeTool('push', DangerClass::Irreversible);
@@ -59,11 +61,17 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
     private function loop(ScriptedLlm $llm, bool $withGate = true): AgentLoop {
         $conversations = new InMemoryConversationRepository();
         $conversations->openConversation(1, 'test', '1');
-        $gate = new class($this, $this->approvals) implements ApprovalGate {
-            public function __construct(private readonly ApprovalGateLoopTest $test, private readonly InMemoryApprovalRepository $approvals) {}
+        $gate = new class($this, $this->approvals, $this->runs, $this->transcript) implements ApprovalGate {
+            public function __construct(
+                private readonly ApprovalGateLoopTest $test,
+                private readonly InMemoryApprovalRepository $approvals,
+                private readonly InMemoryRunRepository $runs,
+                private readonly InMemoryTranscriptRepository $transcript,
+            ) {}
 
             public function request(Run $run, ValidatedCall $call, Principal $principal): void {
                 $this->test->asked[] = $call->call->id;
+                $this->test->statesAtRequest[] = [$this->runs->find($run->id)?->status, $this->transcript->status($run->id, $call->call->id)];
                 $this->approvals->create($run->id, $call->call->id, $principal->id, $call->call->name, 'show', null, new \DateTimeImmutable('+30 minutes'));
             }
         };
@@ -94,6 +102,14 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertSame(ToolCallStatus::Pending, $this->transcript->status($run->id, 'c2'));
         self::assertNotNull($this->observer->waiting);
         self::assertNull($this->observer->final);
+    }
+
+    public function testRunIsSavedAsWaitingBeforeTheOwnerIsAsked(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}'))]);
+
+        $this->execute($this->loop($llm), $this->start());
+
+        self::assertSame([[RunStatus::WaitingApproval, ToolCallStatus::AwaitingApproval]], $this->statesAtRequest);
     }
 
     public function testApprovedCallRunsWhenTheRunResumes(): void {

@@ -33,7 +33,7 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         self::assertSame(ApprovalStatus::Pending, $approval->status);
         self::assertSame('git-push:origin', $approval->grantKey);
         self::assertSame($id, $this->approvals->forCall($this->runId, 'c1')?->id);
-        self::assertSame($id, $this->approvals->pendingInConversation($this->conversationId)?->id);
+        self::assertSame($id, $this->approvals->pendingForRun($this->runId)?->id);
     }
 
     public function testDecisionIsTakenOnce(): void {
@@ -44,7 +44,15 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         ]);
 
         self::assertCount(1, array_filter($results, static fn($r) => $r !== null));
-        self::assertNull($this->approvals->pendingInConversation($this->conversationId));
+        self::assertNull($this->approvals->pendingForRun($this->runId));
+    }
+
+    public function testExpiredCardCannotBeApprovedOnlyExpired(): void {
+        $id = $this->create('c1', '-1 minute');
+
+        self::assertNull($this->approvals->decide($id, ApprovalStatus::Approved, null, $this->principalId));
+        self::assertNull($this->approvals->decide($id, ApprovalStatus::Denied, 'нет', $this->principalId));
+        self::assertSame(ApprovalStatus::Expired, $this->approvals->decide($id, ApprovalStatus::Expired, null, null)?->status);
     }
 
     public function testDueListsOnlyExpiredPending(): void {

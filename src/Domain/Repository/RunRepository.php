@@ -37,4 +37,10 @@ interface RunRepository {
 
     /** Pauses a run for an approval or puts it back to running; the stop reason is untouched. */
     public function setStatus(int $runId, RunStatus $status): void;
+
+    /** Moves the run from one status to another atomically; null when it was not in the expected status. */
+    public function transition(int $runId, RunStatus $from, RunStatus $to): ?Run;
+
+    /** @return list<Run> runs paused for the owner's decision */
+    public function waitingApproval(): array;
 }

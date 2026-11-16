@@ -45,8 +45,8 @@ final class PostgresApprovalRepository implements ApprovalRepository {
     public function decide(int $id, ApprovalStatus $status, ?string $reason, ?int $decidedBy): ?Approval {
         $row = $this->db->execute(
             "UPDATE approvals SET status = ?, reason = ?, decided_by = ?, decided_at = now()
-             WHERE id = ? AND status = 'pending' RETURNING " . self::COLUMNS,
-            [$status->value, $reason, $decidedBy, $id],
+             WHERE id = ? AND status = 'pending' AND (?::text = 'expired' OR expires_at > now()) RETURNING " . self::COLUMNS,
+            [$status->value, $reason, $decidedBy, $id, $status->value],
         )->fetchRow();
         return $row === null ? null : self::approval($row);
     }
@@ -62,12 +62,10 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         return $approvals;
     }
 
-    public function pendingInConversation(int $conversationId): ?Approval {
+    public function pendingForRun(int $runId): ?Approval {
         $row = $this->db->execute(
-            "SELECT a.id, a.run_id, a.call_id, a.principal_id, a.tool, a.summary, a.grant_key, a.status, a.reason, a.card_chat_id, a.card_message_id
-             FROM approvals a JOIN runs r ON r.id = a.run_id
-             WHERE r.conversation_id = ? AND a.status = 'pending' ORDER BY a.id LIMIT 1",
-            [$conversationId],
+            'SELECT ' . self::COLUMNS . " FROM approvals WHERE run_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
+            [$runId],
         )->fetchRow();
         return $row === null ? null : self::approval($row);
     }
