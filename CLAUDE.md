@@ -199,7 +199,7 @@
 2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger` (референсы на сервере не нужны).
 3. Новые переменные окружения — дописать в серверный `.env` через `sftp-upload` (права `600`), не печатая значения.
 4. `docker compose up -d --build` (на сервере с таймаутом ssh-mcp в 60 с — в фоне через `nohup`, затем ждать `EXIT=` в журнале); проверить `docker compose ps` (`app`, `postgres`, `sandbox` — `healthy`) и журнал `docker compose logs --tail=50 app` (строка `Migrations checked` с применёнными миграциями).
-5. Интеграционные тесты: `docker compose --profile test run --rm --build test`.
+5. Интеграционные тесты: `docker compose --profile test build test && docker compose --profile test run --rm test` (Compose на сервере не знает `run --build`; в фоне через `nohup`).
 6. Убрать старые образы проекта: `docker image prune -f --filter label=com.docker.compose.project=mercurius` — не трогая чужие.
 
 **Откат:** `git checkout <предыдущий коммит> && docker compose up -d --build`, затем вернуться на `master`, когда исправление запушено.
