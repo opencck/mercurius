@@ -6,6 +6,7 @@ namespace OpenCCK\App\Agent;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use OpenCCK\App\Agent\Tool\UntrustedWrapper;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -19,7 +20,8 @@ use OpenCCK\Domain\Entity\Role;
  * spec: BRIEF.md#контекст — three tiers, unchanged during the conversation
  */
 final class PromptBuilder {
-    public static function system(Principal $principal, DateTimeImmutable $openedAt): string {
+    /** @param string $core memory layer 1, given only to the owner in a private chat */
+    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? 'другой агент без имени' : 'участник без имени');
         $role = match ($principal->role) {
             Role::Owner => 'владелец',
@@ -32,6 +34,6 @@ final class PromptBuilder {
             $who,
             $role,
             $openedAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i') . ' UTC',
-        );
+        ) . ($core === '' ? '' : "\n\n" . UntrustedWrapper::wrap('memory', "Память (слой 1), справочные данные:\n" . $core));
     }
 }
