@@ -254,6 +254,65 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertSame(1, $stack->runs->find(3)?->parentRunId);
     }
 
+    public function testVerifierChecksTheAnswerWithACleanContext(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'сколько будет 2+5', 'role' => 'cheap', 'verify' => true]]),
+            ScriptedLlm::text('ответ 8'),
+            ScriptedLlm::text("ВЕРДИКТ: отклонено
+2+5 = 7, а не 8."),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $verifier = $llm->requests[2];
+        self::assertSame((string) $this->roles->model(ModelRole::STRONG), $verifier->model, 'not the model that answered');
+        self::assertStringContainsString('проверяющий', $verifier->messages[0]->content);
+        $brief = $verifier->messages[1]->content;
+        self::assertStringContainsString('сколько будет 2+5', $brief);
+        self::assertStringContainsString('untrusted-data', $brief);
+        self::assertStringContainsString('ответ 8', $brief);
+        self::assertSame([], $verifier->tools, 'no tools that write');
+        $report = self::report($llm);
+        self::assertStringContainsString('Проверка: отклонено — 2+5 = 7, а не 8.', $report);
+        self::assertStringContainsString('ответ 8', $report);
+    }
+
+    public function testVerifierWithoutAVerdictLeavesThePartUnchecked(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
+            ScriptedLlm::text('ответ'),
+            ScriptedLlm::text('Вроде нормально.'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('Проверка: не проверено — проверяющий не дал вердикта', self::report($llm));
+    }
+
+    public function testCostlyPartIsCheckedAndAFailedOneIsNot(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'strong', 'profile' => ['error_cost' => 9]], ['goal' => 'два', 'role' => 'strong']]),
+            ScriptedLlm::text('ответ раз'),
+            ScriptedLlm::text('ВЕРДИКТ: принято'),
+            new LlmException(ErrorKind::Server, 'down'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $report = self::report($llm);
+        self::assertStringContainsString('Проверка: принято', $report);
+        self::assertSame(1, substr_count($report, 'Проверка:'), 'the failed part is not checked');
+    }
+
     public function testLongSummaryIsCut(): void {
         $llm = new ScriptedLlm([self::delegate([['goal' => 'много']]), ScriptedLlm::text(str_repeat('слово ', 3000)), ScriptedLlm::text('итог')]);
         $stack = $this->stack($llm);

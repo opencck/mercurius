@@ -58,6 +58,7 @@ final class DelegateTaskTool implements Tool, LongRunning {
                                 'properties' => array_fill_keys(TaskProfile::AXES, ['type' => 'integer', 'minimum' => 1, 'maximum' => 10]),
                                 'additionalProperties' => false,
                             ],
+                            'verify' => ['type' => 'boolean', 'description' => 'Проверить ответ отдельным проверяющим с чистым контекстом: для частей, где ошибка дорога'],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
@@ -100,6 +101,7 @@ final class DelegateTaskTool implements Tool, LongRunning {
                     self::names($item),
                     self::field($item, 'role') ?? 'main',
                     isset($item['profile']) && is_array($item['profile']) ? TaskProfile::fromArray($item['profile']) : null,
+                    ($item['verify'] ?? false) === true,
                 );
             }
         }

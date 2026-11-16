@@ -96,6 +96,7 @@ final class InMemoryDelegationRepository implements DelegationRepository {
             $attempt === 1 ? $runId : $t->runId,
             $attempt === 2 ? $runId : $t->retryRunId,
             $t->report,
+            $attempt === 3 ? $runId : $t->verifyRunId,
         );
     }
 
@@ -107,7 +108,7 @@ final class InMemoryDelegationRepository implements DelegationRepository {
         if ($t === null) {
             return;
         }
-        $this->tasks[$delegationId][$position] = new DelegationTask($t->delegationId, $t->position, $t->task, $t->share, $t->runId, $t->retryRunId, $report);
+        $this->tasks[$delegationId][$position] = new DelegationTask($t->delegationId, $t->position, $t->task, $t->share, $t->runId, $t->retryRunId, $report, $t->verifyRunId);
     }
 
     public function finish(int $id, string $status, ?string $report): bool {
@@ -134,7 +135,7 @@ final class InMemoryDelegationRepository implements DelegationRepository {
     public function ownsRun(int $runId): bool {
         foreach ($this->tasks as $tasks) {
             foreach ($tasks as $task) {
-                if ($task->runId === $runId || $task->retryRunId === $runId) {
+                if ($task->runId === $runId || $task->retryRunId === $runId || $task->verifyRunId === $runId) {
                     return true;
                 }
             }

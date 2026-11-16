@@ -76,6 +76,7 @@ use OpenCCK\Infrastructure\Repository\PostgresModelRoleRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresDelegationRepository;
+use OpenCCK\Infrastructure\Repository\PostgresModelReliabilityRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
@@ -203,7 +204,7 @@ $loop = new AgentLoop(
     events: $tracer,
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
-$workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger));
+$workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
 $scheduler = new RunScheduler(

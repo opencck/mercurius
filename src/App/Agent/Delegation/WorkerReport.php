@@ -20,7 +20,16 @@ final class WorkerReport {
         public readonly ?string $reason = null,
         /** how the run ended; null when it never started */
         public readonly ?StopReason $stopReason = null,
+        /** принято, отклонено, не проверено; null when the part was not to be checked */
+        public readonly ?string $verdict = null,
+        /** the verifier's reasons */
+        public readonly ?string $verdictNote = null,
     ) {}
+
+    /** The same report with the verifier's verdict and its spend added. */
+    public function withVerdict(string $verdict, ?string $note, int $tokens = 0): self {
+        return new self($this->index, $this->runId, $this->status, $this->model, $this->turns, $this->tokens + $tokens, $this->summary, $this->reason, $this->stopReason, $verdict, $note);
+    }
 
     /** @return array<string, mixed> what a background delegation keeps in the database */
     public function toArray(): array {
@@ -34,6 +43,8 @@ final class WorkerReport {
             'summary' => $this->summary,
             'reason' => $this->reason,
             'stop' => $this->stopReason?->value,
+            'verdict' => $this->verdict,
+            'verdict_note' => $this->verdictNote,
         ];
     }
 
@@ -52,6 +63,8 @@ final class WorkerReport {
             $text('summary') ?? '',
             $text('reason'),
             $stop === null ? null : StopReason::tryFrom($stop),
+            $text('verdict'),
+            $text('verdict_note'),
         );
     }
 }

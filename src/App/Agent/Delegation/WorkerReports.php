@@ -29,6 +29,9 @@ final class WorkerReports {
                 $report->reason !== null && $report->status !== 'done' ? ' (' . $report->reason . ')' : '',
             );
             $lines[] = sprintf('Модель %s, ходов %d, токенов %d%s', $report->model, $report->turns, $report->tokens, $report->runId === null ? '' : ', запуск #' . $report->runId);
+            if ($report->verdict !== null) {
+                $lines[] = sprintf('Проверка: %s%s', $report->verdict, $report->verdictNote === null || $report->verdictNote === '' ? '' : ' — ' . $report->verdictNote);
+            }
             $lines[] = $summary;
         }
         return implode("\n", $lines);

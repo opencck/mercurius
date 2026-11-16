@@ -17,7 +17,7 @@ use UnexpectedValueException;
 final class PostgresDelegationRepository implements DelegationRepository {
     private const COLUMNS = 'id, conversation_id, run_id, principal_id, call_id, reserved, status, report, delivered_at IS NOT NULL AS delivered, '
         . 'floor(extract(epoch FROM deadline_at - now()))::integer AS seconds_left, stop_requested';
-    private const TASK_COLUMNS = 'delegation_id, position, task::text AS task, share, run_id, retry_run_id, report::text AS report';
+    private const TASK_COLUMNS = 'delegation_id, position, task::text AS task, share, run_id, retry_run_id, report::text AS report, verify_run_id';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -86,7 +86,11 @@ final class PostgresDelegationRepository implements DelegationRepository {
     }
 
     public function setTaskRun(int $delegationId, int $position, int $attempt, int $runId): void {
-        $column = $attempt === 1 ? 'run_id' : 'retry_run_id';
+        $column = match ($attempt) {
+            1 => 'run_id',
+            2 => 'retry_run_id',
+            default => 'verify_run_id',
+        };
         $this->db->execute("UPDATE delegation_tasks SET {$column} = ? WHERE delegation_id = ? AND position = ?", [$runId, $delegationId, $position]);
     }
 
@@ -118,7 +122,7 @@ final class PostgresDelegationRepository implements DelegationRepository {
     }
 
     public function ownsRun(int $runId): bool {
-        $row = $this->db->execute('SELECT 1 AS found FROM delegation_tasks WHERE run_id = ? OR retry_run_id = ? LIMIT 1', [$runId, $runId])->fetchRow();
+        $row = $this->db->execute('SELECT 1 AS found FROM delegation_tasks WHERE run_id = ? OR retry_run_id = ? OR verify_run_id = ? LIMIT 1', [$runId, $runId, $runId])->fetchRow();
         return $row !== null;
     }
 
@@ -149,6 +153,7 @@ final class PostgresDelegationRepository implements DelegationRepository {
             isset($row['run_id']) ? self::int($row, 'run_id') : null,
             isset($row['retry_run_id']) ? self::int($row, 'retry_run_id') : null,
             isset($row['report']) ? self::json(self::string($row, 'report')) : null,
+            isset($row['verify_run_id']) ? self::int($row, 'verify_run_id') : null,
         );
     }
 

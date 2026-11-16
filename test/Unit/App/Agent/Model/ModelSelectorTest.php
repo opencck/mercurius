@@ -151,6 +151,26 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertSame('openrouter:a/top', (string) $model);
     }
 
+    public function testModelsThatOftenFailedHereAreSkipped(): void {
+        $this->standard();
+        $reliability = new class implements \OpenCCK\Domain\Repository\ModelReliabilityRepository {
+            public function failures(\DateTimeImmutable $since): array {
+                return [
+                    'openrouter:a/agent' => ['runs' => 4, 'failures' => 3],
+                    // Two runs are not enough to judge.
+                    'openrouter:a/cheap' => ['runs' => 2, 'failures' => 2],
+                ];
+            }
+        };
+        $selector = new ModelSelector($this->stores, $this->roles, $this->stores, new NullLogger(), $reliability);
+
+        [$model, $reason] = $selector->choose(TaskProfile::fromArray(['agency' => 8]), true, null);
+
+        // Without a/agent the bar is set among the rest, and a/cheap meets it.
+        self::assertSame('openrouter:a/cheap', (string) $model);
+        self::assertStringContainsString('без 1 часто отказывавших', $reason);
+    }
+
     public function testZeroPricedModelIsSkipped(): void {
         $this->catalog(self::model('a/promo', 0.0, 0.0, [50.0, 80.0, 60.0]), self::model('a/paid', 0.1, 0.2, [30.0, 70.0, 40.0]));
 

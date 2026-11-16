@@ -23,4 +23,17 @@ interface TraceReportRepository {
 
     /** @return list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}> newest first */
     public function recentRuns(int $limit): array;
+
+    /**
+     * How the agent delegated: top-level runs and those that delegated, worker runs, cascade retries, verifiers and
+     * their rejections, background delegations.
+     *
+     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
+     *
+     * @return array{top: int, delegating: int, workers: int, cascades: int, verifiers: int, rejected: int, background: int}
+     */
+    public function delegation(DateTimeImmutable $since): array;
+
+    /** @return list<array{model: string, runs: int, answered: int, failed: int, tokens: int, cost: float, active_ms: int}> worker runs by model, most used first */
+    public function workerModels(DateTimeImmutable $since): array;
 }

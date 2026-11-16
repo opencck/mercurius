@@ -19,5 +19,7 @@ final class DelegationTask {
         public readonly ?int $runId = null,
         public readonly ?int $retryRunId = null,
         public readonly ?array $report = null,
+        /** the verifier's run, when the part is checked */
+        public readonly ?int $verifyRunId = null,
     ) {}
 }

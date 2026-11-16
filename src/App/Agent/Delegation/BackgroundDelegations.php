@@ -196,7 +196,7 @@ final class BackgroundDelegations {
             $share = $task->share;
             if ($task->report === null) {
                 $tasks[$task->position] = WorkerTask::fromArray($task->task);
-                $existing[$task->position] = [$task->runId, $task->retryRunId];
+                $existing[$task->position] = [$task->runId, $task->retryRunId, $task->verifyRunId];
             }
         }
         if ($tasks !== []) {
@@ -240,7 +240,7 @@ final class BackgroundDelegations {
                     ? WorkerReport::fromArray($task->report)
                     : new WorkerReport($task->position, $task->retryRunId ?? $task->runId, 'stopped', '', 0, 0, '', 'не закончена');
                 // The runs are the truth about spend, whatever reached the reports.
-                foreach ([$task->runId, $task->retryRunId] as $runId) {
+                foreach ([$task->runId, $task->retryRunId, $task->verifyRunId] as $runId) {
                     $spent += $runId === null ? 0 : ($this->runs->find($runId)->tokensUsed ?? 0);
                 }
             }

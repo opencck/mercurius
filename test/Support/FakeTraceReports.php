@@ -22,7 +22,20 @@ final class FakeTraceReports implements TraceReportRepository {
         public array $days = [],
         public array $costliest = [],
         public array $runs = [],
+        /** @var array{top: int, delegating: int, workers: int, cascades: int, verifiers: int, rejected: int, background: int} */
+        public array $delegation = ['top' => 0, 'delegating' => 0, 'workers' => 0, 'cascades' => 0, 'verifiers' => 0, 'rejected' => 0, 'background' => 0],
+        /** @var list<array{model: string, runs: int, answered: int, failed: int, tokens: int, cost: float, active_ms: int}> */
+        public array $workerModels = [],
     ) {}
+
+    public function delegation(DateTimeImmutable $since): array {
+        $this->since = $since;
+        return $this->delegation;
+    }
+
+    public function workerModels(DateTimeImmutable $since): array {
+        return $this->workerModels;
+    }
 
     public function usageByModel(DateTimeImmutable $since): array {
         $this->since = $since;

@@ -17,11 +17,18 @@ final class WorkerTask {
         public readonly string $role,
         /** scores for choosing the model; null — the role decides */
         public readonly ?TaskProfile $profile = null,
+        /** a verifier with a clean context checks the answer */
+        public readonly bool $verify = false,
     ) {}
 
     /** @param list<string> $tools */
     public function withTools(array $tools): self {
-        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile);
+        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile, $this->verify);
+    }
+
+    /** Whether the answer is checked: asked for, or a mistake here is costly. */
+    public function checked(): bool {
+        return $this->verify || ($this->profile !== null && $this->profile->score('error_cost') >= 8);
     }
 
     /** @return array<string, mixed> what a background delegation keeps in the database */
@@ -33,6 +40,7 @@ final class WorkerTask {
             'tools' => $this->tools,
             'role' => $this->role,
             'profile' => $this->profile?->nonTrivial(),
+            'verify' => $this->verify,
         ];
     }
 
@@ -53,6 +61,7 @@ final class WorkerTask {
             $tools,
             self::text($data, 'role') === '' ? 'main' : self::text($data, 'role'),
             isset($data['profile']) && is_array($data['profile']) ? TaskProfile::fromArray($data['profile']) : null,
+            ($data['verify'] ?? false) === true,
         );
     }
 

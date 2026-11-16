@@ -74,6 +74,62 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         return $rows;
     }
 
+    public function delegation(DateTimeImmutable $since): array {
+        $row = $this->db->execute(
+            "SELECT
+                (SELECT count(*) FROM runs WHERE parent_run_id IS NULL AND created_at >= to_timestamp(?))::int AS top,
+                (SELECT count(DISTINCT parent_run_id) FROM runs WHERE parent_run_id IS NOT NULL AND created_at >= to_timestamp(?))::int AS delegating,
+                (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
+                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id NOT LIKE '%-verify' AND c.chat_id NOT LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS workers,
+                (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
+                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-retry' AND r.created_at >= to_timestamp(?))::int AS cascades,
+                (SELECT count(*) FROM runs r JOIN conversations c ON c.id = r.conversation_id
+                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-verify' AND r.created_at >= to_timestamp(?))::int AS verifiers,
+                (SELECT count(DISTINCT r.id) FROM runs r JOIN conversations c ON c.id = r.conversation_id JOIN messages m ON m.run_id = r.id
+                  WHERE r.parent_run_id IS NOT NULL AND c.chat_id LIKE '%-verify' AND m.role = 'assistant'
+                    AND m.content ILIKE '%ВЕРДИКТ: отклонено%' AND r.created_at >= to_timestamp(?))::int AS rejected,
+                (SELECT count(*) FROM delegations WHERE created_at >= to_timestamp(?))::int AS background",
+            array_fill(0, 7, $since->getTimestamp()),
+        )->fetchRow() ?? [];
+        return [
+            'top' => self::int($row, 'top'),
+            'delegating' => self::int($row, 'delegating'),
+            'workers' => self::int($row, 'workers'),
+            'cascades' => self::int($row, 'cascades'),
+            'verifiers' => self::int($row, 'verifiers'),
+            'rejected' => self::int($row, 'rejected'),
+            'background' => self::int($row, 'background'),
+        ];
+    }
+
+    public function workerModels(DateTimeImmutable $since): array {
+        $failures = "'" . implode("', '", \OpenCCK\Domain\Repository\ModelReliabilityRepository::FAILURES) . "'";
+        $rows = [];
+        foreach ($this->db->execute(
+            "SELECT r.model, count(*)::int AS runs,
+                    (count(*) FILTER (WHERE r.stop_reason = 'answered'))::int AS answered,
+                    (count(*) FILTER (WHERE r.stop_reason IN ({$failures})))::int AS failed,
+                    coalesce(sum(r.tokens_used), 0)::int AS tokens,
+                    coalesce(sum((SELECT sum(cost_usd) FROM llm_calls l WHERE l.run_id = r.id)), 0)::float8 AS cost,
+                    coalesce(avg(r.active_ms), 0)::int AS active_ms
+             FROM runs r
+             WHERE r.parent_run_id IS NOT NULL AND r.status NOT IN ('running', 'waiting_approval') AND r.created_at >= to_timestamp(?)
+             GROUP BY r.model ORDER BY runs DESC, r.model",
+            [$since->getTimestamp()],
+        ) as $row) {
+            $rows[] = [
+                'model' => self::str($row, 'model'),
+                'runs' => self::int($row, 'runs'),
+                'answered' => self::int($row, 'answered'),
+                'failed' => self::int($row, 'failed'),
+                'tokens' => self::int($row, 'tokens'),
+                'cost' => self::float($row, 'cost'),
+                'active_ms' => self::int($row, 'active_ms'),
+            ];
+        }
+        return $rows;
+    }
+
     /** @param array<string, mixed> $row */
     private static function int(array $row, string $key): int {
         return isset($row[$key]) && is_int($row[$key]) ? $row[$key] : 0;

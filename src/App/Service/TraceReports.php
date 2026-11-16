@@ -13,6 +13,7 @@ use OpenCCK\Domain\Repository\TraceRepository;
  * Texts of the owner's reports: spend for a period, the latest runs, the chain of steps of one run.
  *
  * spec: BRIEF.md#трассировка-и-метрики — /usage, /runs, /trace
+ * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
  */
 final class TraceReports {
     public const NO_RUN = 'Такого запуска в трассах нет.';
@@ -74,6 +75,42 @@ final class TraceReports {
         return implode("\n", $lines);
     }
 
+    /**
+     * Whether delegation pays: how often the agent split tasks, how workers ended by model, what they cost.
+     *
+     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
+     */
+    public function delegation(int $days): string {
+        $days = max(1, min(90, $days));
+        $since = new DateTimeImmutable(sprintf('-%d days', $days));
+        $f = $this->figures->delegation($since);
+        $lines = [
+            sprintf('Делегирование за %d дн.', $days),
+            '',
+            sprintf('Запусков: %d, из них с делегированием: %d (%s)', $f['top'], $f['delegating'], self::share($f['delegating'], $f['top'])),
+            sprintf('Воркеров: %d, повторов каскада: %d, фоновых делегирований: %d', $f['workers'], $f['cascades'], $f['background']),
+            sprintf('Проверяющих: %d, отклонили ответ: %d', $f['verifiers'], $f['rejected']),
+        ];
+        $models = $this->figures->workerModels($since);
+        if ($models !== []) {
+            $lines[] = '';
+            $lines[] = 'Запуски воркеров по моделям:';
+            foreach ($models as $row) {
+                $lines[] = sprintf(
+                    '• %s — %d, ответили %s, отказы модели %d, токенов %s, %s, в среднем %s',
+                    $row['model'],
+                    $row['runs'],
+                    self::share($row['answered'], $row['runs']),
+                    $row['failed'],
+                    self::n($row['tokens']),
+                    self::usd($row['cost']),
+                    self::seconds($row['active_ms']),
+                );
+            }
+        }
+        return implode("\n", $lines);
+    }
+
     /** The steps of a run in order; null when the run has no trace. */
     public function trace(int $runId): ?string {
         $spans = $this->traces->spans($runId);
@@ -103,6 +140,10 @@ final class TraceReports {
         $lines[] = '';
         $lines[] = 'Стоимость шагов: ' . self::usd($cost);
         return implode("\n", $lines);
+    }
+
+    private static function share(int $part, int $whole): string {
+        return $whole === 0 ? '—' : sprintf('%d%%', (int) round(100 * $part / $whole));
     }
 
     private static function usd(float $cost): string {

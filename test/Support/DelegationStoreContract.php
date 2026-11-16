@@ -75,6 +75,14 @@ abstract class DelegationStoreContract extends AsyncTestCase {
         self::assertSame($retry->id, $this->delegations->tasks($delegation->id)[0]->retryRunId);
         self::assertSame($worker->id, $this->delegations->tasks($delegation->id)[0]->runId);
         self::assertTrue($this->delegations->ownsRun($retry->id));
+
+        $this->runs->finish($retry->id, \OpenCCK\Domain\Agent\RunStatus::Done, \OpenCCK\Domain\Agent\StopReason::Answered);
+        $verifier = $this->runs->start($this->conversationId, $this->principalId, 'm/v', new RunLimits(15, 10_000, 900, 120), $orchestrator);
+        self::assertNotNull($verifier);
+        $this->delegations->setTaskRun($delegation->id, 1, 3, $verifier->id);
+        self::assertSame($verifier->id, $this->delegations->tasks($delegation->id)[0]->verifyRunId);
+        self::assertSame($retry->id, $this->delegations->tasks($delegation->id)[0]->retryRunId);
+        self::assertTrue($this->delegations->ownsRun($verifier->id));
     }
 
     public function testStopRequestIsKept(): void {

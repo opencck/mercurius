@@ -28,7 +28,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -82,7 +82,7 @@ final class ChatService implements MessageHandler {
             }
             return;
         }
-        if (in_array($command, ['/usage', '/runs', '/trace'], true) && $this->reports !== null) {
+        if (in_array($command, ['/usage', '/runs', '/trace', '/delegation'], true) && $this->reports !== null) {
             $this->report($principal->isOwner(), $command, trim(substr($text, strlen($command))), $message);
             return;
         }
@@ -111,6 +111,7 @@ final class ChatService implements MessageHandler {
         $text = match ($command) {
             '/usage' => $this->reports->usage(ctype_digit($argument) ? (int) $argument : 7),
             '/runs' => $this->reports->runs(),
+            '/delegation' => $this->reports->delegation(ctype_digit($argument) ? (int) $argument : 14),
             default => ctype_digit($argument) ? $this->reports->trace((int) $argument) : null,
         } ?? TraceReports::NO_RUN;
         if (mb_strlen($text) > self::REPORT_LIMIT) {

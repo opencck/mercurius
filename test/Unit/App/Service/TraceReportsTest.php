@@ -57,6 +57,20 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->llm->requests);
     }
 
+    public function testDelegationShowsHowTheAgentSplitsWork(): void {
+        $this->figures->delegation = ['top' => 20, 'delegating' => 5, 'workers' => 12, 'cascades' => 2, 'verifiers' => 3, 'rejected' => 1, 'background' => 4];
+        $this->figures->workerModels = [['model' => 'openrouter:openai/gpt-5.6-luna', 'runs' => 10, 'answered' => 9, 'failed' => 1, 'tokens' => 15000, 'cost' => 0.0123, 'active_ms' => 4200]];
+
+        $this->stack->say('/delegation 7');
+
+        $text = $this->lastText();
+        self::assertStringContainsString('Делегирование за 7 дн.', $text);
+        self::assertStringContainsString('с делегированием: 5 (25%)', $text);
+        self::assertStringContainsString('повторов каскада: 2, фоновых делегирований: 4', $text);
+        self::assertStringContainsString('Проверяющих: 3, отклонили ответ: 1', $text);
+        self::assertStringContainsString('openrouter:openai/gpt-5.6-luna — 10, ответили 90%, отказы модели 1, токенов 15 000, $0.0123, в среднем 4.2 с', $text);
+    }
+
     public function testRunsListsTheLatest(): void {
         $this->stack->say('/runs');
 

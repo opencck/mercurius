@@ -8,7 +8,9 @@ use Mercurius\Llm\ModelCatalog\ModelInfo;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Agent\RoutingDecision;
+use DateTimeImmutable;
 use OpenCCK\Domain\Repository\ModelCatalogRepository;
+use OpenCCK\Domain\Repository\ModelReliabilityRepository;
 use OpenCCK\Domain\Repository\RoutingDecisionRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -35,12 +37,17 @@ final class ModelSelector {
     private const NAMES = ['intelligence' => 'интеллект', 'coding' => 'код', 'agentic' => 'агентность'];
     /** Scores up to this a model without indices may serve. */
     private const UNSCORED_OK = 3;
+    /** Our own record: a model that failed this share of at least MIN_RUNS worker runs in DAYS is not chosen. */
+    private const FAILURE_SHARE = 0.5;
+    private const MIN_RUNS = 3;
+    private const DAYS = 14;
 
     public function __construct(
         private readonly ModelCatalogRepository $catalog,
         private readonly ModelRoles $roles,
         private readonly RoutingDecisionRepository $decisions,
         private readonly LoggerInterface $logger,
+        private readonly ?ModelReliabilityRepository $reliability = null,
     ) {}
 
     /**
@@ -50,11 +57,20 @@ final class ModelSelector {
     public function choose(TaskProfile $profile, bool $needsTools, ?int $conversationId, int $raise = 0): array {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
+        $unreliable = $this->unreliable();
+        $skipped = 0;
         // Thresholds come from the models that could be chosen at all, so a top score is reachable.
-        $eligible = array_values(array_filter(
-            $this->catalog->models(ModelRef::OPENROUTER),
-            fn(ModelInfo $m): bool => $this->eligible($m, $needsTools, $profile, $window, $ceiling),
-        ));
+        $eligible = [];
+        foreach ($this->catalog->models(ModelRef::OPENROUTER) as $m) {
+            if (!$this->eligible($m, $needsTools, $profile, $window, $ceiling)) {
+                continue;
+            }
+            if (isset($unreliable[(string) new ModelRef(ModelRef::OPENROUTER, $m->id)])) {
+                $skipped++;
+                continue;
+            }
+            $eligible[] = $m;
+        }
         $bump = (float) max(0, $profile->score('error_cost') - 5) / 2.0 + (float) $raise;
         $required = [];
         $missing = [];
@@ -74,7 +90,7 @@ final class ModelSelector {
             // Without the index nothing shows a model is good enough: not the cheapest one at random.
             return $this->fallback($conversationId, sprintf('в каталоге нет оценок (%s) — роль strong', implode(', ', $missing)));
         }
-        $needs = self::describe($required, $needsTools, $profile, $window);
+        $needs = self::describe($required, $needsTools, $profile, $window) . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '');
         $candidates = array_values(array_filter($eligible, static fn(ModelInfo $m): bool => self::meets($m, $required, $highest)));
         usort($candidates, static fn(ModelInfo $a, ModelInfo $b): int => self::price($a) <=> self::price($b));
         $chosen = $candidates[0] ?? null;
@@ -85,6 +101,33 @@ final class ModelSelector {
         $reason = sprintf('самая дешёвая из %d подходящих: %s', count($candidates), $needs);
         $this->record($conversationId, 'profile', 'profile', (string) $model, $reason);
         return [$model, $reason];
+    }
+
+    /**
+     * Models that failed workers here too often: the catalog's benchmarks do not show a provider that keeps
+     * dropping requests.
+     *
+     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — failure rates in the choice
+     *
+     * @return array<string, true> model refs
+     */
+    private function unreliable(): array {
+        if ($this->reliability === null) {
+            return [];
+        }
+        try {
+            $stats = $this->reliability->failures(new DateTimeImmutable(sprintf('-%d days', self::DAYS)));
+        } catch (Throwable $e) {
+            $this->logger->error('Could not read model failure rates', ['error' => $e::class]);
+            return [];
+        }
+        $unreliable = [];
+        foreach ($stats as $model => $row) {
+            if ($row['runs'] >= self::MIN_RUNS && (float) $row['failures'] >= self::FAILURE_SHARE * (float) $row['runs']) {
+                $unreliable[$model] = true;
+            }
+        }
+        return $unreliable;
     }
 
     /** @return array{ModelRef, string} */

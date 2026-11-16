@@ -35,7 +35,7 @@ interface DelegationRepository {
     /** @return list<Delegation> done but not delivered, oldest first */
     public function undelivered(): array;
 
-    /** Records the run of a part: attempt 1 is the first try, 2 — the cascade's retry. */
+    /** Records a run of a part: attempt 1 is the first try, 2 — the cascade's retry, 3 — the verifier. */
     public function setTaskRun(int $delegationId, int $position, int $attempt, int $runId): void;
 
     /** @param array<string, mixed> $report */
