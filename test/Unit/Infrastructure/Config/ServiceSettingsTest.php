@@ -8,6 +8,7 @@ use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
 use OpenCCK\Infrastructure\Config\SandboxSettings;
+use OpenCCK\Infrastructure\Config\TraceSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
 use PHPUnit\Framework\TestCase;
 
@@ -97,6 +98,20 @@ final class ServiceSettingsTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('LLM_CONTEXT_WINDOW');
         LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_CONTEXT_WINDOW' => '100']);
+    }
+
+    public function testTraceDefaults(): void {
+        $settings = TraceSettings::fromEnv([]);
+
+        self::assertSame(14, $settings->retentionDays);
+        self::assertNull($settings->metricsToken());
+        self::assertSame('s3cret-token', TraceSettings::fromEnv(['METRICS_TOKEN' => 's3cret-token'])->metricsToken());
+    }
+
+    public function testTraceRetentionIsAtMostAYear(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('TRACE_RETENTION_DAYS');
+        TraceSettings::fromEnv(['TRACE_RETENTION_DAYS' => '366']);
     }
 
     public function testAgentDefaults(): void {
