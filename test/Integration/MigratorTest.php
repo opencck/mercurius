@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Integration;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Postgres\PostgresConnection;
-use Amp\Sql\SqlException;
+use Amp\Sql\SqlQueryError;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\MigrationSet;
@@ -66,7 +66,7 @@ final class MigratorTest extends AsyncTestCase {
         try {
             (new Migrator($this->db, new NullLogger()))->migrate($set);
             self::fail('Expected the broken migration to throw');
-        } catch (SqlException) {
+        } catch (SqlQueryError) {
         }
 
         $row = $this->db->query("SELECT to_regclass('public.a') IS NULL AS missing, to_regclass('public.schema_migrations') IS NULL AS no_log")->fetchRow();
