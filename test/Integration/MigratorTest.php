@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Integration;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Postgres\PostgresConnectionPool;
+use Amp\Postgres\PostgresConnection;
+use Amp\Sql\SqlException;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\MigrationSet;
@@ -13,32 +14,42 @@ use OpenCCK\Infrastructure\Database\Migrator;
 use Psr\Log\NullLogger;
 
 /**
- * Needs a real PostgreSQL (POSTGRES_* in the environment); runs on the project server, not in CI.
+ * Needs a real PostgreSQL and runs on the project server: docker compose --profile test run --rm test.
+ * Works only in a database whose name ends with "_test" and never touches the application database.
  *
  * @group integration
  */
 final class MigratorTest extends AsyncTestCase {
-    private PostgresConnectionPool $db;
-    private string $schema;
+    private PostgresConnection $db;
 
     protected function setUp(): void {
         parent::setUp();
-        $this->db = Database::pool(Config::fromEnv(getenv())->postgres, 2);
-        $this->schema = 'test_' . bin2hex(random_bytes(4));
-        $this->db->query("CREATE SCHEMA {$this->schema}");
-        $this->db->query("SET search_path TO {$this->schema}");
+        $settings = Config::fromEnv(getenv())->postgres;
+        if (!str_ends_with($settings->database, '_test')) {
+            self::fail(sprintf('Integration tests need a database ending with _test, got %s', $settings->database));
+        }
+
+        $admin = Database::connect($settings, 'postgres');
+        $exists = $admin->execute('SELECT 1 FROM pg_database WHERE datname = ?', [$settings->database])->fetchRow();
+        if ($exists === null) {
+            $admin->query(sprintf('CREATE DATABASE "%s"', $settings->database));
+        }
+        $admin->close();
+
+        $this->db = Database::connect($settings);
+        $this->db->query('DROP SCHEMA IF EXISTS public CASCADE');
+        $this->db->query('CREATE SCHEMA public');
     }
 
     protected function tearDown(): void {
-        $this->db->query("DROP SCHEMA IF EXISTS {$this->schema} CASCADE");
         $this->db->close();
         parent::tearDown();
     }
 
     public function testAppliesOnceAndIsIdempotent(): void {
         $set = MigrationSet::fromFiles([
-            '0001_a.sql' => "CREATE TABLE {$this->schema}.a (id int)",
-            '0002_b.sql' => "CREATE TABLE {$this->schema}.b (id int)",
+            '0001_a.sql' => 'CREATE TABLE a (id int)',
+            '0002_b.sql' => 'CREATE TABLE b (id int)',
         ]);
         $migrator = new Migrator($this->db, new NullLogger());
 
@@ -48,17 +59,23 @@ final class MigratorTest extends AsyncTestCase {
 
     public function testFailedMigrationLeavesNothingApplied(): void {
         $set = MigrationSet::fromFiles([
-            '0001_a.sql' => "CREATE TABLE {$this->schema}.a (id int)",
+            '0001_a.sql' => 'CREATE TABLE a (id int)',
             '0002_bad.sql' => 'THIS IS NOT SQL',
         ]);
 
         try {
             (new Migrator($this->db, new NullLogger()))->migrate($set);
             self::fail('Expected the broken migration to throw');
-        } catch (\Throwable) {
+        } catch (SqlException) {
         }
 
-        $exists = $this->db->execute('SELECT to_regclass(?) AS t', ["{$this->schema}.a"])->fetchRow();
-        self::assertNull($exists['t'] ?? null);
+        $row = $this->db->query("SELECT to_regclass('public.a') IS NULL AS missing, to_regclass('public.schema_migrations') IS NULL AS no_log")->fetchRow();
+        self::assertSame(['missing' => true, 'no_log' => true], $row);
+    }
+
+    public function testProjectMigrationsApply(): void {
+        $applied = (new Migrator($this->db, new NullLogger()))->migrate(Migrator::loadDirectory(dirname(__DIR__, 2) . '/migrations'));
+
+        self::assertNotEmpty($applied);
     }
 }

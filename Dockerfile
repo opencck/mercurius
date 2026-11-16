@@ -45,5 +45,6 @@ USER root
 RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts
 COPY phpunit.xml.dist phpstan.neon.dist psalm.xml ./
 COPY test ./test
+RUN mkdir -p .phpunit.cache var && chown -R mercurius .phpunit.cache var
 USER mercurius
 CMD ["composer", "test-integration"]
