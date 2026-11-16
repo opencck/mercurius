@@ -103,9 +103,12 @@ final class ModelSelector {
         return $strong === null || $strong->inputPricePerToken === null || $strong->outputPricePerToken === null ? null : self::price($strong);
     }
 
-    /** Hard needs: a price above zero (no free or promo entries), not above the strong role's; tools, images, audio, window. */
+    /**
+     * Hard needs: a plain entry (a :batch variant is served only by the Batch API, :free has its own limits), a price above
+     * zero, not above the strong role's; tools, images, audio, window.
+     */
     private function eligible(ModelInfo $model, bool $needsTools, TaskProfile $profile, int $window, ?float $ceiling): bool {
-        if ($model->inputPricePerToken === null || $model->outputPricePerToken === null || self::price($model) <= 0.0 || str_ends_with($model->id, ':free')) {
+        if ($model->inputPricePerToken === null || $model->outputPricePerToken === null || self::price($model) <= 0.0 || str_contains($model->id, ':')) {
             return false;
         }
         if ($ceiling !== null && self::price($model) > $ceiling) {

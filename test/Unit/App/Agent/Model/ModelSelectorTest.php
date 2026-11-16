@@ -142,6 +142,15 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertSame('openrouter:' . $strong, (string) $model);
     }
 
+    public function testVariantEntriesAreSkipped(): void {
+        // :batch is served only by the Batch API, :free has its own limits: neither fits an interactive run.
+        $this->catalog(self::model('a/top:batch', 0.05, 0.1, [50.0, 80.0, 60.0]), self::model('a/top', 0.1, 0.2, [50.0, 80.0, 60.0]));
+
+        [$model] = $this->selector()->choose(TaskProfile::fromArray(['reasoning' => 8]), true, null);
+
+        self::assertSame('openrouter:a/top', (string) $model);
+    }
+
     public function testZeroPricedModelIsSkipped(): void {
         $this->catalog(self::model('a/promo', 0.0, 0.0, [50.0, 80.0, 60.0]), self::model('a/paid', 0.1, 0.2, [30.0, 70.0, 40.0]));
 
