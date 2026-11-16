@@ -17,9 +17,13 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\AddressGuard;
 use OpenCCK\App\Agent\Tool\HttpRequestTool;
+use OpenCCK\App\Agent\Tool\ListFilesTool;
+use OpenCCK\App\Agent\Tool\ReadFileTool;
+use OpenCCK\App\Agent\Tool\RunCommandTool;
 use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
+use OpenCCK\App\Agent\Tool\WriteFileTool;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
@@ -46,6 +50,7 @@ use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
+use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 use Revolt\EventLoop;
 
 require __DIR__ . '/vendor/autoload.php';
@@ -100,6 +105,16 @@ $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
+// Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
+$sandboxToken = $sandboxSettings->token();
+$sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);
+if ($sandbox !== null) {
+    $tools->register(new ReadFileTool($sandbox));
+    $tools->register(new ListFilesTool($sandbox));
+    $tools->register(new WriteFileTool($sandbox));
+    $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
+}
+$logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 $loop = new AgentLoop(
     $llm,
     $runs,
@@ -107,7 +122,7 @@ $loop = new AgentLoop(
     $conversations,
     new PostgresLlmCallRepository($db),
     $tools,
-    new ToolExecutor(logger: $logger),
+    new ToolExecutor(logger: $logger, sandbox: $sandbox),
     $llmSettings->maxTokens,
     $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
     $llmSettings->historyLimit,
