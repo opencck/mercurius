@@ -15,6 +15,7 @@ use OpenCCK\App\Agent\Model\ModelRouter;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\Run;
@@ -336,7 +337,7 @@ final class RunScheduler {
         if ($meta->systemPrompt === null) {
             // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable()), $model);
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable()), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);

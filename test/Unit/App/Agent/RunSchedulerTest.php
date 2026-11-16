@@ -31,6 +31,7 @@ final class RunSchedulerTest extends AsyncTestCase {
         self::assertSame('Привет!', end($edits));
         self::assertSame(RunStatus::Done, $stack->runs->runs[1]->status);
         self::assertNotNull($stack->conversations->meta(1)?->systemPrompt);
+        self::assertSame(\OpenCCK\App\Service\SystemPrompt::VERSION, $stack->conversations->promptVersions[1] ?? null, 'traces can be grouped by prompt version');
     }
 
     public function testMessageDuringRunGoesToInbox(): void {

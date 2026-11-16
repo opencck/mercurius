@@ -22,6 +22,9 @@ interface MetricsRepository {
     /** @return list<array{outcome: string, count: int}> */
     public function approvals(): array;
 
+    /** @return list<array{kind: string, status: string, count: int}> worker runs: worker, retry or verifier, by status */
+    public function workers(): array;
+
     /**
      * Step durations by kind as a cumulative histogram over $bounds (seconds).
      *

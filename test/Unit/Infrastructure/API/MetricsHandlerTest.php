@@ -31,6 +31,10 @@ final class MetricsHandlerTest extends AsyncTestCase {
                 return [['outcome' => 'denied', 'count' => 1]];
             }
 
+            public function workers(): array {
+                return [['kind' => 'verifier', 'status' => 'done', 'count' => 2]];
+            }
+
             public function durations(array $bounds): array {
                 return [['kind' => 'model', 'buckets' => array_fill(0, count($bounds), 3), 'sum' => 4.5, 'count' => 3]];
             }
@@ -63,6 +67,7 @@ final class MetricsHandlerTest extends AsyncTestCase {
         self::assertStringContainsString('mercurius_model_tokens_total{model="openrouter:z-ai/glm-5.3-flash",bucket="cache_read"} 300', $text);
         self::assertStringContainsString('mercurius_model_cost_usd_total{model="openrouter:z-ai/glm-5.3-flash"} 0.0123', $text);
         self::assertStringContainsString('mercurius_tool_calls_total{tool="run_command",status="error"} 2', $text);
+        self::assertStringContainsString('mercurius_workers_total{kind="verifier",status="done"} 2', $text);
         self::assertStringContainsString('mercurius_approvals_total{outcome="denied"} 1', $text);
         self::assertStringContainsString('mercurius_step_duration_seconds_bucket{kind="model",le="+Inf"} 3', $text);
         self::assertStringContainsString('mercurius_step_duration_seconds_sum{kind="model"} 4.5', $text);

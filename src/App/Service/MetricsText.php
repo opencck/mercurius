@@ -55,6 +55,10 @@ final class MetricsText {
         foreach ($this->figures->approvals() as $row) {
             $out[] = self::line('mercurius_approvals_total', ['outcome' => $row['outcome']], $row['count']);
         }
+        self::head($out, 'mercurius_workers_total', 'counter', 'Worker runs by kind (worker, retry, verifier) and status');
+        foreach ($this->figures->workers() as $row) {
+            $out[] = self::line('mercurius_workers_total', ['kind' => $row['kind'], 'status' => $row['status']], $row['count']);
+        }
         self::head($out, 'mercurius_step_duration_seconds', 'histogram', 'Duration of run steps by kind');
         foreach ($this->figures->durations(self::BOUNDS) as $row) {
             foreach (self::BOUNDS as $i => $bound) {

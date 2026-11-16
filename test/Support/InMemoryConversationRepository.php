@@ -49,7 +49,11 @@ final class InMemoryConversationRepository implements ConversationRepository {
         return $c->failures + 1;
     }
 
-    public function setMeta(int $conversationId, string $systemPrompt, string $model): void {
+    /** @var array<int, int|null> */
+    public array $promptVersions = [];
+
+    public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void {
+        $this->promptVersions[$conversationId] ??= $promptVersion;
         $meta = $this->meta[$conversationId];
         if ($meta->systemPrompt === null) {
             $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $systemPrompt, $model);

@@ -54,6 +54,19 @@ final class PostgresMetricsRepository implements MetricsRepository {
         return $rows;
     }
 
+    public function workers(): array {
+        $rows = [];
+        foreach ($this->db->query(
+            "SELECT CASE WHEN c.chat_id LIKE '%-verify' THEN 'verifier' WHEN c.chat_id LIKE '%-retry' THEN 'retry' ELSE 'worker' END AS kind,
+                    r.status, count(*)::int AS count
+             FROM runs r JOIN conversations c ON c.id = r.conversation_id
+             WHERE r.parent_run_id IS NOT NULL AND c.channel = 'worker' GROUP BY 1, 2 ORDER BY 1, 2",
+        ) as $row) {
+            $rows[] = ['kind' => self::str($row, 'kind'), 'status' => self::str($row, 'status'), 'count' => self::int($row, 'count')];
+        }
+        return $rows;
+    }
+
     public function durations(array $bounds): array {
         $columns = [];
         foreach ($bounds as $i => $bound) {

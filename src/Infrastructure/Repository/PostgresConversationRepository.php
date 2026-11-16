@@ -98,10 +98,10 @@ final class PostgresConversationRepository implements ConversationRepository {
         return is_int($failures) ? $failures : 0;
     }
 
-    public function setMeta(int $conversationId, string $systemPrompt, string $model): void {
+    public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void {
         $this->db->execute(
-            'UPDATE conversations SET system_prompt = ?, model = ? WHERE id = ? AND system_prompt IS NULL',
-            [$systemPrompt, $model, $conversationId],
+            'UPDATE conversations SET system_prompt = ?, model = ?, prompt_version = ? WHERE id = ? AND system_prompt IS NULL',
+            [$systemPrompt, $model, $promptVersion, $conversationId],
         );
     }
 }

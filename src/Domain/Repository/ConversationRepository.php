@@ -21,7 +21,7 @@ interface ConversationRepository {
     public function meta(int $conversationId): ?ConversationMeta;
 
     /** Fixes the system prompt and model of the conversation when it opens; they do not change afterwards. */
-    public function setMeta(int $conversationId, string $systemPrompt, string $model): void;
+    public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void;
 
     public function compaction(int $conversationId): Compaction;
 
