@@ -73,7 +73,15 @@ use OpenCCK\Infrastructure\Module\ModelCatalogModule;
 use OpenCCK\Infrastructure\Module\TraceRetentionModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
+use OpenCCK\App\Agent\ConversationAudience;
+use OpenCCK\App\Agent\MemoryCards;
+use OpenCCK\App\Agent\Tool\MemoryProposeTool;
+use OpenCCK\App\Agent\Tool\MemorySearchTool;
+use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\Infrastructure\Config\MemorySettings;
 use OpenCCK\Memory\App\MemoryContext;
+use OpenCCK\Memory\App\Proposals;
+use OpenCCK\Memory\Domain\ContentScreen;
 use OpenCCK\Memory\App\Recall;
 use OpenCCK\Memory\Domain\TextAnalyzer;
 use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
@@ -107,6 +115,7 @@ try {
     $agentSettings = AgentSettings::fromEnv($_ENV);
     $sandboxSettings = SandboxSettings::fromEnv($_ENV);
     $traceSettings = TraceSettings::fromEnv($_ENV);
+    $memorySettings = MemorySettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
     exit(78); // EX_CONFIG
@@ -246,8 +255,21 @@ $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
 $memoryStore = new PostgresMemoryStore($db);
 $textAnalyzer = new TextAnalyzer();
-$memory = new MemoryContext($memoryStore, new Recall($memoryStore, $textAnalyzer));
-$scheduler->useMemory($memory);
+$recall = new Recall($memoryStore, $textAnalyzer);
+$audience = new ConversationAudience($conversations);
+$scheduler->useMemory(new MemoryContext($memoryStore, $recall), $audience);
+if (!$memorySettings->hasSecret()) {
+    $logger->warning('MEMORY_SECRET is not set: the key of forgotten texts comes from the bot token');
+}
+$proposals = new Proposals(
+    $memoryStore,
+    $textAnalyzer,
+    new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
+    $memorySettings->key($telegram->token()),
+);
+$memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $logger);
+$tools->register(new MemorySearchTool($recall, $audience));
+$tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
 $visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
@@ -260,7 +282,7 @@ $chat = new ChatService(
     new TraceReports(new PostgresTraceReportRepository($db), $traces),
     $logger,
 );
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

@@ -29,7 +29,6 @@ use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
-use OpenCCK\Memory\App\Audience;
 use OpenCCK\Memory\App\MemoryContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -66,8 +65,7 @@ final class RunScheduler {
     private ?ApprovalService $approvals = null;
     private ?BackgroundDelegations $background = null;
     private ?MemoryContext $memory = null;
-    /** @var array<int, bool> conversation => private chat, as its last message said; unknown counts as a group */
-    private array $privateChats = [];
+    private ?ConversationAudience $audience = null;
     /** @var array<int, Future<void>> deliveries waiting for the conversation's run to end */
     private array $deliveries = [];
     private int $nextDelivery = 0;
@@ -147,7 +145,7 @@ final class RunScheduler {
     /** Hands a message over and returns at once. */
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId): void {
         $text = trim($message->text);
-        $this->privateChats[$conversationId] = $message->isPrivateChat;
+        $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
         // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
@@ -328,13 +326,19 @@ final class RunScheduler {
         }
     }
 
-    public function useMemory(MemoryContext $memory): void {
+    /** @param ConversationAudience|null $audience shared with the memory tools */
+    public function useMemory(MemoryContext $memory, ?ConversationAudience $audience = null): void {
         $this->memory = $memory;
+        $this->audience = $audience ?? $this->audience;
+    }
+
+    private function audience(): ConversationAudience {
+        return $this->audience ??= new ConversationAudience($this->conversations);
     }
 
     /** spec: BRIEF.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
     private function core(Principal $principal, int $conversationId): string {
-        if ($this->memory === null || !$principal->isOwner() || !($this->privateChats[$conversationId] ?? false)) {
+        if ($this->memory === null || !$principal->isOwner() || !$this->audience()->isPrivate($conversationId)) {
             return '';
         }
         try {
@@ -350,7 +354,7 @@ final class RunScheduler {
         if ($this->memory === null) {
             return $text;
         }
-        $scopes = Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->privateChats[$meta->id] ?? false);
+        $scopes = $this->audience()->scopes($principal, $meta->id);
         try {
             $facts = $this->memory->facts($text, $scopes, $meta->id);
         } catch (Throwable $e) {
