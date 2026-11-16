@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Sandbox;
+
+use Amp\DeferredCancellation;
+use Amp\Http\HttpStatus;
+use Amp\Http\Server\Request as HttpRequest;
+use Amp\Http\Server\RequestHandler;
+use Amp\Http\Server\Response;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use SensitiveParameter;
+use Throwable;
+
+/**
+ * The executor's HTTP API. POST /v1/<operation> with a JSON body and a bearer token; GET /health without one.
+ * Refusals keep their text for the model; anything unexpected becomes a generic error, the class goes to the log.
+ *
+ * spec: BRIEF.md#песочница — executor behind a token, only the sandbox network
+ */
+final class ExecutorServer implements RequestHandler {
+    private const MAX_BODY = 8 * 1024 * 1024;
+
+    /** @var array<string, DeferredCancellation> running exec calls by call id */
+    private array $running = [];
+
+    public function __construct(
+        #[SensitiveParameter] private readonly string $token,
+        private readonly Workspace $workspace,
+        private readonly Runner $runner,
+        private readonly FileStore $files,
+        private readonly LoggerInterface $logger = new NullLogger(),
+    ) {}
+
+    public function handleRequest(HttpRequest $request): Response {
+        $path = $request->getUri()->getPath();
+        if ($path === '/health') {
+            return self::json(HttpStatus::OK, ['ok' => true]);
+        }
+        if ($request->getMethod() !== 'POST' || !str_starts_with($path, '/v1/')) {
+            return self::json(HttpStatus::NOT_FOUND, ['ok' => false, 'error' => 'Нет такой операции.']);
+        }
+        if (!hash_equals('Bearer ' . $this->token, $request->getHeader('authorization') ?? '')) {
+            return self::json(HttpStatus::UNAUTHORIZED, ['ok' => false, 'error' => 'Нет доступа.']);
+        }
+
+        try {
+            $request->getBody()->increaseSizeLimit(self::MAX_BODY);
+            $parsed = Request::parse(substr($path, 4), $request->getBody()->buffer());
+            return self::json(HttpStatus::OK, ['ok' => true] + $this->dispatch($parsed));
+        } catch (SandboxError $e) {
+            return self::json($e->status, ['ok' => false, 'error' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            $this->logger->error('Executor failed', ['error' => $e::class]);
+            return self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => 'Внутренняя ошибка песочницы.']);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     * @throws SandboxError
+     */
+    private function dispatch(Request $request): array {
+        $id = $request->principalId;
+        $limits = $request->limits;
+        return match ($request->operation) {
+            'exec' => $this->exec($request),
+            'read' => $this->files->read($id, $limits, $request->string('path'), $request->int('start_line', 1, 1, PHP_INT_MAX), $request->int('max_lines', 500, 1, 2000)),
+            'write' => $this->write($request),
+            'replace' => $this->replace($request),
+            'list' => ['entries' => $this->files->list($id, $limits, $request->string('path', '.'), $request->int('depth', 1, 1, 3))],
+            'usage' => ['bytes' => $this->files->usage($id)],
+            'cancel' => ['cancelled' => $this->cancel($request->callId)],
+            default => throw new SandboxError('Нет такой операции.', 404),
+        };
+    }
+
+    /** @return array<string, int|string|bool> */
+    private function exec(Request $request): array {
+        $cwd = $this->workspace->resolve($request->principalId, $request->string('cwd', '.'));
+        $deferred = new DeferredCancellation();
+        if ($request->callId !== '') {
+            $this->running[$request->callId] = $deferred;
+        }
+        try {
+            return $this->runner->run(
+                $request->principalId,
+                $request->limits,
+                $request->string('command'),
+                $cwd,
+                max(1, $request->int('timeout', 120, 1, 600)),
+                null,
+                $deferred->getCancellation(),
+            )->toArray();
+        } finally {
+            unset($this->running[$request->callId]);
+        }
+    }
+
+    private function cancel(string $callId): bool {
+        $deferred = $this->running[$callId] ?? null;
+        $deferred?->cancel();
+        return $deferred !== null;
+    }
+
+    /** @return array<string, mixed> */
+    private function write(Request $request): array {
+        $this->files->write($request->principalId, $request->limits, $request->string('path'), $request->string('content'));
+        return [];
+    }
+
+    /** @return array<string, mixed> */
+    private function replace(Request $request): array {
+        $this->files->replace($request->principalId, $request->limits, $request->string('path'), $request->string('old'), $request->string('new'));
+        return [];
+    }
+
+    /** @param array<string, mixed> $body */
+    private static function json(int $status, array $body): Response {
+        return new Response($status, ['content-type' => 'application/json; charset=utf-8'], json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+    }
+}

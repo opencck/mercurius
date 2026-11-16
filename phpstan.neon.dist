@@ -4,4 +4,5 @@ parameters:
         - src
         - test
         - index.php
+        - sandbox.php
     tmpDir: var/cache/phpstan

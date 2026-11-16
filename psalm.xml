@@ -15,6 +15,7 @@
         <directory name="src"/>
         <directory name="test"/>
         <file name="index.php"/>
+        <file name="sandbox.php"/>
         <ignoreFiles>
             <directory name="vendor"/>
         </ignoreFiles>
