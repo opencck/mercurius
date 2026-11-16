@@ -144,15 +144,21 @@ final class WorkerRunner {
      * @param array<int, array{?int, ?int}> $existing position => runs of the first try and of the retry, if started
      * @param (\Closure(int, int, int): void)|null $onRun position, attempt (1 or 2), run id — as soon as a run starts
      * @param (\Closure(WorkerReport): void)|null $onReport each part's final report
+     * @param string $tag added to the workers' chat names: a provider may reuse call ids
+     * @param int $minSeconds a part that has not started yet is not started with less time than this
      * @return list<WorkerReport> by position
      */
-    public function runTasks(ToolContext $parent, Run $orchestrator, array $tasks, int $share, int $seconds, array $existing = [], ?\Closure $onRun = null, ?\Closure $onReport = null): array {
+    public function runTasks(ToolContext $parent, Run $orchestrator, array $tasks, int $share, int $seconds, array $existing = [], ?\Closure $onRun = null, ?\Closure $onReport = null, string $tag = '', int $minSeconds = 0): array {
         $jobs = [];
         foreach ($tasks as $position => $task) {
-            $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport): WorkerReport {
-                $report = $parent->cancellation->isRequested() && !isset($existing[$position])
-                    ? new WorkerReport($position, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена', StopReason::Stopped)
-                    : $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $existing[$position] ?? [null, null], $onRun);
+            $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport, $tag, $minSeconds): WorkerReport {
+                $runs = $existing[$position] ?? [null, null];
+                $started = $runs[0] !== null || $runs[1] !== null;
+                $report = match (true) {
+                    !$started && $parent->cancellation->isRequested() => new WorkerReport($position, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена', StopReason::Stopped),
+                    !$started && $seconds < $minSeconds => new WorkerReport($position, null, 'limit', '', 0, 0, '', 'не начат: истёк срок делегирования', StopReason::Deadline),
+                    default => $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $runs, $onRun, $tag),
+                };
                 if ($onReport !== null) {
                     $onReport($report);
                 }
@@ -229,10 +235,10 @@ final class WorkerRunner {
      * @param array{?int, ?int} $existing runs of the first try and of the retry, when a restart interrupted the part
      * @param (\Closure(int, int, int): void)|null $onRun
      */
-    private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, int $seconds, array $existing = [null, null], ?\Closure $onRun = null): WorkerReport {
+    private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, int $seconds, array $existing = [null, null], ?\Closure $onRun = null, string $tag = ''): WorkerReport {
         [$firstRun, $retryRun] = $existing;
         $tools = $this->tools($parent, $task);
-        $chat = sprintf('run%d-%s-%d', $orchestrator->id, $parent->callId, $index);
+        $chat = sprintf('run%d-%s%s-%d', $orchestrator->id, $parent->callId, $tag, $index);
         $started = hrtime(true);
         $model = $firstRun !== null ? ($this->runs->find($firstRun)->model ?? '') : $this->model($task, $tools !== [], 0, $orchestrator);
         $first = $this->attempt($parent, $orchestrator, $index, $task, $budget, $model, $chat, $seconds, $firstRun, $onRun === null ? null : static fn(int $id) => $onRun($index, 1, $id));

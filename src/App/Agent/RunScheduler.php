@@ -62,6 +62,9 @@ final class RunScheduler {
     /** @var array<int, Future<void>> deliveries waiting for the conversation's run to end */
     private array $deliveries = [];
     private int $nextDelivery = 0;
+    private bool $shuttingDown = false;
+    /** Seconds between looks at a conversation whose run waits for the owner, when a delivery waits for it. */
+    private const DELIVERY_POLL = 2.0;
 
     public function __construct(
         private readonly AgentLoop $loop,
@@ -89,33 +92,39 @@ final class RunScheduler {
     }
 
     /**
-     * A message from the agent itself (a background delegation's report): a steering note of the running run, or the
-     * text of a new run once the conversation is free.
+     * A message from the agent itself (a background delegation's report) becomes the first message of a new run, once
+     * the conversation is free — not a steering note: a note can be dropped by /stop, and in a group the running run
+     * may be another participant's. The callback gets the run only after the text is saved in it; a restart before
+     * that leaves the message undelivered, to be delivered again.
      *
      * spec: BRIEF.md#часть-3--фоновое-делегирование — delivery
+     *
+     * @param \Closure(int): void $onDelivered gets the run the text started
      */
-    public function deliver(Principal $principal, int $conversationId, string $text): void {
-        $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
-        if ($run !== null) {
-            $this->transcript->inbox($run->id, $text);
-            return;
-        }
-        if (isset($this->pending[$conversationId])) {
-            $this->pending[$conversationId]['texts'][] = $text;
-            return;
-        }
+    public function deliver(Principal $principal, int $conversationId, string $text, \Closure $onDelivered): void {
         $id = $this->nextDelivery++;
-        $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text): void {
+        $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text, $onDelivered): void {
             try {
-                while (isset($this->active[$conversationId])) {
-                    $this->active[$conversationId]['future']->await();
+                while (!$this->shuttingDown) {
+                    if (isset($this->active[$conversationId])) {
+                        $this->active[$conversationId]['future']->await();
+                        continue;
+                    }
+                    if (isset($this->pending[$conversationId])) {
+                        $this->pending[$conversationId]['future']->await();
+                        continue;
+                    }
+                    if ($this->runs->active($conversationId) !== null) {
+                        // A run waiting for the owner's decision: its fiber is gone, so look again a bit later.
+                        delay(self::DELIVERY_POLL);
+                        continue;
+                    }
+                    $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false);
+                    if ($runId !== null) {
+                        $onDelivered($runId);
+                        return;
+                    }
                 }
-                $run = $this->runs->active($conversationId);
-                if ($run !== null) {
-                    $this->transcript->inbox($run->id, $text);
-                    return;
-                }
-                $this->start($principal, $conversationId, $text, null);
             } catch (Throwable $e) {
                 $this->logger->error('Could not deliver a message', ['conversation' => $conversationId, 'error' => $e::class]);
             } finally {
@@ -262,6 +271,7 @@ final class RunScheduler {
 
     /** Cancels every run with a shutdown reason: they stay running in the database and resume on the next start. */
     public function shutdown(): void {
+        $this->shuttingDown = true;
         foreach ($this->pending as $pending) {
             $pending['future']->ignore();
         }
@@ -306,11 +316,12 @@ final class RunScheduler {
         }
     }
 
-    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId): void {
+    /** @return int|null the run the text started; null when it joined another run or nothing started */
+    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
-            return;
+            return null;
         }
         $model = $meta->model ?? $this->model;
         if ($meta->systemPrompt === null) {
@@ -324,10 +335,10 @@ final class RunScheduler {
         if ($run === null) {
             // Lost a race with another start: the text joins the run that won.
             $active = $this->runs->active($conversationId);
-            if ($active !== null) {
+            if ($active !== null && $mayJoin) {
                 $this->transcript->inbox($active->id, $text, $messageId);
             }
-            return;
+            return null;
         }
         try {
             $this->transcript->appendUser($conversationId, $run->id, $text, $messageId);
@@ -339,6 +350,7 @@ final class RunScheduler {
             throw $e;
         }
         $this->launch($run, $principal, $observer);
+        return $run->id;
     }
 
     private function resume(Run $run): void {

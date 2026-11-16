@@ -15,17 +15,18 @@ use UnexpectedValueException;
  * spec: BRIEF.md#часть-3--фоновое-делегирование
  */
 final class PostgresDelegationRepository implements DelegationRepository {
-    private const COLUMNS = 'id, conversation_id, run_id, principal_id, call_id, reserved, status, report, delivered_at IS NOT NULL AS delivered';
+    private const COLUMNS = 'id, conversation_id, run_id, principal_id, call_id, reserved, status, report, delivered_at IS NOT NULL AS delivered, '
+        . 'floor(extract(epoch FROM deadline_at - now()))::integer AS seconds_left, stop_requested';
     private const TASK_COLUMNS = 'delegation_id, position, task::text AS task, share, run_id, retry_run_id, report::text AS report';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function create(int $conversationId, int $runId, int $principalId, string $callId, int $reserved, array $tasks): Delegation {
+    public function create(int $conversationId, int $runId, int $principalId, string $callId, int $reserved, array $tasks, int $seconds): Delegation {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                'INSERT INTO delegations (conversation_id, run_id, principal_id, call_id, reserved) VALUES (?, ?, ?, ?, ?) RETURNING ' . self::COLUMNS,
-                [$conversationId, $runId, $principalId, $callId, $reserved],
+                "INSERT INTO delegations (conversation_id, run_id, principal_id, call_id, reserved, deadline_at) VALUES (?, ?, ?, ?, ?, now() + make_interval(secs => ?)) RETURNING " . self::COLUMNS,
+                [$conversationId, $runId, $principalId, $callId, $reserved, $seconds],
             )->fetchRow();
             if ($row === null) {
                 throw new UnexpectedValueException('Delegation was not created');
@@ -60,8 +61,8 @@ final class PostgresDelegationRepository implements DelegationRepository {
         return $tasks;
     }
 
-    public function runningCount(int $conversationId): int {
-        $row = $this->db->execute("SELECT count(*) AS n FROM delegations WHERE conversation_id = ? AND status = 'running'", [$conversationId])->fetchRow();
+    public function runningCount(int $principalId): int {
+        $row = $this->db->execute("SELECT count(*) AS n FROM delegations WHERE principal_id = ? AND status = 'running'", [$principalId])->fetchRow();
         return $row === null ? 0 : self::int($row, 'n');
     }
 
@@ -104,8 +105,16 @@ final class PostgresDelegationRepository implements DelegationRepository {
         return $row !== null;
     }
 
-    public function markDelivered(int $id): void {
-        $this->db->execute('UPDATE delegations SET delivered_at = now() WHERE id = ? AND delivered_at IS NULL', [$id]);
+    public function requestStop(int $id): void {
+        $this->db->execute('UPDATE delegations SET stop_requested = true WHERE id = ?', [$id]);
+    }
+
+    public function markDelivered(int $id, int $runId): void {
+        $this->db->execute('UPDATE delegations SET delivered_at = now(), delivered_run_id = ? WHERE id = ? AND delivered_at IS NULL', [$runId, $id]);
+    }
+
+    public function deliveredInto(int $runId): bool {
+        return $this->db->execute('SELECT 1 AS found FROM delegations WHERE delivered_run_id = ? LIMIT 1', [$runId])->fetchRow() !== null;
     }
 
     public function ownsRun(int $runId): bool {
@@ -125,6 +134,8 @@ final class PostgresDelegationRepository implements DelegationRepository {
             self::string($row, 'status'),
             isset($row['report']) ? self::string($row, 'report') : null,
             ($row['delivered'] ?? false) === true,
+            self::int($row, 'seconds_left'),
+            ($row['stop_requested'] ?? false) === true,
         );
     }
 

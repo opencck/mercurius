@@ -27,5 +27,9 @@ final class Delegation {
         /** the workers' report, once done */
         public readonly ?string $report = null,
         public readonly bool $delivered = false,
+        /** seconds to the deadline of the whole delegation; negative once it passed */
+        public readonly int $secondsLeft = 0,
+        /** /stop came: after a restart the delegation is closed, not continued */
+        public readonly bool $stopRequested = false,
     ) {}
 }

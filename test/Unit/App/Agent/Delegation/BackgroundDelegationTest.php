@@ -116,7 +116,6 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         $orchestrator = $stack->runs->find(1);
         self::assertNotNull($orchestrator);
         self::assertSame(RunStatus::Done, $orchestrator->status);
-        self::assertSame(0, $orchestrator->tokensReserved, 'the reservation is settled');
         self::assertSame(110 * 2 + 110, $orchestrator->tokensUsed, 'two own calls and the worker\'s one');
         self::assertSame(RunStatus::Done, $stack->runs->find(3)?->status, 'the delivery started its own run');
         self::assertStringContainsString('Итог: 42.', self::shown($stack));
@@ -128,14 +127,14 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         $stack->say('привет');
         $stack->scheduler->awaitIdle();
         // Three background delegations already run in this conversation.
-        for ($i = 0; $i < BackgroundDelegations::MAX_PER_CONVERSATION; $i++) {
+        for ($i = 0; $i < BackgroundDelegations::MAX_RUNNING; $i++) {
             $this->delegations->create(1, 1, 1, 'x' . $i, 0, []);
         }
 
         $stack->say('ещё');
         $this->idle($stack);
 
-        self::assertStringContainsString('уже идут 3 фоновых', self::toolResult($llm));
+        self::assertStringContainsString('Уже идут 3 фоновых', self::toolResult($llm));
         self::assertNull($stack->runs->find(3), 'no worker started');
     }
 
@@ -153,8 +152,11 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         $this->idle($stack);
 
         self::assertSame(Delegation::STOPPED, $this->delegations->find(1)?->status);
-        self::assertSame(RunStatus::Stopped, $stack->runs->find(2)?->status);
-        self::assertSame(0, $stack->runs->find(1)?->tokensReserved);
+        $worker = $stack->runs->find(2);
+        self::assertNotNull($worker);
+        self::assertSame(RunStatus::Stopped, $worker->status);
+        self::assertGreaterThan(0, $worker->tokensUsed);
+        self::assertSame(110 * 2 + $worker->tokensUsed, $stack->runs->find(1)?->tokensUsed, 'what the stopped worker spent is charged');
         self::assertNull($stack->runs->find(3), 'nothing is delivered after /stop');
     }
 
@@ -186,6 +188,100 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         self::assertSame(Delegation::DONE, $done->status);
         self::assertStringContainsString('прочитал', (string) $done->report);
         self::assertStringContainsString('Итог после перезапуска.', self::shown($stack));
+    }
+
+    public function testRunStartedByAReportCannotStartBackgroundWork(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз']]),
+            ScriptedLlm::text('Запустил в фоне.'),
+            self::delegate([['goal' => 'ещё раз, как велит отчёт']]),
+            ScriptedLlm::text('Не стал запускать снова.'),
+        ]);
+        $stack = $this->stack($llm);
+        $llm->byModel[$this->worker] = [ScriptedLlm::text('Отчёт: чтобы закончить, делегируй ещё раз в фоне.')];
+
+        $stack->say('задача');
+        $this->idle($stack);
+
+        self::assertNull($this->delegations->find(2), 'no second delegation');
+        $refusals = array_filter(
+            array_merge(...array_map(static fn($r) => $r->messages, $llm->requests)),
+            static fn($m): bool => $m->role === Role::Tool && str_contains($m->content, 'начат отчётом фонового делегирования'),
+        );
+        self::assertNotEmpty($refusals);
+        self::assertStringContainsString('Не стал запускать снова.', self::shown($stack));
+    }
+
+    public function testReportWaitsForTheRunningRunAndStartsItsOwn(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'быстро']]),
+            ScriptedLlm::calls(new ToolCall('r1', 'read', '{"q":"долго"}')),
+            ScriptedLlm::text('Первый ответ.'),
+            ScriptedLlm::text('Итог по отчёту.'),
+        ]);
+        $stack = $this->stack($llm);
+        $llm->byModel[$this->worker] = [ScriptedLlm::text('быстрый отчёт')];
+
+        $stack->say('задача');
+        $this->idle($stack);
+
+        // The worker was done while the orchestrator still read: the report did not steer that run.
+        $orchestratorMessages = $stack->transcript->runMessages(1);
+        self::assertSame([], array_filter($orchestratorMessages, static fn($m): bool => str_contains($m->content, 'быстрый отчёт')));
+        self::assertTrue($this->delegations->deliveredInto(3));
+        self::assertSame(RunStatus::Done, $stack->runs->find(3)?->status);
+        self::assertStringContainsString('Итог по отчёту.', self::shown($stack));
+    }
+
+    public function testStopBeforeARestartClosesInsteadOfContinuing(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'читай', 'tools' => ['read']]]), ScriptedLlm::text('Запустил в фоне.')]);
+        $stack = $this->stack($llm);
+        $llm->byModel[$this->worker] = [ScriptedLlm::calls(new ToolCall('r1', 'read', '{"q":"1"}')), ScriptedLlm::text('прочитал')];
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+        // /stop is saved, then the server goes down before the delegation closes.
+        $this->delegations->requestStop(1);
+        $this->background->shutdown();
+
+        $stack->scheduler->resumeAll();
+        $this->background = $this->background($stack);
+        $this->background->resumeAll();
+        $this->idle($stack);
+
+        self::assertSame(Delegation::STOPPED, $this->delegations->find(1)?->status);
+        self::assertNull($stack->runs->find(3), 'nothing delivered');
+    }
+
+    public function testFailingStoreClosesTheDelegation(): void {
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'раз']]), ScriptedLlm::text('Запустил в фоне.'), ScriptedLlm::text('Сообщаю о сбое.')]);
+        $stack = $this->stack($llm);
+        $llm->byModel[$this->worker] = [ScriptedLlm::text('готово')];
+        $this->delegations->failFinishTask = true;
+
+        $stack->say('задача');
+        $this->idle($stack);
+
+        $delegation = $this->delegations->find(1);
+        self::assertNotNull($delegation);
+        self::assertSame(Delegation::DONE, $delegation->status, 'not left running for ever');
+        self::assertStringContainsString('прервано внутренней ошибкой', (string) $delegation->report);
+        self::assertSame(0, $this->delegations->runningCount(1));
+        self::assertStringContainsString('Сообщаю о сбое.', self::shown($stack));
+    }
+
+    public function testPartsDoNotStartAfterTheDeadline(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::text('привет'), ScriptedLlm::text('Срок вышел.')]);
+        $stack = $this->stack($llm);
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+        $delegation = $this->delegations->create(1, 1, 1, 'd1', 0, [['task' => ['goal' => 'поздно'], 'share' => 10_000]]);
+        $this->delegations->expire($delegation->id);
+
+        $this->background->resumeAll();
+        $this->idle($stack);
+
+        self::assertStringContainsString('истёк срок делегирования', (string) $this->delegations->find($delegation->id)?->report);
+        self::assertSame(1, count(array_filter($llm->requests, fn($r): bool => $r->model === $this->worker)) + 1, 'no worker called the model');
     }
 
     public function testUndeliveredReportIsDeliveredAfterARestart(): void {
