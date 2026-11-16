@@ -17,14 +17,24 @@ final class MetricsText {
     /** Seconds: from a quick tool to a long model answer. */
     public const BOUNDS = [0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 300.0];
     private const BUCKETS = ['input', 'output', 'cache_read', 'cache_write', 'reasoning'];
+    private const ACTIVE = ['running', 'waiting_approval'];
 
     public function __construct(private readonly MetricsRepository $figures) {}
 
     public function render(): string {
         $out = [];
-        self::head($out, 'mercurius_runs_total', 'counter', 'Runs by final status and stop reason');
-        foreach ($this->figures->runs() as $row) {
-            $out[] = self::line('mercurius_runs_total', ['status' => $row['status'], 'reason' => $row['reason']], $row['count']);
+        $runs = $this->figures->runs();
+        self::head($out, 'mercurius_runs_total', 'counter', 'Finished runs by final status and stop reason');
+        foreach ($runs as $row) {
+            if (!in_array($row['status'], self::ACTIVE, true)) {
+                $out[] = self::line('mercurius_runs_total', ['status' => $row['status'], 'reason' => $row['reason']], $row['count']);
+            }
+        }
+        self::head($out, 'mercurius_runs_active', 'gauge', 'Runs going on now, by status');
+        foreach ($runs as $row) {
+            if (in_array($row['status'], self::ACTIVE, true)) {
+                $out[] = self::line('mercurius_runs_active', ['status' => $row['status']], $row['count']);
+            }
         }
         $models = $this->figures->models();
         self::head($out, 'mercurius_model_tokens_total', 'counter', 'Tokens of model calls by bucket');

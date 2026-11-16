@@ -31,6 +31,16 @@ final class SecretMaskerTest extends TestCase {
         self::assertStringContainsString('"name": "ok"', $masked);
     }
 
+    public function testCommandLinePasswordsAndUrlIdsAreMasked(): void {
+        $masked = SecretMasker::mask('mysql -uroot -phunter22 db; psql --password s3cretpw; vless://0b5c8a1e-1111-4222-8333-944455556666@host:443?type=ws');
+
+        self::assertStringNotContainsString('hunter22', $masked);
+        self::assertStringNotContainsString('s3cretpw', $masked);
+        self::assertStringNotContainsString('0b5c8a1e-1111-4222-8333-944455556666', $masked);
+        self::assertStringContainsString('mysql -uroot', $masked);
+        self::assertSame('mkdir -p build && ssh -p 22 host', SecretMasker::mask('mkdir -p build && ssh -p 22 host'));
+    }
+
     public function testUrlCredentialsAndSecretQueryValuesAreMasked(): void {
         $masked = SecretMasker::mask('git push https://user:hunter2@github.com/x.git; curl "https://api.example.com/x?access_key=s3cr3t&page=2"');
 

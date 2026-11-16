@@ -101,6 +101,13 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString('read_file', $this->stack->channel->files[0][2]);
     }
 
+    public function testReportsAreNotShownInAGroup(): void {
+        $this->stack->sayInGroup('/usage');
+
+        self::assertSame(ChatService::PRIVATE_ONLY, $this->lastText());
+        self::assertNull($this->figures->since);
+    }
+
     public function testReportsAreForTheOwnerOnly(): void {
         $this->stack->say('привет', '99');
         $this->stack->press('pv:2:u');

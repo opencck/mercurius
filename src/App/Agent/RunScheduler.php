@@ -11,6 +11,8 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Model\ModelRouter;
+use OpenCCK\App\Agent\Trace\AgentEvents;
+use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Run;
@@ -70,6 +72,7 @@ final class RunScheduler {
         private readonly float $debounceCap = 1.0,
         private readonly float $editInterval = 1.5,
         private readonly ?ModelRouter $router = null,
+        private readonly AgentEvents $events = new NullEvents(),
     ) {}
 
     public function useApprovals(ApprovalService $approvals): void {
@@ -165,6 +168,7 @@ final class RunScheduler {
         }
         $this->transcript->appendAssistant($run->conversationId, $run->id, AgentLoop::STOPPED_NOTE, []);
         $this->runs->finish($run->id, StopReason::Stopped->status(), StopReason::Stopped);
+        $this->events->runFinished($run->id, 'stopped', StopReason::Stopped->value, ($this->runs->find($run->id) ?? $run)->activeMs);
         $this->transcript->consumeInbox($run->id);
         $meta = $this->conversations->meta($run->conversationId);
         if ($meta !== null) {
@@ -342,6 +346,7 @@ final class RunScheduler {
         }
         try {
             $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
+            $this->events->runFinished($run->id, 'failed', StopReason::InternalError->value, ($this->runs->find($run->id) ?? $run)->activeMs);
             $observer->finished($this->runs->find($run->id) ?? $run, self::CRASHED, StopReason::InternalError);
         } catch (Throwable $e) {
             $this->logger->error('Could not close a crashed run', ['run' => $run->id, 'error' => $e::class]);

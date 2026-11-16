@@ -65,7 +65,9 @@ final class TracerTest extends AsyncTestCase {
             $this->transcript->appendUser(1, $run->id, $task);
         }
         $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
-        return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
+        $final = $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
+        $tracer->idle();
+        return $final;
     }
 
     private static function priced(string $text, ToolCall ...$calls): ChatResponse {
@@ -97,12 +99,39 @@ final class TracerTest extends AsyncTestCase {
         $this->transcript = new InMemoryTranscriptRepository();
         $final = $this->execute(new ScriptedLlm([self::priced('', new ToolCall('c1', 'read', '{"q":"password=hunter2"}')), self::priced('ключ sk-proj-ABCDEFGHIJKLMNOPQRSTUV')]), 'мой токен ghp_0123456789abcdefghijABCDEFGHIJ0123');
 
-        $model = $this->traces->spans($final->id)[3];
-        $payload = json_encode($this->traces->payloadOf((int) $model->id), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        $spans = $this->traces->spans($final->id);
+        $payload = json_encode([$this->traces->payloadOf((int) $spans[1]->id), $this->traces->payloadOf((int) $spans[3]->id)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         self::assertStringNotContainsString('hunter2', $payload);
         self::assertStringNotContainsString('ghp_0123456789', $payload);
         self::assertStringNotContainsString('sk-proj-ABCDEFGHIJKLMNOPQRSTUV', $payload);
         self::assertStringContainsString('мой токен', $payload);
+    }
+
+    public function testEachPayloadKeepsOnlyNewMessages(): void {
+        $final = $this->execute(new ScriptedLlm([self::priced('', new ToolCall('c1', 'read', '{}')), self::priced('готово')]));
+
+        $spans = $this->traces->spans($final->id);
+        $first = $this->traces->payloadOf((int) $spans[1]->id)['request'] ?? [];
+        $second = $this->traces->payloadOf((int) $spans[3]->id)['request'] ?? [];
+        self::assertSame(0, $first['from'] ?? null);
+        $firstJson = json_encode($first, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString('"role":"system"', $firstJson);
+        self::assertStringContainsString('"role":"user"', $firstJson);
+        self::assertSame(2, $second['from'] ?? null);
+        $secondJson = json_encode($second, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('"role":"system"', $secondJson);
+        self::assertStringNotContainsString('"role":"user"', $secondJson);
+        self::assertStringContainsString('"role":"tool"', $secondJson);
+    }
+
+    public function testClosedRunIsNotReopenedByALateEvent(): void {
+        $final = $this->execute(new ScriptedLlm([self::priced('готово')]));
+        $tracer = new Tracer($this->traces, $this->catalog, new NullLogger());
+
+        $tracer->approvalDecided($final->id, 'push', 'denied', 1.0);
+        $tracer->idle();
+
+        self::assertSame(TraceSpan::OK, $this->traces->spans($final->id)[0]->status);
     }
 
     public function testEstimatedCostFromTheCatalog(): void {

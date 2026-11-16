@@ -207,6 +207,7 @@ $scheduler = new RunScheduler(
     $llmSettings->model,
     $logger,
     router: $modelRouter,
+    events: $tracer,
 );
 $scheduler->useApprovals($approvals);
 $approvals->onDecision($scheduler->resumeRun(...));

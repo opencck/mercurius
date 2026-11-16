@@ -16,7 +16,7 @@ final class MetricsHandlerTest extends AsyncTestCase {
     private static function figures(): MetricsRepository {
         return new class implements MetricsRepository {
             public function runs(): array {
-                return [['status' => 'done', 'reason' => 'answered', 'count' => 7]];
+                return [['status' => 'done', 'reason' => 'answered', 'count' => 7], ['status' => 'running', 'reason' => '', 'count' => 1]];
             }
 
             public function models(): array {
@@ -58,6 +58,8 @@ final class MetricsHandlerTest extends AsyncTestCase {
         $text = (new MetricsText(self::figures()))->render();
 
         self::assertStringContainsString("# TYPE mercurius_runs_total counter\nmercurius_runs_total{status=\"done\",reason=\"answered\"} 7", $text);
+        self::assertStringContainsString('mercurius_runs_active{status="running"} 1', $text);
+        self::assertStringNotContainsString('mercurius_runs_total{status="running"', $text);
         self::assertStringContainsString('mercurius_model_tokens_total{model="openrouter:z-ai/glm-5.3-flash",bucket="cache_read"} 300', $text);
         self::assertStringContainsString('mercurius_model_cost_usd_total{model="openrouter:z-ai/glm-5.3-flash"} 0.0123', $text);
         self::assertStringContainsString('mercurius_tool_calls_total{tool="run_command",status="error"} 2', $text);

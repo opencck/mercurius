@@ -30,6 +30,7 @@ final class ChatService implements MessageHandler {
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
+    public const PRIVATE_ONLY = 'Отчёты показываю только в личном чате.';
     private const REPORT_LIMIT = 3500;
 
     public function __construct(
@@ -98,6 +99,11 @@ final class ChatService implements MessageHandler {
     private function report(bool $owner, string $command, string $argument, IncomingMessage $message): void {
         if (!$owner || $this->reports === null) {
             $this->reply($message, self::OWNER_ONLY);
+            return;
+        }
+        // spec: BRIEF.md#контекст-по-месту-и-аудитории — a group hears what is said; reports are for the owner alone
+        if (!$message->isPrivateChat) {
+            $this->reply($message, self::PRIVATE_ONLY);
             return;
         }
         $text = match ($command) {

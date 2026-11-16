@@ -38,3 +38,4 @@ CREATE TABLE trace_payloads (
 CREATE INDEX trace_payloads_by_time ON trace_payloads (created_at);
 
 ALTER TABLE llm_calls ADD COLUMN run_id bigint REFERENCES runs (id) ON DELETE SET NULL;
+CREATE INDEX llm_calls_by_run ON llm_calls (run_id) WHERE run_id IS NOT NULL;

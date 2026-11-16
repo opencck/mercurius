@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Trace;
 
+use Amp\Future;
 use DateTimeImmutable;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\ChatResponse;
@@ -19,6 +20,8 @@ use OpenCCK\Domain\Repository\TraceRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Amp\async;
+
 /**
  * Writes the trace of a run from its events: the run step, a step per model call, tool and approval, with tokens,
  * time and cost; full requests and answers of model calls go to payloads, masked. A failed write is logged and the
@@ -31,14 +34,32 @@ use Throwable;
  *      the provider's figure, an estimate from catalog prices, or unknown
  */
 final class Tracer implements AgentEvents {
+    /** Writes waiting for the database; beyond this, new ones are dropped rather than held in memory. */
+    private const QUEUE_LIMIT = 500;
+
     /** @var array<int, int> run id => id of its run step */
     private array $runSpans = [];
+    /** @var array<int, int> run id => messages of the last request already saved in a payload */
+    private array $sent = [];
+    /** @var \SplQueue<\Closure(): void> */
+    private \SplQueue $queue;
+    /** @var Future<void>|null */
+    private ?Future $worker = null;
 
     public function __construct(
         private readonly TraceRepository $traces,
         private readonly ModelCatalogRepository $catalog,
         private readonly LoggerInterface $logger,
-    ) {}
+    ) {
+        $this->queue = new \SplQueue();
+    }
+
+    /** Waits until queued writes are done; for tests and an orderly stop. */
+    public function idle(): void {
+        while ($this->worker !== null) {
+            $this->worker->await();
+        }
+    }
 
     public function runStarted(int $runId, string $model): void {
         $this->safely(function () use ($runId, $model): void {
@@ -47,7 +68,15 @@ final class Tracer implements AgentEvents {
     }
 
     public function modelCalled(int $runId, string $purpose, ChatRequest $request, ?ChatResponse $response, ?string $error, float $seconds): void {
-        $this->safely(function () use ($runId, $purpose, $request, $response, $error, $seconds): void {
+        $startedAt = self::startedAt($seconds);
+        // Each request repeats the whole conversation: a payload keeps only what is new since the run's last call.
+        $from = 0;
+        if ($purpose === 'agent') {
+            $from = $this->sent[$runId] ?? 0;
+            $from = $from > count($request->messages) ? 0 : $from;
+            $this->sent[$runId] = count($request->messages);
+        }
+        $this->safely(function () use ($runId, $purpose, $request, $response, $error, $seconds, $startedAt, $from): void {
             $model = (string) ModelRef::parse($request->model);
             $usage = $response === null ? new Usage() : $response->usage;
             [$cost, $costStatus] = $this->cost($model, $usage);
@@ -56,7 +85,7 @@ final class Tracer implements AgentEvents {
                 parentId: $this->runSpan($runId, $model),
                 kind: $purpose === 'compaction' ? TraceSpan::COMPACTION : TraceSpan::MODEL,
                 name: $model,
-                startedAt: self::startedAt($seconds),
+                startedAt: $startedAt,
                 durationMs: self::ms($seconds),
                 status: $error === null ? TraceSpan::OK : ($error === 'cancelled' ? TraceSpan::CANCELLED : TraceSpan::ERROR),
                 inputTokens: max(0, $usage->inputTokens),
@@ -69,18 +98,19 @@ final class Tracer implements AgentEvents {
                 error: $error,
                 attrs: ['purpose' => $purpose, 'finish' => $response?->finishReason->value, 'tool_calls' => $response === null ? 0 : count($response->toolCalls)],
             ));
-            $this->traces->payload($id, self::request($request), $response === null ? ['error' => $error] : self::response($response));
+            $this->traces->payload($id, self::request($request, $from), $response === null ? ['error' => $error] : self::response($response));
         });
     }
 
     public function toolFinished(int $runId, string $name, ?array $args, ToolResult $result, float $seconds): void {
-        $this->safely(function () use ($runId, $name, $args, $result, $seconds): void {
+        $startedAt = self::startedAt($seconds);
+        $this->safely(function () use ($runId, $name, $args, $result, $seconds, $startedAt): void {
             $this->traces->record(new TraceSpan(
                 runId: $runId,
                 parentId: $this->runSpan($runId, ''),
                 kind: TraceSpan::TOOL,
                 name: $name,
-                startedAt: self::startedAt($seconds),
+                startedAt: $startedAt,
                 durationMs: self::ms($seconds),
                 status: $result->isError ? TraceSpan::ERROR : TraceSpan::OK,
                 error: $result->isError ? SecretMasker::mask(mb_substr($result->content, 0, 300)) : null,
@@ -93,13 +123,14 @@ final class Tracer implements AgentEvents {
     }
 
     public function approvalDecided(int $runId, string $tool, string $outcome, float $seconds): void {
-        $this->safely(function () use ($runId, $tool, $outcome, $seconds): void {
+        $startedAt = self::startedAt($seconds);
+        $this->safely(function () use ($runId, $tool, $outcome, $seconds, $startedAt): void {
             $this->traces->record(new TraceSpan(
                 runId: $runId,
                 parentId: $this->runSpan($runId, ''),
                 kind: TraceSpan::APPROVAL,
                 name: $tool,
-                startedAt: self::startedAt($seconds),
+                startedAt: $startedAt,
                 durationMs: self::ms($seconds),
                 status: $outcome === 'approved' ? TraceSpan::OK : TraceSpan::CANCELLED,
                 attrs: ['outcome' => $outcome],
@@ -112,6 +143,7 @@ final class Tracer implements AgentEvents {
             $this->traces->closeRun($runId, $status === 'done' ? TraceSpan::OK : ($status === 'stopped' ? TraceSpan::CANCELLED : TraceSpan::ERROR), $activeMs, $reason);
             unset($this->runSpans[$runId]);
         });
+        unset($this->sent[$runId]);
     }
 
     private function runSpan(int $runId, string $model): int {
@@ -128,17 +160,19 @@ final class Tracer implements AgentEvents {
     }
 
     /** @return array<string, mixed> */
-    private static function request(ChatRequest $request): array {
+    private static function request(ChatRequest $request, int $from): array {
         return [
             'model' => $request->model,
             'max_tokens' => $request->maxTokens,
+            'from' => $from,
+            'total' => count($request->messages),
             'tools' => array_map(static fn($tool): string => $tool->name, $request->tools),
             'messages' => array_map(static fn(Message $m): array => [
                 'role' => $m->role->value,
                 'content' => SecretMasker::mask($m->content),
                 'tool_call_id' => $m->toolCallId,
                 'tool_calls' => self::calls($m->toolCalls),
-            ], $request->messages),
+            ], array_slice($request->messages, $from)),
         ];
     }
 
@@ -183,12 +217,31 @@ final class Tracer implements AgentEvents {
         return max(0, (int) round($seconds * 1000.0));
     }
 
-    /** @param \Closure(): void $write */
+    /**
+     * Queues a write: the run does not wait for the database, and writes go one after another, in order. A write
+     * that fails is logged and the run goes on.
+     *
+     * @param \Closure(): void $write
+     */
     private function safely(\Closure $write): void {
-        try {
-            $write();
-        } catch (Throwable $e) {
-            $this->logger->error('Could not write a trace', ['error' => $e::class]);
+        if ($this->queue->count() >= self::QUEUE_LIMIT) {
+            $this->logger->warning('Trace queue is full; a step was not written');
+            return;
         }
+        $this->queue->enqueue($write);
+        $this->worker ??= async(function (): void {
+            try {
+                while (!$this->queue->isEmpty()) {
+                    $next = $this->queue->dequeue();
+                    try {
+                        $next();
+                    } catch (Throwable $e) {
+                        $this->logger->error('Could not write a trace', ['error' => $e::class]);
+                    }
+                }
+            } finally {
+                $this->worker = null;
+            }
+        });
     }
 }

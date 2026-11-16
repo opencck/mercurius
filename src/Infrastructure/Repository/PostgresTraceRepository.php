@@ -20,7 +20,7 @@ final class PostgresTraceRepository implements TraceRepository {
     public function openRun(int $runId, string $name): int {
         $row = $this->db->execute(
             "INSERT INTO trace_spans (run_id, kind, name, started_at, status) VALUES (?, 'run', ?, now(), 'running')
-             ON CONFLICT (run_id) WHERE kind = 'run' DO UPDATE SET status = 'running'
+             ON CONFLICT (run_id) WHERE kind = 'run' DO UPDATE SET name = trace_spans.name
              RETURNING id",
             [$runId, mb_substr($name, 0, 200)],
         )->fetchRow();

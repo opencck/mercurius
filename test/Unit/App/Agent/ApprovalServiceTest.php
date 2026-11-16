@@ -11,6 +11,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeKeyedTool;
 use OpenCCK\Test\Support\FakeTool;
+use OpenCCK\Test\Support\RecordingEvents;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 use function Amp\delay;
@@ -163,6 +164,18 @@ final class ApprovalServiceTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Stopped, $this->stack->runs->find(1)?->status);
         self::assertSame(1, count($this->stack->llm->requests));
+    }
+
+    public function testStopWhileWaitingClosesTheRunTrace(): void {
+        $events = new RecordingEvents();
+        $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"origin"}'))]), events: $events);
+        $this->stack->registry->register(new FakeKeyedTool('push', 'git-push:origin'));
+        $this->waitingRun();
+
+        $this->stack->say('/stop');
+        delay(0.05);
+
+        self::assertContains('finished:1:stopped', $events->events);
     }
 
     public function testStopClosesTheCardAsStopped(): void {

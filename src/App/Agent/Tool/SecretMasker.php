@@ -19,8 +19,12 @@ final class SecretMasker {
     private static function patterns(): array {
         $name = self::SECRET_NAME;
         return [
-            // URL credentials: https://user:password@host
+            // URL credentials: https://user:password@host, and a long id as the user (vless://<uuid>@host)
             '#(://[^/\s:@]+:)[^/\s@]+@#' => '$1***@',
+            '#(://)[A-Za-z0-9._~%-]{16,}@#' => '$1***@',
+            // command-line passwords: mysql -phunter2, --password secret (a port like -p22 or -p 22 stays)
+            '/(\s-p)(?=[^\s]*[A-Za-z])[^\s]{4,}/' => '$1***',
+            '/(--password[\s=]+)\S+/i' => '$1***',
             // JSON: "password": "…", "X-Api-Key":"…"
             '/("' . $name . '"\s*:\s*)"(?:[^"\\\\]|\\\\.)*"/i' => '$1"***"',
             '/(Bearer|Basic|Token)\s+[A-Za-z0-9._~+\/=-]{6,}/i' => '$1 ***',

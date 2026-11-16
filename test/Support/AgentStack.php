@@ -17,6 +17,8 @@ use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Agent\Trace\AgentEvents;
+use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Domain\Agent\RunLimits;
@@ -47,6 +49,7 @@ final class AgentStack {
         int $maxMessageLength = 4096,
         ?ModelRouter $router = null,
         ?TraceReports $reports = null,
+        AgentEvents $events = new NullEvents(),
     ) {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
@@ -70,6 +73,7 @@ final class AgentStack {
             debounce: $debounce,
             editInterval: 0.0,
             router: $router,
+            events: $events,
         );
         $this->scheduler->useApprovals($this->approvalService);
         $this->approvalService->onDecision($this->scheduler->resumeRun(...));
@@ -83,9 +87,14 @@ final class AgentStack {
         $this->callbacks->handleCallback(new IncomingCallback('telegram', 'cb' . ++$this->messageId, '42', $userId, 'Owner', $messageId, $data, (string) $this->messageId));
     }
 
-    public function message(string $text, string $userId = '42'): IncomingMessage {
+    public function message(string $text, string $userId = '42', bool $private = true): IncomingMessage {
         $id = (string) ++$this->messageId;
-        return new IncomingMessage('telegram', $userId, $userId, 'owner', 'Owner', $text, $id, null, true, new DateTimeImmutable(), $id);
+        return new IncomingMessage('telegram', $private ? $userId : '-100500', $userId, 'owner', 'Owner', $text, $id, null, $private, new DateTimeImmutable(), $id);
+    }
+
+    /** A message in a group chat. */
+    public function sayInGroup(string $text, string $userId = '42'): void {
+        $this->chat->handle($this->message($text, $userId, false));
     }
 
     public function say(string $text, string $userId = '42'): void {
