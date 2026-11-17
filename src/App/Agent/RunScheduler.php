@@ -65,7 +65,8 @@ final class RunScheduler {
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
-    private ?JobRuns $jobRuns = null;
+    /** @var list<JobRuns> */
+    private array $jobRuns = [];
     private ?BackgroundDelegations $background = null;
     private ?MemoryContext $memory = null;
     private ?ProjectContext $projects = null;
@@ -105,7 +106,16 @@ final class RunScheduler {
 
     /** Runs of scheduled jobs go on through the job scheduler. */
     public function useJobRuns(JobRuns $jobs): void {
-        $this->jobRuns = $jobs;
+        $this->jobRuns[] = $jobs;
+    }
+
+    private function jobRunsOf(Run $run): ?JobRuns {
+        foreach ($this->jobRuns as $owner) {
+            if ($owner->owns($run)) {
+                return $owner;
+            }
+        }
+        return null;
     }
 
     public function useBackground(BackgroundDelegations $background): void {
@@ -213,8 +223,9 @@ final class RunScheduler {
         if ($run === null || $run->status !== RunStatus::WaitingApproval) {
             return;
         }
-        if ($this->jobRuns?->owns($run) === true) {
-            $this->jobRuns->continueRun($run, true);
+        $owner = $this->jobRunsOf($run);
+        if ($owner !== null) {
+            $owner->continueRun($run, true);
             return;
         }
         // The fiber that paused the run may still be finishing its last step.
@@ -279,8 +290,9 @@ final class RunScheduler {
                     $this->events->runFinished($run->id, 'failed', 'interrupted by a restart', $run->activeMs);
                     continue;
                 }
-                if ($this->jobRuns?->owns($run) === true) {
-                    $this->jobRuns->continueRun($run, false);
+                $owner = $this->jobRunsOf($run);
+                if ($owner !== null) {
+                    $owner->continueRun($run, false);
                     continue;
                 }
                 $this->resume($run);

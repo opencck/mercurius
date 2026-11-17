@@ -1,0 +1,260 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Peer;
+
+use Amp\NullCancellation;
+use Amp\PHPUnit\AsyncTestCase;
+use Amp\Http\Client\HttpClient;
+use OpenCCK\App\Agent\Tool\PeerDelegateTool;
+use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\App\Peer\A2aClient;
+use OpenCCK\App\Peer\A2aServer;
+use OpenCCK\App\Peer\AgentIdentity;
+use OpenCCK\App\Peer\PeerNetwork;
+use OpenCCK\App\Vault\Vault;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Domain\Peer\A2aTask;
+use OpenCCK\Test\Support\A2aWire;
+use OpenCCK\Test\Support\AgentStack;
+use OpenCCK\Test\Support\InMemoryPeerRepository;
+use OpenCCK\Test\Support\InMemorySecretRepository;
+use OpenCCK\Test\Support\ScriptedLlm;
+use Psr\Log\NullLogger;
+
+use function Amp\delay;
+
+/**
+ * Two agents in one process: the leader's HTTP goes straight into the follower's server, signed both ways.
+ */
+final class AgentNetworkTest extends AsyncTestCase {
+    private const FOLLOWER = 'https://follower.example';
+    private const LEADER = 'https://leader.example';
+    private const ENTRANCE = 'entrance-token-of-the-follower';
+
+    private AgentStack $follower;
+    private InMemoryPeerRepository $followerPeers;
+    private A2aServer $server;
+    private AgentIdentity $leaderKey;
+    private AgentIdentity $followerKey;
+
+    private function follower(ScriptedLlm $llm): void {
+        $this->leaderKey = AgentIdentity::generate();
+        $this->followerKey = AgentIdentity::generate();
+        $this->follower = new AgentStack($llm);
+        $this->follower->principals->ensureOwner('telegram', '42', 'Owner of follower');
+        $this->followerPeers = new InMemoryPeerRepository();
+        $this->server = new A2aServer(
+            $this->followerPeers,
+            $this->follower->principals,
+            $this->follower->loop,
+            $this->follower->runs,
+            $this->follower->transcript,
+            $this->follower->conversations,
+            $this->follower->policies,
+            'test/model',
+            self::FOLLOWER,
+            'Follower',
+            'test',
+            new NullLogger(),
+            $this->followerKey,
+            self::ENTRANCE,
+        );
+        $this->follower->scheduler->useJobRuns($this->server);
+        $network = $this->network($this->followerPeers, $this->follower, $this->followerKey, self::FOLLOWER, null);
+        self::assertStringContainsString('может подключаться', $network->allow('leader', $this->leaderKey->fingerprint(), Role::User));
+    }
+
+    private function network(InMemoryPeerRepository $peers, AgentStack $stack, AgentIdentity $key, string $self, ?Principal $owner, ?Vault $vault = null): PeerNetwork {
+        return new PeerNetwork(
+            $peers,
+            $stack->principals,
+            $vault ?? new Vault(new InMemorySecretRepository(), random_bytes(32)),
+            new A2aClient(new HttpClient(new A2aWire($this->server), []), $key),
+            $stack->conversations,
+            $stack->transcript,
+            $stack->channel,
+            $self,
+            new NullLogger(),
+            $key,
+            static fn(): ?Principal => $owner,
+        );
+    }
+
+    /**
+     * A signed request as the leader sends it.
+     *
+     * @param array<string, mixed> $call
+     * @return array{Principal|null, int, string}
+     */
+    private function authenticate(array $call, ?AgentIdentity $key = null, string $token = self::ENTRANCE, ?string $nonce = null, ?int $at = null): array {
+        $key ??= $this->leaderKey;
+        $body = json_encode($call, JSON_THROW_ON_ERROR);
+        $timestamp = (string) ($at ?? time());
+        $nonce ??= bin2hex(random_bytes(16));
+        return $this->server->authenticate([
+            'authorization' => 'Bearer ' . $token,
+            'x-a2a-key' => base64_encode($key->publicKey),
+            'x-a2a-timestamp' => $timestamp,
+            'x-a2a-nonce' => $nonce,
+            'x-a2a-signature' => $key->sign(AgentIdentity::requestData('POST', '/a2a', $timestamp, $nonce, $body)),
+        ], 'POST', '/a2a', $body);
+    }
+
+    private function leaderAgent(): Principal {
+        [$agent] = $this->authenticate(['jsonrpc' => '2.0', 'id' => 0, 'method' => 'GetTask', 'params' => []]);
+        self::assertNotNull($agent);
+        return $agent;
+    }
+
+    /**
+     * @param array<string, mixed> $chain
+     * @return array<string, mixed>
+     */
+    private function send(string $messageId, string $text, array $chain = [], ?string $contextId = null): array {
+        $message = ['messageId' => $messageId, 'parts' => [['text' => $text]]] + ($contextId === null ? [] : ['contextId' => $contextId]);
+        [, $answer] = $this->server->handle($this->leaderAgent(), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'SendMessage', 'params' => ['message' => $message, 'metadata' => ['mercurius' => $chain]]]);
+        return $answer;
+    }
+
+    /** A value deep in a JSON answer; null when the path is not there. */
+    private static function dig(mixed $data, string|int ...$path): mixed {
+        foreach ($path as $key) {
+            if (!is_array($data) || !array_key_exists($key, $data)) {
+                return null;
+            }
+            /** @var mixed $data */
+            $data = $data[$key];
+        }
+        return $data;
+    }
+
+    private static function text(mixed $data, string|int ...$path): string {
+        /** @var mixed $value */
+        $value = self::dig($data, ...$path);
+        return is_string($value) ? $value : '';
+    }
+
+    public function testAgentsAreKnownByTheirKeysAndOnlyWithTheEntranceToken(): void {
+        $this->follower(new ScriptedLlm([]));
+        $call = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'GetTask', 'params' => ['id' => 'x']];
+
+        [$agent, $status] = $this->authenticate($call);
+        self::assertSame(200, $status);
+        self::assertSame([PrincipalKind::Agent, 'leader'], [$agent?->kind, $agent?->displayName]);
+
+        self::assertSame(401, $this->authenticate($call, token: 'wrong')[1], 'the entrance needs the token from .env');
+        [, $status, $why] = $this->authenticate($call, AgentIdentity::generate());
+        self::assertSame(403, $status, 'a stranger key is not let in');
+        self::assertStringContainsString('/peer allow', $why);
+        self::assertSame(401, $this->authenticate($call, at: time() - A2aServer::CLOCK_SKEW - 5)[1], 'an old signature');
+        $this->authenticate($call, nonce: 'nonce-used-once-000');
+        self::assertSame(401, $this->authenticate($call, nonce: 'nonce-used-once-000')[1], 'a replay');
+
+        $forged = $this->server->authenticate([
+            'authorization' => 'Bearer ' . self::ENTRANCE,
+            'x-a2a-key' => base64_encode($this->leaderKey->publicKey),
+            'x-a2a-timestamp' => (string) time(),
+            'x-a2a-nonce' => 'forged-signature-01',
+            'x-a2a-signature' => AgentIdentity::generate()->sign('anything'),
+        ], 'POST', '/a2a', '{}');
+        self::assertSame(401, $forged[1], 'the leader key cannot be claimed without its private half');
+
+        self::assertTrue($this->followerPeers->revokeKey('leader'));
+        self::assertSame(403, $this->authenticate($call)[1], 'a revoked agent no longer connects');
+    }
+
+    public function testATaskOfANeighbourRunsUnderItsOwnAgentAndAnswersWithoutSecrets(): void {
+        $this->follower(new ScriptedLlm([ScriptedLlm::text('Готово. Ключ sk-or-v1-0123456789abcdef0123456789abcdef использовать нельзя.')]));
+
+        $answer = $this->send('m1', 'Проверь, сколько будет 2+2');
+        self::assertSame(A2aTask::WORKING, self::dig($answer, 'result', 'task', 'status', 'state'));
+        $taskId = self::text($answer, 'result', 'task', 'id');
+        delay(0.05);
+
+        [, $got] = $this->server->handle($this->leaderAgent(), ['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tasks/get', 'params' => ['id' => $taskId]]);
+        self::assertSame(A2aTask::COMPLETED, self::dig($got, 'result', 'status', 'state'));
+        $text = self::text($got, 'result', 'status', 'message', 'parts', 0, 'text');
+        self::assertStringStartsWith('Готово.', $text);
+        self::assertStringNotContainsString('0123456789abcdef', $text, 'the answer leaves without secrets');
+        $prompt = array_slice($this->follower->llm->requests[0]->messages, -1)[0]->content ?? '';
+        self::assertStringContainsString('Задача от агента «leader»', $prompt);
+        self::assertSame([], $this->follower->llm->requests[0]->tools, 'an agent starts with no tools');
+
+        self::assertSame($taskId, self::dig($this->send('m1', 'Проверь, сколько будет 2+2'), 'result', 'task', 'id'), 'the same messageId is the same task');
+        self::assertCount(1, $this->follower->llm->requests);
+    }
+
+    public function testLoopsDepthAndPingPongAreRefused(): void {
+        $this->follower(new ScriptedLlm([]));
+
+        $loop = $this->send('m1', 'x', ['depth' => 1, 'path' => [self::LEADER, self::FOLLOWER]]);
+        self::assertSame(A2aTask::REJECTED, self::dig($loop, 'result', 'task', 'status', 'state'));
+        self::assertStringContainsString('Цикл', self::text($loop, 'result', 'task', 'status', 'message', 'parts', 0, 'text'));
+
+        $deep = $this->send('m2', 'x', ['depth' => A2aServer::MAX_DEPTH, 'path' => ['a', 'b', 'c']]);
+        self::assertSame(A2aTask::REJECTED, self::dig($deep, 'result', 'task', 'status', 'state'));
+
+        $leader = $this->leaderAgent();
+        for ($i = 0; $i < A2aServer::MAX_TURNS; $i++) {
+            $this->followerPeers->createTask('t' . $i, $leader->id, 'ctx-chat', 'old' . $i, A2aTask::COMPLETED);
+        }
+        self::assertStringContainsString('не больше 5', self::text($this->send('m3', 'x', [], 'ctx-chat'), 'result', 'task', 'status', 'message', 'parts', 0, 'text'));
+
+        [, $unknown] = $this->server->handle($leader, ['jsonrpc' => '2.0', 'id' => 9, 'method' => 'tasks/resubscribe', 'params' => []]);
+        self::assertSame(A2aServer::ERR_METHOD_NOT_FOUND, self::dig($unknown, 'error', 'code'));
+        [, $bad] = $this->server->handle($leader, ['jsonrpc' => '2.0', 'id' => 9, 'method' => 'SendMessage', 'params' => ['message' => ['parts' => []]]]);
+        self::assertSame(A2aServer::ERR_INVALID_PARAMS, self::dig($bad, 'error', 'code'));
+    }
+
+    public function testTheRateIsCappedPerAgent(): void {
+        $this->follower(new ScriptedLlm([]));
+        $leader = $this->leaderAgent();
+        for ($i = 0; $i < A2aServer::RATE; $i++) {
+            $this->server->handle($leader, ['jsonrpc' => '2.0', 'id' => $i, 'method' => 'GetTask', 'params' => ['id' => 'none']]);
+        }
+        [$status] = $this->server->handle($leader, ['jsonrpc' => '2.0', 'id' => 99, 'method' => 'GetTask', 'params' => ['id' => 'none']]);
+        self::assertSame(429, $status);
+    }
+
+    public function testTheLeaderDelegatesChecksWhoAnsweredAndGetsTheAnswerAsData(): void {
+        $this->follower(new ScriptedLlm([ScriptedLlm::text('Столица Франции — Париж.')]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $leaderPeers = new InMemoryPeerRepository();
+        $network = $this->network($leaderPeers, $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+
+        $added = $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+        self::assertStringContainsString($this->followerKey->fingerprint(), $added, 'the owner sees the key to compare');
+        self::assertStringContainsString('/peer allow <имя для меня> ' . $this->leaderKey->fingerprint(), $added);
+
+        $leader->say('привет', '7');
+        $conversation = $leader->conversations->openConversation($owner->id, 'telegram', '7');
+        $tool = new PeerDelegateTool($network, $leaderPeers, $leader->conversations);
+        $result = $tool->execute(['peer' => 'follower', 'task' => 'Какая столица Франции?'], new ToolContext(1, $conversation, $owner, new NullCancellation()));
+        self::assertFalse($result->isError, $result->content);
+        self::assertStringContainsString('Задача #1 отдана соседу «follower»', $result->content);
+
+        delay(0.05);
+        $network->poll();
+
+        $sent = implode("\n", $leader->channel->texts('send'));
+        self::assertStringContainsString('📨 Агент «follower», задача #1', $sent);
+        self::assertStringContainsString('Париж', $sent);
+        self::assertSame(A2aTask::COMPLETED, $leaderPeers->outgoing[1]->state ?? null);
+        $first = array_key_first($this->followerPeers->tasks);
+        self::assertNotNull($first);
+        self::assertSame([self::LEADER, self::FOLLOWER], $this->followerPeers->tasks[$first]->path, 'the chain carries both instances');
+
+        // Someone else at the follower's address: answers signed by another key are refused.
+        $leaderPeers->addPeer('follower', self::FOLLOWER, 'follower-entrance', AgentIdentity::generate()->publicKey, null);
+        $impostor = $tool->execute(['peer' => 'follower', 'task' => 'ещё вопрос'], new ToolContext(1, $conversation, $owner, new NullCancellation()));
+        self::assertTrue($impostor->isError);
+        self::assertStringContainsString('не ключом этого соседа', $impostor->content);
+    }
+}

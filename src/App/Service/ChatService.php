@@ -31,7 +31,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы, /jobs — задания, /hook — webhook задания, /digest — сводка дел, /doctor — проверка установки, /settings — настройки, /set — изменить, /restart — перезапуск.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы, /jobs — задания, /hook — webhook задания, /digest — сводка дел, /doctor — проверка установки, /settings — настройки, /set — изменить, /restart — перезапуск, /peers — сеть агентов.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -56,6 +56,7 @@ final class ChatService implements MessageHandler {
         private readonly ?JobCommands $jobs = null,
         private readonly ?Doctor $doctor = null,
         private readonly ?SettingsCommands $settings = null,
+        private readonly ?PeerCommands $peers = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -147,6 +148,15 @@ final class ChatService implements MessageHandler {
             if ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, 'Не удалось удалить сообщение с ключом — удалите его сами.');
             }
+            return;
+        }
+        if (in_array($command, ['/peer', '/peers'], true) && $this->peers !== null) {
+            // spec: BRIEF.md#сеть-агентов — tokens are shown once, so only in the private chat
+            $this->reply($message, match (true) {
+                !$principal->isOwner() => self::OWNER_ONLY,
+                !$message->isPrivateChat => self::SECRET_PRIVATE,
+                default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
+            });
             return;
         }
         if ($command === '/doctor' && $this->doctor !== null) {

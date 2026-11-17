@@ -51,6 +51,8 @@ final class SettingsCatalog {
         'TRACE_RETENTION_DAYS' => ['трассы', self::INT, 'дней хранения полных промптов'],
         'SSH_CONFIRM_GROUPS' => ['серверы', self::TEXT, 'группы серверов, где каждая команда — с подтверждением'],
         'METRICS_TOKEN' => ['трассы', self::SECRET, 'токен /metrics для Prometheus (пусто — выключен)'],
+        'A2A_NAME' => ['сеть', self::TEXT, 'имя агента в карточке A2A для соседей'],
+        'A2A_DESCRIPTION' => ['сеть', self::TEXT, 'чем агент может помочь соседям (карточка A2A)'],
     ];
 
     public static function has(string $key): bool {

@@ -71,6 +71,40 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         }
     }
 
+    public function createAgent(string $name, Role $role): Principal {
+        $tx = $this->db->beginTransaction();
+        try {
+            $tx->execute('SELECT pg_advisory_xact_lock(?, hashtext(?))', [self::OWNER_LOCK, 'a2a:' . $name]);
+            $found = $tx->execute(
+                'SELECT p.id FROM channel_identities i JOIN principals p ON p.id = i.principal_id WHERE i.channel = ? AND i.external_id = ?',
+                ['a2a', $name],
+            )->fetchRow();
+            $row = isset($found['id']) && is_int($found['id'])
+                ? $tx->execute(
+                    "UPDATE principals SET role = ?, status = 'active', display_name = ? WHERE id = ? RETURNING id, kind, role, display_name, status",
+                    [$role->value, $name, $found['id']],
+                )->fetchRow()
+                : $tx->execute(
+                    "INSERT INTO principals (kind, role, display_name, status) VALUES ('agent', ?, ?, 'active') RETURNING id, kind, role, display_name, status",
+                    [$role->value, $name],
+                )->fetchRow();
+            if ($row === null) {
+                throw new UnexpectedValueException('Agent was not created');
+            }
+            $agent = self::hydrate($row);
+            $tx->execute(
+                'INSERT INTO channel_identities (channel, external_id, principal_id) VALUES (?, ?, ?) ON CONFLICT (channel, external_id) DO NOTHING',
+                ['a2a', $name, $agent->id],
+            );
+            $tx->commit();
+            return $agent;
+        } finally {
+            if ($tx->isActive()) {
+                $tx->rollback();
+            }
+        }
+    }
+
     public function createVisitor(string $channel, string $externalId, ?string $displayName): Principal {
         $tx = $this->db->beginTransaction();
         try {

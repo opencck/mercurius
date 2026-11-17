@@ -22,6 +22,13 @@ interface PrincipalRepository {
     /** Creates a pending visitor (a person) and binds the identity; returns the existing participant when the identity is taken. */
     public function createVisitor(string $channel, string $externalId, ?string $displayName): Principal;
 
+    /**
+     * A connecting agent of the network under its name (channel "a2a"); an existing one keeps its id and gets the role.
+     *
+     * spec: BRIEF.md#сеть-агентов — a connected agent is a participant of kind agent
+     */
+    public function createAgent(string $name, Role $role): Principal;
+
     /** The owner's decision on a pending visitor, taken atomically; null when it was already decided. */
     public function decideVisitor(int $id, Role $role, PrincipalStatus $status): ?Principal;
 }

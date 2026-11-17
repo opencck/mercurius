@@ -500,6 +500,48 @@ $scheduler->useProjects(new ProjectContext($projectRepository));
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone));
 $scheduler->useJobRuns($jobScheduler);
+
+// spec: BRIEF.md#сеть-агентов — A2A v1.0: neighbours connect with their own tokens; the agent gives tasks to its own
+$peerRepository = new \OpenCCK\Infrastructure\Repository\PostgresPeerRepository($db);
+$selfUrl = $config->appUrl === null ? null : rtrim($config->appUrl, '/');
+// The entrance token comes from .env; who speaks is known by the ECDSA key of each agent (kept in the vault).
+$a2aToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TOKEN');
+$agentIdentity = $vault->enabled()
+    ? \OpenCCK\App\Peer\AgentIdentity::load($vault, $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null))
+    : \OpenCCK\App\Peer\AgentIdentity::generate();
+$peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
+    $peerRepository,
+    $principals,
+    $vault,
+    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity),
+    $conversations,
+    $transcript,
+    $channel,
+    $selfUrl ?? 'local:' . $telegram->ownerId,
+    $logger,
+    $agentIdentity,
+    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+);
+$tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
+$a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? null : new \OpenCCK\App\Peer\A2aServer(
+    $peerRepository,
+    $principals,
+    $loop,
+    $runs,
+    $transcript,
+    $conversations,
+    $policies,
+    $llmSettings->model,
+    $selfUrl,
+    \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_NAME') ?? 'Mercurius',
+    \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_DESCRIPTION') ?? 'Персональный агент: задачи по правилам и правам своего владельца.',
+    $logger,
+    $agentIdentity,
+    $a2aToken,
+);
+if ($a2aServer !== null) {
+    $scheduler->useJobRuns($a2aServer);
+}
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
@@ -525,6 +567,7 @@ $chat = new ChatService(
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create()),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
+    new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
@@ -538,6 +581,11 @@ $routes = [];
 $webhookSecret = $telegram->webhookSecret();
 if ($webhookSecret !== null) {
     $routes[] = ['POST', '/telegram/webhook', new TelegramWebhookHandler(new WebhookProcessor($webhookSecret, $parser, $dispatcher, $deduplicator, $logger))];
+}
+
+if ($a2aServer !== null) {
+    $routes[] = ['GET', '/.well-known/agent-card.json', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
+    $routes[] = ['POST', '/a2a', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
 }
 
 // spec: BRIEF.md#планировщик-и-проекты — a signed event starts a job by event
@@ -556,6 +604,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
     ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))
+    ->addHandler(fn(App $app): \OpenCCK\Infrastructure\Module\PeerModule => new \OpenCCK\Infrastructure\Module\PeerModule($peerNetwork, $a2aServer, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,
