@@ -799,9 +799,10 @@ $chat = new ChatService(
     $groupGate,
     explode(':', $telegram->token(), 2)[0],
     $runMessages,
-    new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
-    // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent
-    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs, docs: $docsService),
+    // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent; the files of
+    // an answer to the agent's question go to the one who asked
+    new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger, $attachmentIntake = new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs, docs: $docsService), $policies),
+    $attachmentIntake,
     $policies,
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days

@@ -94,8 +94,8 @@ final class AgentStack {
     }
 
     /** The chat where answers to the agent's personal messages go back to who asked. */
-    public function useRelays(\OpenCCK\Domain\Repository\MessageRelayRepository $relays): void {
-        $service = new \OpenCCK\App\Service\RelayService($relays, $this->principals, $this->conversations, $this->scheduler, $this->channel);
+    public function useRelays(\OpenCCK\Domain\Repository\MessageRelayRepository $relays, ?\OpenCCK\App\Agent\Media\AttachmentIntake $intake = null): void {
+        $service = new \OpenCCK\App\Service\RelayService($relays, $this->principals, $this->conversations, $this->scheduler, $this->channel, intake: $intake, policies: $this->policies);
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, relays: $service);
     }
 

@@ -37,12 +37,16 @@ final class RelayService {
         private readonly RunScheduler $scheduler,
         private readonly Channel $channel,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** files of the answer go into the sandbox of the one who asked, as files of their own message would */
+        private readonly ?\OpenCCK\App\Agent\Media\AttachmentIntake $intake = null,
+        private readonly ?PolicyService $policies = null,
     ) {}
 
     /** True when the message answered a question and went back to who asked: it is not a request of its own then. */
     public function answer(Principal $sender, IncomingMessage $message): bool {
         $text = trim($message->text);
-        if (!$message->isPrivateChat || $text === '' || str_starts_with($text, '/')) {
+        $files = $message->attachments !== [] && $this->intake !== null && $this->policies !== null;
+        if (!$message->isPrivateChat || ($text === '' && !$files) || str_starts_with($text, '/')) {
             return false;
         }
         $relay = $this->relays->takeOpen($message->channel, $message->chatId, new DateTimeImmutable(self::WAIT));
@@ -56,8 +60,13 @@ final class RelayService {
             return false;
         }
         $name = $sender->displayName ?? '#' . $sender->id;
+        // spec: BRIEF.md#входящие-вложения — the files of the answer are taken as the asker's own, kept in its sandbox
+        $taken = '';
+        if ($this->intake !== null && $this->policies !== null && $message->attachments !== []) {
+            $taken = $this->intake->intake($asker, $this->policies->forPrincipal($asker), $message, new \Amp\NullCancellation(), $relay->originConversationId)->text;
+        }
         $body = sprintf(t('relay.answer'), MessageMeta::inline($name), $relay->originRunId ?? 0, MessageMeta::inline($relay->question))
-            . "\n" . UntrustedWrapper::wrap('direct-reply', $text);
+            . "\n" . UntrustedWrapper::wrap('direct-reply', trim($text . "\n\n" . $taken));
         $shared = str_starts_with($meta->chatId, '-');
         $relayed = new IncomingMessage(
             $meta->channel,

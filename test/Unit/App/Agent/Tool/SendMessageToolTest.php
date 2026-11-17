@@ -154,6 +154,31 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertContains('Роман ответил: пока тихо.', $this->stack->channel->texts('edit') + $this->sentTo('42'));
         self::assertNull($this->relays->takeOpen('telegram', '77', new \DateTimeImmutable('-1 day')), 'one answer per question');
     }
+    public function testAnAnswerWithAFileBringsTheFile(): void {
+        $this->stack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'send_message', '{"to":"Roman","text":"Пришли отчёт","expect_reply":true}')),
+            ScriptedLlm::text('Попросил Романа.'),
+            ScriptedLlm::text('Отчёт от Романа получен.'),
+        ]));
+        $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        $this->stack->useRelays($this->relays, new \OpenCCK\App\Agent\Media\AttachmentIntake($this->stack->channel, $sandbox, \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv([]), new \DateTimeZone('+03:00')));
+        $this->stack->approvals->addGrant(1, 'message:' . $this->roman->id);
+        $this->stack->channel->downloads['f9'] = 'итоги недели';
+
+        $this->stack->say('попроси у Романа отчёт');
+        $this->stack->scheduler->awaitIdle();
+        $id = (string) random_int(1000, 9999);
+        $this->stack->chat->handle(new \Mercurius\Messenger\IncomingMessage('telegram', '77', '77', 'roman', 'Roman', '', $id, null, true, new \DateTimeImmutable(), $id, attachments: [new \Mercurius\Messenger\Attachment(\Mercurius\Messenger\AttachmentKind::Document, 'f9', 'report.txt', null, 20)]));
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertCount(3, $this->stack->llm->requests, 'a file without text is an answer too');
+        $last = $this->stack->llm->requests[2]->messages;
+        $prompt = end($last);
+        self::assertNotFalse($prompt);
+        self::assertStringContainsString('report.txt', $prompt->content);
+        self::assertStringContainsString('итоги недели', $prompt->content);
+    }
+
     public function testFilesGoToThePersonAfterTheText(): void {
         $this->stack(new ScriptedLlm([]));
         $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
