@@ -66,7 +66,7 @@ final class RunScheduler {
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
-    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, future: Future<void>}> */
+    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: bool, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
     /** @var list<JobRuns> */
@@ -181,7 +181,8 @@ final class RunScheduler {
 
     /** Hands a message over and returns at once. */
     /** @param bool $silenceAllowed nobody asked the agent (a free group): it may answer [SILENT] */
-    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false): void {
+    /** @param bool $outside the message carries data from outside (files): the run that takes it is marked */
+    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, bool $outside = false): void {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
@@ -196,6 +197,10 @@ final class RunScheduler {
             return;
         }
         if ($run !== null) {
+            if ($outside) {
+                // spec: BRIEF.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
+                $this->runs->markOutside($run->id, 'attachments');
+            }
             $this->transcript->inbox($run->id, $text, $message->messageId);
             return;
         }
@@ -203,6 +208,7 @@ final class RunScheduler {
         if (isset($this->pending[$conversationId])) {
             $this->pending[$conversationId]['texts'][] = $text;
             $this->pending[$conversationId]['last'] = $now;
+            $this->pending[$conversationId]['outside'] = $this->pending[$conversationId]['outside'] || $outside;
             // someone asked: the batch no longer waits for the group to fall silent
             $this->pending[$conversationId]['quiet'] = $this->pending[$conversationId]['quiet'] && $silenceAllowed;
             return;
@@ -214,6 +220,7 @@ final class RunScheduler {
             'message' => $message,
             'principal' => $principal,
             'quiet' => $silenceAllowed,
+            'outside' => $outside,
             'future' => async($this->startAfterDebounce(...), $conversationId),
         ];
     }
@@ -378,7 +385,10 @@ final class RunScheduler {
             return;
         }
         try {
-            $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
+            $runId = $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
+            if ($runId !== null && $pending['outside']) {
+                $this->runs->markOutside($runId, 'attachments');
+            }
         } catch (Throwable $e) {
             $this->logger->error('Could not start a run', ['conversation' => $conversationId, 'error' => $e::class]);
             $this->channel->send(new OutgoingMessage($pending['message']->chatId, \Mercurius\I18n\t(self::NOT_STARTED), $pending['message']->messageId));

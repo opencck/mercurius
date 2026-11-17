@@ -708,6 +708,9 @@ $chat = new ChatService(
     explode(':', $telegram->token(), 2)[0],
     $runMessages,
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
+    // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent
+    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV), $ownerZone, logger: $logger),
+    $policies,
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));

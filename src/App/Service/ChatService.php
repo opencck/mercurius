@@ -65,6 +65,9 @@ final class ChatService implements MessageHandler {
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
         /** answers to the agent's personal messages go back to who asked */
         private readonly ?RelayService $relays = null,
+        /** files of messages go into the sandbox and are described to the agent; null — files are not taken */
+        private readonly ?\OpenCCK\App\Agent\Media\AttachmentIntake $intake = null,
+        private readonly ?\OpenCCK\App\Service\PolicyService $policies = null,
     ) {}
 
     /** The run that wrote the agent's message this one answers; null when it is not known. */
@@ -104,11 +107,16 @@ final class ChatService implements MessageHandler {
     private function proceed(Principal $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
 
         $text = trim($message->text);
-        if ($text === '') {
+        // spec: BRIEF.md#входящие-вложения — a message with files is not empty: a photo without a caption reaches the agent
+        $intake = $this->intake;
+        $policies = $this->policies;
+        $attached = $message->attachments !== [] && $intake !== null && $policies !== null;
+        if ($text === '' && !$attached) {
             $this->reply($message, t(self::NOT_TEXT));
             return;
         }
-        $command = strtolower(explode(' ', $text, 2)[0]);
+        $original = $message;
+        $command = $text === '' ? '' : strtolower(explode(' ', $text, 2)[0]);
         if ($command === '/start') {
             $this->reply($message, t(self::GREETING));
             return;
@@ -246,26 +254,17 @@ final class ChatService implements MessageHandler {
             // spec: BRIEF.md#telegram-группы-каналы-и-темы — the agent sees what a message answers
             $header = MessageMeta::header($message, $this->botId, run: $this->runOfReply($message));
             if ($header !== '') {
-                $message = new IncomingMessage(
-                    $message->channel,
-                    $message->chatId,
-                    $message->userId,
-                    $message->userName,
-                    $message->displayName,
-                    $header . "\n" . $message->text,
-                    $message->messageId,
-                    $message->replyToMessageId,
-                    $message->isPrivateChat,
-                    $message->receivedAt,
-                    $message->updateId,
-                    $message->threadId,
-                    $message->isEdited,
-                    $message->raw,
-                );
+                $message = self::withText($message, $header . "\n" . $message->text);
             }
         }
+        $outside = false;
+        if ($original->attachments !== [] && $intake !== null && $policies !== null) {
+            $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180));
+            $outside = $taken->outside;
+            $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
+        }
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
-        $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed);
+        $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed, $outside);
     }
 
     /**
@@ -287,13 +286,18 @@ final class ChatService implements MessageHandler {
             $name === null ? t('service.chat.sohranit_sekret_mozhno_tolko_v') : sprintf(t('service.chat.tekst_sohranen_v_hranilische_kak'), $name),
         ));
         $note = $name === null ? '' : sprintf(t('service.chat.soobschenie_soderzhalo_sekret_ono_udalen'), $name);
+        return self::withText($message, $masked . $note);
+    }
+
+    /** The same message with another text; everything else, the files included, stays. */
+    private static function withText(IncomingMessage $message, string $text): IncomingMessage {
         return new IncomingMessage(
             $message->channel,
             $message->chatId,
             $message->userId,
             $message->userName,
             $message->displayName,
-            $masked . $note,
+            $text,
             $message->messageId,
             $message->replyToMessageId,
             $message->isPrivateChat,
@@ -301,6 +305,8 @@ final class ChatService implements MessageHandler {
             $message->updateId,
             $message->threadId,
             $message->isEdited,
+            $message->raw,
+            $message->attachments,
         );
     }
 
