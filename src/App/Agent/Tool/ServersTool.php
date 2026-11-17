@@ -41,11 +41,12 @@ final class ServersTool implements Tool {
             return ToolResult::ok('Серверов в реестре нет. Добавить — server_add (с подтверждением владельца).');
         }
         return ToolResult::ok(implode("\n", array_map(static fn(Server $s): string => sprintf(
-            '%s — %s@%s, группа %s, ключ хоста: %s%s',
+            '%s — %s@%s, группа %s, маршрут %s, ключ хоста: %s%s',
             $s->name,
             $s->username,
             $s->address(),
             $s->group,
+            $s->route ?? 'напрямую',
             $s->hostKey === null ? ($s->pendingHostKey === null ? 'ещё не видели' : 'ждёт подтверждения владельца') : 'подтверждён',
             $s->secretId === null ? ', секрета для входа нет' : '',
         ), $all)));

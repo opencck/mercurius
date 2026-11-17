@@ -12,18 +12,18 @@ use OpenCCK\Domain\Server\Server;
 use UnexpectedValueException;
 
 final class PostgresServerRepository implements ServerRepository {
-    private const COLUMNS = 'id, name, host, port, username, secret_id, server_group, host_key, pending_host_key';
+    private const COLUMNS = 'id, name, host, port, username, secret_id, server_group, host_key, pending_host_key, route';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group): Server {
+    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group, ?string $route = null): Server {
         if ($this->byName($name) !== null) {
             throw new DomainException(sprintf('Сервер «%s» уже есть.', $name));
         }
         try {
             $row = $this->db->execute(
-                'INSERT INTO servers (name, host, port, username, secret_id, server_group) VALUES (?, ?, ?, ?, ?, ?) RETURNING ' . self::COLUMNS,
-                [$name, $host, $port, $username, $secretId, $group],
+                'INSERT INTO servers (name, host, port, username, secret_id, server_group, route) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::COLUMNS,
+                [$name, $host, $port, $username, $secretId, $group, $route],
             )->fetchRow();
         } catch (SqlQueryError) {
             throw new DomainException(sprintf('Сервер «%s» уже есть.', $name));
@@ -88,6 +88,7 @@ final class PostgresServerRepository implements ServerRepository {
             $group,
             isset($row['host_key']) && is_string($row['host_key']) ? $row['host_key'] : null,
             isset($row['pending_host_key']) && is_string($row['pending_host_key']) ? $row['pending_host_key'] : null,
+            isset($row['route']) && is_string($row['route']) ? $row['route'] : null,
         );
     }
 }

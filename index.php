@@ -335,7 +335,17 @@ if (!$vault->enabled()) {
 $serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
 $hostKeyCards = new HostKeyCards($serverRepository, $channel, $telegram->ownerId);
-$serverConsole = new ServerConsole($serverRepository, $vault, new CommandClassifier(), $commandAudit, new AmpSshShell(), $hostKeyCards->ask(...), $logger);
+$serverConsole = new ServerConsole(
+    $serverRepository,
+    $vault,
+    new CommandClassifier(),
+    $commandAudit,
+    new AmpSshShell(),
+    $hostKeyCards->ask(...),
+    $logger,
+    $llmSettings->routeUri(),
+    $vaultSettings->confirmGroups,
+);
 $tools->register(new ServersTool($serverRepository));
 $tools->register(new ServerAddTool($serverRepository, $vault));
 $tools->register(new SshRunTool($serverConsole));

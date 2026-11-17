@@ -7,6 +7,7 @@ namespace OpenCCK\App\Agent\Tool;
 use Mercurius\Llm\ToolDefinition;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\CommandPolicy\Classification;
+use OpenCCK\CommandPolicy\CommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 
 /**
@@ -15,7 +16,7 @@ use OpenCCK\Domain\Agent\DangerClass;
  *
  * spec: BRIEF.md#фаза-7-по-частям — a read runs at once, a change after confirmation
  */
-final class SshRunTool implements Tool {
+final class SshRunTool implements Tool, GrantKeyed {
     public const NAME = 'ssh_run';
 
     public function __construct(private readonly ServerConsole $console) {}
@@ -37,13 +38,33 @@ final class SshRunTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        $class = $this->console->classify(Args::string($args, 'command') ?? '');
+        $class = $this->console->classify(Args::string($args, 'command') ?? '', Args::string($args, 'server'));
         return match ($class->class) {
             Classification::READ => DangerClass::Read,
             // refused in execute, nothing to confirm
             Classification::NEVER => DangerClass::Write,
             default => DangerClass::Irreversible,
         };
+    }
+
+    /**
+     * A change can be granted for good — this exact command on this server, under this version of the policy; raising
+     * privileges is asked every time.
+     *
+     * spec: BRIEF.md#фаза-7-по-частям — one-off grants as the base of learned preferences; a change of the policy drops
+     *       the grants
+     */
+    public function grantKey(array $args): ?string {
+        $command = trim(Args::string($args, 'command') ?? '');
+        $server = mb_strtolower(trim(Args::string($args, 'server') ?? ''));
+        if ($command === '' || $server === '' || $this->console->classify($command, $server)->class !== Classification::CHANGE) {
+            return null;
+        }
+        return sprintf('ssh:v%d:%s:%s', CommandClassifier::VERSION, $server, hash('sha256', $command));
+    }
+
+    public function describe(array $args): string {
+        return sprintf('Команда на сервере «%s»: %s', Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'command') ?? '', 0, 300));
     }
 
     public function untrusted(): bool {

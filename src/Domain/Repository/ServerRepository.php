@@ -12,7 +12,7 @@ use OpenCCK\Domain\Server\Server;
  */
 interface ServerRepository {
     /** @throws DomainException when a server with this name exists */
-    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group): Server;
+    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group, ?string $route = null): Server;
 
     public function find(int $id): ?Server;
 

@@ -25,6 +25,8 @@ final class Server {
         public readonly ?string $hostKey,
         /** seen at the first connection, waiting for the owner */
         public readonly ?string $pendingHostKey,
+        /** null — directly; vless; secret:<name> — a proxy URI in the vault; via:<server> — through that server */
+        public readonly ?string $route = null,
     ) {}
 
     public function address(): string {

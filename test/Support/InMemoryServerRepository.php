@@ -12,12 +12,12 @@ final class InMemoryServerRepository implements ServerRepository {
     /** @var array<int, Server> */
     public array $servers = [];
 
-    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group): Server {
+    public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group, ?string $route = null): Server {
         if ($this->byName($name) !== null) {
             throw new DomainException(sprintf('Сервер «%s» уже есть.', $name));
         }
         $id = count($this->servers) + 1;
-        return $this->servers[$id] = new Server($id, $name, $host, $port, $username, $secretId, $group, null, null);
+        return $this->servers[$id] = new Server($id, $name, $host, $port, $username, $secretId, $group, null, null, $route);
     }
 
     public function find(int $id): ?Server {
@@ -40,7 +40,7 @@ final class InMemoryServerRepository implements ServerRepository {
     public function setPendingHostKey(int $id, string $fingerprint): void {
         $s = $this->servers[$id] ?? null;
         if ($s !== null && $s->hostKey === null) {
-            $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, null, $fingerprint);
+            $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, null, $fingerprint, $s->route);
         }
     }
 
@@ -49,7 +49,7 @@ final class InMemoryServerRepository implements ServerRepository {
         if ($s === null || $s->pendingHostKey === null) {
             return null;
         }
-        return $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, $trust ? $s->pendingHostKey : $s->hostKey, null);
+        return $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, $trust ? $s->pendingHostKey : $s->hostKey, null, $s->route);
     }
 
     public function remove(int $id): bool {

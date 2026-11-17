@@ -6,6 +6,7 @@ namespace OpenCCK\Test\Integration;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
+use OpenCCK\App\Server\Connection;
 use OpenCCK\App\Server\RemoteFailure;
 use OpenCCK\App\Server\RemoteResult;
 use OpenCCK\App\Server\UnknownHostKey;
@@ -48,7 +49,7 @@ final class SshTest extends AsyncTestCase {
 
     private function trusted(): Server {
         try {
-            (new AmpSshShell())->run($this->server(null), self::PASSWORD, 'password', 'true', 5, 100, new NullCancellation());
+            (new AmpSshShell())->run(new Connection($this->server(null), self::PASSWORD, 'password'), 'true', 5, 100, new NullCancellation());
         } catch (UnknownHostKey $e) {
             return $this->server($e->fingerprint);
         }
@@ -57,7 +58,7 @@ final class SshTest extends AsyncTestCase {
 
     public function testTheFirstConnectionStopsAtTheUnknownKey(): void {
         try {
-            (new AmpSshShell())->run($this->server(null), self::PASSWORD, 'password', 'id', 5, 100, new NullCancellation());
+            (new AmpSshShell())->run(new Connection($this->server(null), self::PASSWORD, 'password'), 'id', 5, 100, new NullCancellation());
             self::fail('connected to an unknown host');
         } catch (UnknownHostKey $e) {
             self::assertStringStartsWith('SHA256:', $e->fingerprint);
@@ -66,7 +67,7 @@ final class SshTest extends AsyncTestCase {
     }
 
     public function testACommandRunsWithItsOutputAndCode(): void {
-        $result = (new AmpSshShell())->run($this->trusted(), self::PASSWORD, 'password', 'echo hi; id -un; echo oops >&2; exit 3', 10, 10_000, new NullCancellation());
+        $result = (new AmpSshShell())->run(new Connection($this->trusted(), self::PASSWORD, 'password'), 'echo hi; id -un; echo oops >&2; exit 3', 10, 10_000, new NullCancellation());
 
         self::assertSame(3, $result->exitCode);
         self::assertSame("hi\ntester\n", $result->stdout);
@@ -75,36 +76,59 @@ final class SshTest extends AsyncTestCase {
     }
 
     public function testStdinIsClosedAndAQuoteIsKept(): void {
-        $result = (new AmpSshShell())->run($this->trusted(), self::PASSWORD, 'password', "cat; echo \"it's done\"", 10, 10_000, new NullCancellation());
+        $result = (new AmpSshShell())->run(new Connection($this->trusted(), self::PASSWORD, 'password'), "cat; echo \"it's done\"", 10, 10_000, new NullCancellation());
 
         self::assertSame(0, $result->exitCode, 'cat does not wait for input');
         self::assertSame("it's done\n", $result->stdout);
     }
 
     public function testTheServerStopsALongCommand(): void {
-        $result = (new AmpSshShell())->run($this->trusted(), self::PASSWORD, 'password', 'sleep 30', 1, 1000, new NullCancellation());
+        $result = (new AmpSshShell())->run(new Connection($this->trusted(), self::PASSWORD, 'password'), 'sleep 30', 1, 1000, new NullCancellation());
 
         self::assertSame(RemoteResult::TIMED_OUT, $result->exitCode);
         self::assertLessThan(10_000, $result->durationMs);
     }
 
     public function testOutputIsKeptWithinTheLimit(): void {
-        $result = (new AmpSshShell())->run($this->trusted(), self::PASSWORD, 'password', 'head -c 200000 /dev/zero | tr "\0" a', 10, 1000, new NullCancellation());
+        $result = (new AmpSshShell())->run(new Connection($this->trusted(), self::PASSWORD, 'password'), 'head -c 200000 /dev/zero | tr "\0" a', 10, 1000, new NullCancellation());
 
         self::assertSame(0, $result->exitCode);
         self::assertSame(1000, strlen($result->stdout));
         self::assertTrue($result->truncated);
     }
 
+    public function testAPrivateKeyLogsIn(): void {
+        $server = $this->trusted();
+        $key = (new AmpSshShell())->run(new Connection($server, self::PASSWORD, 'password'), 'cat ~/.ssh/id_ed25519', 10, 10_000, new NullCancellation())->stdout;
+        self::assertStringStartsWith('-----BEGIN OPENSSH PRIVATE KEY-----', $key);
+
+        $result = (new AmpSshShell())->run(new Connection($server, $key, 'private_key'), 'id -un', 10, 1000, new NullCancellation());
+
+        self::assertSame("tester
+", $result->stdout);
+        self::assertSame([], (array) glob('/dev/shm/mercurius-key-*'), 'the key file is gone');
+    }
+
+    public function testAJumpGoesThroughTheServerInBetween(): void {
+        $server = $this->trusted();
+        // The test server is its own server in between: the tunnel from it leads back to its port 22.
+        $target = new Connection($server, self::PASSWORD, 'password', null, new Connection($server, self::PASSWORD, 'password'));
+
+        $result = (new AmpSshShell())->run($target, 'echo through', 10, 1000, new NullCancellation());
+
+        self::assertSame("through
+", $result->stdout);
+    }
+
     public function testAChangedKeyAndAWrongPasswordAreRefused(): void {
         try {
-            (new AmpSshShell())->run($this->server('SHA256:somethingelse'), self::PASSWORD, 'password', 'id', 5, 100, new NullCancellation());
+            (new AmpSshShell())->run(new Connection($this->server('SHA256:somethingelse'), self::PASSWORD, 'password'), 'id', 5, 100, new NullCancellation());
             self::fail('a changed key was accepted');
         } catch (UnknownHostKey $e) {
             self::assertTrue($e->changed);
         }
         $this->expectException(RemoteFailure::class);
         $this->expectExceptionMessage('вход отклонён');
-        (new AmpSshShell())->run($this->trusted(), 'wrong', 'password', 'id', 5, 100, new NullCancellation());
+        (new AmpSshShell())->run(new Connection($this->trusted(), 'wrong', 'password'), 'id', 5, 100, new NullCancellation());
     }
 }

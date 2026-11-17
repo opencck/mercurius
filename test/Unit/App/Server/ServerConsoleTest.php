@@ -8,6 +8,7 @@ use Amp\Cancellation;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\App\Server\Connection;
 use OpenCCK\App\Server\RemoteFailure;
 use OpenCCK\App\Server\RemoteResult;
 use OpenCCK\App\Server\RemoteShell;
@@ -34,6 +35,10 @@ final class ServerConsoleTest extends AsyncTestCase {
     private array $ran = [];
     /** @var list<array{string, string, bool}> */
     private array $asked = [];
+    /** @var list<?string> */
+    private array $stdin = [];
+    /** @var list<Connection> */
+    private array $targets = [];
     private RemoteResult $answer;
     private ?\Throwable $failure = null;
 
@@ -52,8 +57,8 @@ final class ServerConsoleTest extends AsyncTestCase {
         $shell = new class($this) implements RemoteShell {
             public function __construct(private readonly ServerConsoleTest $test) {}
 
-            public function run(Server $server, string $credential, string $kind, string $command, int $timeout, int $maxOutput, Cancellation $cancellation): RemoteResult {
-                return $this->test->remote($server, $credential, $kind, $command);
+            public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
+                return $this->test->remote($target, $command, $stdin);
             }
         };
         return new ServerConsole($this->servers, $this->vault, new CommandClassifier(), $this->audit, $shell, function (Server $s, string $f, bool $changed): void {
@@ -61,9 +66,11 @@ final class ServerConsoleTest extends AsyncTestCase {
         }, new NullLogger());
     }
 
-    public function remote(Server $server, string $credential, string $kind, string $command): RemoteResult {
-        $this->ran[] = [$server->name, $kind, $command];
-        self::assertSame('hunter2-long-pass', $credential);
+    public function remote(Connection $target, string $command, ?string $stdin): RemoteResult {
+        $this->ran[] = [$target->server->name, $target->kind, $command];
+        $this->stdin[] = $stdin;
+        $this->targets[] = $target;
+        self::assertSame('hunter2-long-pass', $target->credential);
         if ($this->failure !== null) {
             throw $this->failure;
         }
@@ -146,6 +153,57 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'systemctl restart nginx']));
         self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'sudo id']));
         self::assertSame(DangerClass::Write, $tool->danger(['server' => 'web', 'command' => 'reboot']), 'refused, not asked');
+    }
+
+    public function testSudoGetsTheLoginPasswordOnStdin(): void {
+        $this->console()->run($this->owner, null, 'web', 'sudo systemctl restart nginx', 30, new NullCancellation());
+
+        self::assertSame("sudo -S -p '' systemctl restart nginx", $this->ran[0][2]);
+        self::assertSame("hunter2-long-pass
+", $this->stdin[0]);
+        self::assertStringNotContainsString('hunter2', $this->audit->records[0]['command'], 'the journal keeps the command as asked');
+    }
+
+    public function testRoutesAndJumps(): void {
+        $this->servers->add('bastion', '10.0.0.1', 22, 'jump', 1, 'prod');
+        $this->servers->add('inner', '192.168.1.5', 22, 'app', 1, 'prod', 'via:bastion');
+        $this->servers->add('loop', '192.168.1.6', 22, 'app', 1, 'prod', 'via:inner');
+        $this->servers->add('far', '10.9.9.9', 22, 'app', 1, 'prod', 'vless');
+
+        $this->console()->run($this->owner, null, 'inner', 'uptime', 30, new NullCancellation());
+        self::assertSame('bastion', $this->targets[0]->via?->server->name);
+
+        [$ok, $text] = $this->console()->run($this->owner, null, 'loop', 'uptime', 30, new NullCancellation());
+        self::assertFalse($ok, 'a jump goes one server deep');
+        self::assertStringContainsString('сам ходит через другой', $text);
+
+        [$ok, $text] = $this->console()->run($this->owner, null, 'far', 'uptime', 30, new NullCancellation());
+        self::assertFalse($ok);
+        self::assertStringContainsString('VLESS_URI не задан', $text);
+    }
+
+    public function testAConfirmedGroupAsksEvenForReads(): void {
+        $console = new ServerConsole($this->servers, $this->vault, new CommandClassifier(), $this->audit, new class implements RemoteShell {
+            public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
+                return new RemoteResult(0, '', '', false, 1);
+            }
+        }, static function (): void {
+        }, new NullLogger(), null, ['prod']);
+        $tool = new SshRunTool($console);
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'uptime']));
+        self::assertNotNull($tool->grantKey(['server' => 'web', 'command' => 'uptime']));
+    }
+
+    public function testGrantsCoverOneExactChangeAndNeverPrivileges(): void {
+        $tool = new SshRunTool($this->console());
+
+        $key = $tool->grantKey(['server' => 'Web', 'command' => 'systemctl restart nginx']);
+        self::assertSame($key, $tool->grantKey(['server' => 'web', 'command' => ' systemctl restart nginx ']));
+        self::assertNotSame($key, $tool->grantKey(['server' => 'web', 'command' => 'systemctl restart php']));
+        self::assertStringContainsString(':v' . CommandClassifier::VERSION . ':', (string) $key);
+        self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
+        self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'df -h']), 'a read needs no grant');
     }
 
     public function testTheJournalChainBreaksOnAChange(): void {

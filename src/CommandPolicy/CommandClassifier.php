@@ -17,6 +17,8 @@ namespace OpenCCK\CommandPolicy;
  */
 final class CommandClassifier {
     public const MAX_LENGTH = 5000;
+    /** raised whenever the lists or the rules change: grants given under an older policy stop working */
+    public const VERSION = 1;
 
     /** single readers: name => null (any operands) or the most operands allowed, where a further one is a file written */
     private const READERS = [

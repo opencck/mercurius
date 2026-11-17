@@ -28,7 +28,8 @@ final class ServerAddTool implements Tool {
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, 'Добавляет сервер в реестр (ждёт подтверждения владельца). secret — имя секрета с паролем или '
             . 'закрытым ключом; сам секрет владелец кладёт командой /secret <имя> <значение>, в разговор его не пишут. '
-            . 'Ключ хоста владелец подтвердит при первом подключении.', [
+            . 'Ключ хоста владелец подтвердит при первом подключении. route — как добраться: без него напрямую; vless — через VLESS '
+            . 'приложения; secret:<имя> — через прокси, URI которого лежит в секрете; via:<сервер> — через другой сервер реестра.', [
             'type' => 'object',
             'properties' => [
                 'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
@@ -37,6 +38,7 @@ final class ServerAddTool implements Tool {
                 'user' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
                 'secret' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
                 'group' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 32],
+                'route' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 80],
             ],
             'required' => ['name', 'host', 'user', 'secret'],
             'additionalProperties' => false,
@@ -69,8 +71,12 @@ final class ServerAddTool implements Tool {
         if ($secret === null) {
             return ToolResult::error('Такого секрета нет: владелец кладёт его командой /secret <имя> <значение>.');
         }
+        $route = Args::string($args, 'route');
+        if ($route !== null && $route !== 'direct' && $route !== 'vless' && preg_match('~^(secret|via):[\p{L}\p{N}][\p{L}\p{N}._-]{0,63}$~u', $route) !== 1) {
+            return ToolResult::error('route — vless, secret:<имя секрета> или via:<имя сервера>.');
+        }
         try {
-            $server = $this->servers->add($name, trim($host, '[]'), Args::int($args, 'port') ?? 22, $user, $secret, Args::string($args, 'group') ?? 'default');
+            $server = $this->servers->add($name, trim($host, '[]'), Args::int($args, 'port') ?? 22, $user, $secret, Args::string($args, 'group') ?? 'default', $route === 'direct' ? null : $route);
         } catch (DomainException $e) {
             return ToolResult::error($e->getMessage());
         }

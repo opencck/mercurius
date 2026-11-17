@@ -12,6 +12,8 @@ final class UnknownHostKey extends RuntimeException {
         public readonly string $fingerprint,
         /** a trusted key exists and this one differs */
         public readonly bool $changed,
+        /** which server of the registry: the target or the one in between */
+        public readonly ?string $server = null,
     ) {
         parent::__construct($changed ? 'Host key changed: ' . $fingerprint : 'Unknown host key: ' . $fingerprint);
     }
