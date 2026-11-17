@@ -137,7 +137,7 @@ final class HttpRequestTool implements Tool, GrantKeyed {
         return mb_check_encoding($data, 'UTF-8') ? $data : sprintf('[двоичные данные, %d байт]', strlen($data));
     }
 
-    private static function resolveLocation(string $base, string $location): string {
+    public static function resolveLocation(string $base, string $location): string {
         if (preg_match('#^https?://#i', $location) === 1) {
             return $location;
         }

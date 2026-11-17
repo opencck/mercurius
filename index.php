@@ -84,6 +84,9 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\App\Web\TextExtractor;
+use OpenCCK\App\Agent\Tool\WebSearchTool;
+use OpenCCK\App\Agent\Tool\WebReadTool;
 use OpenCCK\App\Agent\Tool\OpenRouterByokTool;
 use OpenCCK\App\Agent\Tool\TcpProbeTool;
 use OpenCCK\App\Agent\Tool\FileWriteTool;
@@ -214,6 +217,11 @@ $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings-
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
+// spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
+$tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor()));
+if ($llmSettings->openRouterKey() !== null) {
+    $tools->register(new WebSearchTool($modelHttp, $llmSettings->openRouterKey(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WEB_SEARCH_MODEL') ?? 'openai/gpt-5.6-luna'));
+}
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
 $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.

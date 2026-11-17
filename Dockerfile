@@ -4,8 +4,8 @@ FROM php:8.2-cli-bookworm AS base
 # No pecl-ev: amphp/postgres over ext-pgsql refuses to run on the ev loop driver.
 # Revolt falls back to its stream_select driver, which is enough at the current load.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev git unzip \
-    && docker-php-ext-install pgsql pcntl sockets \
+    && apt-get install -y --no-install-recommends libpq-dev libzip-dev git unzip \
+    && docker-php-ext-install pgsql pcntl sockets zip \
     && docker-php-ext-enable opcache \
     && rm -rf /var/lib/apt/lists/*
 
