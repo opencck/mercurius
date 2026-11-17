@@ -84,6 +84,8 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\Infrastructure\Browser\BrowserClient;
+use OpenCCK\App\Agent\Tool\BrowserTool;
 use OpenCCK\App\Web\TextExtractor;
 use OpenCCK\App\Agent\Tool\WebSearchTool;
 use OpenCCK\App\Agent\Tool\WebReadTool;
@@ -217,6 +219,15 @@ $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings-
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
+// spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
+$browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
+if ($browserToken !== null) {
+    $tools->register(new BrowserTool(
+        new BrowserClient(HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000', $browserToken),
+        $channel,
+        $telegram->ownerId,
+    ));
+}
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor()));
 if ($llmSettings->openRouterKey() !== null) {

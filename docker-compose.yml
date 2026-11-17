@@ -35,9 +35,34 @@ services:
     networks:
       internal:
       sandbox:
+      browser:
       web:
         aliases:
           - mercurius
+
+  # The browser of the agent: Chromium under puppeteer-core with a small API. Its own network: it sees the internet
+  # and the app's requests, not the database, the sandbox or the executor; every page request is checked against
+  # internal addresses (browser/guard.js). Profiles with logins live in storage/browser.
+  browser:
+    build:
+      context: browser
+    image: mercurius-browser:${APP_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      BROWSER_TOKEN: ${BROWSER_TOKEN:-}
+    volumes:
+      - ./storage/browser:/profiles
+    shm_size: 512m
+    mem_limit: 1536m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - browser
 
   postgres:
     image: pgvector/pgvector:pg17
@@ -162,6 +187,8 @@ services:
 
 networks:
   internal:
+  # The app and the browser only.
+  browser:
   # A fixed subnet, so the host firewall (DOCKER-USER) can keep the sandbox away from the host and the LAN.
   sandbox:
     ipam:

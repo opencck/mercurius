@@ -45,3 +45,6 @@ compose.override.yaml
 *.swp
 .DS_Store
 Thumbs.db
+
+# Зависимости сервиса браузера ставятся при сборке образа
+/browser/node_modules/
