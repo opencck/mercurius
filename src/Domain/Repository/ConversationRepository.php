@@ -12,11 +12,15 @@ use OpenCCK\Domain\Agent\ConversationMeta;
  * Conversations of chats. Their messages live in TranscriptRepository.
  */
 interface ConversationRepository {
-    /** Id of the open conversation of the chat; opens one when there is none. */
-    public function openConversation(int $principalId, string $channel, string $chatId): int;
+    /**
+     * Id of the open conversation of the chat (and forum topic); opens one when there is none.
+     *
+     * @param string $threadId the forum topic; '' — the chat itself
+     */
+    public function openConversation(int $principalId, string $channel, string $chatId, string $threadId = ''): int;
 
-    /** Closes the open conversation of the chat, if any. */
-    public function close(string $channel, string $chatId): void;
+    /** Closes the open conversation of the chat (and forum topic), if any. */
+    public function close(string $channel, string $chatId, string $threadId = ''): void;
 
     public function meta(int $conversationId): ?ConversationMeta;
 

@@ -25,11 +25,11 @@ final class ProjectContext {
 
     public function __construct(private readonly ProjectRepository $projects) {}
 
-    public function block(Principal $principal, string $channel, string $chatId): string {
+    public function block(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
         if ($principal->role === Role::Visitor) {
             return '';
         }
-        $project = $this->projects->active($channel, $chatId);
+        $project = $this->projects->active($channel, $chatId, $threadId);
         if ($project !== null && !$project->visibleTo($principal)) {
             return '';
         }

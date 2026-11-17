@@ -127,24 +127,25 @@ final class PostgresProjectRepository implements ProjectRepository {
         );
     }
 
-    public function active(string $channel, string $chatId): ?Project {
+    public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
+        // owner_id too: without it a participant's own project looked like the owner's and was hidden from them
         $row = $this->db->execute(
-            'SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated
-             FROM chat_projects c JOIN projects p ON p.id = c.project_id WHERE c.channel = ? AND c.chat_id = ?',
-            [$channel, $chatId],
+            'SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated, p.owner_id
+             FROM chat_projects c JOIN projects p ON p.id = c.project_id WHERE c.channel = ? AND c.chat_id = ? AND c.thread_id = ?',
+            [$channel, $chatId, $threadId],
         )->fetchRow();
         return $row === null ? null : self::project($row);
     }
 
-    public function activate(string $channel, string $chatId, ?int $projectId): void {
+    public function activate(string $channel, string $chatId, ?int $projectId, string $threadId = ''): void {
         if ($projectId === null) {
-            $this->db->execute('DELETE FROM chat_projects WHERE channel = ? AND chat_id = ?', [$channel, $chatId]);
+            $this->db->execute('DELETE FROM chat_projects WHERE channel = ? AND chat_id = ? AND thread_id = ?', [$channel, $chatId, $threadId]);
             return;
         }
         $this->db->execute(
-            'INSERT INTO chat_projects (channel, chat_id, project_id) VALUES (?, ?, ?)
-             ON CONFLICT (channel, chat_id) DO UPDATE SET project_id = excluded.project_id, updated_at = now()',
-            [$channel, $chatId, $projectId],
+            'INSERT INTO chat_projects (channel, chat_id, thread_id, project_id) VALUES (?, ?, ?, ?)
+             ON CONFLICT (channel, chat_id, thread_id) DO UPDATE SET project_id = excluded.project_id, updated_at = now()',
+            [$channel, $chatId, $threadId, $projectId],
         );
     }
 

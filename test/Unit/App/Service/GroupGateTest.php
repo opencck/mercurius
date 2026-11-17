@@ -84,6 +84,25 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(1, $this->cards());
     }
 
+    public function testEachForumTopicHasItsOwnConversationButRepliesInAGroupDoNot(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b'), ScriptedLlm::text('c'), ScriptedLlm::text('d')]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':m');
+
+        $this->say('@mrcuribot в теме 12', thread: '12', extra: ['is_topic_message' => true]);
+        $this->say('@mrcuribot в теме 13', thread: '13', extra: ['is_topic_message' => true]);
+        $this->say('@mrcuribot ответом в обычной ветке', thread: '7');
+        $this->say('@mrcuribot в General');
+
+        $first = $this->stack->conversations->openConversation(1, 'telegram', self::GROUP, '12');
+        $second = $this->stack->conversations->openConversation(1, 'telegram', self::GROUP, '13');
+        $general = $this->stack->conversations->openConversation(1, 'telegram', self::GROUP);
+        self::assertCount(3, array_unique([$first, $second, $general]), 'a topic is a conversation of its own');
+        self::assertSame('12', $this->stack->conversations->meta($first)?->threadId);
+        self::assertSame('', $this->stack->conversations->meta($general)?->threadId, 'a reply thread outside a forum is not a topic');
+        self::assertCount(4, $this->stack->llm->requests);
+    }
+
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {
         $this->stack(new ScriptedLlm([]));
 

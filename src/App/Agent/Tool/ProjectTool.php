@@ -51,7 +51,7 @@ final class ProjectTool implements Tool {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $meta = $this->conversations->meta($context->conversationId);
-        $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId);
+        $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
         if ($active !== null && !$active->visibleTo($context->principal)) {
             $active = null;
         }

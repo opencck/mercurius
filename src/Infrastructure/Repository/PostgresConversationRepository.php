@@ -14,18 +14,18 @@ use UnexpectedValueException;
 final class PostgresConversationRepository implements ConversationRepository {
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function openConversation(int $principalId, string $channel, string $chatId): int {
+    public function openConversation(int $principalId, string $channel, string $chatId, string $threadId = ''): int {
         $row = $this->db->execute(
             'WITH inserted AS (
-                INSERT INTO conversations (principal_id, channel, chat_id) VALUES (?, ?, ?)
-                ON CONFLICT (channel, chat_id) WHERE closed_at IS NULL DO NOTHING
+                INSERT INTO conversations (principal_id, channel, chat_id, thread_id) VALUES (?, ?, ?, ?)
+                ON CONFLICT (channel, chat_id, thread_id) WHERE closed_at IS NULL DO NOTHING
                 RETURNING id
              )
              SELECT id FROM inserted
              UNION ALL
-             SELECT id FROM conversations WHERE channel = ? AND chat_id = ? AND closed_at IS NULL
+             SELECT id FROM conversations WHERE channel = ? AND chat_id = ? AND thread_id = ? AND closed_at IS NULL
              LIMIT 1',
-            [$principalId, $channel, $chatId, $channel, $chatId],
+            [$principalId, $channel, $chatId, $threadId, $channel, $chatId, $threadId],
         )->fetchRow();
 
         $id = $row['id'] ?? null;
@@ -35,16 +35,16 @@ final class PostgresConversationRepository implements ConversationRepository {
         return $id;
     }
 
-    public function close(string $channel, string $chatId): void {
+    public function close(string $channel, string $chatId, string $threadId = ''): void {
         $this->db->execute(
-            'UPDATE conversations SET closed_at = now() WHERE channel = ? AND chat_id = ? AND closed_at IS NULL',
-            [$channel, $chatId],
+            'UPDATE conversations SET closed_at = now() WHERE channel = ? AND chat_id = ? AND thread_id = ? AND closed_at IS NULL',
+            [$channel, $chatId, $threadId],
         );
     }
 
     public function meta(int $conversationId): ?ConversationMeta {
         $row = $this->db->execute(
-            'SELECT id, principal_id, channel, chat_id, system_prompt, model FROM conversations WHERE id = ?',
+            'SELECT id, principal_id, channel, chat_id, system_prompt, model, thread_id FROM conversations WHERE id = ?',
             [$conversationId],
         )->fetchRow();
         if ($row === null) {
@@ -60,7 +60,8 @@ final class PostgresConversationRepository implements ConversationRepository {
             || ($prompt !== null && !is_string($prompt)) || ($model !== null && !is_string($model))) {
             throw new UnexpectedValueException('Malformed conversations row');
         }
-        return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model);
+        $thread = $row['thread_id'] ?? '';
+        return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model, is_string($thread) ? $thread : '');
     }
 
     public function compaction(int $conversationId): Compaction {

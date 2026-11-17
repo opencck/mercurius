@@ -247,7 +247,7 @@ final class RunScheduler {
         if ($claimed === null) {
             return;
         }
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->threads[$run->conversationId] ?? null);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId));
         $observer->start();
         $this->launch($claimed, $principal, $observer);
     }
@@ -373,12 +373,20 @@ final class RunScheduler {
         $this->projects = $projects;
     }
 
-    private function project(Principal $principal, string $channel, string $chatId): string {
+    /**
+     * The forum topic answers go to: the conversation's own topic (kept in the base, so a run resumed after a restart
+     * answers in it), else the thread of the last message (a reply chain in an ordinary group).
+     */
+    private function thread(ConversationMeta $meta, int $conversationId): ?string {
+        return $meta->threadId !== '' ? $meta->threadId : ($this->threads[$conversationId] ?? null);
+    }
+
+    private function project(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
         if ($this->projects === null) {
             return '';
         }
         try {
-            return $this->projects->block($principal, $channel, $chatId);
+            return $this->projects->block($principal, $channel, $chatId, $threadId);
         } catch (Throwable $e) {
             $this->logger->warning('Project context is not available', ['error' => $e::class]);
             return '';
@@ -470,7 +478,7 @@ final class RunScheduler {
                     $this->logger->warning('Skills index is not available', ['error' => $e::class]);
                 }
             }
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId), $skills), $model, SystemPrompt::VERSION);
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);
@@ -485,7 +493,7 @@ final class RunScheduler {
         }
         try {
             $this->transcript->appendUser($conversationId, $run->id, $this->withSkillNote($principal, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text), $messageId);
-            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->threads[$conversationId] ?? null);
+            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId));
             $observer->start();
         } catch (Throwable $e) {
             // The run exists but will never run: free the conversation.
@@ -509,7 +517,7 @@ final class RunScheduler {
             }
         }
         $this->logger->info('Resuming run after restart', ['run' => $run->id]);
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->threads[$run->conversationId] ?? null);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId));
         $observer->start(self::RESUMED);
         $this->launch($run, $principal, $observer);
     }

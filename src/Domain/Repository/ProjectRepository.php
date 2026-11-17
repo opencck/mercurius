@@ -54,8 +54,9 @@ interface ProjectRepository {
 
     public function setRelation(int $projectId, int $principalId, string $text): void;
 
-    public function active(string $channel, string $chatId): ?Project;
+    /** @param string $threadId the forum topic; '' — the chat itself */
+    public function active(string $channel, string $chatId, string $threadId = ''): ?Project;
 
     /** Binds the chat to a project; null unbinds it. */
-    public function activate(string $channel, string $chatId, ?int $projectId): void;
+    public function activate(string $channel, string $chatId, ?int $projectId, string $threadId = ''): void;
 }

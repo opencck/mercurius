@@ -15,5 +15,7 @@ final class ConversationMeta {
         public readonly string $chatId,
         public readonly ?string $systemPrompt,
         public readonly ?string $model,
+        /** the forum topic; '' — a private chat, an ordinary group or the General topic */
+        public readonly string $threadId = '',
     ) {}
 }

@@ -100,7 +100,7 @@ final class ChatService implements MessageHandler {
         }
         if ($command === '/stop') {
             // The run's status message says "Остановлено." itself.
-            if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId))) {
+            if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)))) {
                 $this->reply($message, self::NOTHING_TO_STOP);
             }
             return;
@@ -214,14 +214,14 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, self::OWNER_ONLY);
             } else {
                 $this->reply($message, $command === '/projects'
-                    ? $this->projects->list($message->channel, $message->chatId)
-                    : $this->projects->project($message->channel, $message->chatId, substr($text, strlen($command))));
+                    ? $this->projects->list($message->channel, $message->chatId, MessageMeta::topicKey($message))
+                    : $this->projects->project($message->channel, $message->chatId, substr($text, strlen($command)), MessageMeta::topicKey($message)));
             }
             return;
         }
         if ($command === '/new') {
-            $this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId));
-            $this->conversations->close($message->channel, $message->chatId);
+            $this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)));
+            $this->conversations->close($message->channel, $message->chatId, MessageMeta::topicKey($message));
             $this->reply($message, self::NEW_CONVERSATION);
             return;
         }
@@ -249,7 +249,7 @@ final class ChatService implements MessageHandler {
                 );
             }
         }
-        $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId);
+        $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
         $this->scheduler->submit($principal, $message, $conversationId);
     }
 

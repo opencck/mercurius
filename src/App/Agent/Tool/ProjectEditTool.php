@@ -131,7 +131,7 @@ final class ProjectEditTool implements Tool {
             return $this->projects->byName($name, Project::scopeOf($context->principal));
         }
         $meta = $this->conversations->meta($context->conversationId);
-        $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId);
+        $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
         // spec: BRIEF.md#несколько-пользователей — a participant works only with their own projects
         return $active !== null && $active->visibleTo($context->principal) ? $active : null;
     }
@@ -205,7 +205,7 @@ final class ProjectEditTool implements Tool {
         if ($meta === null) {
             return ToolResult::error('Беседа не найдена.');
         }
-        $this->projects->activate($meta->channel, $meta->chatId, $project->id);
+        $this->projects->activate($meta->channel, $meta->chatId, $project->id, $meta->threadId);
         return ToolResult::ok(sprintf('«%s» — проект этого чата; карточка придёт в контекст со следующей беседы (/new).', $project->name));
     }
 }

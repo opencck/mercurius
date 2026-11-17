@@ -99,16 +99,16 @@ final class InMemoryProjectRepository implements ProjectRepository {
         $this->relations[$projectId . ':' . $principalId] = $text;
     }
 
-    public function active(string $channel, string $chatId): ?Project {
-        $id = $this->chats[$channel . ':' . $chatId] ?? null;
+    public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
+        $id = $this->chats[$channel . ':' . $chatId . ':' . $threadId] ?? null;
         return $id === null ? null : ($this->projects[$id] ?? null);
     }
 
-    public function activate(string $channel, string $chatId, ?int $projectId): void {
+    public function activate(string $channel, string $chatId, ?int $projectId, string $threadId = ''): void {
         if ($projectId === null) {
-            unset($this->chats[$channel . ':' . $chatId]);
+            unset($this->chats[$channel . ':' . $chatId . ':' . $threadId]);
             return;
         }
-        $this->chats[$channel . ':' . $chatId] = $projectId;
+        $this->chats[$channel . ':' . $chatId . ':' . $threadId] = $projectId;
     }
 }

@@ -37,6 +37,20 @@ final class MessageMeta {
         return sprintf('[Это сообщение #%s%s]', $message->messageId, $parts === [] ? '' : '; ' . implode('; ', $parts));
     }
 
+    /**
+     * The forum topic a message belongs to, '' when none. Outside a forum Telegram gives replies a thread id too (the
+     * root of the reply chain); only `is_topic_message` marks a real topic, so an ordinary group stays one conversation.
+     *
+     * ref: references/hermes-agent/gateway/session.py@e96221fa:L722-L768 (build_session_key) — the session key is the
+     *      chat and its thread; a thread is shared by everyone in it
+     */
+    public static function topicKey(IncomingMessage $message): string {
+        if ($message->isPrivateChat || $message->threadId === null) {
+            return '';
+        }
+        return ($message->raw['is_topic_message'] ?? false) === true ? $message->threadId : '';
+    }
+
     /** "тема «Name» (#id)" for a message in a forum topic. */
     public static function topic(IncomingMessage $message): ?string {
         if ($message->threadId === null) {

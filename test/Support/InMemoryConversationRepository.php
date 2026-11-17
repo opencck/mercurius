@@ -18,17 +18,17 @@ final class InMemoryConversationRepository implements ConversationRepository {
     /** @var array<int, Compaction> */
     public array $compactions = [];
 
-    public function openConversation(int $principalId, string $channel, string $chatId): int {
-        $key = $channel . ':' . $chatId;
+    public function openConversation(int $principalId, string $channel, string $chatId, string $threadId = ''): int {
+        $key = $channel . ':' . $chatId . ':' . $threadId;
         if (!isset($this->open[$key])) {
             $this->open[$key] = $this->next++;
-            $this->meta[$this->open[$key]] = new ConversationMeta($this->open[$key], $principalId, $channel, $chatId, null, null);
+            $this->meta[$this->open[$key]] = new ConversationMeta($this->open[$key], $principalId, $channel, $chatId, null, null, $threadId);
         }
         return $this->open[$key];
     }
 
-    public function close(string $channel, string $chatId): void {
-        unset($this->open[$channel . ':' . $chatId]);
+    public function close(string $channel, string $chatId, string $threadId = ''): void {
+        unset($this->open[$channel . ':' . $chatId . ':' . $threadId]);
     }
 
     public function meta(int $conversationId): ?ConversationMeta {
@@ -56,7 +56,7 @@ final class InMemoryConversationRepository implements ConversationRepository {
         $this->promptVersions[$conversationId] ??= $promptVersion;
         $meta = $this->meta[$conversationId];
         if ($meta->systemPrompt === null) {
-            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $systemPrompt, $model);
+            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $systemPrompt, $model, $meta->threadId);
         }
     }
 }

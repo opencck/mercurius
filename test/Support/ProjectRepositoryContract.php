@@ -106,6 +106,22 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         self::assertSame('Главный проект', $this->projects->relation($project->id, $this->principalId));
     }
 
+    public function testEachForumTopicHasItsOwnProjectAndTheOwnerIsKept(): void {
+        $chat = $this->projects->create('Чат', '');
+        $topic = $this->projects->create('Тема', '', $this->principalId);
+
+        $this->projects->activate('telegram', '-100', $chat->id);
+        $this->projects->activate('telegram', '-100', $topic->id, '12');
+
+        self::assertSame($chat->id, $this->projects->active('telegram', '-100')?->id);
+        $active = $this->projects->active('telegram', '-100', '12');
+        self::assertSame([$topic->id, $this->principalId], [$active?->id, $active?->ownerId], 'the owner comes with the active project');
+        self::assertNull($this->projects->active('telegram', '-100', '13'));
+        $this->projects->activate('telegram', '-100', null, '12');
+        self::assertNull($this->projects->active('telegram', '-100', '12'));
+        self::assertSame($chat->id, $this->projects->active('telegram', '-100')?->id);
+    }
+
     public function testAChatWorksOnOneProject(): void {
         $a = $this->projects->create('А', '');
         $b = $this->projects->create('Б', '');
