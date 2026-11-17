@@ -22,7 +22,24 @@ final class BrowserToolTest extends AsyncTestCase {
 
     private function tool(FakeHttpClient $http): BrowserTool {
         $this->channel = new FakeChannel();
-        return new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42');
+        $guard = new \OpenCCK\App\Agent\Tool\AddressGuard(static fn(string $host): array => $host === 'nas.home.lan' ? ['192.168.1.10'] : ['93.184.216.34']);
+        return new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', $guard);
+    }
+
+    public function testAnInternalPageOpensOnlyWithTheOwnersPermission(): void {
+        $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], '{"url":"http://nas.home.lan/","title":"NAS","text":"ok","elements":[]}']]);
+        $tool = $this->tool($http);
+        $args = ['action' => 'open', 'url' => 'http://nas.home.lan/'];
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger($args));
+        self::assertSame('addr:nas.home.lan', $tool->grantKey($args));
+        self::assertNull($tool->grantKey(['action' => 'open', 'url' => 'https://example.com/']));
+
+        $tool->execute($args, self::context());
+        $tool->execute($args, new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), approved: true));
+
+        self::assertStringNotContainsString('allow', $http->bodies[0], 'without the owner nothing is let through');
+        self::assertStringContainsString('"allow":["nas.home.lan"]', $http->bodies[1]);
     }
 
     private static function context(): ToolContext {

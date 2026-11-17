@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#сеть-агентов — a remote agent as a worker; remote delegation is always in the background
  */
-final class PeerDelegateTool implements Tool {
+final class PeerDelegateTool implements Tool, ReadsOutside {
     public const NAME = 'peer_delegate';
 
     public function __construct(
@@ -45,6 +45,11 @@ final class PeerDelegateTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return Args::string($args, 'peer') === null ? DangerClass::Read : DangerClass::Write;
+    }
+
+    /** spec: BRIEF.md#подтверждения-и-запреты — the answer of another agent is outside text */
+    public function readsOutside(array $args): bool {
+        return true;
     }
 
     public function untrusted(): bool {

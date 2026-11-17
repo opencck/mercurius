@@ -14,6 +14,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 /** An irreversible tool with a fixed grant key. */
 final class FakeKeyedTool implements Tool, GrantKeyed {
     public int $runs = 0;
+    /** the context of the last execution */
+    public ?ToolContext $context = null;
 
     public function __construct(private readonly string $name, private readonly ?string $key) {}
 
@@ -35,6 +37,7 @@ final class FakeKeyedTool implements Tool, GrantKeyed {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $this->runs++;
+        $this->context = $context;
         return ToolResult::ok('done');
     }
 

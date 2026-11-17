@@ -15,9 +15,10 @@ use function Mercurius\I18n\t;
 /**
  * Keeps outgoing requests away from internal addresses: private, loopback, link-local (cloud metadata), CGNAT,
  * multicast, reserved, IPv4 wrapped in IPv6, and names without a dot (services of the compose project).
- * A name that does not resolve is refused too. This is a hard ban, not something an approval can lift.
+ * A name that does not resolve is refused too. Only the owner lifts the ban, for one host and one call or by a grant:
+ * the tool then works through permitting(), a copy of the guard that lets that host alone through.
  *
- * spec: BRIEF.md#подтверждения-и-запреты — internal addresses are never reachable
+ * spec: BRIEF.md#подтверждения-и-запреты — internal addresses only with the owner's permission (owner's decision 2026-11-17)
  * ref: references/hermes-agent/tools/url_safety.py@e96221f:L87-L116, L291-L326 (_embedded_ipv4, _is_blocked_ip) —
  *      blocked classes, wrapped IPv4 seen through, DNS failure means refusal; we have no allow_private_urls switch
  */
@@ -35,8 +36,11 @@ final class AddressGuard {
     /** @var Closure(string): list<string> */
     private readonly Closure $resolver;
 
-    /** @param (Closure(string): list<string>)|null $resolver host => IP addresses, for tests */
-    public function __construct(?Closure $resolver = null) {
+    /**
+     * @param (Closure(string): list<string>)|null $resolver host => IP addresses, for tests
+     * @param ?string $permitted the one host the owner allowed whatever its addresses; null — none
+     */
+    public function __construct(?Closure $resolver = null, private readonly ?string $permitted = null) {
         $this->resolver = $resolver ?? static function (string $host): array {
             try {
                 $ips = array_map(static fn(mixed $record): string => $record instanceof DnsRecord ? $record->getValue() : '', resolve($host));
@@ -45,6 +49,32 @@ final class AddressGuard {
                 return [];
             }
         };
+    }
+
+    /** A copy that also lets $host through, whatever addresses it has: the owner allowed it. */
+    public function permitting(string $host): self {
+        return new self($this->resolver, self::normal($host));
+    }
+
+    /** Whether the host is refused for being internal (not for being unknown): the owner may allow such a host. */
+    public function internal(string $host): bool {
+        $host = self::normal($host);
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return self::isBlockedIp($host);
+        }
+        if (!str_contains(rtrim($host, '.'), '.')) {
+            return $host !== '';
+        }
+        foreach (($this->resolver)($host) as $ip) {
+            if (self::isBlockedIp($ip)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function normal(string $host): string {
+        return strtolower(trim($host, '[]'));
     }
 
     /** Text of the refusal, or null when the host may be reached. */
@@ -64,7 +94,14 @@ final class AddressGuard {
      * @throws AddressRefused
      */
     public function resolve(string $host): array {
-        $host = strtolower(trim($host, '[]'));
+        $host = self::normal($host);
+        if ($this->permitted !== null && $host === $this->permitted) {
+            $ips = filter_var($host, FILTER_VALIDATE_IP) !== false ? [$host] : ($this->resolver)($host);
+            if ($ips === []) {
+                throw new AddressRefused(sprintf(t('tool.address_guard.ne_udalos_nayti_adres'), $host));
+            }
+            return $ips;
+        }
         if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
             $ips = [$host];
         } elseif (!str_contains(rtrim($host, '.'), '.')) {

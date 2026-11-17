@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#настройки-агента
  */
-final class SettingsTool implements Tool {
+final class SettingsTool implements Tool, GrantKeyed {
     public const NAME = 'settings';
 
     public function __construct(
@@ -47,6 +47,23 @@ final class SettingsTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return Args::string($args, 'action') === 'list' ? DangerClass::Read : DangerClass::Irreversible;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        return match (Args::string($args, 'action')) {
+            'set' => ($key = Args::string($args, 'key')) === null ? null : 'settings:set:' . $key,
+            'restart' => 'settings:restart',
+            default => null,
+        };
+    }
+
+    public function describe(array $args): string {
+        $secret = Args::string($args, 'secret');
+        return trim(sprintf('settings %s %s %s', Args::string($args, 'action') ?? '', Args::string($args, 'key') ?? '', $secret !== null ? '← ' . $secret : mb_substr(Args::string($args, 'value') ?? '', 0, 200)));
     }
 
     public function untrusted(): bool {

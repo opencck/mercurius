@@ -37,7 +37,7 @@ final class AddressGuardTest extends TestCase {
 
     public function testComposeServiceNameIsRefused(): void {
         self::assertSame(
-            'Адрес postgres — внутренний: такие запросы запрещены.',
+            'Адрес postgres — внутренний: запрос только с разрешения владельца.',
             self::guard(['postgres' => ['93.184.216.34']])->refusal('postgres'),
         );
     }
@@ -45,11 +45,31 @@ final class AddressGuardTest extends TestCase {
     public function testNameResolvingToPrivateAddressIsRefused(): void {
         $guard = self::guard(['evil.example.com' => ['93.184.216.34', '10.0.0.5']]);
 
-        self::assertSame('Адрес evil.example.com — внутренний: такие запросы запрещены.', $guard->refusal('evil.example.com'));
+        self::assertSame('Адрес evil.example.com — внутренний: запрос только с разрешения владельца.', $guard->refusal('evil.example.com'));
     }
 
     public function testUnresolvedNameIsRefused(): void {
         self::assertSame('Не удалось найти адрес nowhere.example.', self::guard()->refusal('nowhere.example'));
+    }
+
+    public function testInternalIsToldApartFromUnknown(): void {
+        $guard = self::guard(['evil.example.com' => ['10.0.0.5'], 'example.com' => ['93.184.216.34']]);
+
+        self::assertTrue($guard->internal('evil.example.com'));
+        self::assertTrue($guard->internal('postgres'));
+        self::assertTrue($guard->internal('[::1]'));
+        self::assertFalse($guard->internal('example.com'));
+        self::assertFalse($guard->internal('nowhere.example'), 'a name that does not resolve is not internal');
+    }
+
+    public function testThePermittedHostAloneIsReachable(): void {
+        $guard = self::guard(['nas.home.lan' => ['192.168.1.10'], 'postgres' => ['172.18.0.3'], 'other.lan' => ['10.0.0.2']]);
+
+        self::assertSame(['192.168.1.10'], $guard->permitting('NAS.home.lan')->resolve('nas.home.lan'));
+        self::assertSame(['172.18.0.3'], $guard->permitting('postgres')->resolve('postgres'));
+        self::assertSame(['10.0.0.1'], $guard->permitting('10.0.0.1')->resolve('10.0.0.1'));
+        self::assertNotNull($guard->permitting('nas.home.lan')->refusal('other.lan'), 'only the host the owner allowed');
+        self::assertNotNull($guard->refusal('nas.home.lan'), 'the shared guard is unchanged');
     }
 
     public function testResolveReturnsCheckedAddresses(): void {

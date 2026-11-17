@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/tools/delegate_tool_results.py@e96221fa:L254-L309 (_apply_summary_budget) — a cap on
  *      each summary so the reports do not crowd out the orchestrator's context
  */
-final class DelegateTaskTool implements Tool, LongRunning {
+final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\Tool\ReadsOutside {
     public const NAME = 'delegate_task';
     private const MAX_TASKS = 5;
 
@@ -78,6 +78,11 @@ final class DelegateTaskTool implements Tool, LongRunning {
     }
 
     /** Workers read pages and files: their reports carry what they read, so they are data, not instructions. */
+    /** spec: BRIEF.md#подтверждения-и-запреты — a worker may have read pages: its report carries their text */
+    public function readsOutside(array $args): bool {
+        return true;
+    }
+
     public function untrusted(): bool {
         return true;
     }

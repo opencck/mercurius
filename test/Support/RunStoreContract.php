@@ -62,6 +62,25 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(1, $this->runs->childCount($parent));
     }
 
+    public function testOutsideSourcesAreKeptOnTheRun(): void {
+        $id = $this->startRun();
+        self::assertNull($this->runs->find($id)?->outside);
+
+        $this->runs->markOutside($id, 'web_read');
+        $this->runs->markOutside($id, 'web_read');
+        $this->runs->markOutside($id, 'browser');
+
+        self::assertSame('web_read, browser', $this->runs->find($id)?->outside);
+    }
+
+    public function testRunMayStartWithOutsideData(): void {
+        $run = $this->runs->start($this->conversationId, $this->principalId, 'm/x', self::limits(), null, 'group chat');
+
+        self::assertNotNull($run);
+        self::assertSame('group chat', $run->outside);
+        self::assertSame('group chat', $this->runs->find($run->id)?->outside);
+    }
+
     public function testStartRefusesSecondActiveRun(): void {
         $this->startRun();
 

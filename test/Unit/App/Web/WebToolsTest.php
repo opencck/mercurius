@@ -65,6 +65,28 @@ final class WebToolsTest extends AsyncTestCase {
         self::assertNotContains('GET http://intranet/admin', $http->requested);
     }
 
+    public function testAnInternalPageIsReadOnlyWithTheOwnersPermission(): void {
+        $http = new FakeHttpClient(['http://nas.home.lan/' => [200, ['content-type' => 'text/plain'], 'disk ok']]);
+        $guard = new AddressGuard(static fn(string $host): array => $host === 'nas.home.lan' ? ['192.168.1.10'] : ['93.184.216.34']);
+        $used = null;
+        $tool = new WebReadTool($http, $guard, new TextExtractor(), function (AddressGuard $permitted) use (&$used, $http): FakeHttpClient {
+            $used = $permitted;
+            return $http;
+        });
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $args = ['url' => 'http://nas.home.lan/'];
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args));
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Read, $tool->danger(['url' => 'https://site.example/']));
+        self::assertSame('addr:nas.home.lan', $tool->grantKey($args), 'the same key as http_request: one grant per host');
+        self::assertTrue($tool->execute($args, new ToolContext(1, 1, $owner, new NullCancellation()))->isError);
+
+        $result = $tool->execute($args, new ToolContext(1, 1, $owner, new NullCancellation(), approved: true));
+
+        self::assertStringContainsString('disk ok', $result->content);
+        self::assertNotNull($used);
+    }
+
     /** @param array<string, string> $entries */
     private static function zip(array $entries): string {
         $file = tempnam(sys_get_temp_dir(), 'zip');

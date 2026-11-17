@@ -150,6 +150,9 @@ final class McpTest extends AsyncTestCase {
         self::assertSame(DangerClass::Read, $read->danger([]));
         self::assertSame(DangerClass::Write, $this->registry->get('mcp_github_create_issue')?->danger([]));
         self::assertSame(DangerClass::Irreversible, $this->registry->get('mcp_github_delete_repo')?->danger([]), 'nothing declared — irreversible');
+        $delete = $this->registry->get('mcp_github_delete_repo');
+        self::assertInstanceOf(\OpenCCK\App\Agent\Tool\GrantKeyed::class, $delete);
+        self::assertSame('mcp:github:delete_repo', $delete->grantKey(['repo' => 'x']), 'a grant names the server and its tool');
         self::assertSame('[MCP github] Lists issues', $read->definition()->description, 'invisible tags are gone');
         self::assertTrue($read->untrusted());
 

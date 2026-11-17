@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#модели — set_model_role, who manages roles
  */
-final class SetModelRoleTool implements Tool {
+final class SetModelRoleTool implements Tool, GrantKeyed {
     public const NAME = 'set_model_role';
 
     public function __construct(private readonly ModelRoles $roles) {}
@@ -49,6 +49,20 @@ final class SetModelRoleTool implements Tool {
             return DangerClass::Irreversible;
         }
         return DangerClass::Write;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        $role = Args::string($args, 'role') ?? '';
+        $model = Args::string($args, 'model') ?? '';
+        return $role === '' || $model === '' ? null : sprintf('model-role:%s:%s', $role, $model);
+    }
+
+    public function describe(array $args): string {
+        return sprintf('set_model_role %s → %s', Args::string($args, 'role') ?? '', Args::string($args, 'model') ?? '');
     }
 
     public function untrusted(): bool {

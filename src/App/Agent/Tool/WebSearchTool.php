@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#решения-владельца-2026-11-17 — search through an interface with pluggable providers
  */
-final class WebSearchTool implements Tool {
+final class WebSearchTool implements Tool, ReadsOutside {
     public const NAME = 'web_search';
 
     /**
@@ -55,6 +55,11 @@ final class WebSearchTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return DangerClass::Read;
+    }
+
+    /** spec: BRIEF.md#подтверждения-и-запреты — search results are written by others */
+    public function readsOutside(array $args): bool {
+        return true;
     }
 
     public function untrusted(): bool {

@@ -14,11 +14,12 @@ use function Mercurius\I18n\t;
 
 /**
  * A page of the web as readable text: GET, redirects followed and each one checked against internal addresses, the
- * page reduced to its text with its links. The result is untrusted data.
+ * page reduced to its text with its links. The result is untrusted data. An internal address waits for the owner, who
+ * allows that host for one call or for good (the key is shared with http_request).
  *
  * spec: BRIEF.md#интернет-и-браузер — reading pages; the SSRF check repeats after every redirect
  */
-final class WebReadTool implements Tool {
+final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
     public const NAME = 'web_read';
     private const MAX_REDIRECTS = 5;
     private const MAX_BYTES = 5_242_880;
@@ -27,6 +28,8 @@ final class WebReadTool implements Tool {
         private readonly DelegateHttpClient $http,
         private readonly AddressGuard $guard,
         private readonly TextExtractor $extractor,
+        /** @var (\Closure(AddressGuard): DelegateHttpClient)|null a client that dials through the given guard; null — $http */
+        private readonly ?\Closure $clientFor = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -42,7 +45,31 @@ final class WebReadTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Read;
+        return $this->internalHost($args) === null ? DangerClass::Read : DangerClass::Irreversible;
+    }
+
+    public function grantKey(array $args): ?string {
+        $internal = $this->internalHost($args);
+        return $internal === null ? null : 'addr:' . $internal;
+    }
+
+    public function describe(array $args): string {
+        $internal = $this->internalHost($args);
+        return 'web_read ' . mb_substr(Args::string($args, 'url') ?? '', 0, 300) . ($internal === null ? '' : sprintf(t('tool.address_internal'), $internal));
+    }
+
+    public function readsOutside(array $args): bool {
+        return true;
+    }
+
+    /** @param array<string, mixed> $args */
+    private function internalHost(array $args): ?string {
+        $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return null;
+        }
+        $host = strtolower(trim($host, '[]'));
+        return $this->guard->internal($host) ? $host : null;
     }
 
     public function untrusted(): bool {
@@ -55,13 +82,16 @@ final class WebReadTool implements Tool {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $url = Args::string($args, 'url') ?? '';
+        $permitted = $context->approved ? $this->internalHost($args) : null;
+        $guard = $permitted === null ? $this->guard : $this->guard->permitting($permitted);
+        $http = $permitted === null || $this->clientFor === null ? $this->http : ($this->clientFor)($guard);
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
             $parts = parse_url($url);
             $scheme = strtolower(is_array($parts) ? ($parts['scheme'] ?? '') : '');
             if (!is_array($parts) || ($scheme !== 'http' && $scheme !== 'https') || !isset($parts['host'])) {
                 return ToolResult::error(t('tool.web_read.podderzhivayutsya_tolko_adresa_http_i'));
             }
-            $refusal = $this->guard->refusal($parts['host']);
+            $refusal = $guard->refusal($parts['host']);
             if ($refusal !== null) {
                 return ToolResult::error($refusal);
             }
@@ -69,7 +99,7 @@ final class WebReadTool implements Tool {
             $request->setHeader('user-agent', 'Mozilla/5.0 (compatible; Mercurius)');
             $request->setHeader('accept', 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5');
             $request->setBodySizeLimit(self::MAX_BYTES);
-            $response = $this->http->request($request, $context->cancellation);
+            $response = $http->request($request, $context->cancellation);
             $location = $response->getHeader('location');
             if (in_array($response->getStatus(), [301, 302, 303, 307, 308], true) && $location !== null) {
                 $response->getBody()->close();

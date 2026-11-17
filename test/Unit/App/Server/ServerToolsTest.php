@@ -115,6 +115,20 @@ final class ServerToolsTest extends AsyncTestCase {
         self::assertCount(1, $this->ran);
     }
 
+    public function testAForbiddenPlaceIsWrittenOnlyWithTheOwnersApproval(): void {
+        $tool = new FileWriteTool($this->console, new CommandClassifier());
+        $args = ['server' => 'db', 'path' => '/root/.ssh/authorized_keys', 'content' => 'k', 'append' => true];
+
+        self::assertStringStartsWith('file-write-never:db:', (string) $tool->grantKey($args));
+        self::assertSame('file-write:db:/etc/app.conf', $tool->grantKey(['server' => 'DB', 'path' => '/etc/app.conf', 'content' => '']));
+        self::assertStringContainsString('ОПАСНО', $tool->describe($args));
+
+        $result = $tool->execute($args, new ToolContext(5, 1, $this->owner, new NullCancellation(), approved: true));
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame(["cat >> '/root/.ssh/authorized_keys'", 'k'], $this->ran[0]);
+    }
+
     public function testTheProbeDoesNotMapInternalNetworks(): void {
         $tool = new TcpProbeTool(new AddressGuard(static fn(string $host): array => ['10.0.0.5']));
 

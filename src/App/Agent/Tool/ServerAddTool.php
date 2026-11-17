@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#фаза-7-по-частям — the registry of servers and credentials, secrets encrypted
  */
-final class ServerAddTool implements Tool {
+final class ServerAddTool implements Tool, GrantKeyed {
     public const NAME = 'server_add';
 
     public function __construct(
@@ -49,6 +49,19 @@ final class ServerAddTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return DangerClass::Irreversible;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        $name = mb_strtolower(trim(Args::string($args, 'name') ?? ''));
+        return $name === '' ? null : 'server-add:' . $name;
+    }
+
+    public function describe(array $args): string {
+        return sprintf('server_add %s %s@%s', Args::string($args, 'name') ?? '', Args::string($args, 'user') ?? '', Args::string($args, 'host') ?? '');
     }
 
     public function untrusted(): bool {

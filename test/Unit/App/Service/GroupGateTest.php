@@ -230,6 +230,8 @@ final class GroupGateTest extends AsyncTestCase {
         delay(9);
 
         self::assertCount(1, $this->stack->llm->requests, 'the owner pays for the agent: their words are answered past the limit');
+        $runs = array_values($this->stack->runs->runs);
+        self::assertSame('group chat', $runs[0]->outside ?? null, 'a run in a group has other people\'s words in its context: grants do not apply');
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {

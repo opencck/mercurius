@@ -61,6 +61,24 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertContains('Жду подтверждения владельца…', $this->stack->channel->texts('edit'));
     }
 
+    public function testAfterOutsideDataTheCardSaysWhyAGrantWasNotUsed(): void {
+        $stack = new AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'web', '{}')),
+            ScriptedLlm::calls(new ToolCall('c2', 'push', '{"remote":"origin"}')),
+        ]));
+        $stack->registry->register($this->push);
+        $stack->registry->register(new \OpenCCK\Test\Support\FakeOutsideTool('web'));
+        $stack->approvals->addGrant(1, 'git-push:origin');
+        $this->stack = $stack;
+
+        $this->waitingRun();
+
+        $card = $this->card();
+        self::assertStringContainsString('внешние данные', $card);
+        self::assertStringContainsString('web', $card);
+        self::assertSame(0, $this->push->runs);
+    }
+
     public function testCardThatDidNotArriveIsARefusalAtOnce(): void {
         // The placeholder goes, the card does not.
         $this->stack->channel->sendResults = [\Mercurius\Messenger\SendResult::ok('1'), \Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down')];

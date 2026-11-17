@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#фаза-7-по-частям — SQL tools for PostgreSQL and MariaDB/MySQL go the same way
  */
-final class SqlQueryTool implements Tool {
+final class SqlQueryTool implements Tool, GrantKeyed {
     public const NAME = 'sql_query';
     private const QUERY_MAX = 20_000;
     /** what a single read statement may not start with: it would leave or change the transaction */
@@ -56,6 +56,23 @@ final class SqlQueryTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return ($args['write'] ?? false) === true ? DangerClass::Irreversible : DangerClass::Read;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        if (($args['write'] ?? false) !== true) {
+            return null;
+        }
+        $target = mb_strtolower(trim(Args::string($args, 'server') ?? Args::string($args, 'host') ?? ''));
+        $database = Args::string($args, 'database') ?? '';
+        return $target === '' || $database === '' ? null : sprintf('sql-write:%s:%s', $target, $database);
+    }
+
+    public function describe(array $args): string {
+        return sprintf('sql_query %s/%s: %s', Args::string($args, 'server') ?? Args::string($args, 'host') ?? '', Args::string($args, 'database') ?? '', mb_substr(Args::string($args, 'query') ?? '', 0, 300));
     }
 
     public function untrusted(): bool {

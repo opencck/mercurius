@@ -25,6 +25,7 @@ use OpenCCK\App\Agent\Tool\BatchPlanner;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
+use OpenCCK\App\Agent\Tool\ReadsOutside;
 use OpenCCK\App\Agent\Tool\LongRunning;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
@@ -490,7 +491,7 @@ final class AgentLoop {
             foreach ($segment as $call) {
                 $futures[] = $admission instanceof ToolResult
                     ? \Amp\Future::complete($admission)
-                    : async(fn(): ToolResult => $this->runCall($state, $call));
+                    : async(fn(): ToolResult => $this->runCall($state, $call, $admission === 'granted' || $admission === 'approved'));
             }
             $results = await($futures);
             if ($admission === 'granted') {
@@ -523,7 +524,8 @@ final class AgentLoop {
      * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 (check_all_command_guards) — guards in order:
      *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
      *
-     * @return bool|'granted'|ToolResult true — run; 'granted' — run by a saved grant; false — paused for the owner;
+     * @return bool|'granted'|'approved'|ToolResult true — run; 'granted' — run by a saved grant; 'approved' — run, the owner
+     *         pressed "allow"; false — paused for the owner;
      *         ToolResult — do not run, this is the result
      */
     private function admit(RunState $state, ValidatedCall $call): bool|string|ToolResult {
@@ -541,14 +543,17 @@ final class AgentLoop {
         $approval = $this->approvals?->forCall($state->run->id, $call->call->id);
         if ($approval !== null) {
             return match ($approval->status) {
-                ApprovalStatus::Approved => true,
+                ApprovalStatus::Approved => 'approved',
                 ApprovalStatus::Pending => false,
                 ApprovalStatus::Denied => ToolResult::error(t('agent.agent_loop.otkazano_vladeltsem') . ($approval->reason !== null ? ': ' . $approval->reason : '.') . t('agent.agent_loop.deystvie_ne_vypolneno')),
                 ApprovalStatus::Expired => ToolResult::error(t('agent.agent_loop.vladelets_ne_otvetil_vovremya_molchanie')),
             };
         }
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
-        if ($key !== null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
+        // spec: BRIEF.md#подтверждения-и-запреты — after outside data a grant is not used: the text read may be someone's
+        //      instructions, so the owner sees every irreversible action of this run on a card
+        $outside = $this->runs->find($state->run->id)?->outside;
+        if ($key !== null && $outside === null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
             $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
             return 'granted';
         }
@@ -558,7 +563,7 @@ final class AgentLoop {
         // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
         $this->transcript->setCallStatus($state->run->id, $call->call->id, ToolCallStatus::AwaitingApproval);
         $this->runs->setStatus($state->run->id, RunStatus::WaitingApproval);
-        $this->gate->request($state->run, $call, $state->principal);
+        $this->gate->request($this->runs->find($state->run->id) ?? $state->run, $call, $state->principal);
         return false;
     }
 
@@ -572,11 +577,15 @@ final class AgentLoop {
         return $paused;
     }
 
-    private function runCall(RunState $state, ValidatedCall $call): ToolResult {
+    private function runCall(RunState $state, ValidatedCall $call, bool $approved = false): ToolResult {
         if (!$call->executable() || $call->tool === null) {
             return ToolResult::error($call->error ?? t('agent.agent_loop.vyzov_ne_proshel_proverku'));
         }
         $this->transcript->startCall($state->run->id, $call->call->id);
+        if ($call->tool instanceof ReadsOutside && $call->args !== null && $call->tool->readsOutside($call->args)) {
+            // marked before the call: even a failed read may have brought text in
+            $this->runs->markOutside($state->run->id, $call->call->name);
+        }
         // The status message is in the chat: secrets in the arguments are masked there too.
         $preview = $call->args === null ? $call->call->argumentsJson : (json_encode(SecretMasker::maskArgs($call->args), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         $state->observer->toolStarted($state->run, $call->call->name, mb_substr(SecretMasker::mask($preview), 0, 200));
@@ -584,7 +593,7 @@ final class AgentLoop {
         $timeout = $call->tool instanceof LongRunning
             ? max(1, min($call->tool->timeout(), $remaining))
             : max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
-        $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id);
+        $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id, $approved);
         $started = ($this->clock)();
         $result = $this->executor->run($call, $context, $timeout);
         $this->events->toolFinished($state->run->id, $call->call->name, $call->args, $result, ($this->clock)() - $started);

@@ -17,6 +17,8 @@ final class FakeHttpClient implements DelegateHttpClient {
     public array $requested = [];
     /** @var list<array<string, string>> headers of every request, names in lower case */
     public array $headers = [];
+    /** @var list<string> body of every request */
+    public array $bodies = [];
 
     /** @param array<string, array{int, array<non-empty-string, string>, string}> $responses url => [status, headers, body] */
     public function __construct(private readonly array $responses = []) {}
@@ -29,6 +31,7 @@ final class FakeHttpClient implements DelegateHttpClient {
             $headers[strtolower($name)] = implode(', ', $values);
         }
         $this->headers[] = $headers;
+        $this->bodies[] = \Amp\ByteStream\buffer($request->getBody()->getContent());
         [$status, $headers, $body] = $this->responses[$url] ?? [404, [], 'not found'];
         return new Response('1.1', $status, null, $headers, $body, $request);
     }

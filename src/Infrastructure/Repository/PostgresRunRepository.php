@@ -20,17 +20,17 @@ use UnexpectedValueException;
  */
 final class PostgresRunRepository implements RunRepository {
     private const COLUMNS = 'id, conversation_id, principal_id, parent_run_id, model, status, stop_reason, max_turns, token_budget,
-        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned';
+        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned, outside';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null): ?Run {
+    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null, ?string $outside = null): ?Run {
         try {
             $row = $this->db->execute(
-                'INSERT INTO runs (conversation_id, principal_id, parent_run_id, model, status, max_turns, token_budget, run_timeout, tool_timeout)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                'INSERT INTO runs (conversation_id, principal_id, parent_run_id, model, status, max_turns, token_budget, run_timeout, tool_timeout, outside)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  RETURNING ' . self::COLUMNS,
-                [$conversationId, $principalId, $parentRunId, $model, RunStatus::Running->value, $limits->maxTurns, $limits->tokenBudget, $limits->runTimeout, $limits->toolTimeout],
+                [$conversationId, $principalId, $parentRunId, $model, RunStatus::Running->value, $limits->maxTurns, $limits->tokenBudget, $limits->runTimeout, $limits->toolTimeout, $outside],
             )->fetchRow();
         } catch (SqlQueryError $e) {
             if (str_contains($e->getMessage(), 'runs_one_active_per_conversation')) {
@@ -93,6 +93,14 @@ final class PostgresRunRepository implements RunRepository {
         $this->db->execute('UPDATE runs SET active_ms = active_ms + ?, updated_at = now() WHERE id = ?', [$ms, $runId]);
     }
 
+    public function markOutside(int $runId, string $source): void {
+        $this->db->execute(
+            "UPDATE runs SET outside = CASE WHEN outside IS NULL THEN ? ELSE outside || ', ' || ? END, updated_at = now()
+             WHERE id = ? AND (outside IS NULL OR NOT (? = ANY (string_to_array(outside, ', '))))",
+            [$source, $source, $runId, $source],
+        );
+    }
+
     public function markWarned(int $runId): void {
         $this->db->execute('UPDATE runs SET warned = true, updated_at = now() WHERE id = ?', [$runId]);
     }
@@ -147,6 +155,7 @@ final class PostgresRunRepository implements RunRepository {
             activeMs: self::int($row, 'active_ms'),
             promptAnchor: self::int($row, 'prompt_anchor'),
             warned: ($row['warned'] ?? false) === true,
+            outside: isset($row['outside']) ? self::string($row, 'outside') : null,
         );
     }
 

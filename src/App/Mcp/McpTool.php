@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#скиллы-и-mcp — a tool with no declared danger is irreversible; MCP results are untrusted
  */
-final class McpTool implements Tool {
+final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \OpenCCK\App\Agent\Tool\GrantKeyed {
     /**
      * @param array<array-key, mixed> $schema
      * @param array<array-key, mixed> $annotations
@@ -53,6 +53,24 @@ final class McpTool implements Tool {
             return DangerClass::Write;
         }
         return DangerClass::Irreversible;
+    }
+
+    /** spec: BRIEF.md#подтверждения-и-запреты — mail and other services bring text written by others */
+    public function readsOutside(array $args): bool {
+        return true;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    /** @return non-empty-string */
+    public function grantKey(array $args): string {
+        return sprintf('mcp:%s:%s', $this->server->name, $this->remoteName);
+    }
+
+    public function describe(array $args): string {
+        return sprintf('[MCP %s] %s', $this->server->name, $this->remoteName);
     }
 
     public function untrusted(): bool {

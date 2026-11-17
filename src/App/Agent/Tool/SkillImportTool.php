@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#скиллы-и-mcp
  */
-final class SkillImportTool implements Tool {
+final class SkillImportTool implements Tool, ReadsOutside {
     public const NAME = 'skill_import';
 
     public function __construct(private readonly SkillImporter $importer) {}
@@ -39,6 +39,11 @@ final class SkillImportTool implements Tool {
     /** It changes nothing until the owner accepts the card. */
     public function danger(array $args): DangerClass {
         return DangerClass::Write;
+    }
+
+    /** spec: BRIEF.md#подтверждения-и-запреты — a skill of another agent is outside text */
+    public function readsOutside(array $args): bool {
+        return true;
     }
 
     public function untrusted(): bool {

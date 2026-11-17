@@ -108,6 +108,10 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $principal->displayName ?? (t('agent.approval_service.uchastnik') . $principal->id),
             (new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)))->setTimezone(new \DateTimeZone('UTC'))->format('H:i'),
         );
+        if ($run->outside !== null) {
+            // spec: BRIEF.md#подтверждения-и-запреты — the owner sees why a grant was not used and what may have steered the agent
+            $text .= sprintf(t('agent.approval_service.outside_note'), \OpenCCK\App\Service\MessageMeta::inline($run->outside));
+        }
         $row = [];
         if (!$unreadable) {
             $row[] = new Button(t('agent.approval_service.razreshit'), sprintf('ap:%d:a', $approval->id));

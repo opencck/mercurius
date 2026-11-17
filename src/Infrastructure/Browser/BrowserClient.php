@@ -31,7 +31,7 @@ final class BrowserClient {
     }
 
     /**
-     * @param array<string, scalar> $body
+     * @param array<string, scalar|list<string>> $body
      * @return array<array-key, mixed>
      * @throws RuntimeException with a message for the model
      */

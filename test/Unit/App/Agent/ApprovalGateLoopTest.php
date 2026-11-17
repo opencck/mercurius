@@ -153,6 +153,79 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertStringContainsString('по сохранённому разрешению', $llm->requests[1]->messages[3]->content);
     }
 
+    public function testGrantedCallKnowsItWasAllowed(): void {
+        $this->registry = new ToolRegistry();
+        $keyed = new \OpenCCK\Test\Support\FakeKeyedTool('push', 'git-push:origin');
+        $this->registry->register($keyed);
+        $this->approvals->addGrant(1, 'git-push:origin');
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('готово')]);
+
+        $this->execute($this->loop($llm), $this->start());
+
+        self::assertTrue($keyed->context?->approved);
+    }
+
+    public function testApprovedCallKnowsItWasAllowed(): void {
+        $this->registry = new ToolRegistry();
+        $keyed = new \OpenCCK\Test\Support\FakeKeyedTool('push', null);
+        $this->registry->register($keyed);
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('отправил')]);
+        $loop = $this->loop($llm);
+        $run = $this->execute($loop, $this->start());
+        $this->approvals->decide(1, ApprovalStatus::Approved, null, 1);
+        $this->runs->setStatus($run->id, RunStatus::Running);
+
+        $this->execute($loop, $this->runs->find($run->id) ?? $run);
+
+        self::assertTrue($keyed->context?->approved);
+    }
+
+    public function testReadCallIsNotMarkedAllowed(): void {
+        $seen = null;
+        $this->registry = new ToolRegistry();
+        $this->registry->register(new FakeTool('read', handler: function (array $args, \OpenCCK\App\Agent\Tool\ToolContext $context) use (&$seen): \OpenCCK\App\Agent\Tool\ToolResult {
+            $seen = $context->approved;
+            return \OpenCCK\App\Agent\Tool\ToolResult::ok('ok');
+        }));
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'read', '{}')), ScriptedLlm::text('готово')]);
+
+        $this->execute($this->loop($llm), $this->start());
+
+        self::assertFalse($seen);
+    }
+
+    public function testOutsideDataSuspendsSavedGrants(): void {
+        $this->registry = new ToolRegistry();
+        $keyed = new \OpenCCK\Test\Support\FakeKeyedTool('push', 'git-push:origin');
+        $this->registry->register($keyed);
+        $this->registry->register(new \OpenCCK\Test\Support\FakeOutsideTool('web'));
+        $this->approvals->addGrant(1, 'git-push:origin');
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'web', '{}')), ScriptedLlm::calls(new ToolCall('c2', 'push', '{}'))]);
+
+        $run = $this->execute($this->loop($llm), $this->start());
+
+        self::assertSame(RunStatus::WaitingApproval, $run->status);
+        self::assertSame(['c2'], $this->asked);
+        self::assertSame(0, $keyed->runs);
+        self::assertSame('web', $this->runs->find($run->id)?->outside);
+    }
+
+    public function testRunStartedWithOutsideDataAsksDespiteAGrant(): void {
+        $this->registry = new ToolRegistry();
+        $keyed = new \OpenCCK\Test\Support\FakeKeyedTool('push', 'git-push:origin');
+        $this->registry->register($keyed);
+        $this->approvals->addGrant(1, 'git-push:origin');
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}'))]);
+        $run = $this->runs->start(1, 1, 'test/model', new RunLimits(30, 100_000, 900, 120), null, 'group chat');
+        self::assertNotNull($run);
+        $this->transcript->appendUser(1, $run->id, 'задача');
+
+        $this->execute($this->loop($llm), $run);
+
+        self::assertSame(['c1'], $this->asked);
+        self::assertSame(0, $keyed->runs);
+    }
+
     public function testNoOneToAskDenies(): void {
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('не смог')]);
 

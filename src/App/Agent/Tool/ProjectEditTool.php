@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  *       change with the owner's confirmation; a relation goes through the owner too and only from the participant's
  *       own words
  */
-final class ProjectEditTool implements Tool {
+final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
     public const ACTIONS = ['create', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
     /** what waits for the owner */
@@ -81,6 +81,23 @@ final class ProjectEditTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return in_array(Args::string($args, 'action'), self::CONFIRMED, true) ? DangerClass::Irreversible : DangerClass::Write;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        $action = Args::string($args, 'action') ?? '';
+        if (!in_array($action, self::CONFIRMED, true)) {
+            return null;
+        }
+        $project = mb_strtolower(trim(Args::string($args, 'project') ?? ''));
+        return $action === 'create' || $project === '' ? 'project:' . $action : sprintf('project:%s:%s', $action, $project);
+    }
+
+    public function describe(array $args): string {
+        return sprintf('project_edit %s «%s» %s', Args::string($args, 'action') ?? '', Args::string($args, 'project') ?? '', mb_substr(Args::string($args, 'status') ?? Args::string($args, 'text') ?? '', 0, 200));
     }
 
     public function untrusted(): bool {

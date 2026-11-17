@@ -305,7 +305,9 @@ $transcript = new PostgresTranscriptRepository($db);
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
-$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault));
+// spec: BRIEF.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
+$guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
+$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient));
 // spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 if ($browserToken !== null) {
@@ -313,10 +315,11 @@ if ($browserToken !== null) {
         new BrowserClient(HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000', $browserToken),
         $channel,
         $telegram->ownerId,
+        $addressGuard,
     ));
 }
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
-$tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor()));
+$tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
 [$webSearch, $searchSkipped, $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
 if ($searchSkipped !== []) {

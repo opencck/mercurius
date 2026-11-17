@@ -19,9 +19,11 @@ final class ToolContext {
         public readonly Cancellation $cancellation,
         public readonly ?ParticipantPolicy $policy = null,
         public readonly string $callId = '',
+        /** the owner allowed this very call: by the card or by a saved grant */
+        public readonly bool $approved = false,
     ) {}
 
     public function withCancellation(Cancellation $cancellation): self {
-        return new self($this->runId, $this->conversationId, $this->principal, $cancellation, $this->policy, $this->callId);
+        return new self($this->runId, $this->conversationId, $this->principal, $cancellation, $this->policy, $this->callId, $this->approved);
     }
 }

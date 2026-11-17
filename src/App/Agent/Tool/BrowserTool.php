@@ -15,12 +15,13 @@ use function Mercurius\I18n\t;
 /**
  * A real browser for pages that need a login, scripts or actions. Opening and reading go at once; typing into a field
  * is a write; clicking and submitting can publish, send or buy, so they wait for the owner. A screenshot goes to the
- * owner's chat. Every page is untrusted data.
+ * owner's chat. Every page is untrusted data. An internal address waits for the owner, and the browser lets in that
+ * host alone (the key is shared with http_request and web_read).
  *
  * spec: BRIEF.md#интернет-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
  *       card; profiles keep logins
  */
-final class BrowserTool implements Tool {
+final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
     public const NAME = 'browser';
     public const ACTIONS = ['open', 'read', 'click', 'type', 'screenshot', 'close'];
 
@@ -28,6 +29,8 @@ final class BrowserTool implements Tool {
         private readonly BrowserClient $browser,
         private readonly Channel $channel,
         private readonly string $ownerChatId,
+        /** tells internal addresses apart; null — the browser service alone refuses them */
+        private readonly ?AddressGuard $guard = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -52,11 +55,41 @@ final class BrowserTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return match (Args::string($args, 'action')) {
+            'open' => $this->internalHost($args) === null ? DangerClass::Read : DangerClass::Irreversible,
             'click' => DangerClass::Irreversible,
             'type' => ($args['submit'] ?? false) === true ? DangerClass::Irreversible : DangerClass::Write,
             'close' => DangerClass::Write,
             default => DangerClass::Read,
         };
+    }
+
+    public function grantKey(array $args): ?string {
+        if (Args::string($args, 'action') !== 'open') {
+            return null;
+        }
+        $internal = $this->internalHost($args);
+        return $internal === null ? null : 'addr:' . $internal;
+    }
+
+    public function describe(array $args): string {
+        $action = Args::string($args, 'action') ?? '';
+        $internal = $action === 'open' ? $this->internalHost($args) : null;
+        return 'browser ' . $action . ' ' . mb_substr(Args::string($args, 'url') ?? (string) (Args::int($args, 'ref') ?? ''), 0, 300)
+            . ($internal === null ? '' : sprintf(t('tool.address_internal'), $internal));
+    }
+
+    public function readsOutside(array $args): bool {
+        return in_array(Args::string($args, 'action'), ['open', 'read', 'click', 'type'], true);
+    }
+
+    /** @param array<string, mixed> $args */
+    private function internalHost(array $args): ?string {
+        $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
+        if ($this->guard === null || !is_string($host) || $host === '') {
+            return null;
+        }
+        $host = strtolower(trim($host, '[]'));
+        return $this->guard->internal($host) ? $host : null;
     }
 
     public function untrusted(): bool {
@@ -72,7 +105,9 @@ final class BrowserTool implements Tool {
         $profile = Args::string($args, 'profile') ?? 'main';
         try {
             $body = match ($action) {
-                'open' => ['profile' => $profile, 'url' => Args::string($args, 'url') ?? ''],
+                'open' => ['profile' => $profile, 'url' => Args::string($args, 'url') ?? '']
+                    // the owner allowed this internal host: the browser lets it in for this page
+                    + ($context->approved && ($internal = $this->internalHost($args)) !== null ? ['allow' => [$internal]] : []),
                 'click' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
                 'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => Args::string($args, 'text') ?? '', 'submit' => ($args['submit'] ?? false) === true],
                 default => ['profile' => $profile],

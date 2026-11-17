@@ -14,13 +14,13 @@ use function Mercurius\I18n\t;
 
 /**
  * Writes a file on a server: the content goes on stdin of `cat`, no SFTP is needed. Every write waits for the owner;
- * the places of the "never" list (authorized_keys, cron, sudoers, systemd) are refused. Reading a file is ssh_run with
- * cat.
+ * the places of the "never" list (authorized_keys, cron, sudoers, systemd) are written only when the owner allowed this
+ * very call, with a warning on the card. A grant names the server and the path. Reading a file is ssh_run with cat.
  *
  * spec: BRIEF.md#фаза-7-по-частям — files through cat and stdin/stdout
  * ref: references/amphp-ssh/examples/stdin-piping.php@9d171ac:L24-L34 — cat > file, pipe, end()
  */
-final class FileWriteTool implements Tool {
+final class FileWriteTool implements Tool, GrantKeyed {
     public const NAME = 'file_write';
     public const MAX_BYTES = 524_288;
 
@@ -48,6 +48,32 @@ final class FileWriteTool implements Tool {
         return DangerClass::Irreversible;
     }
 
+    public function grantKey(array $args): ?string {
+        $server = mb_strtolower(trim(Args::string($args, 'server') ?? ''));
+        $path = Args::string($args, 'path') ?? '';
+        if ($server === '' || $path === '') {
+            return null;
+        }
+        return sprintf('%s:%s:%s', $this->never($args) === null ? 'file-write' : 'file-write-never', $server, $path);
+    }
+
+    public function describe(array $args): string {
+        $never = $this->never($args);
+        return ($never === null ? '' : sprintf(t('tool.ssh_run.never_warning'), $never) . "
+")
+            . sprintf(t('tool.file_write.describe'), Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'path') ?? '', 0, 300), strlen(Args::string($args, 'content') ?? ''));
+    }
+
+    /** @param array<string, mixed> $args why the place is on the "never" list; null — it is not */
+    private function never(array $args): ?string {
+        $class = $this->classifier->classify(self::command(Args::string($args, 'path') ?? '', ($args['append'] ?? false) === true));
+        return $class->class === Classification::NEVER ? $class->reason : null;
+    }
+
+    private static function command(string $path, bool $append): string {
+        return sprintf('cat %s %s', $append ? '>>' : '>', self::quote($path));
+    }
+
     public function untrusted(): bool {
         return true;
     }
@@ -66,9 +92,9 @@ final class FileWriteTool implements Tool {
             return ToolResult::error(t('tool.file_write.slishkom_bolshoy_fayl_do_512'));
         }
         $append = ($args['append'] ?? false) === true;
-        $command = sprintf('cat %s %s', $append ? '>>' : '>', self::quote($path));
+        $command = self::command($path, $append);
         $class = $this->classifier->classify($command);
-        if ($class->class === Classification::NEVER) {
+        if ($class->class === Classification::NEVER && !$context->approved) {
             return ToolResult::error(sprintf(t('tool.file_write.syuda_pisat_nelzya_nikogda'), $class->reason));
         }
         [$ok, $text] = $this->console->runPrepared(

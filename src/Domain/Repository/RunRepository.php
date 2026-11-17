@@ -14,7 +14,11 @@ use OpenCCK\Domain\Agent\StopReason;
  */
 interface RunRepository {
     /** A new running run; null when the conversation already has an active one. */
-    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null): ?Run;
+    /** @param ?string $outside outside data the run starts with (a group chat); null — none */
+    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null, ?string $outside = null): ?Run;
+
+    /** Notes that outside data came into the run from $source; each source is kept once. */
+    public function markOutside(int $runId, string $source): void;
 
     public function find(int $id): ?Run;
 

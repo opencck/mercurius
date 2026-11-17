@@ -75,16 +75,18 @@ final class ServerConsole {
     }
 
     /**
+     * @param bool $approved the owner allowed this very call (a card or a saved grant): only then a command of the "never"
+     *                       list runs — spec: BRIEF.md#подтверждения-и-запреты, the owner decides even about those
      * @return array{bool, string} success and the text for the model (already masked)
      */
-    public function run(Principal $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation): array {
+    public function run(Principal $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation, bool $approved = false): array {
         $server = $this->servers->byName($serverName);
         if ($server === null) {
             return [false, sprintf(t('server.server_console.servera_net_v_reestre'), $serverName)];
         }
         $class = $this->classify($command, $server->name);
         $record = ['principal' => $principal->id, 'run' => $runId, 'server' => $server->name, 'command' => SecretMasker::mask($command), 'class' => $class->class, 'exit' => null, 'ms' => null, 'error' => null];
-        if ($class->class === Classification::NEVER) {
+        if ($class->class === Classification::NEVER && !$approved) {
             $this->journal($record + ['event' => 'refused', 'error' => $class->reason]);
             return [false, sprintf(t('server.server_console.eta_komanda_zapreschena_vsegda'), $class->reason)];
         }

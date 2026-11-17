@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#форум-темы--проекты — topic changes are writes, deletion is irreversible
  */
-final class ForumTopicTool implements Tool {
+final class ForumTopicTool implements Tool, GrantKeyed {
     public const NAME = 'forum_topic';
     private const ACTIONS = ['rename', 'close', 'reopen', 'delete'];
 
@@ -42,6 +42,18 @@ final class ForumTopicTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return Args::string($args, 'action') === 'delete' ? DangerClass::Irreversible : DangerClass::Write;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        return Args::string($args, 'action') === 'delete' ? 'forum:delete' : null;
+    }
+
+    public function describe(array $args): string {
+        return 'forum_topic ' . (Args::string($args, 'action') ?? '') . ' ' . (Args::string($args, 'name') ?? '');
     }
 
     public function untrusted(): bool {

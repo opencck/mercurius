@@ -99,6 +99,25 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame(['refused'], array_column($this->audit->records, 'event'));
     }
 
+    public function testNeverRunsWhenTheOwnerAllowedIt(): void {
+        [$ok, $text] = $this->console()->run($this->owner, 3, 'web', 'rm -rf /', 30, new NullCancellation(), approved: true);
+
+        self::assertTrue($ok, $text);
+        self::assertSame([['web', 'password', 'rm -rf /']], $this->ran);
+        self::assertSame(['start', 'done'], array_column($this->audit->records, 'event'));
+        self::assertSame('never', $this->audit->records[0]['class']);
+    }
+
+    public function testNeverCommandsWaitForTheOwnerAndMayBeGrantedForGood(): void {
+        $tool = new SshRunTool($this->console());
+        $args = ['server' => 'web', 'command' => 'rm -rf /'];
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args));
+        self::assertStringStartsWith('ssh-never:v' . CommandClassifier::VERSION . ':web:', (string) $tool->grantKey($args));
+        self::assertNotSame($tool->grantKey($args), $tool->grantKey(['server' => 'web', 'command' => 'rm -rf /home']));
+        self::assertStringContainsString('ОПАСНО', $tool->describe($args));
+    }
+
     public function testABrokenJournalStopsTheCommand(): void {
         $this->audit->broken = true;
 
@@ -152,7 +171,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame(DangerClass::Read, $tool->danger(['server' => 'web', 'command' => 'docker ps']));
         self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'systemctl restart nginx']));
         self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'sudo id']));
-        self::assertSame(DangerClass::Write, $tool->danger(['server' => 'web', 'command' => 'reboot']), 'refused, not asked');
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['server' => 'web', 'command' => 'reboot']), 'the owner decides even about the never list');
     }
 
     public function testSudoGetsTheLoginPasswordOnStdin(): void {

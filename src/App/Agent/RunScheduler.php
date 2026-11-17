@@ -504,7 +504,8 @@ final class RunScheduler {
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);
-        $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run);
+        // spec: BRIEF.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
+        $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, str_starts_with($meta->chatId, '-') ? 'group chat' : null);
         if ($run === null) {
             // Lost a race with another start: the text joins the run that won.
             $active = $this->runs->active($conversationId);

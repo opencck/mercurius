@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#продукт-и-архитектура — a provider key through OpenRouter as an agent tool with the owner's confirmation
  */
-final class OpenRouterByokTool implements Tool {
+final class OpenRouterByokTool implements Tool, GrantKeyed {
     public const NAME = 'openrouter_byok';
     /** the secret with the OpenRouter management key */
     public const MANAGEMENT_SECRET = 'openrouter-management';
@@ -47,6 +47,19 @@ final class OpenRouterByokTool implements Tool {
 
     public function danger(array $args): DangerClass {
         return DangerClass::Irreversible;
+    }
+
+    /**
+     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * action and its target (owner's decision 2026-11-17)
+     */
+    public function grantKey(array $args): ?string {
+        $provider = Args::string($args, 'provider') ?? '';
+        return $provider === '' ? null : 'openrouter-byok:' . $provider;
+    }
+
+    public function describe(array $args): string {
+        return sprintf('openrouter_byok %s ← %s', Args::string($args, 'provider') ?? '', Args::string($args, 'key_secret') ?? '');
     }
 
     public function untrusted(): bool {

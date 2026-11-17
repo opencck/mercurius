@@ -25,5 +25,7 @@ final class Run {
         public readonly int $activeMs = 0,
         public readonly int $promptAnchor = 0,
         public readonly bool $warned = false,
+        /** where outside data came into the run from (tools, a group chat); null — none: saved grants apply only then */
+        public readonly ?string $outside = null,
     ) {}
 }

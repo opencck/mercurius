@@ -43,8 +43,6 @@ final class SshRunTool implements Tool, GrantKeyed {
         $class = $this->console->classify(Args::string($args, 'command') ?? '', Args::string($args, 'server'));
         return match ($class->class) {
             Classification::READ => DangerClass::Read,
-            // refused in execute, nothing to confirm
-            Classification::NEVER => DangerClass::Write,
             default => DangerClass::Irreversible,
         };
     }
@@ -59,14 +57,24 @@ final class SshRunTool implements Tool, GrantKeyed {
     public function grantKey(array $args): ?string {
         $command = trim(Args::string($args, 'command') ?? '');
         $server = mb_strtolower(trim(Args::string($args, 'server') ?? ''));
-        if ($command === '' || $server === '' || $this->console->classify($command, $server)->class !== Classification::CHANGE) {
+        if ($command === '' || $server === '') {
             return null;
         }
-        return sprintf('ssh:v%d:%s:%s', CommandClassifier::VERSION, $server, hash('sha256', $command));
+        // spec: BRIEF.md#подтверждения-и-запреты — the owner may allow even a command of the "never" list for good; its
+        //      key is apart, so the list of grants shows it
+        $prefix = match ($this->console->classify($command, $server)->class) {
+            Classification::CHANGE => 'ssh',
+            Classification::NEVER => 'ssh-never',
+            default => null,
+        };
+        return $prefix === null ? null : sprintf('%s:v%d:%s:%s', $prefix, CommandClassifier::VERSION, $server, hash('sha256', $command));
     }
 
     public function describe(array $args): string {
-        return sprintf(t('tool.ssh_run.komanda_na_servere'), Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'command') ?? '', 0, 300));
+        $class = $this->console->classify(Args::string($args, 'command') ?? '', Args::string($args, 'server'));
+        $danger = $class->class === Classification::NEVER ? sprintf(t('tool.ssh_run.never_warning'), $class->reason) . "
+" : '';
+        return $danger . sprintf(t('tool.ssh_run.komanda_na_servere'), Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'command') ?? '', 0, 300));
     }
 
     public function untrusted(): bool {
@@ -85,6 +93,7 @@ final class SshRunTool implements Tool, GrantKeyed {
             Args::string($args, 'command') ?? '',
             Args::int($args, 'timeout') ?? 60,
             $context->cancellation,
+            $context->approved,
         );
         return $ok ? ToolResult::ok($text) : ToolResult::error($text);
     }

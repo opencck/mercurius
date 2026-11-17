@@ -15,11 +15,11 @@ final class InMemoryRunRepository implements RunRepository {
     public array $runs = [];
     private int $next = 1;
 
-    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null): ?Run {
+    public function start(int $conversationId, int $principalId, string $model, RunLimits $limits, ?int $parentRunId = null, ?string $outside = null): ?Run {
         if ($this->active($conversationId) !== null) {
             return null;
         }
-        $run = new Run($this->next++, $conversationId, $principalId, $parentRunId, $model, RunStatus::Running, null, $limits);
+        $run = new Run($this->next++, $conversationId, $principalId, $parentRunId, $model, RunStatus::Running, null, $limits, outside: $outside);
         return $this->runs[$run->id] = $run;
     }
 
@@ -74,6 +74,13 @@ final class InMemoryRunRepository implements RunRepository {
         $this->runs[$runId] = $this->with($this->runs[$runId], activeMs: $this->runs[$runId]->activeMs + $ms);
     }
 
+    public function markOutside(int $runId, string $source): void {
+        $outside = $this->runs[$runId]->outside;
+        if ($outside === null || !in_array($source, explode(', ', $outside), true)) {
+            $this->runs[$runId] = $this->with($this->runs[$runId], outside: $outside === null ? $source : $outside . ', ' . $source);
+        }
+    }
+
     public function markWarned(int $runId): void {
         $this->runs[$runId] = $this->with($this->runs[$runId], warned: true);
     }
@@ -112,6 +119,7 @@ final class InMemoryRunRepository implements RunRepository {
         ?int $activeMs = null,
         ?int $promptAnchor = null,
         ?bool $warned = null,
+        ?string $outside = null,
     ): Run {
         return new Run(
             $run->id,
@@ -128,6 +136,7 @@ final class InMemoryRunRepository implements RunRepository {
             $activeMs ?? $run->activeMs,
             $promptAnchor ?? $run->promptAnchor,
             $warned ?? $run->warned,
+            $outside ?? $run->outside,
         );
     }
 }

@@ -101,7 +101,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         $result = $this->tool([])->execute(['url' => 'http://postgres:5432/'], self::context());
 
         self::assertTrue($result->isError);
-        self::assertSame('Адрес postgres — внутренний: такие запросы запрещены.', $result->content);
+        self::assertSame('Адрес postgres — внутренний: запрос только с разрешения владельца.', $result->content);
         self::assertCount(0, $this->http->requested);
     }
 
@@ -110,7 +110,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
             ->execute(['url' => 'https://example.com/'], self::context());
 
         self::assertTrue($result->isError);
-        self::assertSame('Адрес internal.example.com — внутренний: такие запросы запрещены.', $result->content);
+        self::assertSame('Адрес internal.example.com — внутренний: запрос только с разрешения владельца.', $result->content);
         self::assertSame(['GET https://example.com/'], $this->http->requested);
     }
 
@@ -172,5 +172,41 @@ final class HttpRequestToolTest extends AsyncTestCase {
             ->execute(['url' => 'https://example.com/'], self::context());
 
         self::assertStringEndsWith('[ответ обрезан: больше 1048576 байт]', $result->content);
+    }
+
+    public function testAnInternalAddressWaitsForTheOwnerAndIsGrantedPerHost(): void {
+        $tool = $this->tool([]);
+        $args = ['url' => 'http://internal.example.com/status'];
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger($args));
+        self::assertSame('addr:internal.example.com', $tool->grantKey($args));
+        self::assertStringContainsString('Внутренний адрес', $tool->describe($args));
+        self::assertSame(DangerClass::Read, $tool->danger(['url' => 'https://example.com/']));
+        self::assertNull($tool->grantKey(['url' => 'https://example.com/']));
+        self::assertSame(DangerClass::Read, $tool->danger(['url' => 'https://nowhere.example/']), 'an unknown name is not internal: it just fails');
+    }
+
+    public function testTheOwnersPermissionOpensThatHostAlone(): void {
+        $this->http = new FakeHttpClient([
+            'http://internal.example.com/status' => [200, [], 'ok'],
+            'http://internal.example.com/away' => [302, ['location' => 'http://10.0.0.9/'], ''],
+        ]);
+        $guards = [];
+        $guard = new AddressGuard(static fn(string $host): array => $host === 'internal.example.com' ? ['10.0.0.1'] : []);
+        $tool = new HttpRequestTool($this->http, $guard, null, function (AddressGuard $permitted) use (&$guards): FakeHttpClient {
+            $guards[] = $permitted;
+            return $this->http;
+        });
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+
+        $refused = $tool->execute(['url' => 'http://internal.example.com/status'], self::context());
+        $allowed = $tool->execute(['url' => 'http://internal.example.com/status'], new ToolContext(1, 1, $owner, new NullCancellation(), approved: true));
+        $elsewhere = $tool->execute(['url' => 'http://internal.example.com/away'], new ToolContext(1, 1, $owner, new NullCancellation(), approved: true));
+
+        self::assertTrue($refused->isError);
+        self::assertStringContainsString('HTTP 200', $allowed->content);
+        self::assertSame(['10.0.0.1'], $guards[0]->resolve('internal.example.com'), 'the client dials through a guard that lets the host in');
+        self::assertTrue($elsewhere->isError, 'a redirect to another internal address is not allowed');
+        self::assertStringContainsString('10.0.0.9', $elsewhere->content);
     }
 }
