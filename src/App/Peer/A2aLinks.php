@@ -74,18 +74,6 @@ final class A2aLinks {
         return $list;
     }
 
-    /** Closes the connections nobody used for $seconds. */
-    public function closeIdle(float $seconds): int {
-        $closed = 0;
-        foreach ($this->links as $id => $link) {
-            if (microtime(true) - $link['socket']->lastUsed >= $seconds) {
-                $this->close($id);
-                $closed++;
-            }
-        }
-        return $closed;
-    }
-
     private function prune(): void {
         foreach ($this->links as $id => $link) {
             if (!$link['socket']->alive()) {

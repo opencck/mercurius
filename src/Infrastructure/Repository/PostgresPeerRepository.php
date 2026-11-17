@@ -153,14 +153,18 @@ final class PostgresPeerRepository implements PeerRepository {
         return $this->db->execute('UPDATE peers SET identity = ? WHERE name = ? RETURNING name', [$identity, $name])->fetchRow() !== null;
     }
 
+    public function setKeep(string $name, bool $keep): bool {
+        return $this->db->execute('UPDATE peers SET keep = ? WHERE name = ? RETURNING name', [$keep, $name])->fetchRow() !== null;
+    }
+
     public function peer(string $name): ?Peer {
-        $row = $this->db->execute('SELECT name, url, secret, public_key, card::text AS card, identity FROM peers WHERE name = ?', [$name])->fetchRow();
+        $row = $this->db->execute('SELECT name, url, secret, public_key, card::text AS card, identity, keep FROM peers WHERE name = ?', [$name])->fetchRow();
         return $row === null ? null : self::peerRow($row);
     }
 
     public function peers(): array {
         $found = [];
-        foreach ($this->db->query('SELECT name, url, secret, public_key, card::text AS card, identity FROM peers ORDER BY name') as $row) {
+        foreach ($this->db->query('SELECT name, url, secret, public_key, card::text AS card, identity, keep FROM peers ORDER BY name') as $row) {
             $found[] = self::peerRow($row);
         }
         return $found;
@@ -233,7 +237,7 @@ final class PostgresPeerRepository implements PeerRepository {
             $decoded = json_decode($row['card'], true, 32, JSON_THROW_ON_ERROR);
             $card = is_array($decoded) ? $decoded : null;
         }
-        return new Peer(self::str($row, 'name'), self::str($row, 'url'), self::str($row, 'secret'), self::str($row, 'public_key'), $card, self::str($row, 'identity'));
+        return new Peer(self::str($row, 'name'), self::str($row, 'url'), self::str($row, 'secret'), self::str($row, 'public_key'), $card, self::str($row, 'identity'), ($row['keep'] ?? false) === true);
     }
 
     /** @param array<string, mixed> $row */

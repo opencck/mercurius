@@ -575,12 +575,14 @@ $agentIdentity = $vault->enabled()
 // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — keys the agent makes itself, the
 // transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
 $agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId), $agentIdentity);
-$a2aConnect = static function (string $url, string $token): \OpenCCK\App\Peer\A2aChannel {
+// native WebSocket pings from this side too: every 10 s; three unanswered — the connection is dead and is closed
+$a2aConnector = new \Amp\Websocket\Client\Rfc6455Connector(new \Amp\Websocket\Client\Rfc6455ConnectionFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3)));
+$a2aConnect = static function (string $url, string $token) use ($a2aConnector): \OpenCCK\App\Peer\A2aChannel {
     if (preg_match('~^wss?://~', $url) !== 1) {
         throw new \RuntimeException('not a websocket address');
     }
     $handshake = (new \Amp\Websocket\Client\WebsocketHandshake($url, ['authorization' => 'Bearer ' . $token]))->withTcpConnectTimeout(10)->withTlsHandshakeTimeout(10);
-    return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel(\Amp\Websocket\Client\connect($handshake, new \Amp\TimeoutCancellation(20)));
+    return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel($a2aConnector->connect($handshake, new \Amp\TimeoutCancellation(20)));
 };
 // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — live connections both ways, shared by the client and
 // the server; requests a neighbour sends back on a connection this agent opened are answered by the server
@@ -607,9 +609,10 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
-// a connection nobody used for an hour closes; the agent opens it again when it needs it
-\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(300, static function (string $id) use ($a2aLinks): void {
-    $a2aLinks->closeIdle(3600.0);
+// spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept: idle ones are not closed,
+// dropped ones are opened again (after a restart too); WebSocket pings keep a live one through NPM
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($peerNetwork): void {
+    $peerNetwork->keepAlive();
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
 // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — an unknown agent knocks, the owner decides
@@ -727,7 +730,14 @@ if ($a2aServer !== null) {
         $routes[] = ['POST', '/a2a', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
     } else {
         $a2aSocket = new \OpenCCK\Infrastructure\API\Handler\A2aSocketHandler($a2aServer);
-        $routes[] = ['GET', '/a2a/ws', static fn(\Amp\Http\Server\HttpServer $http): \Amp\Websocket\Server\Websocket => new \Amp\Websocket\Server\Websocket($http, $logger, $a2aSocket, $a2aSocket)];
+        // the server pings every client every 10 s (three unanswered — closed): a live connection survives the proxy timeout
+        $routes[] = ['GET', '/a2a/ws', static fn(\Amp\Http\Server\HttpServer $http): \Amp\Websocket\Server\Websocket => new \Amp\Websocket\Server\Websocket(
+            $http,
+            $logger,
+            $a2aSocket,
+            $a2aSocket,
+            clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3)),
+        )];
     }
 }
 

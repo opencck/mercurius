@@ -35,6 +35,11 @@ use function Mercurius\I18n\t;
 final class PeerNetwork {
     public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_-]{0,39}$~';
     private const POLL_BATCH = 10;
+    /** pauses before the next try to open a kept connection that failed: 30 s, doubled, at most 5 minutes */
+    private const RETRY_FIRST = 30.0;
+    private const RETRY_MAX = 300.0;
+    /** @var array<string, array{fails: int, next: float}> failed tries by neighbour */
+    private array $retries = [];
 
     public function __construct(
         private readonly PeerRepository $peers,
@@ -73,11 +78,56 @@ final class PeerNetwork {
         } catch (\RuntimeException $e) {
             throw new DomainException($e->getMessage());
         }
+        // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept until it is closed
+        $this->peers->setKeep($peerName, true);
+        unset($this->retries[$peerName]);
         return sprintf(t('peer.peer_network.link_open'), $peerName);
     }
 
+    /** Closes a connection; an outgoing one is no longer kept. */
     public function closeLink(int $id): bool {
+        foreach ($this->links?->all() ?? [] as $link) {
+            if ($link['id'] === $id && $link['direction'] === A2aLinks::OUT) {
+                $this->peers->setKeep($link['name'], false);
+                unset($this->retries[$link['name']]);
+            }
+        }
         return $this->links?->close($id) ?? false;
+    }
+
+    /**
+     * Opens again the kept connections that dropped (the neighbour restarted, the network blinked, this agent was
+     * deployed). A failed try waits 30 s, then twice as long, up to 5 minutes. A live connection is kept alive by
+     * WebSocket pings on both sides.
+     *
+     * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
+     */
+    public function keepAlive(): void {
+        if ($this->links === null) {
+            return;
+        }
+        $now = microtime(true);
+        foreach ($this->peers->peers() as $peer) {
+            if (!$peer->keep || A2aClient::transport($peer) !== 'ws') {
+                continue;
+            }
+            if ($this->links->to(AgentIdentity::fingerprintOf($peer->publicKey) ?? '') !== null) {
+                unset($this->retries[$peer->name]);
+                continue;
+            }
+            $retry = $this->retries[$peer->name] ?? null;
+            if ($retry !== null && $retry['next'] > $now) {
+                continue;
+            }
+            try {
+                $this->open($peer->name);
+                $this->logger->info('Kept connection opened again', ['peer' => $peer->name]);
+            } catch (\Throwable $e) {
+                $fails = ($retry['fails'] ?? 0) + 1;
+                $this->retries[$peer->name] = ['fails' => $fails, 'next' => $now + min(self::RETRY_MAX, self::RETRY_FIRST * (float) (2 ** ($fails - 1)))];
+                $this->logger->notice('Kept connection did not open', ['peer' => $peer->name, 'fails' => $fails, 'error' => mb_substr($e->getMessage(), 0, 200)]);
+            }
+        }
     }
 
     /** The connections in both directions, as the owner and the agent see them. */

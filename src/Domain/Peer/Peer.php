@@ -20,5 +20,7 @@ final class Peer {
         public readonly ?array $card,
         /** the name of this agent's key it presents to the neighbour; '' — the main key */
         public readonly string $identity = '',
+        /** the connection to it is kept: opened again after a drop or a restart */
+        public readonly bool $keep = false,
     ) {}
 }

@@ -142,7 +142,16 @@ final class InMemoryPeerRepository implements PeerRepository {
 
     /** @param array<array-key, mixed>|null $card */
     public function addPeer(string $name, string $url, string $secret, string $publicKey, ?array $card, string $identity = ''): void {
-        $this->peers[$name] = new Peer($name, $url, $secret, $publicKey, $card, $identity);
+        $this->peers[$name] = new Peer($name, $url, $secret, $publicKey, $card, $identity, $this->peers[$name]->keep ?? false);
+    }
+
+    public function setKeep(string $name, bool $keep): bool {
+        $p = $this->peers[$name] ?? null;
+        if ($p === null) {
+            return false;
+        }
+        $this->peers[$name] = new Peer($p->name, $p->url, $p->secret, $p->publicKey, $p->card, $p->identity, $keep);
+        return true;
     }
 
     public function setIdentity(string $name, string $identity): bool {
@@ -150,7 +159,7 @@ final class InMemoryPeerRepository implements PeerRepository {
         if ($p === null) {
             return false;
         }
-        $this->peers[$name] = new Peer($p->name, $p->url, $p->secret, $p->publicKey, $p->card, $identity);
+        $this->peers[$name] = new Peer($p->name, $p->url, $p->secret, $p->publicKey, $p->card, $identity, $p->keep);
         return true;
     }
 

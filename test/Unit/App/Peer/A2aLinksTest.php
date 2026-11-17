@@ -49,6 +49,9 @@ final class A2aLinksTest extends AsyncTestCase {
         $test = $this;
         $connect = function (string $wsUrl, string $token) use ($test): InProcessA2aChannel {
             $test->connects++;
+            if (parse_url($wsUrl, PHP_URL_HOST) === 'c.example') {
+                throw new \RuntimeException('Сосед не ответил (down).');
+            }
             $target = $test->agents[parse_url($wsUrl, PHP_URL_HOST) === 'b.example' ? 'b' : 'a']['server'];
             [$mine, $theirs] = InProcessA2aChannel::pair();
             async(static fn() => $target->serveSocket($theirs))->ignore();
@@ -57,6 +60,11 @@ final class A2aLinksTest extends AsyncTestCase {
         $client = new A2aClient(new HttpClient(new A2aWire($server), []), $key, null, $connect, $links, $server->handlerFor(...));
         $network = new PeerNetwork($peers, $stack->principals, $vault, $client, $stack->conversations, $stack->transcript, $stack->channel, $url, new NullLogger(), $key, static fn(): Principal => $owner, null, $links);
         $this->agents[$name] = ['stack' => $stack, 'server' => $server, 'network' => $network, 'links' => $links, 'key' => $key, 'owner' => $owner, 'peers' => $peers];
+    }
+
+    /** Read anew each time: a connection is counted inside the event loop. */
+    private function connects(): int {
+        return $this->connects;
     }
 
     protected function setUp(): void {
@@ -120,5 +128,50 @@ final class A2aLinksTest extends AsyncTestCase {
 
         self::assertFalse($result->isError, 'the policy decides who has the tool, not the tool itself: ' . $result->content);
         self::assertCount(1, $a['links']->all());
+    }
+
+    public function testAConnectionTheAgentOpenedIsKeptAndOpenedAgainWhenItDrops(): void {
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        self::assertTrue($a['peers']->peer('b')?->keep, 'kept, also after a restart');
+
+        foreach ($this->agents['b']['links']->all() as $link) {
+            $this->agents['b']['links']->close($link['id']);
+        }
+        delay(0.02);
+        self::assertSame([], $a['links']->all(), 'the other side dropped it');
+        $a['network']->keepAlive();
+
+        self::assertSame(2, $this->connects(), 'opened again');
+        $live = $a['links']->all();
+        self::assertSame([[A2aLinks::OUT, 'b']], array_map(static fn(array $l): array => [$l['direction'], $l['name']], $live));
+        $a['network']->keepAlive();
+        self::assertSame(array_column($live, 'id'), array_column($a['links']->all(), 'id'), 'a live connection is left alone');
+    }
+
+    public function testClosingAConnectionStopsKeepingIt(): void {
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        $all = $a['links']->all();
+        $id = $all === [] ? 0 : $all[0]['id'];
+
+        self::assertTrue($a['network']->closeLink($id));
+        delay(0.02);
+        $a['network']->keepAlive();
+
+        self::assertFalse($a['peers']->peer('b')?->keep);
+        self::assertSame(1, $this->connects);
+    }
+
+    public function testAnUnreachableNeighbourIsTriedAgainLater(): void {
+        $a = $this->agents['a'];
+        $a['peers']->addPeer('c', 'https://c.example', 'entrance', $this->agents['b']['key']->publicKey, ['mercurius' => ['transport' => 'ws', 'ws' => 'wss://c.example/a2a/ws']]);
+        $a['peers']->setKeep('c', true);
+
+        $a['network']->keepAlive();
+        $a['network']->keepAlive();
+
+        self::assertSame(1, $this->connects, 'one try, the next after a pause');
+        self::assertTrue($a['peers']->peer('c')?->keep, 'still kept: it may come back');
     }
 }

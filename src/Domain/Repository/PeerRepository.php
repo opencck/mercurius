@@ -69,6 +69,9 @@ interface PeerRepository {
     /** The key this agent presents to the neighbour; false — no such neighbour. */
     public function setIdentity(string $name, string $identity): bool;
 
+    /** Whether the connection to the neighbour is kept; false — no such neighbour. */
+    public function setKeep(string $name, bool $keep): bool;
+
     public function peer(string $name): ?Peer;
 
     /** @return list<Peer> */

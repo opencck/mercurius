@@ -42,4 +42,19 @@ final class PostgresAgentRequestsTest extends AsyncTestCase {
         self::assertNotNull($peers->requestAccess($key, 'x', '', 'ws', 5), 'a decided request is not dropped');
         $db->close();
     }
+
+    public function testAKeptConnectionIsRemembered(): void {
+        $db = TestDatabase::connect();
+        $peers = new PostgresPeerRepository($db);
+        $name = 'keep-' . bin2hex(random_bytes(3));
+        $peers->addPeer($name, 'https://k.example', 'secret', 'key', null);
+
+        self::assertFalse($peers->peer($name)?->keep);
+        self::assertTrue($peers->setKeep($name, true));
+        $peers->addPeer($name, 'https://k2.example', 'secret', 'key', null);
+        self::assertTrue($peers->peer($name)?->keep, 'a refreshed card does not drop it');
+        self::assertFalse($peers->setKeep('no-such-' . $name, true));
+        $peers->removePeer($name);
+        $db->close();
+    }
 }
