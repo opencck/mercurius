@@ -35,9 +35,9 @@ final class GroupGateTest extends AsyncTestCase {
     }
 
     /** @param array<array-key, mixed> $extra */
-    private function say(string $text, string $userId = '42', array $extra = []): void {
+    private function say(string $text, string $userId = '42', array $extra = [], ?string $thread = null): void {
         $id = (string) ++$this->id;
-        $this->stack->chat->handle(new IncomingMessage('telegram', self::GROUP, $userId, 'u' . $userId, 'User ' . $userId, $text, $id, null, false, new DateTimeImmutable(), $id, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']] + $extra));
+        $this->stack->chat->handle(new IncomingMessage('telegram', self::GROUP, $userId, 'u' . $userId, 'User ' . $userId, $text, $id, null, false, new DateTimeImmutable(), $id, $thread, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']] + $extra));
         delay(0.02);
     }
 
@@ -78,6 +78,19 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertStringContainsString('кто оплатит свет? там 1200', $prompt, 'the talk of the group comes as data');
         self::assertStringContainsString('<untrusted-data source="group-chat">', $prompt);
         self::assertStringEndsWith("\n\nсколько за свет?", $prompt, 'the mention is dropped');
+    }
+
+    public function testTheAnswerStaysInTheForumTopicOfTheMessage(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('В теме.')]));
+        $this->say('x');
+        $this->press('gr:' . self::GROUP . ':m');
+        $before = count($this->stack->channel->threads);
+
+        $this->say('@mrcuribot ответь тут', thread: '77');
+
+        $threads = array_slice($this->stack->channel->threads, $before);
+        self::assertNotSame([], $threads);
+        self::assertSame(['77'], array_values(array_unique($threads)), 'every message of the run goes to topic 77');
     }
 
     public function testAStrangerIsNotAnsweredAndAReplyToTheBotCounts(): void {

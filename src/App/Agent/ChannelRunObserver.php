@@ -51,6 +51,8 @@ final class ChannelRunObserver implements RunObserver {
         /** the longest flood wait the final message sits out before going another way */
         private readonly float $maxFloodWait = 120.0,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** the forum topic the conversation goes on in; every message of the run stays in it */
+        private readonly ?string $threadId = null,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -60,7 +62,7 @@ final class ChannelRunObserver implements RunObserver {
         $this->started = true;
         $this->startedAt = ($this->clock)();
         $this->channel->typing($this->chatId);
-        $result = $this->channel->send(new OutgoingMessage($this->chatId, $notice ?? self::PLACEHOLDER, $this->replyTo));
+        $result = $this->channel->send(new OutgoingMessage($this->chatId, $notice ?? self::PLACEHOLDER, $this->replyTo, threadId: $this->threadId));
         $this->messageId = $result->success ? $result->messageId : null;
     }
 
@@ -109,7 +111,7 @@ final class ChannelRunObserver implements RunObserver {
         if ($delivered) {
             $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'edit', 'message' => $messageId]);
         } else {
-            $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode)));
+            $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode, threadId: $this->threadId)));
             if ($sent) {
                 $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'send']);
             }
@@ -123,7 +125,7 @@ final class ChannelRunObserver implements RunObserver {
             }
         }
         foreach ($parts as $part) {
-            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: $mode)));
+            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: $mode, threadId: $this->threadId)));
         }
     }
 

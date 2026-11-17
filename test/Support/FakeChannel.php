@@ -38,7 +38,11 @@ final class FakeChannel implements Channel {
     /** @var list<array{string, string, string}> sent files: chat, name, content */
     public array $files = [];
 
+    /** @var list<?string> the forum topic of every sent message */
+    public array $threads = [];
+
     public function send(OutgoingMessage $message): SendResult {
+        $this->threads[] = $message->threadId;
         if ($this->sendDelay > 0) {
             \Amp\delay($this->sendDelay);
         }
