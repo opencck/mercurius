@@ -54,9 +54,24 @@ final class InMemoryProjectRepository implements ProjectRepository {
         return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time());
     }
 
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile): ProjectTask {
+    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?\DateTimeImmutable $dueAt = null): ProjectTask {
         $id = count($this->tasks) + 1;
-        return $this->tasks[$id] = new ProjectTask($id, $projectId, $parentId, $title, ProjectTask::OPEN, $profile, null);
+        return $this->tasks[$id] = new ProjectTask($id, $projectId, $parentId, $title, ProjectTask::OPEN, $profile, null, $dueAt);
+    }
+
+    public function setTaskDue(int $id, ?\DateTimeImmutable $dueAt): ?ProjectTask {
+        $t = $this->tasks[$id] ?? null;
+        if ($t === null) {
+            return null;
+        }
+        return $this->tasks[$id] = new ProjectTask($t->id, $t->projectId, $t->parentId, $t->title, $t->status, $t->profile, $t->result, $dueAt);
+    }
+
+    public function dueTasks(\DateTimeImmutable $until, int $limit): array {
+        $found = array_values(array_filter($this->tasks, fn(ProjectTask $t): bool => $t->isOpen() && $t->dueAt !== null && $t->dueAt <= $until
+            && ($this->projects[$t->projectId] ?? null)?->status === Project::ACTIVE));
+        usort($found, static fn(ProjectTask $a, ProjectTask $b): int => [$a->dueAt, $a->id] <=> [$b->dueAt, $b->id]);
+        return array_slice($found, 0, $limit);
     }
 
     public function task(int $id): ?ProjectTask {
@@ -68,7 +83,7 @@ final class InMemoryProjectRepository implements ProjectRepository {
         if ($t === null) {
             return null;
         }
-        return $this->tasks[$id] = new ProjectTask($t->id, $t->projectId, $t->parentId, $t->title, $status, $t->profile, $result ?? $t->result);
+        return $this->tasks[$id] = new ProjectTask($t->id, $t->projectId, $t->parentId, $t->title, $status, $t->profile, $result ?? $t->result, $t->dueAt);
     }
 
     public function openTasks(int $projectId, int $limit): array {

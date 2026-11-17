@@ -7,7 +7,8 @@ namespace OpenCCK\Domain\Job;
 use DateTimeImmutable;
 
 /**
- * A scheduled job: what to do, when, for whom and where to report.
+ * A scheduled job: what to do, when, for whom and where to report. A job by event runs on a signed webhook; the vault
+ * secret that signs it is named in $hookSecret.
  *
  * spec: BRIEF.md#планировщик-и-проекты
  */
@@ -29,5 +30,10 @@ final class Job {
         public readonly ?string $lastResult,
         public readonly ?string $pendingReport,
         public readonly string $status,
+        public readonly ?string $hookSecret = null,
     ) {}
+
+    public function byEvent(): bool {
+        return $this->schedule === Schedule::EVENT;
+    }
 }

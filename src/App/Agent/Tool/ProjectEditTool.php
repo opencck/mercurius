@@ -23,7 +23,7 @@ use OpenCCK\Domain\Repository\ProjectRepository;
  */
 final class ProjectEditTool implements Tool {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'goal', 'status', 'card', 'add_task', 'task_status', 'relation', 'activate'];
+    public const ACTIONS = ['create', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
     public const RELATION_MAX = 1000;
@@ -31,13 +31,32 @@ final class ProjectEditTool implements Tool {
     public function __construct(
         private readonly ProjectRepository $projects,
         private readonly ConversationRepository $conversations,
+        private readonly \DateTimeZone $zone = new \DateTimeZone('UTC'),
     ) {}
+
+    /**
+     * A deadline in the owner's zone: a date alone means the end of that day.
+     *
+     * spec: BRIEF.md#планировщик-и-проекты — deadlines for the daily summary
+     */
+    public static function due(string $text, \DateTimeZone $zone): ?\DateTimeImmutable {
+        $text = trim($text);
+        try {
+            if (preg_match('~^\d{4}-\d{2}-\d{2}$~', $text) === 1) {
+                return (new \DateTimeImmutable($text, $zone))->setTime(23, 59);
+            }
+            return preg_match('~^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}~', $text) === 1 ? new \DateTimeImmutable($text, $zone) : null;
+        } catch (\Exception) {
+            return null;
+        }
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, 'Ведёт проекты. project — имя проекта (без него — проект этого чата). action: create — новый '
             . 'проект (text — цель); goal — новая цель (text); status — active, paused или done; card — полный новый текст карточки: состав, '
             . 'репозитории, серверы, стек, принятые решения; add_task — задача (text; parent_id — если это часть другой; profile — оценки '
-            . '1–10 по осям, если ясны); task_status — task_id и status (open, doing, done, dropped), для done и dropped text — итог; '
+            . '1–10 по осям, если ясны; due — срок: ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ по часовому поясу владельца); task_status — task_id и status '
+            . '(open, doing, done, dropped), для done и dropped text — итог; task_due — task_id и due (пусто — снять срок); '
             . 'relation — отношение собеседника к проекту его словами (роль, приоритет, ожидания), не твои выводы; activate — сделать '
             . 'проект проектом этого чата. create, goal, status и relation ждут подтверждения владельца.', [
             'type' => 'object',
@@ -49,6 +68,7 @@ final class ProjectEditTool implements Tool {
                 'task_id' => ['type' => 'integer', 'minimum' => 1],
                 'parent_id' => ['type' => 'integer', 'minimum' => 1],
                 'profile' => ['type' => 'object'],
+                'due' => ['type' => 'string', 'maxLength' => 40],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -97,6 +117,7 @@ final class ProjectEditTool implements Tool {
             'card' => $this->update($project, null, null, $text, 'Карточка'),
             'add_task' => $this->addTask($project, $text, Args::int($args, 'parent_id'), $args),
             'task_status' => $this->taskStatus($project, Args::int($args, 'task_id'), Args::string($args, 'status'), $text),
+            'task_due' => $this->taskDue($project, Args::int($args, 'task_id'), Args::string($args, 'due') ?? ''),
             'relation' => $this->relation($project, $context, $text),
             'activate' => $this->activate($project, $context),
             default => ToolResult::error('Неизвестное действие: ' . $action),
@@ -127,8 +148,30 @@ final class ProjectEditTool implements Tool {
             return ToolResult::error(sprintf('Задачи #%d в проекте «%s» нет.', $parentId, $project->name));
         }
         $profile = isset($args['profile']) && is_array($args['profile']) ? TaskProfile::fromArray($args['profile'])->nonTrivial() : [];
-        $task = $this->projects->addTask($project->id, $title, $parentId, $profile);
-        return ToolResult::ok(sprintf('Задача #%d добавлена в «%s».', $task->id, $project->name));
+        $dueText = Args::string($args, 'due') ?? '';
+        $due = $dueText === '' ? null : self::due($dueText, $this->zone);
+        if ($dueText !== '' && $due === null) {
+            return ToolResult::error('Срок — ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ.');
+        }
+        $task = $this->projects->addTask($project->id, $title, $parentId, $profile, $due);
+        return ToolResult::ok(sprintf('Задача #%d добавлена в «%s»%s.', $task->id, $project->name, $due === null ? '' : ', срок ' . $this->when($due)));
+    }
+
+    private function taskDue(Project $project, ?int $taskId, string $dueText): ToolResult {
+        $task = $taskId === null ? null : $this->projects->task($taskId);
+        if ($task === null || $task->projectId !== $project->id) {
+            return ToolResult::error(sprintf('Задачи #%d в проекте «%s» нет.', (int) $taskId, $project->name));
+        }
+        $due = trim($dueText) === '' ? null : self::due($dueText, $this->zone);
+        if (trim($dueText) !== '' && $due === null) {
+            return ToolResult::error('Срок — ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ.');
+        }
+        $this->projects->setTaskDue($task->id, $due);
+        return ToolResult::ok($due === null ? sprintf('Срок задачи #%d снят.', $task->id) : sprintf('Срок задачи #%d: %s.', $task->id, $this->when($due)));
+    }
+
+    private function when(\DateTimeImmutable $at): string {
+        return $at->setTimezone($this->zone)->format('Y-m-d H:i T');
     }
 
     private function taskStatus(Project $project, ?int $taskId, ?string $status, string $result): ToolResult {

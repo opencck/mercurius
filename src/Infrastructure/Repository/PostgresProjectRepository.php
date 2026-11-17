@@ -6,6 +6,7 @@ namespace OpenCCK\Infrastructure\Repository;
 
 use Amp\Postgres\PostgresLink;
 use Amp\Sql\SqlQueryError;
+use DateTimeImmutable;
 use DomainException;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectTask;
@@ -14,7 +15,7 @@ use UnexpectedValueException;
 
 final class PostgresProjectRepository implements ProjectRepository {
     private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated';
-    private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result';
+    private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result, extract(epoch FROM due_at)::bigint AS due';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -56,12 +57,31 @@ final class PostgresProjectRepository implements ProjectRepository {
         return $row === null ? null : self::project($row);
     }
 
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile): ProjectTask {
+    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask {
         $row = $this->db->execute(
-            'INSERT INTO project_tasks (project_id, parent_id, title, profile) VALUES (?, ?, ?, ?::jsonb) RETURNING ' . self::TASK,
-            [$projectId, $parentId, $title, $profile === [] ? null : json_encode($profile, JSON_THROW_ON_ERROR)],
+            'INSERT INTO project_tasks (project_id, parent_id, title, profile, due_at) VALUES (?, ?, ?, ?::jsonb, to_timestamp(?)) RETURNING ' . self::TASK,
+            [$projectId, $parentId, $title, $profile === [] ? null : json_encode($profile, JSON_THROW_ON_ERROR), $dueAt?->getTimestamp()],
         )->fetchRow();
         return self::task_($row ?? throw new UnexpectedValueException('Task was not created'));
+    }
+
+    public function setTaskDue(int $id, ?DateTimeImmutable $dueAt): ?ProjectTask {
+        $row = $this->db->execute('UPDATE project_tasks SET due_at = to_timestamp(?) WHERE id = ? RETURNING ' . self::TASK, [$dueAt?->getTimestamp(), $id])->fetchRow();
+        return $row === null ? null : self::task_($row);
+    }
+
+    public function dueTasks(DateTimeImmutable $until, int $limit): array {
+        $found = [];
+        foreach ($this->db->execute(
+            "SELECT " . self::TASK . " FROM project_tasks
+             WHERE status IN ('open', 'doing') AND due_at <= to_timestamp(?)
+               AND project_id IN (SELECT id FROM projects WHERE status = 'active')
+             ORDER BY due_at, id LIMIT ?",
+            [$until->getTimestamp(), $limit],
+        ) as $row) {
+            $found[] = self::task_($row);
+        }
+        return $found;
     }
 
     public function task(int $id): ?ProjectTask {
@@ -151,6 +171,7 @@ final class PostgresProjectRepository implements ProjectRepository {
             self::str($row, 'status'),
             $profile,
             isset($row['result']) && is_string($row['result']) ? $row['result'] : null,
+            isset($row['due']) && is_int($row['due']) ? new DateTimeImmutable('@' . $row['due']) : null,
         );
     }
 

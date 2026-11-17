@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\JobRepository;
 use UnexpectedValueException;
 
 final class PostgresJobRepository implements JobRepository {
-    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status";
+    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret";
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -60,7 +60,7 @@ final class PostgresJobRepository implements JobRepository {
 
     public function finish(int $id, string $result, ?string $pendingReport): void {
         $this->db->execute(
-            "UPDATE jobs SET running = false, last_result = ?, pending_report = ?, status = CASE WHEN next_run_at IS NULL THEN 'done' ELSE status END WHERE id = ?",
+            "UPDATE jobs SET running = false, last_result = ?, pending_report = ?, status = CASE WHEN next_run_at IS NULL AND schedule <> 'event' THEN 'done' ELSE status END WHERE id = ?",
             [$result, $pendingReport, $id],
         );
     }
@@ -89,12 +89,42 @@ final class PostgresJobRepository implements JobRepository {
         return $count;
     }
 
+    public function bindHook(int $id, ?string $secret): bool {
+        return $this->db->execute("UPDATE jobs SET hook_secret = ? WHERE id = ? AND schedule = 'event' RETURNING id", [$secret, $id])->fetchRow() !== null;
+    }
+
+    public function claimEvent(int $id): bool {
+        return $this->db->execute(
+            "UPDATE jobs SET running = true, last_run_at = now(), runs = runs + 1
+             WHERE id = ? AND schedule = 'event' AND status = 'active' AND NOT running RETURNING id",
+            [$id],
+        )->fetchRow() !== null;
+    }
+
+    public function release(int $id): void {
+        $this->db->execute('UPDATE jobs SET running = false, runs = greatest(runs - 1, 0) WHERE id = ? AND running', [$id]);
+    }
+
+    public function recordDelivery(int $jobId, string $deliveryId): bool {
+        // Deliveries are kept 90 days: a GitHub delivery is known by its body, and a replay must stay a repeat.
+        $this->db->execute("DELETE FROM hook_deliveries WHERE job_id = ? AND received_at < now() - interval '90 days'", [$jobId]);
+        return $this->db->execute(
+            'INSERT INTO hook_deliveries (job_id, delivery_id) VALUES (?, ?) ON CONFLICT DO NOTHING RETURNING job_id',
+            [$jobId, $deliveryId],
+        )->fetchRow() !== null;
+    }
+
+    public function deliveriesSince(int $jobId, DateTimeImmutable $since): int {
+        $row = $this->db->execute('SELECT count(*) AS n FROM hook_deliveries WHERE job_id = ? AND received_at >= to_timestamp(?)', [$jobId, $since->getTimestamp()])->fetchRow();
+        return isset($row['n']) && is_int($row['n']) ? $row['n'] : 0;
+    }
+
     /** @param array<string, mixed> $row */
     private static function job(array $row): Job {
         $int = static fn(string $k): int => isset($row[$k]) && is_int($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $opt = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $next = isset($row['next']) && is_int($row['next']) ? new DateTimeImmutable('@' . $row['next']) : null;
-        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'));
+        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'));
     }
 }

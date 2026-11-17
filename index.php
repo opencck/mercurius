@@ -84,6 +84,11 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\Infrastructure\API\Handler\JobHookHandler;
+use OpenCCK\Infrastructure\Repository\PostgresDigestJournal;
+use OpenCCK\App\Service\JobCommands;
+use OpenCCK\App\Job\HookReceiver;
+use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\Infrastructure\Module\SchedulerModule;
 use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
 use OpenCCK\App\Agent\Tool\JobCancelTool;
@@ -421,7 +426,10 @@ $ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OW
 $quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23-8';
 $quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
 $jobRepository = new PostgresJobRepository($db);
-$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger);
+$jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JOB_TOKEN_BUDGET') ?? '100000'));
+$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens);
+$digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
+$digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));
 $tools->register(new JobCancelTool($jobRepository, $jobScheduler));
 
@@ -429,7 +437,8 @@ $tools->register(new JobCancelTool($jobRepository, $jobScheduler));
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
 $tools->register(new ProjectTool($projectRepository, $conversations));
-$tools->register(new ProjectEditTool($projectRepository, $conversations));
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone));
+$dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
@@ -450,6 +459,7 @@ $chat = new ChatService(
     new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillRepository),
     new McpCommands($mcpManager, $mcpServers),
+    new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
@@ -464,6 +474,9 @@ if ($webhookSecret !== null) {
     $routes[] = ['POST', '/telegram/webhook', new TelegramWebhookHandler(new WebhookProcessor($webhookSecret, $parser, $dispatcher, $deduplicator, $logger))];
 }
 
+// spec: BRIEF.md#планировщик-и-проекты — a signed event starts a job by event
+$routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
+
 // Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.
 $routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db)), $traceSettings->metricsToken())];
 
@@ -476,7 +489,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
-    ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger()))
+    ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,

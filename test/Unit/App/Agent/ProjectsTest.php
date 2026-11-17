@@ -47,7 +47,7 @@ final class ProjectsTest extends AsyncTestCase {
         foreach (['create', 'goal', 'status', 'relation'] as $action) {
             self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => $action]), $action);
         }
-        foreach (['card', 'add_task', 'task_status', 'activate'] as $action) {
+        foreach (['card', 'add_task', 'task_status', 'task_due', 'activate'] as $action) {
             self::assertSame(DangerClass::Write, $tool->danger(['action' => $action]), $action);
         }
     }
@@ -68,6 +68,20 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertSame(['reasoning' => 6], $this->projects->task(1)?->profile);
         self::assertSame(ProjectTask::DONE, $this->projects->task(2)?->status);
         self::assertSame(['Память'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks($project->id, 10)));
+    }
+
+    public function testDeadlinesAreReadInTheOwnersZone(): void {
+        $zone = new \DateTimeZone('Asia/Bangkok');
+        self::assertEquals(new \DateTimeImmutable('2026-11-20 16:59 UTC'), ProjectEditTool::due('2026-11-20', $zone), 'a date is the end of that day');
+        self::assertEquals(new \DateTimeImmutable('2026-11-20 03:30 UTC'), ProjectEditTool::due('2026-11-20T10:30', $zone));
+        self::assertNull(ProjectEditTool::due('в пятницу', $zone));
+        self::assertNull(ProjectEditTool::due('2026-13-45', $zone));
+
+        $this->edit(['action' => 'create', 'project' => 'Дом']);
+        self::assertStringContainsString('срок 2026-11-20 23:59', $this->edit(['action' => 'add_task', 'project' => 'Дом', 'text' => 'Налог', 'due' => '2026-11-20'])->content);
+        self::assertTrue($this->edit(['action' => 'add_task', 'project' => 'Дом', 'text' => 'Счёт', 'due' => 'завтра'])->isError);
+        self::assertSame('Срок задачи #1 снят.', $this->edit(['action' => 'task_due', 'project' => 'Дом', 'task_id' => 1, 'due' => ''])->content);
+        self::assertNull($this->projects->task(1)?->dueAt);
     }
 
     public function testSecretsAndForeignTasksAreRefused(): void {

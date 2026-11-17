@@ -13,6 +13,8 @@ final class InMemoryJobRepository implements JobRepository {
     public array $jobs = [];
     /** @var array<int, bool> */
     public array $running = [];
+    /** @var array<int, array<string, DateTimeImmutable>> */
+    public array $deliveries = [];
 
     public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt): Job {
         $id = count($this->jobs) + 1;
@@ -37,14 +39,14 @@ final class InMemoryJobRepository implements JobRepository {
             return false;
         }
         $this->running[$id] = true;
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $next, $j->runs + 1, $j->lastResult, $j->pendingReport, $j->status);
+        $this->jobs[$id] = self::with($j, nextRunAt: $next, runs: $j->runs + 1);
         return true;
     }
 
     public function finish(int $id, string $result, ?string $pendingReport): void {
         $j = $this->jobs[$id];
         $this->running[$id] = false;
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $result, $pendingReport, $j->nextRunAt === null ? Job::DONE : $j->status);
+        $this->jobs[$id] = self::with($j, lastResult: $result, pendingReport: $pendingReport, status: $j->nextRunAt === null && !$j->byEvent() ? Job::DONE : $j->status);
     }
 
     public function pendingReports(): array {
@@ -52,8 +54,7 @@ final class InMemoryJobRepository implements JobRepository {
     }
 
     public function clearPending(int $id): void {
-        $j = $this->jobs[$id];
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, null, $j->status);
+        $this->jobs[$id] = self::with($this->jobs[$id], pendingReport: null);
     }
 
     public function setStatus(int $id, string $status): bool {
@@ -61,7 +62,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, $j->pendingReport, $status);
+        $this->jobs[$id] = self::with($j, status: $status);
         return true;
     }
 
@@ -69,5 +70,71 @@ final class InMemoryJobRepository implements JobRepository {
         $count = count(array_filter($this->running));
         $this->running = [];
         return $count;
+    }
+
+    public function bindHook(int $id, ?string $secret): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null || !$j->byEvent()) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, hookSecret: $secret, clearHook: $secret === null);
+        return true;
+    }
+
+    public function claimEvent(int $id): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null || !$j->byEvent() || $j->status !== Job::ACTIVE || ($this->running[$id] ?? false)) {
+            return false;
+        }
+        $this->running[$id] = true;
+        $this->jobs[$id] = self::with($j, runs: $j->runs + 1);
+        return true;
+    }
+
+    public function release(int $id): void {
+        if ($this->running[$id] ?? false) {
+            $this->running[$id] = false;
+            $this->jobs[$id] = self::with($this->jobs[$id], runs: max(0, $this->jobs[$id]->runs - 1));
+        }
+    }
+
+    public function recordDelivery(int $jobId, string $deliveryId): bool {
+        if (isset($this->deliveries[$jobId][$deliveryId])) {
+            return false;
+        }
+        $this->deliveries[$jobId][$deliveryId] = new DateTimeImmutable();
+        return true;
+    }
+
+    public function deliveriesSince(int $jobId, DateTimeImmutable $since): int {
+        return count(array_filter($this->deliveries[$jobId] ?? [], static fn(DateTimeImmutable $at): bool => $at >= $since));
+    }
+
+    /** false and '' keep a field as it is, so null can be set. */
+    private static function with(
+        Job $j,
+        DateTimeImmutable|false|null $nextRunAt = false,
+        ?int $runs = null,
+        ?string $lastResult = null,
+        ?string $pendingReport = '',
+        ?string $status = null,
+        ?string $hookSecret = null,
+        bool $clearHook = false,
+    ): Job {
+        return new Job(
+            $j->id,
+            $j->principalId,
+            $j->channel,
+            $j->chatId,
+            $j->title,
+            $j->prompt,
+            $j->schedule,
+            $nextRunAt === false ? $j->nextRunAt : $nextRunAt,
+            $runs ?? $j->runs,
+            $lastResult ?? $j->lastResult,
+            $pendingReport === '' ? $j->pendingReport : $pendingReport,
+            $status ?? $j->status,
+            $clearHook ? null : ($hookSecret ?? $j->hookSecret),
+        );
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Repository;
 
+use DateTimeImmutable;
 use DomainException;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectTask;
@@ -27,7 +28,13 @@ interface ProjectRepository {
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project;
 
     /** @param array<string, int> $profile */
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile): ProjectTask;
+    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask;
+
+    /** Sets the deadline of a task; null removes it. */
+    public function setTaskDue(int $id, ?DateTimeImmutable $dueAt): ?ProjectTask;
+
+    /** @return list<ProjectTask> open tasks of active projects with a deadline by $until, earliest first */
+    public function dueTasks(DateTimeImmutable $until, int $limit): array;
 
     public function task(int $id): ?ProjectTask;
 

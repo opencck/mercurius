@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Module;
 
+use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Infrastructure\API\AppModuleInterface;
@@ -12,7 +13,8 @@ use Revolt\EventLoop;
 use Throwable;
 
 /**
- * Wakes the scheduler every half a minute: with no due job it does nothing and spends no tokens.
+ * Wakes the scheduler every half a minute: with no due job it does nothing and spends no tokens. The daily summary is
+ * checked on the same tick.
  *
  * spec: BRIEF.md#планировщик-и-проекты — a wake gate without tokens when there is no work
  */
@@ -23,6 +25,7 @@ final class SchedulerModule implements AppModuleInterface {
         private readonly JobScheduler $scheduler,
         private readonly JobRepository $jobs,
         private readonly LoggerInterface $logger,
+        private readonly ?DailyDigest $digest = null,
         private readonly float $interval = 30.0,
     ) {}
 
@@ -34,6 +37,7 @@ final class SchedulerModule implements AppModuleInterface {
         $this->timer = EventLoop::repeat($this->interval, function (): void {
             try {
                 $this->scheduler->tick();
+                $this->digest?->tick();
             } catch (Throwable $e) {
                 $this->logger->warning('Scheduler tick failed', ['error' => $e::class]);
             }

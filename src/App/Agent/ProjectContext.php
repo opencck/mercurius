@@ -62,6 +62,13 @@ final class ProjectContext {
     }
 
     public static function task(ProjectTask $task): string {
-        return sprintf('#%d%s %s%s', $task->id, $task->parentId === null ? '' : sprintf(' (часть #%d)', $task->parentId), $task->title, $task->status === ProjectTask::DOING ? ' — в работе' : '');
+        return sprintf(
+            '#%d%s %s%s%s',
+            $task->id,
+            $task->parentId === null ? '' : sprintf(' (часть #%d)', $task->parentId),
+            $task->title,
+            $task->status === ProjectTask::DOING ? ' — в работе' : '',
+            $task->dueAt === null ? '' : ', срок ' . $task->dueAt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i') . ' UTC',
+        );
     }
 }

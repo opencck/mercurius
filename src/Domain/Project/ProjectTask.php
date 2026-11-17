@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Project;
 
+use DateTimeImmutable;
+
 /**
- * A task of a project: a tree of subtasks, a profile for choosing models, a result when closed.
+ * A task of a project: a tree of subtasks, a profile for choosing models, a result when closed, a deadline if set.
  *
  * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
+ * spec: BRIEF.md#планировщик-и-проекты — deadlines go to the daily summary
  */
 final class ProjectTask {
     public const OPEN = 'open';
@@ -27,6 +30,7 @@ final class ProjectTask {
         public readonly string $status,
         public readonly array $profile,
         public readonly ?string $result,
+        public readonly ?DateTimeImmutable $dueAt = null,
     ) {}
 
     public function isOpen(): bool {

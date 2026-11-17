@@ -39,4 +39,18 @@ interface JobRepository {
 
     /** After a restart nothing runs. */
     public function resetRunning(): int;
+
+    /** Names the vault secret that signs the webhook of a job by event; null stops taking the webhook. */
+    public function bindHook(int $id, ?string $secret): bool;
+
+    /** Claims an active job by event that is not running: marks it running and counts the run. */
+    public function claimEvent(int $id): bool;
+
+    /** Running no more, without a result: a claimed event turned out to be a repeat. */
+    public function release(int $id): void;
+
+    /** Records a webhook delivery; false — this delivery was taken before. */
+    public function recordDelivery(int $jobId, string $deliveryId): bool;
+
+    public function deliveriesSince(int $jobId, DateTimeImmutable $since): int;
 }

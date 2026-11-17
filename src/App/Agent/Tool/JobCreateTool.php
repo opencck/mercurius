@@ -34,7 +34,8 @@ final class JobCreateTool implements Tool {
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, 'Ставит задание по расписанию: напоминание, проверку, сводку. Оно выполнится без владельца в новой '
             . 'беседе, итог придёт в этот чат. schedule: once:<время ISO 8601> — однажды; every:<минут, от 5> — периодически; '
-            . 'daily:<ЧЧ:ММ> — каждый день по часовому поясу владельца. prompt — что сделать, полностью, без ссылок на «этот разговор».', [
+            . 'daily:<ЧЧ:ММ> — каждый день по часовому поясу владельца; event — по событию: запускается webhook, который владелец подключает '
+            . 'командой /hook. prompt — что сделать, полностью, без ссылок на «этот разговор».', [
             'type' => 'object',
             'properties' => [
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
@@ -71,7 +72,8 @@ final class JobCreateTool implements Tool {
             return ToolResult::error($e->getMessage());
         }
         $first = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone(), true);
-        if ($first === null) {
+        $byEvent = (string) $schedule === Schedule::EVENT;
+        if ($first === null && !$byEvent) {
             return ToolResult::error('Это время уже прошло.');
         }
         $meta = $this->conversations->meta($context->conversationId);
@@ -79,6 +81,9 @@ final class JobCreateTool implements Tool {
             return ToolResult::error('Беседа не найдена.');
         }
         $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first);
+        if ($first === null) {
+            return ToolResult::ok(sprintf('Задание #%d «%s» поставлено: по событию. Владелец подключает webhook командой /hook %d <имя секрета>.', $job->id, $job->title, $job->id));
+        }
         return ToolResult::ok(sprintf(
             'Задание #%d «%s» поставлено: %s, первый запуск %s.',
             $job->id,
