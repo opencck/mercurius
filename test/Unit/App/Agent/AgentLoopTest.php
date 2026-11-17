@@ -84,6 +84,21 @@ final class AgentLoopTest extends AsyncTestCase {
         return $request->messages;
     }
 
+    public function testTextWrittenWithToolCallsReachesTheChat(): void {
+        $this->registry->register(new FakeTool('spending'));
+        $withText = ScriptedLlm::calls(new ToolCall('c1', 'spending', '{}'));
+        $llm = new ScriptedLlm([
+            new \Mercurius\Llm\ChatResponse('Вы отвечаете на #288. Теперь токены:', $withText->toolCalls, $withText->finishReason, $withText->usage, 'test/model', 'gen'),
+            ScriptedLlm::calls(new ToolCall('c2', 'spending', '{"action":"recent"}')),
+            ScriptedLlm::text('Токены: 9012.'),
+        ]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertSame(['Вы отвечаете на #288. Теперь токены:'], $this->observer->commentary, 'a step without text adds nothing');
+        self::assertSame('Токены: 9012.', $this->observer->final);
+    }
+
     public function testTwoStepTaskUsesToolsThenAnswers(): void {
         $this->registry->register(new FakeTool('search'));
         $this->registry->register(new FakeTool('save', DangerClass::Write));

@@ -255,6 +255,9 @@ final class AgentLoop {
             if (!$this->persist($state, $response->text, $outcome->calls)) {
                 return StopReason::PersistFailed;
             }
+            if (trim($response->text) !== '') {
+                $state->observer->commentary($state->run, $response->text);
+            }
             $reason = $this->execute($state, $outcome->calls);
             if ($reason !== null || $state->paused) {
                 return $reason;

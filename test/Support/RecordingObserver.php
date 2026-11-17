@@ -15,6 +15,12 @@ final class RecordingObserver implements RunObserver {
     public ?string $final = null;
     public ?StopReason $reason = null;
     public ?string $waiting = null;
+    /** @var list<string> */
+    public array $commentary = [];
+
+    public function commentary(Run $run, string $text): void {
+        $this->commentary[] = $text;
+    }
 
     public function toolStarted(Run $run, string $name, string $argsPreview): void {
         $this->tools[] = $name;

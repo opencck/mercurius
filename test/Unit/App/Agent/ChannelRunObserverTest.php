@@ -29,6 +29,25 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         return new Run(1, 1, 1, null, 'm', RunStatus::Done, StopReason::Answered, new RunLimits(30, 1000, 900, 120));
     }
 
+    public function testCommentaryStaysAsItsOwnMessageAndTheRunGoesOnBelow(): void {
+        $channel = new FakeChannel();
+        $observer = $this->observer($channel);
+        $observer->start();
+
+        $observer->textDelta(self::finishedRun(), 'Вы отвечаете на #288.');
+        $observer->commentary(self::finishedRun(), 'Вы отвечаете на #288.');
+        $observer->toolStarted(self::finishedRun(), 'spending', '{}');
+        $observer->commentary(self::finishedRun(), '  ');
+        $observer->commentary(self::finishedRun(), '[SILENT]');
+        $observer->finished(self::finishedRun(), 'Токены: 9012.', StopReason::Answered);
+
+        self::assertSame([['send', '42', ChannelRunObserver::PLACEHOLDER], ['send', '42', ChannelRunObserver::PLACEHOLDER]], array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'send')));
+        $edits = array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'edit'));
+        self::assertContains(['edit', '100', 'Вы отвечаете на #288.'], $edits, 'the first message keeps the commentary');
+        self::assertSame(['edit', '101', 'Токены: 9012.'], end($edits), 'the answer replaces the new status message below');
+        self::assertNotContains(['edit', '100', 'Токены: 9012.'], $edits);
+    }
+
     public function testFinalEditWaitsOutAShortFlood(): void {
         $channel = new FakeChannel();
         $channel->editResults = [SendResult::failed(SendErrorKind::RateLimited, 'flood', 0)];

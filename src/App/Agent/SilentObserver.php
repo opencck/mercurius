@@ -13,6 +13,8 @@ final class SilentObserver implements RunObserver {
 
     public function textDelta(Run $run, string $text): void {}
 
+    public function commentary(Run $run, string $text): void {}
+
     public function waiting(Run $run, string $text): void {}
 
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {}

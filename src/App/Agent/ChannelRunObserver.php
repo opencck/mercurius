@@ -66,6 +66,31 @@ final class ChannelRunObserver implements RunObserver {
         $this->messageId = $result->success ? $result->messageId : null;
     }
 
+    /**
+     * The status message keeps the commentary as it is; the run goes on in a new status message below it, so the
+     * answer comes after what was said before it.
+     */
+    public function commentary(Run $run, string $text): void {
+        $this->text = '';
+        $this->shown = '';
+        if (trim($text) === '' || str_starts_with(ltrim($text), '[SILENT]') || !$this->started) {
+            return;
+        }
+        $messageId = $this->messageId;
+        $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split(trim($text));
+        $first = array_shift($parts) ?? trim($text);
+        $kept = $messageId !== null && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, ParseMode::Markdown));
+        if (!$kept) {
+            array_unshift($parts, $first);
+        }
+        foreach ($parts as $part) {
+            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: ParseMode::Markdown, threadId: $this->threadId)));
+        }
+        $result = $this->channel->send(new OutgoingMessage($this->chatId, self::PLACEHOLDER, threadId: $this->threadId));
+        $this->messageId = $result->success ? $result->messageId : null;
+        $this->lastEdit = 0.0;
+    }
+
     public function toolStarted(Run $run, string $name, string $argsPreview): void {
         // Text the model wrote before calling a tool is a thought, not the answer: the next call streams anew.
         $this->text = '';

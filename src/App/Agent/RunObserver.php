@@ -15,6 +15,14 @@ interface RunObserver {
 
     public function textDelta(Run $run, string $text): void;
 
+    /**
+     * Text the model wrote together with tool calls: it is said to the person, so it stays in the chat.
+     *
+     * ref: references/hermes-agent/gateway/run_turn_runner.py@e96221fa:L368-L398 (interim_assistant_cb) — commentary
+     *      between tool calls is delivered as its own message, not overwritten by the next step
+     */
+    public function commentary(Run $run, string $text): void;
+
     /** The run paused for the owner's approval. */
     public function waiting(Run $run, string $text): void;
 
