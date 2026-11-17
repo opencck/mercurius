@@ -69,4 +69,64 @@ final class SpendingToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute(['run_id' => $mine->id], $context)->isError, 'a participant sees only their own runs');
         self::assertTrue($tool->execute(['action' => 'days'], $context)->isError, 'overall spend is the owner\'s');
     }
+
+    /** @return array{SpendingTool, FakeTraceReports, \OpenCCK\Domain\Entity\Principal, \OpenCCK\Domain\Entity\Principal, int} */
+    private static function spendTool(): array {
+        $principals = new InMemoryPrincipalRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Сергей');
+        $visitor = $principals->createVisitor('telegram', '7', 'Артур');
+        $user = $principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active) ?? $visitor;
+        $conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
+        $topic = $conversations->openConversation($owner->id, 'telegram', '-100500', '119');
+        $figures = new FakeTraceReports();
+        $figures->breakdown = [
+            ['chat' => 'Mercurius', 'chatId' => '-100500', 'thread' => '119', 'project' => 'OpenWRT', 'person' => null, 'label' => '', 'calls' => 10, 'input' => 300_000, 'output' => 7_000, 'cost' => 0.0221],
+            ['chat' => null, 'chatId' => '42', 'thread' => '', 'project' => null, 'person' => 'Сергей', 'label' => '', 'calls' => 3, 'input' => 9_000, 'output' => 500, 'cost' => 0.5],
+        ];
+        $tool = new SpendingTool(new TraceReports($figures, new InMemoryTraceRepository()), new InMemoryRunRepository(), null, $conversations, $principals, 'Europe/Moscow');
+        return [$tool, $figures, $owner, $user, $topic];
+    }
+
+    public function testSpendIsBrokenDownByTopicForAPeriodInTheOwnersZone(): void {
+        [$tool, $figures, $owner, , $topic] = self::spendTool();
+
+        $result = $tool->execute(['action' => 'breakdown', 'by' => 'topic', 'from' => '2026-11-01', 'to' => '2026-11-17'], new ToolContext(1, $topic, $owner, new NullCancellation()));
+
+        self::assertFalse($result->isError, $result->content);
+        $query = $figures->lastQuery;
+        self::assertNotNull($query);
+        self::assertSame('topic', $query->by);
+        self::assertSame('2026-11-01T00:00:00+03:00', $query->from->format('c'), 'days are the owner\'s days');
+        self::assertSame('2026-11-18T00:00:00+03:00', $query->to->format('c'), 'the last day is included');
+        self::assertNull($query->principalId);
+        self::assertStringContainsString('Mercurius / OpenWRT', $result->content);
+        self::assertStringContainsString('личный чат: Сергей', $result->content);
+        self::assertStringContainsString('$0.5221', $result->content, 'the total');
+    }
+
+    public function testHereNarrowsToThisTopicAndAPersonIsFoundByName(): void {
+        [$tool, $figures, $owner, $user, $topic] = self::spendTool();
+        $context = new ToolContext(1, $topic, $owner, new NullCancellation());
+
+        $tool->execute(['action' => 'breakdown', 'by' => 'day', 'days' => 7, 'here' => true, 'participant' => 'артур'], $context);
+
+        $query = $figures->lastQuery;
+        self::assertNotNull($query);
+        self::assertSame(['telegram', '-100500', '119'], $query->place);
+        self::assertSame($user->id, $query->principalId);
+        self::assertTrue($tool->execute(['action' => 'breakdown', 'by' => 'chat', 'participant' => 'Никто'], $context)->isError);
+        self::assertTrue($tool->execute(['action' => 'breakdown', 'by' => 'chat', 'from' => '17.11.2026'], $context)->isError, 'a date is YYYY-MM-DD');
+    }
+
+    public function testAParticipantSeesOnlyTheirOwnSpend(): void {
+        [$tool, $figures, $owner, $user, $topic] = self::spendTool();
+
+        $result = $tool->execute(['action' => 'breakdown', 'by' => 'topic', 'participant' => 'Сергей'], new ToolContext(1, $topic, $user, new NullCancellation()));
+
+        self::assertFalse($result->isError);
+        $query = $figures->lastQuery;
+        self::assertNotNull($query);
+        self::assertSame($user->id, $query->principalId, 'whoever they name, they get their own figures');
+        self::assertNotSame($owner->id, $query->principalId);
+    }
 }

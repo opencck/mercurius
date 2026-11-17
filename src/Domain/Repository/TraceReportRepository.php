@@ -15,6 +15,15 @@ interface TraceReportRepository {
     /** @return list<array{model: string, calls: int, input: int, output: int, cost: float}> costliest first */
     public function usageByModel(DateTimeImmutable $since): array;
 
+    /**
+     * Spend split as the query says, the costliest first. chat — the group's title (null for a private chat), chatId
+     * and thread — where, project — the project of that topic or chat, person — the participant, label — the model or
+     * the day.
+     *
+     * @return list<array{chat: ?string, chatId: ?string, thread: string, project: ?string, person: ?string, label: string, calls: int, input: int, output: int, cost: float}>
+     */
+    public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query): array;
+
     /** @return list<array{day: string, calls: int, cost: float}> newest first */
     public function usageByDay(DateTimeImmutable $since): array;
 

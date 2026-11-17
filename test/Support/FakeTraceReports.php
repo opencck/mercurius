@@ -37,6 +37,15 @@ final class FakeTraceReports implements TraceReportRepository {
         return $this->workerModels;
     }
 
+    /** @var list<array{chat: ?string, chatId: ?string, thread: string, project: ?string, person: ?string, label: string, calls: int, input: int, output: int, cost: float}> */
+    public array $breakdown = [];
+    public ?\OpenCCK\Domain\Agent\SpendQuery $lastQuery = null;
+
+    public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query): array {
+        $this->lastQuery = $query;
+        return $this->breakdown;
+    }
+
     public function usageByModel(DateTimeImmutable $since): array {
         $this->since = $since;
         return $this->models;

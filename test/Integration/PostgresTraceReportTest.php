@@ -48,6 +48,53 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertEqualsWithDelta(0.0021, $recent[$run->id]['cost'], 0.0000001);
     }
 
+    public function testSpendIsSplitByTopicProjectParticipantAndDay(): void {
+        $chat = '-100' . random_int(100000, 999999);
+        [$owner, $general] = TestDatabase::conversation($this->db, $chat);
+        $topicRow = $this->db->execute("INSERT INTO conversations (principal_id, channel, chat_id, thread_id) VALUES (?, 'test', ?, '77') RETURNING id", [$owner, $chat])->fetchRow();
+        $topic = $topicRow['id'] ?? null;
+        self::assertIsInt($topic);
+        $projectRow = $this->db->execute("INSERT INTO projects (name) VALUES (?) RETURNING id", ['OpenWRT ' . $chat])->fetchRow();
+        $this->db->execute("INSERT INTO chat_projects (channel, chat_id, thread_id, project_id) VALUES ('test', ?, '77', ?)", [$chat, $projectRow['id'] ?? 0]);
+        $this->db->execute("INSERT INTO chat_groups (channel, chat_id, title) VALUES ('test', ?, 'Mercurius')", [$chat]);
+        $guestRow = $this->db->execute("INSERT INTO principals (kind, role, display_name) VALUES ('human', 'user', 'Артур') RETURNING id")->fetchRow();
+        $guest = $guestRow['id'] ?? null;
+        self::assertIsInt($guest);
+        $runs = new PostgresRunRepository($this->db);
+        $calls = new PostgresLlmCallRepository($this->db);
+        $inTopic = $runs->start($topic, $guest, 'm', new RunLimits(30, 1000, 900, 120));
+        $inGeneral = $runs->start($general, $owner, 'm', new RunLimits(30, 1000, 900, 120));
+        self::assertNotNull($inTopic);
+        self::assertNotNull($inGeneral);
+        $calls->record(new LlmCallRecord($topic, 'agent', 'm/a', 'stop', null, 1000, 100, 0, 0, 0, 0.03, 10, $inTopic->id));
+        $calls->record(new LlmCallRecord($topic, 'agent', 'm/a', 'stop', null, 500, 50, 0, 0, 0, 0.01, 10, $inTopic->id));
+        $calls->record(new LlmCallRecord($general, 'agent', 'm/b', 'stop', null, 200, 20, 0, 0, 0, 0.005, 10, $inGeneral->id));
+        $reports = new PostgresTraceReportRepository($this->db);
+        $zone = new \DateTimeZone('Europe/Moscow');
+        $from = new DateTimeImmutable('-1 day', $zone);
+        $to = new DateTimeImmutable('+1 day', $zone);
+        $here = ['test', $chat, ''];
+
+        $topics = $reports->breakdown(new \OpenCCK\Domain\Agent\SpendQuery('topic', $from, $to, null, $here));
+        self::assertCount(2, $topics);
+        self::assertSame(['77', 'OpenWRT ' . $chat, 'Mercurius', 2, 1650], [$topics[0]['thread'], $topics[0]['project'], $topics[0]['chat'], $topics[0]['calls'], $topics[0]['input'] + $topics[0]['output']]);
+        self::assertEqualsWithDelta(0.04, $topics[0]['cost'], 0.000001);
+        self::assertSame('', $topics[1]['thread'], 'the general topic apart');
+
+        $people = $reports->breakdown(new \OpenCCK\Domain\Agent\SpendQuery('participant', $from, $to, null, $here));
+        self::assertSame('Артур', $people[0]['person'], 'a call belongs to the participant of its run');
+
+        $mine = $reports->breakdown(new \OpenCCK\Domain\Agent\SpendQuery('project', $from, $to, $guest, $here));
+        self::assertCount(1, $mine);
+        self::assertSame('OpenWRT ' . $chat, $mine[0]['project']);
+
+        $onlyTopic = $reports->breakdown(new \OpenCCK\Domain\Agent\SpendQuery('day', $from, $to, null, ['test', $chat, '77']));
+        self::assertSame((new DateTimeImmutable('now', $zone))->format('Y-m-d'), $onlyTopic[0]['label']);
+        self::assertSame(2, $onlyTopic[0]['calls']);
+
+        self::assertSame([], $reports->breakdown(new \OpenCCK\Domain\Agent\SpendQuery('model', $to, $to->modify('+1 day'), null, $here)), 'outside the period');
+    }
+
     public function testDelegationFiguresAndModelFailures(): void {
         [$principalId, $conversationId] = TestDatabase::conversation($this->db);
         $runs = new PostgresRunRepository($this->db);

@@ -52,6 +52,50 @@ final class TraceReports {
         return implode("\n", $lines);
     }
 
+    /**
+     * Spend split by topic, chat, project, participant, model or day for a period, with the total.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods
+     */
+    public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query, string $scope): string {
+        $rows = $this->figures->breakdown($query);
+        $last = $query->to->modify('-1 second');
+        $lines = [sprintf(t('service.trace_reports.breakdown_head'), t('service.trace_reports.by_' . $query->by), $query->from->format('Y-m-d'), $last->format('Y-m-d'), $query->from->getTimezone()->getName()) . ($scope === '' ? '' : ' — ' . $scope), ''];
+        $total = 0.0;
+        $calls = 0;
+        foreach ($rows as $row) {
+            $total += $row['cost'];
+            $calls += $row['calls'];
+            $lines[] = sprintf(t('service.trace_reports.breakdown_row'), self::label($query->by, $row), self::usd($row['cost']), $row['calls'], self::n($row['input']), self::n($row['output']));
+        }
+        if ($rows === []) {
+            $lines[] = t('service.trace_reports.breakdown_none');
+        }
+        $lines[] = '';
+        $lines[] = sprintf(t('service.trace_reports.breakdown_total'), self::usd($total), $calls);
+        return implode("\n", $lines);
+    }
+
+    /** @param array{chat: ?string, chatId: ?string, thread: string, project: ?string, person: ?string, label: string, calls: int, input: int, output: int, cost: float} $row */
+    private static function label(string $by, array $row): string {
+        $chat = match (true) {
+            $row['chatId'] === null => t('service.trace_reports.service_calls'),
+            $row['chat'] !== null => $row['chat'],
+            str_starts_with($row['chatId'], '-') => sprintf(t('service.trace_reports.group'), $row['chatId']),
+            default => sprintf(t('service.trace_reports.private_chat'), $row['person'] ?? $row['chatId']),
+        };
+        $thread = $row['thread'];
+        $topic = $row['project'] ?? ($thread === '' ? t('service.trace_reports.general_topic') : sprintf(t('service.trace_reports.topic'), $thread));
+        $shared = $row['chatId'] !== null && ($thread !== '' || str_starts_with($row['chatId'], '-'));
+        return match ($by) {
+            'topic' => $shared ? $chat . ' / ' . $topic : $chat,
+            'chat' => $chat,
+            'project' => $row['project'] ?? t('service.trace_reports.no_project'),
+            'participant' => $row['person'] ?? t('service.trace_reports.service_calls'),
+            default => $row['label'],
+        };
+    }
+
     public function runs(int $limit = 10): string {
         $rows = $this->figures->recentRuns($limit);
         if ($rows === []) {

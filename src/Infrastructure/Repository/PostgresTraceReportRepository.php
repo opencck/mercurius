@@ -27,6 +27,76 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         return $rows;
     }
 
+    /**
+     * A call belongs to its run's participant and conversation (a call without a run — memory, catalogue — to its
+     * conversation, if any); the conversation gives the chat and the topic, the topic or the chat its project.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods
+     */
+    public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query): array {
+        $zone = $query->from->getTimezone()->getName();
+        [$select, $group] = match ($query->by) {
+            'topic' => ['c.chat_id AS chat_id, c.thread_id AS thread, max(g.title) AS chat, max(pr.name) AS project, max(cp_person.display_name) AS person, \'\' AS label', 'c.chat_id, c.thread_id'],
+            'chat' => ['c.chat_id AS chat_id, \'\' AS thread, max(g.title) AS chat, NULL AS project, max(cp_person.display_name) AS person, \'\' AS label', 'c.chat_id'],
+            'project' => ['NULL AS chat_id, \'\' AS thread, NULL AS chat, pr.name AS project, NULL AS person, \'\' AS label', 'pr.name'],
+            'participant' => ['NULL AS chat_id, \'\' AS thread, NULL AS chat, NULL AS project, max(coalesce(p.display_name, \'#\' || p.id::text)) AS person, \'\' AS label', 'p.id'],
+            'model' => ['NULL AS chat_id, \'\' AS thread, NULL AS chat, NULL AS project, NULL AS person, l.model AS label', 'l.model'],
+            default => ['NULL AS chat_id, \'\' AS thread, NULL AS chat, NULL AS project, NULL AS person, to_char(l.created_at AT TIME ZONE \'' . str_replace("'", '', $zone) . '\', \'YYYY-MM-DD\') AS label', '6'],
+        };
+        $where = ['l.created_at >= to_timestamp(?)', 'l.created_at < to_timestamp(?)'];
+        $params = [$query->from->getTimestamp(), $query->to->getTimestamp()];
+        if ($query->principalId !== null) {
+            $where[] = 'coalesce(r.principal_id, c.principal_id) = ?';
+            $params[] = $query->principalId;
+        }
+        if ($query->place !== null) {
+            $where[] = 'c.channel = ? AND c.chat_id = ?';
+            $params[] = $query->place[0];
+            $params[] = $query->place[1];
+            if ($query->place[2] !== '') {
+                $where[] = 'c.thread_id = ?';
+                $params[] = $query->place[2];
+            }
+        }
+        $rows = [];
+        foreach ($this->db->execute(
+            "SELECT $select, count(*)::int AS calls, coalesce(sum(l.input_tokens + l.cache_read_tokens + l.cache_write_tokens), 0)::int AS input,
+                    coalesce(sum(l.output_tokens), 0)::int AS output, coalesce(sum(l.cost_usd), 0)::float8 AS cost
+             FROM llm_calls l
+             LEFT JOIN runs r ON r.id = l.run_id
+             LEFT JOIN conversations c ON c.id = coalesce(l.conversation_id, r.conversation_id)
+             LEFT JOIN principals p ON p.id = coalesce(r.principal_id, c.principal_id)
+             LEFT JOIN principals cp_person ON cp_person.id = c.principal_id
+             LEFT JOIN chat_groups g ON g.channel = c.channel AND g.chat_id = c.chat_id
+             LEFT JOIN chat_projects cp ON cp.channel = c.channel AND cp.chat_id = c.chat_id AND cp.thread_id = c.thread_id
+             LEFT JOIN projects pr ON pr.id = cp.project_id
+             WHERE " . implode(' AND ', $where) . "
+             GROUP BY $group ORDER BY cost DESC, calls DESC LIMIT 40",
+            $params,
+        ) as $row) {
+            $rows[] = [
+                'chat' => self::nullable($row, 'chat'),
+                'chatId' => self::nullable($row, 'chat_id'),
+                'thread' => self::str($row, 'thread'),
+                'project' => self::nullable($row, 'project'),
+                'person' => self::nullable($row, 'person'),
+                'label' => self::str($row, 'label'),
+                'calls' => self::int($row, 'calls'),
+                'input' => self::int($row, 'input'),
+                'output' => self::int($row, 'output'),
+                'cost' => self::float($row, 'cost'),
+            ];
+        }
+        return $rows;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function nullable(array $row, string $key): ?string {
+        /** @var mixed $value */
+        $value = $row[$key] ?? null;
+        return is_string($value) ? $value : null;
+    }
+
     public function usageByDay(DateTimeImmutable $since): array {
         $rows = [];
         foreach ($this->db->execute(

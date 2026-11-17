@@ -662,7 +662,8 @@ $chat = new ChatService(
     $runMessages,
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations));
+// spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
+$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
