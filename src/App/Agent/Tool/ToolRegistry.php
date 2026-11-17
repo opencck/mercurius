@@ -23,6 +23,13 @@ final class ToolRegistry {
         $this->tools[$name] = $tool;
     }
 
+    /** Takes tools out — those of an MCP server that was turned off or changed. */
+    public function remove(string ...$names): void {
+        foreach ($names as $name) {
+            unset($this->tools[$name]);
+        }
+    }
+
     public function get(string $name): ?Tool {
         return $this->tools[$name] ?? null;
     }

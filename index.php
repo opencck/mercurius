@@ -84,6 +84,11 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
+use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
+use OpenCCK\App\Service\McpCommands;
+use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\Infrastructure\Repository\PostgresSkillRepository;
 use OpenCCK\App\Service\SkillCommands;
 use OpenCCK\App\Skill\SkillCatalog;
@@ -391,6 +396,21 @@ $scheduler->useSkills($skillCatalog);
 $tools->register(new SkillViewTool($skillCatalog));
 $tools->register(new SkillProposeTool($skillCatalog, $skillCards));
 
+// spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, added and approved by the owner
+$mcpServers = new PostgresMcpServerRepository($db);
+$mcpManager = new McpManager(
+    $mcpServers,
+    new HttpMcpClient(HttpClients::create()),
+    $vault,
+    $tools,
+    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+    static function (string $text) use ($channel, $telegram): void {
+        $channel->send(new OutgoingMessage($telegram->ownerId, $text));
+    },
+    $logger,
+);
+\Revolt\EventLoop::defer($mcpManager->connectAll(...));
+
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
@@ -415,6 +435,7 @@ $chat = new ChatService(
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillRepository),
+    new McpCommands($mcpManager, $mcpServers),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 

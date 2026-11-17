@@ -31,7 +31,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -52,6 +52,7 @@ final class ChatService implements MessageHandler {
         private readonly ?ProjectCommands $projects = null,
         private readonly ?ServerCommands $servers = null,
         private readonly ?SkillCommands $skills = null,
+        private readonly ?McpCommands $mcp = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -124,6 +125,10 @@ final class ChatService implements MessageHandler {
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, 'Не удалось удалить сообщение с секретом — удалите его сами.');
             }
+            return;
+        }
+        if ($command === '/mcp' && $this->mcp !== null) {
+            $this->reply($message, $principal->isOwner() ? $this->mcp->handle(substr($text, strlen($command))) : self::OWNER_ONLY);
             return;
         }
         if (in_array($command, ['/skills', '/skill'], true) && $this->skills !== null) {
