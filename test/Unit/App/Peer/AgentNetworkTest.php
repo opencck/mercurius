@@ -268,8 +268,16 @@ final class AgentNetworkTest extends AsyncTestCase {
         $network = $this->network(new InMemoryPeerRepository(), $leader, $this->leaderKey, self::LEADER, $owner, $vault);
         $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
 
-        $network->delegate($owner, 'follower', 'Сделай отчёт по таблице', 'telegram', '7', 0, [], [['name' => 'data.csv', 'bytes' => "a;b
-1;2"]]);
+        $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        $sandbox->files[$owner->id]['tables/data.csv'] = "a;b\n1;2";
+        $conversation = $leader->conversations->openConversation($owner->id, 'telegram', '7');
+        $tool = new PeerDelegateTool($network, new InMemoryPeerRepository(), $leader->conversations, $sandbox);
+        $policy = new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true);
+        $lost = $tool->execute(['task' => 'Сделай отчёт', 'files' => ['tables/data.csv']], new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy));
+        self::assertTrue($lost->isError, 'a task without a neighbour is an error, not the list of neighbours');
+        $given = $tool->execute(['peer' => 'follower', 'task' => 'Сделай отчёт по таблице', 'files' => ['tables/data.csv']], new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy));
+        self::assertFalse($given->isError, $given->content);
+        self::assertStringContainsString('data.csv', $given->content);
         delay(0.05);
 
         $prompt = array_slice($this->follower->llm->requests[0]->messages, -1)[0]->content ?? '';

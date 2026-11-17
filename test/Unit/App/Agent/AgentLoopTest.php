@@ -189,6 +189,21 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertNotEmpty($asked);
     }
 
+    public function testAReportOfWhatThisRunReallyDidIsNotDoubted(): void {
+        $save = new FakeTool('settings', DangerClass::Write);
+        $this->registry->register($save);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'settings', '{"q":"set"}')),
+            ScriptedLlm::text('Сохранил. [Сделано в этом запуске: settings {"q":"set"} → settings:{"q":"set"}]'),
+        ]);
+
+        $run = $this->execute($llm, $this->start('давай'));
+
+        self::assertSame(RunStatus::Done, $run->status);
+        self::assertCount(2, $llm->requests, 'the run did act: its own report is not taken for a fake one');
+        self::assertCount(1, $save->calls);
+    }
+
     public function testATextReportTwiceIsLetThrough(): void {
         $llm = new ScriptedLlm([
             ScriptedLlm::text('[Сделано в этом запуске: x → y]'),

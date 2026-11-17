@@ -27,6 +27,8 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         private readonly PeerNetwork $network,
         private readonly PeerRepository $peers,
         private readonly ConversationRepository $conversations,
+        /** files to attach come from the participant's sandbox; null — text only */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -38,6 +40,7 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
             'properties' => [
                 'peer' => $names === [] ? ['type' => 'string', 'maxLength' => 40] : ['type' => 'string', 'enum' => $names],
                 'task' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 8000],
+                'files' => ['type' => 'array', 'maxItems' => SandboxFiles::COUNT_MAX, 'items' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 1024], 'description' => t('tool.peer_delegate.files')],
             ],
             'additionalProperties' => false,
         ]);
@@ -62,10 +65,11 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $peer = Args::string($args, 'peer');
-        if ($peer === null) {
-            return ToolResult::ok($this->network->text());
-        }
         $task = trim(Args::string($args, 'task') ?? '');
+        if ($peer === null) {
+            // a task without a neighbour is a mistake, not a question who is there: said so, or the model calls again
+            return $task === '' ? ToolResult::ok($this->network->text()) : ToolResult::error(t('tool.peer_delegate.no_peer') . "\n\n" . $this->network->text());
+        }
         if ($task === '') {
             return ToolResult::error(t('tool.peer_delegate.nuzhna_zadacha_task'));
         }
@@ -73,10 +77,13 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         // A run that is itself a task from a neighbour carries its chain on.
         $parent = $meta->channel === A2aServer::CHANNEL ? $this->peers->taskByRun($context->runId) : null;
         try {
-            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path);
+            // spec: BRIEF.md#между-агентами — files of the sandbox go with the task
+            $files = SandboxFiles::read($this->sandbox, $args, $context);
+            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files);
         } catch (DomainException | RuntimeException $e) {
             return ToolResult::error($e->getMessage());
         }
-        return ToolResult::ok(sprintf(t('tool.peer_delegate.zadacha_otdana_sosedu_otvet_pridet'), $out->id, $out->peer, $out->remoteId));
+        return ToolResult::ok(sprintf(t('tool.peer_delegate.zadacha_otdana_sosedu_otvet_pridet'), $out->id, $out->peer, $out->remoteId)
+            . ($files === [] ? '' : sprintf(t('tool.peer_delegate.with_files'), implode(', ', array_column($files, 'name')))));
     }
 }

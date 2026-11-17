@@ -44,8 +44,8 @@ final class SendMessageTool implements Tool, GrantKeyed {
     ) {}
 
     /** Files at most per message, and their size in all. */
-    public const FILES_MAX = 5;
-    public const BYTES_MAX = 20_000_000;
+    public const FILES_MAX = SandboxFiles::COUNT_MAX;
+    public const BYTES_MAX = SandboxFiles::BYTES_MAX;
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.send_message.about'), [
@@ -92,7 +92,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
     public function execute(array $args, ToolContext $context): ToolResult {
         // spec: BRIEF.md#личные-сообщения-участникам — not only text and not only people: files, and other agents
         try {
-            $files = $this->files($args, $context);
+            $files = SandboxFiles::read($this->sandbox, $args, $context);
         } catch (\RuntimeException $e) {
             return ToolResult::error($e->getMessage());
         }
@@ -134,45 +134,6 @@ final class SendMessageTool implements Tool, GrantKeyed {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }
         return ToolResult::ok(sprintf(t($waits ? 'tool.send_message.sent_waiting' : 'tool.send_message.sent'), $recipient->displayName ?? '#' . $recipient->id));
-    }
-
-    /**
-     * The files to attach, read whole from the sender's sandbox before anything is sent: a missing one stops the
-     * message.
-     *
-     * @param array<string, mixed> $args
-     * @return list<array{name: string, bytes: string}>
-     * @throws \RuntimeException
-     */
-    private function files(array $args, ToolContext $context): array {
-        /** @var mixed $paths */
-        $paths = $args['files'] ?? [];
-        if (!is_array($paths) || $paths === []) {
-            return [];
-        }
-        $limits = $context->policy?->sandbox;
-        if ($this->sandbox === null || $limits === null) {
-            throw new \RuntimeException(t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
-        }
-        $files = [];
-        $total = 0;
-        foreach (array_slice($paths, 0, self::FILES_MAX) as $path) {
-            if (!is_string($path)) {
-                continue;
-            }
-            try {
-                $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, SendFileTool::MAX_BYTES, $context->cancellation);
-            } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure $e) {
-                throw new \RuntimeException($e->getMessage());
-            }
-            $total += strlen($bytes);
-            if ($total > self::BYTES_MAX) {
-                throw new \RuntimeException(sprintf(t('tool.send_message.too_much'), self::BYTES_MAX));
-            }
-            $name = basename(str_replace('\\', '/', $path));
-            $files[] = ['name' => $name === '' ? 'file' : $name, 'bytes' => $bytes];
-        }
-        return $files;
     }
 
     /**

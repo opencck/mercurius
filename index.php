@@ -699,7 +699,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $sandbox,
     static fn(int $principalId): ?\OpenCCK\Domain\Agent\SandboxLimits => ($p = $principals->find($principalId)) === null ? null : $policies->forPrincipal($p)->sandbox,
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
+$tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
 // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept: idle ones are not closed,
 // dropped ones are opened again (after a restart too); WebSocket pings keep a live one through NPM

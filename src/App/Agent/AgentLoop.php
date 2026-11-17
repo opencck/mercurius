@@ -240,7 +240,8 @@ final class AgentLoop {
                 //      words (it copies the system note of earlier runs) is shown back once with a reminder
                 // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
                 //      completion without tool calls" in the prompt; here the loop also catches the copied note
-                if (!$state->textActionRetried && self::reportsAnAction($text)) {
+                // a run that did act may repeat its own system note: it is reminded only when it did nothing
+                if (!$state->textActionRetried && self::reportsAnAction($text) && $this->actionsNote($state->run->id) === '') {
                     $state->textActionRetried = true;
                     $state->textAction = $text;
                     $state->partial = '';
