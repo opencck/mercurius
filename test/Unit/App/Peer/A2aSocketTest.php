@@ -33,6 +33,8 @@ final class A2aSocketTest extends AsyncTestCase {
     private AgentIdentity $leaderKey;
     private AgentIdentity $followerKey;
     private \OpenCCK\Test\Support\FakeSandbox $sandbox;
+    private \OpenCCK\Test\Support\FakeChannel $ownerChat;
+    private \OpenCCK\App\Peer\AgentRequests $requests;
 
     protected function setUp(): void {
         parent::setUp();
@@ -44,7 +46,9 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->sandbox = new \OpenCCK\Test\Support\FakeSandbox();
         // agents of this follower get a sandbox: files from a neighbour are kept there
         $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new \OpenCCK\Domain\Agent\RunLimits(30, 100_000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4));
-        $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox);
+        $this->ownerChat = $follower->channel;
+        $this->requests = new \OpenCCK\App\Peer\AgentRequests($peers, $follower->principals, $follower->channel, '42', retryDelays: []);
+        $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox, requests: $this->requests);
         $follower->scheduler->useJobRuns($this->server);
         $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \OpenCCK\App\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
         $network->allow('leader', $this->leaderKey->fingerprint(), Role::User);
@@ -103,6 +107,47 @@ final class A2aSocketTest extends AsyncTestCase {
         }
         delay(0.01);
         self::assertTrue($follower->isClosed());
+    }
+
+    public function testAnUnknownAgentKnocksAndTheOwnerLetsItIn(): void {
+        [$end] = $this->connection();
+        $stranger = AgentIdentity::generate();
+        try {
+            A2aSocket::open($end, $stranger, $this->followerKey->publicKey, about: ['name' => 'claude-tester', 'url' => 'https://tester.example']);
+            self::fail('a stranger got in');
+        } catch (RuntimeException $e) {
+            self::assertStringContainsString('waits for the decision', $e->getMessage());
+        }
+        $card = array_values(array_filter($this->ownerChat->texts('send'), static fn(string $t): bool => str_contains($t, 'claude-tester')));
+        self::assertCount(1, $card, 'the owner sees who knocks');
+        self::assertStringContainsString('https://tester.example', $card[0]);
+        self::assertStringContainsString($stranger->fingerprint(), $card[0]);
+
+        $this->requests->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'cb', '42', '42', 'Owner', null, 'pa:1:u', 'u1'));
+
+        [$again] = $this->connection();
+        $socket = A2aSocket::open($again, $stranger, $this->followerKey->publicKey);
+        self::assertTrue($socket->alive());
+        $socket->close();
+    }
+
+    public function testAnUnknownKeyOverHttpKnocksWithTheNameFromItsHeaders(): void {
+        $stranger = AgentIdentity::generate();
+        $nonce = bin2hex(random_bytes(8));
+        $time = (string) time();
+        [$agent, $status, $why] = $this->server->authenticate([
+            'authorization' => 'Bearer entrance',
+            'x-a2a-key' => base64_encode($stranger->publicKey),
+            'x-a2a-timestamp' => $time,
+            'x-a2a-nonce' => $nonce,
+            'x-a2a-signature' => $stranger->sign(AgentIdentity::requestData('POST', '/a2a', $time, $nonce, '{}')),
+            'x-a2a-name' => 'Http Agent',
+            'x-a2a-url' => 'https://http-agent.example',
+        ], 'POST', '/a2a', '{}');
+
+        self::assertSame([null, 403], [$agent, $status]);
+        self::assertStringContainsString('waits for the decision', $why);
+        self::assertCount(1, array_filter($this->ownerChat->texts('send'), static fn(string $t): bool => str_contains($t, 'http-agent') && str_contains($t, 'HTTP')));
     }
 
     public function testAForeignSignatureIsNotAProof(): void {

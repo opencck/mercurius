@@ -40,7 +40,20 @@ final class A2aClient {
         private readonly ?A2aLinks $links = null,
         /** @var (\Closure(string): ((\Closure(array<array-key, mixed>): array<string, mixed>)|null))|null who answers the neighbour's requests by its key */
         private readonly ?\Closure $serveFor = null,
+        /** the public address of this agent: a neighbour that does not know it yet shows it and its name to its owner */
+        private readonly string $self = '',
     ) {}
+
+    /**
+     * What this agent tells of itself on the way in: a name (the first label of its host) and its address.
+     *
+     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+     *
+     * @return array{name?: string, url?: string}
+     */
+    public function about(): array {
+        return $this->self === '' || !str_starts_with($this->self, 'http') ? [] : ['name' => AgentRequests::nameOfUrl($this->self), 'url' => $this->self];
+    }
 
     /** ws — the neighbour's card names a WebSocket; http otherwise (neighbours added before the card said it). */
     public static function transport(Peer $peer): string {
@@ -167,6 +180,9 @@ final class A2aClient {
         $request->setHeader('x-a2a-key', base64_encode($identity->publicKey));
         $request->setHeader('x-a2a-timestamp', $timestamp);
         $request->setHeader('x-a2a-nonce', $nonce);
+        foreach ($this->about() as $claim => $value) {
+            $request->setHeader('x-a2a-' . $claim, $value);
+        }
         $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData('POST', is_string($path) ? $path : '/a2a', $timestamp, $nonce, $body)));
         $data = $this->request($request, $cancellation, $peer->publicKey, $nonce);
         if (isset($data['error']) && is_array($data['error'])) {
@@ -186,7 +202,7 @@ final class A2aClient {
         if ($live !== null) {
             return $live;
         }
-        $slot = $peer->name . " " . $identity->fingerprint();
+        $slot = $peer->name . "\0" . $identity->fingerprint();
         $open = $this->sockets[$slot] ?? null;
         if ($open !== null && $open->alive()) {
             return $open;
@@ -199,7 +215,7 @@ final class A2aClient {
         } catch (Throwable $e) {
             throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . (new \ReflectionClass($e))->getShortName() . ').');
         }
-        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint));
+        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint), $this->about());
         $this->links?->add(A2aLinks::OUT, $peer->name, $peerFingerprint, $socket);
         return $this->sockets[$slot] = $socket;
     }

@@ -58,13 +58,17 @@ final class A2aSocket {
         $this->reading->await();
     }
 
-    /** @throws RuntimeException the neighbour refused, or it is not who its pinned key says */
-    /** @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers requests of the neighbour */
-    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0, ?\Closure $serve = null): self {
+    /**
+     * @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers requests of the neighbour
+     * @param array{name?: string, url?: string} $about what this agent tells of itself: a neighbour that does not know
+     *        it yet shows this to its owner
+     * @throws RuntimeException the neighbour refused, or it is not who its pinned key says
+     */
+    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0, ?\Closure $serve = null, array $about = []): self {
         $deadline = new TimeoutCancellation($timeout);
         $nonce = bin2hex(random_bytes(16));
         try {
-            $channel->send(json_encode(['type' => 'hello', 'key' => $me->publicKey, 'nonce' => $nonce], JSON_THROW_ON_ERROR));
+            $channel->send(json_encode(['type' => 'hello', 'key' => $me->publicKey, 'nonce' => $nonce] + $about, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             $challenge = self::frame($channel->receive($deadline));
             if (($challenge['type'] ?? null) === 'denied') {
                 throw new RuntimeException(t('peer.a2a_client.sosed_ne_pustil') . self::reason($challenge));

@@ -6,6 +6,7 @@ namespace OpenCCK\Test\Support;
 
 use DateTimeImmutable;
 use OpenCCK\Domain\Peer\A2aTask;
+use OpenCCK\Domain\Peer\AgentRequest;
 use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Peer\Peer;
 use OpenCCK\Domain\Repository\PeerRepository;
@@ -23,6 +24,37 @@ final class InMemoryPeerRepository implements PeerRepository {
     public array $peers = [];
     /** @var array<int, OutgoingTask> */
     public array $outgoing = [];
+    /** @var array<int, AgentRequest> */
+    public array $requests = [];
+    private int $nextRequest = 1;
+
+    public function requestAccess(string $fingerprint, string $name, string $url, string $transport, int $maxPending): ?array {
+        foreach ($this->requests as $request) {
+            if ($request->fingerprint === $fingerprint) {
+                return [$request, false];
+            }
+        }
+        if (count(array_filter($this->requests, static fn(AgentRequest $r): bool => $r->status === AgentRequest::PENDING)) >= $maxPending) {
+            return null;
+        }
+        $request = new AgentRequest($this->nextRequest++, $fingerprint, $name, $url, $transport, AgentRequest::PENDING);
+        $this->requests[$request->id] = $request;
+        return [$request, true];
+    }
+
+    public function decideRequest(int $id, string $status): ?AgentRequest {
+        $request = $this->requests[$id] ?? null;
+        if ($request === null || $request->status !== AgentRequest::PENDING) {
+            return null;
+        }
+        return $this->requests[$id] = new AgentRequest($id, $request->fingerprint, $request->name, $request->url, $request->transport, $status);
+    }
+
+    public function dropRequest(int $id): void {
+        if (($this->requests[$id] ?? null)?->status === AgentRequest::PENDING) {
+            unset($this->requests[$id]);
+        }
+    }
 
     public function allowKey(int $principalId, string $name, string $fingerprint): void {
         $this->keys[$principalId] = ['name' => $name, 'fingerprint' => $fingerprint, 'revoked' => false];

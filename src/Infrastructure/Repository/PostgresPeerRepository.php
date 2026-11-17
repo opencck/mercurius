@@ -7,6 +7,7 @@ namespace OpenCCK\Infrastructure\Repository;
 use Amp\Postgres\PostgresLink;
 use DateTimeImmutable;
 use OpenCCK\Domain\Peer\A2aTask;
+use OpenCCK\Domain\Peer\AgentRequest;
 use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Peer\Peer;
 use OpenCCK\Domain\Repository\PeerRepository;
@@ -15,6 +16,7 @@ use UnexpectedValueException;
 final class PostgresPeerRepository implements PeerRepository {
     private const TASK = 'id, principal_id, context_id, message_id, state, run_id, result, depth, path::text AS path';
     private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result';
+    private const REQUEST = 'id, fingerprint, name, url, transport, status';
     private const OPEN = "('TASK_STATE_SUBMITTED', 'TASK_STATE_WORKING')";
 
     public function __construct(private readonly PostgresLink $db) {}
@@ -44,6 +46,51 @@ final class PostgresPeerRepository implements PeerRepository {
             }
         }
         return $found;
+    }
+
+    public function requestAccess(string $fingerprint, string $name, string $url, string $transport, int $maxPending): ?array {
+        $kept = $this->request('SELECT ' . self::REQUEST . ' FROM agent_requests WHERE fingerprint = ?', [$fingerprint]);
+        if ($kept !== null) {
+            return [$kept, false];
+        }
+        // the cap is checked in the insert itself: two knocks at once cannot both pass it
+        $made = $this->request(
+            "INSERT INTO agent_requests (fingerprint, name, url, transport)
+             SELECT ?, ?, ?, ? WHERE (SELECT count(*) FROM agent_requests WHERE status = 'pending') < ?
+             ON CONFLICT (fingerprint) DO NOTHING RETURNING " . self::REQUEST,
+            [$fingerprint, $name, $url, $transport, $maxPending],
+        );
+        if ($made !== null) {
+            return [$made, true];
+        }
+        $kept = $this->request('SELECT ' . self::REQUEST . ' FROM agent_requests WHERE fingerprint = ?', [$fingerprint]);
+        return $kept === null ? null : [$kept, false];
+    }
+
+    public function decideRequest(int $id, string $status): ?AgentRequest {
+        return $this->request(
+            "UPDATE agent_requests SET status = ?, decided_at = now() WHERE id = ? AND status = 'pending' RETURNING " . self::REQUEST,
+            [$status, $id],
+        );
+    }
+
+    public function dropRequest(int $id): void {
+        $this->db->execute("DELETE FROM agent_requests WHERE id = ? AND status = 'pending'", [$id]);
+    }
+
+    /** @param list<int|string> $params */
+    private function request(string $sql, array $params): ?AgentRequest {
+        $row = $this->db->execute($sql, $params)->fetchRow() ?? [];
+        $id = $row['id'] ?? null;
+        $fingerprint = $row['fingerprint'] ?? null;
+        $name = $row['name'] ?? null;
+        $url = $row['url'] ?? null;
+        $transport = $row['transport'] ?? null;
+        $status = $row['status'] ?? null;
+        if (!is_int($id) || !is_string($fingerprint) || !is_string($name) || !is_string($url) || !is_string($transport) || !is_string($status)) {
+            return null;
+        }
+        return new AgentRequest($id, $fingerprint, $name, $url, $transport, $status);
     }
 
     public function useNonce(string $nonce): bool {

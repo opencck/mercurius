@@ -6,6 +6,7 @@ namespace OpenCCK\Domain\Repository;
 
 use DateTimeImmutable;
 use OpenCCK\Domain\Peer\A2aTask;
+use OpenCCK\Domain\Peer\AgentRequest;
 use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Peer\Peer;
 
@@ -23,6 +24,20 @@ interface PeerRepository {
 
     /** @return list<array{name: string, fingerprint: string, principal: int, revoked: bool}> */
     public function keys(): array;
+
+    /**
+     * The request of an agent that proved an unknown key: the one kept for this key, or a new pending one (true);
+     * null — $maxPending requests wait already.
+     *
+     * @return array{AgentRequest, bool}|null
+     */
+    public function requestAccess(string $fingerprint, string $name, string $url, string $transport, int $maxPending): ?array;
+
+    /** The owner's decision, taken once: allowed or rejected; null — no such pending request. */
+    public function decideRequest(int $id, string $status): ?AgentRequest;
+
+    /** Forgets a pending request whose card did not reach the owner: the next knock shows it again. */
+    public function dropRequest(int $id): void;
 
     /** False — this one-time number was seen in the last quarter of an hour: a replay. */
     public function useNonce(string $nonce): bool;

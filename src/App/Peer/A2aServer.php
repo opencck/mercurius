@@ -105,6 +105,8 @@ final class A2aServer implements JobRuns {
         private readonly ?A2aLinks $links = null,
         /** files a neighbour sends go into the sandbox home of its agent; null — they are not kept */
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
+        /** an unknown agent that proved its key is shown to the owner; null — it is only told to ask for /peer allow */
+        private readonly ?AgentRequests $requests = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -162,7 +164,7 @@ final class A2aServer implements JobRuns {
         $principal = $id === null ? null : $this->principals->find($id);
         if ($principal === null || $principal->kind !== PrincipalKind::Agent) {
             $this->logger->notice('Unknown agent key', ['fingerprint' => $fingerprint]);
-            return [null, 403, 'unknown agent ' . $fingerprint . ': its owner lets it in with /peer allow'];
+            return [null, 403, $this->unknown($fingerprint, $headers['x-a2a-name'] ?? '', $headers['x-a2a-url'] ?? '', 'http')];
         }
         return [$principal, 200, ''];
     }
@@ -225,11 +227,21 @@ final class A2aServer implements JobRuns {
         $agent = $id === null ? null : $this->principals->find($id);
         if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
             $this->logger->notice('Unknown agent key', ['fingerprint' => $fingerprint]);
-            $this->deny($channel, 'unknown agent ' . $fingerprint . ': its owner lets it in with /peer allow');
+            $this->deny($channel, $this->unknown($fingerprint, isset($hello['name']) && is_string($hello['name']) ? $hello['name'] : '', isset($hello['url']) && is_string($hello['url']) ? $hello['url'] : '', 'ws'));
             return null;
         }
         $channel->send(json_encode(['type' => 'ready', 'agent' => $agent->displayName], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
         return [$agent, $fingerprint];
+    }
+
+    /**
+     * Why an agent whose key nobody let in is turned away; it knocks at the owner, who decides with a card.
+     *
+     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+     */
+    private function unknown(string $fingerprint, string $name, string $url, string $transport): string {
+        return $this->requests?->knock($fingerprint, mb_substr($name, 0, 100), mb_substr($url, 0, 300), $transport)
+            ?? 'unknown agent ' . $fingerprint . ': its owner lets it in with /peer allow';
     }
 
     private function deny(A2aChannel $channel, string $why): void {

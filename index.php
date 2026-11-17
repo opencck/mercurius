@@ -592,7 +592,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,
     $principals,
     $vault,
-    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor),
+    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor, $selfUrl ?? ''),
     $conversations,
     $transcript,
     $channel,
@@ -610,6 +610,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
     $a2aLinks->closeIdle(3600.0);
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
+// spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — an unknown agent knocks, the owner decides
+$agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $telegram->ownerId, $logger);
 // ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
 $a2aTransport = (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TRANSPORT') ?? 'ws') === 'http' ? 'http' : 'ws';
 $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? null : new \OpenCCK\App\Peer\A2aServer(
@@ -630,6 +632,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     transport: $a2aTransport,
     links: $a2aLinks,
     sandbox: $sandbox,
+    requests: $agentRequests,
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
@@ -703,7 +706,7 @@ $chat = new ChatService(
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
