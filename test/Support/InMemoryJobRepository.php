@@ -81,6 +81,22 @@ final class InMemoryJobRepository implements JobRepository {
         return $count;
     }
 
+    public function setWatch(int $id, ?string $url): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, watchUrl: $url, watchHash: null);
+        return true;
+    }
+
+    public function setWatchHash(int $id, string $hash): void {
+        $j = $this->jobs[$id] ?? null;
+        if ($j !== null) {
+            $this->jobs[$id] = self::with($j, watchHash: $hash);
+        }
+    }
+
     public function bindHook(int $id, ?string $secret): bool {
         $j = $this->jobs[$id] ?? null;
         if ($j === null || !$j->byEvent()) {
@@ -129,6 +145,8 @@ final class InMemoryJobRepository implements JobRepository {
         ?string $status = null,
         ?string $hookSecret = null,
         bool $clearHook = false,
+        string|false|null $watchUrl = false,
+        string|false|null $watchHash = false,
     ): Job {
         return new Job(
             $j->id,
@@ -144,6 +162,8 @@ final class InMemoryJobRepository implements JobRepository {
             $pendingReport === '' ? $j->pendingReport : $pendingReport,
             $status ?? $j->status,
             $clearHook ? null : ($hookSecret ?? $j->hookSecret),
+            $watchUrl === false ? $j->watchUrl : $watchUrl,
+            $watchHash === false ? $j->watchHash : $watchHash,
         );
     }
 }

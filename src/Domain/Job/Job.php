@@ -31,6 +31,10 @@ final class Job {
         public readonly ?string $pendingReport,
         public readonly string $status,
         public readonly ?string $hookSecret = null,
+        /** the address the job watches: the model is called only when what it gives changed */
+        public readonly ?string $watchUrl = null,
+        /** the fingerprint of what the address gave last time */
+        public readonly ?string $watchHash = null,
     ) {}
 
     public function byEvent(): bool {

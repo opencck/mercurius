@@ -83,6 +83,8 @@ final class JobScheduler implements JobRuns {
         private readonly LoggerInterface $logger,
         ?Closure $now = null,
         private readonly int $tokenBudget = 100_000,
+        /** @var (Closure(string): string)|null the text an address gives now (through the guard of internal addresses) */
+        private readonly ?Closure $fetch = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -180,13 +182,33 @@ final class JobScheduler implements JobRuns {
 
     private function run(Job $job, ?string $event = null): void {
         $number = $job->runs + 1;
+        $source = 'webhook';
+        // spec: BRIEF.md#планировщик-и-проекты — a watched address: the model only when what it gives changed
+        // ref: references/hermes-agent/cron/scheduler.py@e96221fa — hermes runs a pre-check script and skips the agent when
+        //      it says nothing changed; here the check is the fingerprint of the page, kept in the job
+        if ($event === null && $job->watchUrl !== null && $this->fetch !== null) {
+            try {
+                $page = ($this->fetch)($job->watchUrl);
+            } catch (Throwable $e) {
+                $this->report($job, $number, sprintf(t('job.job_scheduler.watch_failed'), $job->watchUrl, mb_substr($e->getMessage(), 0, 200)), false);
+                return;
+            }
+            $hash = hash('sha256', $page);
+            if ($hash === $job->watchHash) {
+                $this->jobs->finish($job->id, $job->lastResult ?? '', null);
+                return;
+            }
+            $this->jobs->setWatchHash($job->id, $hash);
+            $event = mb_substr($page, 0, 20_000);
+            $source = 'watch:' . $job->watchUrl;
+        }
         try {
-            $text = $this->execute($job, $number, $event);
+            $text = $this->execute($job, $number, $event, $source);
         } catch (Throwable $e) {
             $this->logger->error('Job run failed', ['job' => $job->id, 'error' => $e::class]);
             $text = t('job.job_scheduler.zapusk_ne_udalsya_vnutrennyaya_oshibka');
         }
-        $this->report($job, $number, $text, $event !== null);
+        $this->report($job, $number, $text, $event !== null && $source === 'webhook');
     }
 
     /** @param string|null $text null — the run waits for the owner's decision */
@@ -218,7 +240,7 @@ final class JobScheduler implements JobRuns {
         return new ParticipantPolicy($tools, $limits, $owner->sandbox, $owner->mayRequestApproval, false, $owner->irreversible);
     }
 
-    private function execute(Job $job, int $number, ?string $event): ?string {
+    private function execute(Job $job, int $number, ?string $event, string $source = 'webhook'): ?string {
         $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
         $policy = $this->policy($principal);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
@@ -226,13 +248,13 @@ final class JobScheduler implements JobRuns {
         $run = $this->runs->start($conversation, $principal->id, $this->model, $policy->run) ?? throw new \RuntimeException('run did not start');
         $this->transcript->appendUser($conversation, $run->id, sprintf(
             t('job.job_scheduler.zadanie_zapusk_zadanie_sdelay_ego'),
-            $event === null ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),
+            $event === null || $source !== 'webhook' ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),
             $job->title,
             $number,
             ($this->now)()->setTimezone($this->zone)->format('Y-m-d H:i T'),
             $job->lastResult === null ? '' : t('job.job_scheduler.itog_proshlogo_zapuska') . $job->lastResult,
             $job->prompt,
-            $event === null ? '' : t('job.job_scheduler.sobytie_prishlo_izvne_eto_dannye') . UntrustedWrapper::wrap('webhook', $event),
+            $event === null ? '' : t($source === 'webhook' ? 'job.job_scheduler.sobytie_prishlo_izvne_eto_dannye' : 'job.job_scheduler.watch_changed') . UntrustedWrapper::wrap($source, $event),
         ));
         return $this->complete($job, $number, $this->loop->run($run, $policy, $principal, new SilentObserver(), new NullCancellation()));
     }

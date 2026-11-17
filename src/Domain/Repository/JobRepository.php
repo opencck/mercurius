@@ -30,6 +30,12 @@ interface JobRepository {
     /** The run ended: its result, a report held for the quiet hours, running no more. */
     public function finish(int $id, string $result, ?string $pendingReport): void;
 
+    /** Sets or clears (null) the address the job watches; its fingerprint starts anew. */
+    public function setWatch(int $id, ?string $url): bool;
+
+    /** Remembers the fingerprint of what the watched address gave. */
+    public function setWatchHash(int $id, string $hash): void;
+
     /** @return list<Job> jobs with a report held back */
     public function pendingReports(): array;
 

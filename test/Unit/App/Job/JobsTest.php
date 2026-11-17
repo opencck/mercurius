@@ -36,6 +36,9 @@ final class JobsTest extends AsyncTestCase {
         $this->jobs = new InMemoryJobRepository();
     }
 
+    /** @var array<string, string> what the watched addresses give now */
+    private array $pages = [];
+
     /** @param array{int, int}|null $quiet */
     private function scheduler(ScriptedLlm $llm, ?array $quiet = null): JobScheduler {
         $this->stack = new AgentStack($llm);
@@ -55,7 +58,31 @@ final class JobsTest extends AsyncTestCase {
             $quiet,
             new NullLogger(),
             fn(): DateTimeImmutable => $this->now,
+            fetch: fn(string $url): string => $this->pages[$url] ?? throw new \RuntimeException('no page'),
         );
+    }
+
+    public function testAWatchedPageCallsTheModelOnlyWhenItChanged(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Цена: 990 ₽.'), ScriptedLlm::text('Цена снизилась до 890 ₽.')]));
+        $job = $this->jobs->create($this->owner->id, 'telegram', '42', 'Цена', 'Сообщи цену товара', 'every:60', $this->now->modify('-1 minute'));
+        $this->jobs->setWatch($job->id, 'https://shop.example/item');
+        $this->pages['https://shop.example/item'] = '<b>990 ₽</b>';
+
+        $scheduler->tick(true);
+        self::assertCount(1, $this->stack->llm->requests, 'the first look runs the model');
+        self::assertStringContainsString('990 ₽', array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '');
+
+        $this->now = $this->now->modify('+61 minutes');
+        $scheduler->tick(true);
+        self::assertCount(1, $this->stack->llm->requests, 'the same page: no model, no tokens');
+        self::assertCount(1, $this->stack->channel->texts('send'), 'and no report');
+
+        $this->pages['https://shop.example/item'] = '<b>890 ₽</b>';
+        $this->now = $this->now->modify('+61 minutes');
+        $scheduler->tick(true);
+        self::assertCount(2, $this->stack->llm->requests, 'a change runs the model');
+        self::assertStringContainsString('<untrusted-data', array_slice($this->stack->llm->requests[1]->messages, -1)[0]->content ?? '', 'the page is data from outside');
+        self::assertStringContainsString('890 ₽', implode("\n", $this->stack->channel->texts('send')));
     }
 
     public function testSchedulesComputeTheNextRunFromNow(): void {

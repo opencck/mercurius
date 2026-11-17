@@ -628,7 +628,20 @@ $quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23
 $quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
 $jobRepository = new PostgresJobRepository($db);
 $jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JOB_TOKEN_BUDGET') ?? '100000'));
-$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens);
+// spec: BRIEF.md#планировщик-и-проекты — a watched address is read through the guard of internal addresses, as text
+$jobWatchHttp = HttpClients::guarded($addressGuard);
+$jobWatchText = new TextExtractor();
+$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
+    $request = new \Amp\Http\Client\Request($url);
+    $request->setTransferTimeout(30);
+    $request->setBodySizeLimit(2_000_000);
+    $response = $jobWatchHttp->request($request);
+    $body = $response->getBody()->buffer(limit: 2_000_000);
+    if ($response->getStatus() >= 400) {
+        throw new \RuntimeException('HTTP ' . $response->getStatus());
+    }
+    return $jobWatchText->extract($body, $response->getHeader('content-type') ?? '', $url)[1];
+});
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));

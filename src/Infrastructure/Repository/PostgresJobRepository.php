@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\JobRepository;
 use UnexpectedValueException;
 
 final class PostgresJobRepository implements JobRepository {
-    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret";
+    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash";
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -118,6 +118,14 @@ final class PostgresJobRepository implements JobRepository {
         )->fetchRow() !== null;
     }
 
+    public function setWatch(int $id, ?string $url): bool {
+        return $this->db->execute('UPDATE jobs SET watch_url = ?, watch_hash = NULL WHERE id = ? RETURNING id', [$url, $id])->fetchRow() !== null;
+    }
+
+    public function setWatchHash(int $id, string $hash): void {
+        $this->db->execute('UPDATE jobs SET watch_hash = ? WHERE id = ?', [$hash, $id]);
+    }
+
     public function deliveriesSince(int $jobId, DateTimeImmutable $since): int {
         $row = $this->db->execute('SELECT count(*) AS n FROM hook_deliveries WHERE job_id = ? AND received_at >= to_timestamp(?)', [$jobId, $since->getTimestamp()])->fetchRow();
         return isset($row['n']) && is_int($row['n']) ? $row['n'] : 0;
@@ -129,6 +137,6 @@ final class PostgresJobRepository implements JobRepository {
         $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $opt = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $next = isset($row['next']) && is_int($row['next']) ? new DateTimeImmutable('@' . $row['next']) : null;
-        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'));
+        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'));
     }
 }

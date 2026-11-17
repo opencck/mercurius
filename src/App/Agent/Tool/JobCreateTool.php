@@ -43,6 +43,7 @@ final class JobCreateTool implements Tool {
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
                 'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
+                'watch' => ['type' => 'string', 'pattern' => '^https?://', 'maxLength' => 2048, 'description' => t('tool.job_create.watch')],
             ],
             'required' => ['title', 'prompt', 'schedule'],
             'additionalProperties' => false,
@@ -82,7 +83,15 @@ final class JobCreateTool implements Tool {
         if ($meta === null) {
             return ToolResult::error(t('tool.job_create.beseda_ne_naydena'));
         }
+        $watch = trim(Args::string($args, 'watch') ?? '');
+        if ($watch !== '' && ($byEvent || preg_match('~^https?://[^\s/]+~i', $watch) !== 1)) {
+            return ToolResult::error(t('tool.job_create.watch_bad'));
+        }
         $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first);
+        if ($watch !== '') {
+            // spec: BRIEF.md#планировщик-и-проекты — the job watches the address: the model only when it changed
+            $this->jobs->setWatch($job->id, $watch);
+        }
         if ($first === null) {
             return ToolResult::ok(sprintf(t('tool.job_create.zadanie_postavleno_po_sobytiyu_vladelets'), $job->id, $job->title, $job->id));
         }
