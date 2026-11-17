@@ -162,6 +162,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $message->threadId,
             $message->isEdited,
             $message->raw,
+            // spec: BRIEF.md#входящие-вложения — in a group files are taken only when the message is addressed to the agent
+            $addressed ? $message->attachments : [],
         ), $group->mode === Group::FREE && !$addressed];
     }
 
