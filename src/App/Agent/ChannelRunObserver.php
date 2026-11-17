@@ -95,8 +95,13 @@ final class ChannelRunObserver implements RunObserver {
         $fresh = $messageId !== null && ($this->clock)() - $this->startedAt >= $this->freshAfter;
         $delivered = $messageId !== null && !$fresh
             && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
-        if (!$delivered) {
+        if ($delivered) {
+            $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'edit', 'message' => $messageId]);
+        } else {
             $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode)));
+            if ($sent) {
+                $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'send']);
+            }
             if (!$sent) {
                 $this->logger->warning('Run answer was not delivered', ['run' => $run->id, 'chat' => $this->chatId]);
             }
@@ -155,7 +160,10 @@ final class ChannelRunObserver implements RunObserver {
         }
         // While streaming the text is cut, not split: continuations would multiply with every edit.
         $limit = $this->channel->capabilities()->maxMessageLength;
-        $this->channel->edit($this->chatId, $messageId, mb_strlen($text) > $limit ? mb_substr($text, 0, $limit - 2) . ' ' . self::PLACEHOLDER : $text, $mode);
+        $result = $this->channel->edit($this->chatId, $messageId, mb_strlen($text) > $limit ? mb_substr($text, 0, $limit - 2) . ' ' . self::PLACEHOLDER : $text, $mode);
+        if (!$result->success) {
+            $this->logger->notice('Run status was not shown', ['chat' => $this->chatId, 'message' => $messageId, 'kind' => $result->errorKind?->value]);
+        }
         $this->shown = $this->text;
         $this->lastEdit = $now;
     }
