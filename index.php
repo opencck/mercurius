@@ -304,7 +304,7 @@ $transcript = new PostgresTranscriptRepository($db);
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
-$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard));
+$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault));
 // spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 if ($browserToken !== null) {

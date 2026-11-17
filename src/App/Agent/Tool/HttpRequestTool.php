@@ -28,6 +28,8 @@ final class HttpRequestTool implements Tool, GrantKeyed {
     public function __construct(
         private readonly DelegateHttpClient $http,
         private readonly AddressGuard $guard,
+        /** secrets the request may carry by name; null — none */
+        private readonly ?\OpenCCK\App\Vault\Vault $vault = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -39,6 +41,8 @@ final class HttpRequestTool implements Tool, GrantKeyed {
                 'method' => ['type' => 'string', 'enum' => self::METHODS, 'description' => t('tool.http_request.po_umolchaniyu_get_ostalnye_metody')],
                 'body' => ['type' => 'string', 'maxLength' => 1048576, 'description' => t('tool.http_request.telo_zaprosa_dlya_post_put')],
                 'headers' => ['type' => 'object', 'description' => t('tool.http_request.dopolnitelnye_zagolovki_imya_stroka')],
+                'secret' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.http_request.secret_about')],
+                'secret_header' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.http_request.secret_header_about')],
             ],
             'required' => ['url'],
             'additionalProperties' => false,
@@ -46,10 +50,17 @@ final class HttpRequestTool implements Tool, GrantKeyed {
     }
 
     public function danger(array $args): DangerClass {
-        return in_array(self::method($args), ['GET', 'HEAD'], true) ? DangerClass::Read : DangerClass::Irreversible;
+        // a secret leaves the agent only with the owner's card, whatever the method
+        return in_array(self::method($args), ['GET', 'HEAD'], true) && self::secret($args) === null ? DangerClass::Read : DangerClass::Irreversible;
     }
 
     public function grantKey(array $args): ?string {
+        $secret = self::secret($args);
+        if ($secret !== null) {
+            // spec: BRIEF.md#серверы-и-сеть — a grant binds the secret to one host, as hermes binds a credential to hosts
+            $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
+            return is_string($host) && $host !== '' ? sprintf('http-secret:%s %s', $secret, strtolower($host)) : null;
+        }
         $method = self::method($args);
         if (in_array($method, ['GET', 'HEAD'], true)) {
             return null;
@@ -59,7 +70,15 @@ final class HttpRequestTool implements Tool, GrantKeyed {
     }
 
     public function describe(array $args): string {
-        return sprintf('HTTP %s %s', self::method($args), mb_substr(Args::string($args, 'url') ?? '', 0, 300));
+        $secret = self::secret($args);
+        return sprintf('HTTP %s %s', self::method($args), mb_substr(Args::string($args, 'url') ?? '', 0, 300))
+            . ($secret === null ? '' : sprintf(t('tool.http_request.with_secret'), $secret, Args::string($args, 'secret_header') ?? 'Authorization: Bearer'));
+    }
+
+    /** @param array<string, mixed> $args */
+    private static function secret(array $args): ?string {
+        $name = trim(Args::string($args, 'secret') ?? '');
+        return $name === '' ? null : $name;
     }
 
     /**
@@ -90,6 +109,20 @@ final class HttpRequestTool implements Tool, GrantKeyed {
         $method = self::method($args);
         $body = Args::string($args, 'body');
         $headers = Args::stringMap($args, 'headers');
+        // ref: references/hermes-agent/agent/proxy_sources/iron_proxy.py@e96221fa:L1-L8, L63-L77 — the agent never holds the
+        //      credential, it is put into the header on the way out and bound to hosts; hermes binds by configuration
+        //      behind an egress proxy, here the value is put in by the code and the owner's grant binds it to a host
+        $secretName = self::secret($args);
+        $secretValue = null;
+        if ($secretName !== null) {
+            $secretValue = $this->vault?->reveal($secretName, $context->principal);
+            if ($secretValue === null) {
+                $names = $this->vault === null ? [] : array_column($this->vault->names($context->principal), 'name');
+                return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $secretName, $names === [] ? '—' : implode(', ', $names)));
+            }
+            $header = trim(Args::string($args, 'secret_header') ?? '');
+            $headers[$header === '' ? 'Authorization' : $header] = $header === '' ? 'Bearer ' . $secretValue : $secretValue;
+        }
 
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
             $parts = parse_url($url);
@@ -117,7 +150,8 @@ final class HttpRequestTool implements Tool, GrantKeyed {
             }
 
             $text = sprintf("HTTP %d\ncontent-type: %s\n\n", $response->getStatus(), $response->getHeader('content-type') ?? '');
-            return ToolResult::ok($text . $this->readBody($response->getBody(), $context));
+            $answer = $text . $this->readBody($response->getBody(), $context);
+            return ToolResult::ok($secretValue === null ? $answer : str_replace($secretValue, '***', $answer));
         }
         return ToolResult::error(sprintf(t('tool.http_request.slishkom_mnogo_perenapravleniy_bolshe'), self::MAX_REDIRECTS));
     }

@@ -37,6 +37,35 @@ final class HttpRequestToolTest extends AsyncTestCase {
         return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
     }
 
+    public function testASecretGoesByNameToItsHostAndIsMaskedInTheAnswer(): void {
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $vault->put('openrouter-management', 'token', 'sk-or-v1-managementkeyvalue', $owner);
+        $this->http = new FakeHttpClient(['https://example.com/api/v1/credits' => [200, ['content-type' => 'application/json'], '{"total_credits":10,"echo":"sk-or-v1-managementkeyvalue"}']]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
+        $args = ['url' => 'https://example.com/api/v1/credits', 'secret' => 'openrouter-management'];
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger($args), 'a secret leaves only with the owner\'s card');
+        self::assertSame('http-secret:openrouter-management example.com', $tool->grantKey($args), 'a grant binds the secret to the host');
+        self::assertStringContainsString('openrouter-management', $tool->describe($args));
+        self::assertStringContainsString('example.com', $tool->describe($args));
+
+        $result = $tool->execute($args, self::context());
+
+        self::assertSame('Bearer sk-or-v1-managementkeyvalue', $this->http->headers[0]['authorization'] ?? null);
+        self::assertStringContainsString('"total_credits":10', $result->content);
+        self::assertStringNotContainsString('managementkeyvalue', $result->content, 'the value never reaches the model');
+
+        $tool->execute($args + ['secret_header' => 'X-Api-Key'], self::context());
+        self::assertSame('sk-or-v1-managementkeyvalue', $this->http->headers[1]['x-api-key'] ?? null, 'a custom header gets the bare value');
+
+        $missing = $tool->execute(['url' => 'https://example.com/', 'secret' => 'nope'], self::context());
+        self::assertTrue($missing->isError);
+        self::assertStringContainsString('openrouter-management', $missing->content, 'the error lists the secrets there are');
+        $stranger = new Principal(2, PrincipalKind::Human, Role::User, null);
+        self::assertTrue($tool->execute($args, new ToolContext(1, 1, $stranger, new NullCancellation()))->isError, 'only the owner of the secret uses it');
+    }
+
     public function testGetReturnsStatusTypeAndBody(): void {
         $result = $this->tool(['https://example.com/' => [200, ['content-type' => 'text/html'], '<h1>Hi</h1>']])
             ->execute(['url' => 'https://example.com/'], self::context());
