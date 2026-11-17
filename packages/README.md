@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `0907de0` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `7ecab10` | 2026-11-17 | Канал связи и адаптер Telegram |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `3e5a367` | 2026-11-17 | Канал связи и адаптер Telegram |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [mail-mcp/](mail-mcp/) | `6a68991` | 2026-11-17 | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
@@ -27,6 +27,11 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — messenger: выход из чата
+
+- `mercurius-messenger` `3e5a367`: `Channel::leave()` и `TelegramApi::leaveChat()` — бот выходит из группы, которую
+  владелец не одобрил.
 
 ### 2026-11-17 — подключён mail-mcp
 

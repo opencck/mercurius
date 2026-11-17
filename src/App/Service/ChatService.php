@@ -57,9 +57,20 @@ final class ChatService implements MessageHandler {
         private readonly ?Doctor $doctor = null,
         private readonly ?SettingsCommands $settings = null,
         private readonly ?PeerCommands $peers = null,
+        private readonly ?GroupGate $groups = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
+        if (!$message->isPrivateChat && $this->groups !== null) {
+            // spec: BRIEF.md#telegram-группы-каналы-и-темы — a group decides who is answered and when
+            $routed = $this->groups->route($message);
+            if ($routed === null) {
+                return;
+            }
+            [$known, $message] = $routed;
+            $this->proceed($known, $message);
+            return;
+        }
         $principal = $this->access->resolveMessage($message);
         if ($principal === null || $principal->status === PrincipalStatus::Rejected) {
             $this->logger->notice('Message from an unknown participant refused', ['channel' => $message->channel, 'user_id' => $message->userId]);
@@ -70,6 +81,10 @@ final class ChatService implements MessageHandler {
             $this->reply($message, VisitorService::WAITING);
             return;
         }
+        $this->proceed($principal, $message);
+    }
+
+    private function proceed(Principal $principal, IncomingMessage $message): void {
 
         $text = trim($message->text);
         if ($text === '') {

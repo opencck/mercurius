@@ -90,6 +90,11 @@ final class AgentStack {
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, servers: $servers);
     }
 
+    /** The chat with group chats behind the gate. */
+    public function useGroups(\OpenCCK\App\Service\GroupGate $groups): void {
+        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, groups: $groups);
+    }
+
     /** A press on a button, as the channel delivers it. */
     public function press(string $data, string $userId = '42', string $messageId = '1'): void {
         $this->callbacks->handleCallback(new IncomingCallback('telegram', 'cb' . ++$this->messageId, '42', $userId, 'Owner', $messageId, $data, (string) $this->messageId));

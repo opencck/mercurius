@@ -72,7 +72,10 @@ final class ChannelRunObserver implements RunObserver {
 
     public function textDelta(Run $run, string $text): void {
         $this->text .= $text;
-        if (trim($this->text) !== '' && $this->text !== $this->shown) {
+        $head = ltrim($this->text);
+        // A silent answer is not shown while it streams either: "[SILENT]" or the start of it.
+        $silent = str_starts_with($head, '[SILENT]') || ($head !== '' && strncmp('[SILENT]', $head, strlen($head)) === 0);
+        if (!$silent && trim($this->text) !== '' && $this->text !== $this->shown) {
             $this->show($this->text . ' ' . self::PLACEHOLDER, ParseMode::Markdown);
         }
     }
@@ -83,6 +86,14 @@ final class ChannelRunObserver implements RunObserver {
     }
 
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — in a free group the agent may stay silent
+        if ($reason === StopReason::Answered && str_starts_with(ltrim($finalText), '[SILENT]')) {
+            if ($this->messageId !== null) {
+                $this->channel->delete($this->chatId, $this->messageId);
+            }
+            $this->logger->info('Run stayed silent', ['run' => $run->id, 'chat' => $this->chatId]);
+            return;
+        }
         if (!$this->started) {
             $this->start();
         }

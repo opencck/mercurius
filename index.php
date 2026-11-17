@@ -558,6 +558,23 @@ $tools->register(new ExperienceSearchTool($experience, $audience));
 $background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
 $visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
+// spec: BRIEF.md#telegram-группы-каналы-и-темы — groups approved by the owner; the bot's name finds mentions
+try {
+    $me = $telegramApi->getMe();
+    $botUsername = isset($me['username']) && is_string($me['username']) ? $me['username'] : null;
+} catch (Throwable $e) {
+    $logger->warning('Bot name is not known: mentions in groups are not seen', ['error' => $e::class]);
+    $botUsername = null;
+}
+$groupGate = new \OpenCCK\App\Service\GroupGate(
+    new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db),
+    $principals,
+    $channel,
+    $telegram->ownerId,
+    explode(':', $telegram->token(), 2)[0],
+    $botUsername,
+    $logger,
+);
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
     $conversations,
@@ -576,9 +593,10 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create()),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
+    $groupGate,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

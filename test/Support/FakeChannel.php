@@ -88,6 +88,14 @@ final class FakeChannel implements Channel {
     public array $deleted = [];
     public bool $deleteFails = false;
 
+    /** @var list<string> */
+    public array $left = [];
+
+    public function leave(string $chatId): bool {
+        $this->left[] = $chatId;
+        return true;
+    }
+
     public function delete(string $chatId, string $messageId): bool {
         if ($this->deleteFails) {
             return false;
