@@ -39,8 +39,9 @@ final class TelegramModule implements AppModuleInterface {
         $secret = $this->settings->webhookSecret();
         if ($url !== null && $secret !== null) {
             // Presses on buttons (approvals, visitors, grants) come as callback queries.
-            // spec: BRIEF.md#группа — the owner's card comes as soon as the bot is added (my_chat_member)
-            $this->api->setWebhook($url, $secret, ['message', 'callback_query', 'my_chat_member']);
+            // spec: BRIEF.md#группа — the owner's card comes as soon as the bot is added (my_chat_member);
+            // spec: BRIEF.md#канал-паблик — the bot's rights in a channel and its posts
+            $this->api->setWebhook($url, $secret, ['message', 'callback_query', 'my_chat_member', 'channel_post', 'edited_channel_post']);
             $this->logger->info('Telegram webhook registered', ['url' => $url]);
             return;
         }

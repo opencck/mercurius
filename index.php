@@ -510,6 +510,9 @@ $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepositor
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
 $tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
 $tools->register(new \OpenCCK\App\Agent\Tool\ForumTopicTool($channel, $conversations));
+$channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
+$channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $telegram->ownerId, $logger);
+$tools->register(new \OpenCCK\App\Agent\Tool\ChannelPostTool($channel, $channelRepository));
 $scheduler->useJobRuns($jobScheduler);
 
 // spec: BRIEF.md#сеть-агентов — A2A v1.0: neighbours connect with their own tokens; the agent gives tasks to its own
@@ -606,7 +609,7 @@ $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals,
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
-$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: $groupGate);
+$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: new \OpenCCK\App\Service\MembershipRouter([$groupGate, $channelRegistry]), posts: $channelRegistry);
 $deduplicator = new Deduplicator();
 
 $routes = [];
