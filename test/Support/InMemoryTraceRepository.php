@@ -58,6 +58,26 @@ final class InMemoryTraceRepository implements TraceRepository {
         return $p === null ? null : ['request' => $p['request'], 'response' => $p['response']];
     }
 
+    public function redactPayloads(string $text, string $replacement): int {
+        $count = 0;
+        foreach ($this->payloads as $id => $p) {
+            $request = json_encode($p['request'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            $response = json_encode($p['response'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            $from = substr(json_encode($text, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 1, -1);
+            $to = substr(json_encode($replacement, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 1, -1);
+            if ($text === '' || (!str_contains($request, $from) && !str_contains($response, $from))) {
+                continue;
+            }
+            /** @var array<string, mixed> $newRequest */
+            $newRequest = json_decode(str_replace($from, $to, $request), true, 512, JSON_THROW_ON_ERROR);
+            /** @var array<string, mixed> $newResponse */
+            $newResponse = json_decode(str_replace($from, $to, $response), true, 512, JSON_THROW_ON_ERROR);
+            $this->payloads[$id] = ['request' => $newRequest, 'response' => $newResponse, 'at' => $p['at']];
+            $count++;
+        }
+        return $count;
+    }
+
     public function purgePayloads(DateTimeImmutable $before): int {
         $count = 0;
         foreach ($this->payloads as $id => $p) {

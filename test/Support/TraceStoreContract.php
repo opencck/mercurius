@@ -65,6 +65,20 @@ abstract class TraceStoreContract extends AsyncTestCase {
         self::assertSame(['model' => 'openrouter:x/y'], $spans[1]->attrs);
     }
 
+    public function testForgottenTextLeavesKeptPrompts(): void {
+        $run = $this->traces->openRun($this->runId, 'задача');
+        $span = $this->traces->record($this->step(TraceSpan::MODEL, 'openrouter:x/y', $run));
+        $line = '[#7] Кофе «иргачеффе», без сахара';
+        $this->traces->payload($span, ['messages' => [['role' => 'user', 'content' => "вопрос
+" . $line]]], ['text' => 'ответ про ' . $line]);
+
+        self::assertSame(1, $this->traces->redactPayloads($line, '[#7] (забыто)'));
+        $payload = $this->traces->payloadOf($span);
+        self::assertSame(['text' => 'ответ про [#7] (забыто)'], $payload['response'] ?? null);
+        self::assertSame(['messages' => [['role' => 'user', 'content' => "вопрос\n[#7] (забыто)"]]], $this->traces->payloadOf($span)['request'] ?? null);
+        self::assertSame(0, $this->traces->redactPayloads($line, '[#7] (забыто)'));
+    }
+
     public function testOldPayloadsArePurgedStepsStay(): void {
         $run = $this->traces->openRun($this->runId, 'задача');
         $span = $this->traces->record($this->step(TraceSpan::MODEL, 'openrouter:x/y', $run));

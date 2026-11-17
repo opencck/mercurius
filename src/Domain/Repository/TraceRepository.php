@@ -28,6 +28,12 @@ interface TraceRepository {
     public function payloadOf(int $spanId): ?array;
 
     /** Deletes payloads saved before $before; returns how many. Steps stay. */
+    /**
+     * Replaces a text in every kept prompt and answer (a forgotten fact); returns the payloads changed. The text is
+     * matched as it stands inside a JSON string.
+     */
+    public function redactPayloads(string $text, string $replacement): int;
+
     public function purgePayloads(DateTimeImmutable $before): int;
 
     /** @return list<TraceSpan> steps of the run in order */

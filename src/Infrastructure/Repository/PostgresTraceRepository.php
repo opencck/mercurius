@@ -67,6 +67,23 @@ final class PostgresTraceRepository implements TraceRepository {
         return ['request' => self::json($row['request'] ?? null), 'response' => self::json($row['response'] ?? null)];
     }
 
+    public function redactPayloads(string $text, string $replacement): int {
+        if ($text === '') {
+            return 0;
+        }
+        // Inside jsonb a string keeps Unicode as is and escapes quotes, backslashes and control characters.
+        $from = substr(json_encode($text, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1);
+        $to = substr(json_encode($replacement, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1);
+        $row = $this->db->execute(
+            'WITH changed AS (
+                UPDATE trace_payloads SET request = replace(request::text, ?, ?)::jsonb, response = replace(response::text, ?, ?)::jsonb
+                WHERE strpos(request::text, ?) > 0 OR strpos(response::text, ?) > 0 RETURNING 1
+             ) SELECT count(*)::int AS n FROM changed',
+            [$from, $to, $from, $to, $from, $from],
+        )->fetchRow();
+        return self::int($row['n'] ?? 0);
+    }
+
     public function purgePayloads(DateTimeImmutable $before): int {
         $row = $this->db->execute(
             'WITH gone AS (DELETE FROM trace_payloads WHERE created_at < to_timestamp(?) RETURNING 1) SELECT count(*)::int AS n FROM gone',

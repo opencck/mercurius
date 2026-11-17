@@ -297,8 +297,10 @@ $proposals->onForget($memoryCards->forgotten(...));
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
-$proposals->onForget(static function (Fact $fact) use ($transcript, $experience): void {
-    $transcript->redact(sprintf('[#%d] %s', $fact->id, $fact->text), sprintf('[#%d] (забыто)', $fact->id));
+$proposals->onForget(static function (Fact $fact) use ($transcript, $experience, $traces): void {
+    $line = sprintf('[#%d] %s', $fact->id, $fact->text);
+    $transcript->redact($line, sprintf('[#%d] (забыто)', $fact->id));
+    $traces->redactPayloads($line, sprintf('[#%d] (забыто)', $fact->id));
     $experience->redact($fact->text, '(забыто)');
 });
 // spec: BRIEF.md#консолидация-dreaming — the nightly check: code only, the owner decides
