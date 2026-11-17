@@ -20,6 +20,8 @@ use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * One way to a server for every caller: classify, journal the start, take the secret and the route, run, journal the
  * end. A command from the "never" list does not run whoever asks; a journal that cannot record the start stops the
@@ -66,7 +68,7 @@ final class ServerConsole {
         if ($class->isRead() && $serverName !== null) {
             $server = $this->servers->byName($serverName);
             if ($server !== null && in_array($server->group, $this->confirmGroups, true)) {
-                return new Classification(Classification::CHANGE, sprintf('группа %s: каждая команда с подтверждением', $server->group));
+                return new Classification(Classification::CHANGE, sprintf(t('server.server_console.gruppa_kazhdaya_komanda_s_podtverzhdenie'), $server->group));
             }
         }
         return $class;
@@ -78,13 +80,13 @@ final class ServerConsole {
     public function run(Principal $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation): array {
         $server = $this->servers->byName($serverName);
         if ($server === null) {
-            return [false, sprintf('Сервера «%s» нет в реестре.', $serverName)];
+            return [false, sprintf(t('server.server_console.servera_net_v_reestre'), $serverName)];
         }
         $class = $this->classify($command, $server->name);
         $record = ['principal' => $principal->id, 'run' => $runId, 'server' => $server->name, 'command' => SecretMasker::mask($command), 'class' => $class->class, 'exit' => null, 'ms' => null, 'error' => null];
         if ($class->class === Classification::NEVER) {
             $this->journal($record + ['event' => 'refused', 'error' => $class->reason]);
-            return [false, sprintf('Эта команда запрещена всегда: %s.', $class->reason)];
+            return [false, sprintf(t('server.server_console.eta_komanda_zapreschena_vsegda'), $class->reason)];
         }
         $connection = $this->connection($server, $principal, true);
         if (is_string($connection)) {
@@ -95,7 +97,7 @@ final class ServerConsole {
             $this->audit->append($record + ['event' => 'start']);
         } catch (Throwable $e) {
             $this->logger->error('Command journal is down; the command did not run', ['server' => $server->name, 'error' => $e::class]);
-            return [false, 'Журнал команд недоступен — команда не выполнена.'];
+            return [false, t('server.server_console.zhurnal_komand_nedostupen_komanda_ne')];
         }
         $timeout = max(1, min(self::TIMEOUT_MAX, $timeout));
         try {
@@ -108,8 +110,8 @@ final class ServerConsole {
             }
             ($this->askHostKey)($at, $e->fingerprint, $e->changed);
             return [false, $e->changed
-                ? sprintf('Ключ хоста «%s» изменился (%s) — подключение отклонено, владелец предупреждён.', $at->name, $e->fingerprint)
-                : sprintf('Сервер «%s» ещё не знаком: владельцу отправлен отпечаток ключа (%s). Повтори, когда он подтвердит.', $at->name, $e->fingerprint)];
+                ? sprintf(t('server.server_console.klyuch_hosta_izmenilsya_podklyuchenie_ot'), $at->name, $e->fingerprint)
+                : sprintf(t('server.server_console.server_esche_ne_znakom_vladeltsu'), $at->name, $e->fingerprint)];
         } catch (RemoteFailure $e) {
             $this->journal($record + ['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())]);
             return [false, SecretMasker::mask($e->getMessage())];
@@ -127,7 +129,7 @@ final class ServerConsole {
     public function runPrepared(Principal $principal, ?int $runId, string $serverName, string $journalled, string $class, string $command, #[SensitiveParameter] ?string $stdin, int $timeout, Cancellation $cancellation): array {
         $server = $this->servers->byName($serverName);
         if ($server === null) {
-            return [false, sprintf('Сервера «%s» нет в реестре.', $serverName)];
+            return [false, sprintf(t('server.server_console.servera_net_v_reestre'), $serverName)];
         }
         $record = ['principal' => $principal->id, 'run' => $runId, 'server' => $server->name, 'command' => SecretMasker::mask($journalled), 'class' => $class, 'exit' => null, 'ms' => null, 'error' => null];
         $connection = $this->connection($server, $principal, true);
@@ -138,7 +140,7 @@ final class ServerConsole {
             $this->audit->append($record + ['event' => 'start']);
         } catch (Throwable $e) {
             $this->logger->error('Command journal is down; the command did not run', ['server' => $server->name, 'error' => $e::class]);
-            return [false, 'Журнал команд недоступен — команда не выполнена.'];
+            return [false, t('server.server_console.zhurnal_komand_nedostupen_komanda_ne')];
         }
         $timeout = max(1, min(self::TIMEOUT_MAX, $timeout));
         try {
@@ -150,7 +152,7 @@ final class ServerConsole {
                 $this->servers->setPendingHostKey($at->id, $e->fingerprint);
             }
             ($this->askHostKey)($at, $e->fingerprint, $e->changed);
-            return [false, sprintf('Ключ хоста «%s» не подтверждён: владельцу отправлен отпечаток (%s).', $at->name, $e->fingerprint)];
+            return [false, sprintf(t('server.server_console.klyuch_hosta_ne_podtverzhden_vladeltsu'), $at->name, $e->fingerprint)];
         } catch (RemoteFailure $e) {
             $this->journal($record + ['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())]);
             return [false, SecretMasker::mask($e->getMessage())];
@@ -164,11 +166,11 @@ final class ServerConsole {
      */
     private function connection(Server $server, Principal $principal, bool $mayJump): Connection|string {
         if ($server->secretId === null) {
-            return sprintf('У сервера «%s» нет секрета для входа.', $server->name);
+            return sprintf(t('server.server_console.u_servera_net_sekreta_dlya'), $server->name);
         }
         $credential = $this->vault->revealById($server->secretId, $principal);
         if ($credential === null) {
-            return sprintf('Секрет сервера «%s» недоступен: его видят автор и владелец, и нужен SECRETS_KEY.', $server->name);
+            return sprintf(t('server.server_console.sekret_servera_nedostupen_ego_vidyat'), $server->name);
         }
         $kind = str_starts_with(ltrim($credential), '-----BEGIN') ? 'private_key' : 'password';
         $route = $server->route;
@@ -178,27 +180,27 @@ final class ServerConsole {
             }
             if ($route === 'vless') {
                 return $this->vlessUri === null
-                    ? sprintf('Сервер «%s» ходит через VLESS, а VLESS_URI не задан.', $server->name)
+                    ? sprintf(t('server.server_console.server_hodit_cherez_vless_a'), $server->name)
                     : new Connection($server, $credential, $kind, RouteFactory::fromUri($this->vlessUri, $this->logger));
             }
             if (str_starts_with($route, 'secret:')) {
                 $uri = $this->vault->reveal(substr($route, 7), $principal);
                 return $uri === null
-                    ? sprintf('Секрет с маршрутом сервера «%s» недоступен.', $server->name)
+                    ? sprintf(t('server.server_console.sekret_s_marshrutom_servera_nedostupen'), $server->name)
                     : new Connection($server, $credential, $kind, RouteFactory::fromUri(trim($uri), $this->logger));
             }
             if (str_starts_with($route, 'via:')) {
                 $via = $this->servers->byName(substr($route, 4));
                 if (!$mayJump || $via === null || ($via->route !== null && str_starts_with($via->route, 'via:'))) {
-                    return sprintf('Промежуточный сервер «%s» не найден или сам ходит через другой.', substr($route, 4));
+                    return sprintf(t('server.server_console.promezhutochnyy_server_ne_nayden_ili'), substr($route, 4));
                 }
                 $jump = $this->connection($via, $principal, false);
                 return is_string($jump) ? $jump : new Connection($server, $credential, $kind, null, $jump);
             }
         } catch (RouteException) {
-            return sprintf('Маршрут сервера «%s» не разобран: проверьте URI прокси.', $server->name);
+            return sprintf(t('server.server_console.marshrut_servera_ne_razobran_proverte'), $server->name);
         }
-        return sprintf('Неизвестный маршрут сервера «%s».', $server->name);
+        return sprintf(t('server.server_console.neizvestnyy_marshrut_servera'), $server->name);
     }
 
     /**
@@ -227,10 +229,10 @@ final class ServerConsole {
 
     private function report(RemoteResult $result, int $timeout, bool $journalled): string {
         $parts = [sprintf(
-            'код выхода: %s, %d мс%s',
-            $result->exitCode === null ? 'нет' : (string) $result->exitCode,
+            t('server.server_console.kod_vyhoda_ms'),
+            $result->exitCode === null ? t('server.server_console.net') : (string) $result->exitCode,
             $result->durationMs,
-            $result->exitCode === RemoteResult::TIMED_OUT ? sprintf(' (остановлена по таймауту %d с)', $timeout) : '',
+            $result->exitCode === RemoteResult::TIMED_OUT ? sprintf(t('server.server_console.ostanovlena_po_taymautu_s'), $timeout) : '',
         )];
         if ($result->stdout !== '') {
             $parts[] = "stdout:\n" . SecretMasker::mask($result->stdout);
@@ -239,10 +241,10 @@ final class ServerConsole {
             $parts[] = "stderr:\n" . SecretMasker::mask($result->stderr);
         }
         if ($result->truncated) {
-            $parts[] = sprintf('(вывод обрезан до %d байт)', self::OUTPUT_MAX);
+            $parts[] = sprintf(t('server.server_console.vyvod_obrezan_do_bayt'), self::OUTPUT_MAX);
         }
         if (!$journalled) {
-            $parts[] = '(внимание: итог не записан в журнал команд)';
+            $parts[] = t('server.server_console.vnimanie_itog_ne_zapisan_v');
         }
         return implode("\n\n", $parts);
     }

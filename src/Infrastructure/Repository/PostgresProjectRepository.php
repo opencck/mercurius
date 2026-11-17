@@ -13,6 +13,8 @@ use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use UnexpectedValueException;
 
+use function Mercurius\I18n\t;
+
 final class PostgresProjectRepository implements ProjectRepository {
     private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated, owner_id';
     private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result, extract(epoch FROM due_at)::bigint AS due';
@@ -22,12 +24,12 @@ final class PostgresProjectRepository implements ProjectRepository {
     public function create(string $name, string $goal, ?int $ownerId = null): Project {
         $row = $this->db->execute('SELECT id FROM projects WHERE coalesce(owner_id, 0) = ? AND lower(name) = lower(?)', [$ownerId ?? 0, $name])->fetchRow();
         if ($row !== null) {
-            throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_project.proekt_uzhe_est'), $name));
         }
         try {
             $row = $this->db->execute('INSERT INTO projects (name, goal, owner_id) VALUES (?, ?, ?) RETURNING ' . self::PROJECT, [$name, $goal, $ownerId])->fetchRow();
         } catch (SqlQueryError) {
-            throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_project.proekt_uzhe_est'), $name));
         }
         return self::project($row ?? throw new UnexpectedValueException('Project was not created'));
     }

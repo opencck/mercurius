@@ -10,6 +10,8 @@ use OpenCCK\CommandPolicy\Classification;
 use OpenCCK\CommandPolicy\CommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * A command on a server of the registry. Its class decides: a proven read runs at once, a change or a raised privilege
  * waits for the owner's card, a "never" command is refused.
@@ -22,10 +24,10 @@ final class SshRunTool implements Tool, GrantKeyed {
     public function __construct(private readonly ServerConsole $console) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Выполняет команду на сервере из реестра (server — имя). Читающие команды из проверенного списка '
-            . '(ls, cat, df, docker ps, systemctl status, journalctl…) без конвейеров и подстановок идут сразу; всё остальное — '
-            . 'после подтверждения владельца; опасные (rm -rf /, mkfs, reboot, curl | sh…) запрещены. Команда выполняется в sh с '
-            . 'таймаутом на сервере; stdin закрыт; вывод — до 32 КБ, секреты в нём маскируются. Каждая команда — в журнале.', [
+        return new ToolDefinition(self::NAME, t('tool.ssh_run.vypolnyaet_komandu_na_servere_iz')
+            . t('tool.ssh_run.ls_cat_df_docker_ps')
+            . t('tool.ssh_run.posle_podtverzhdeniya_vladeltsa_opasnye')
+            . t('tool.ssh_run.taymautom_na_servere_stdin_zakryt'), [
             'type' => 'object',
             'properties' => [
                 'server' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
@@ -64,7 +66,7 @@ final class SshRunTool implements Tool, GrantKeyed {
     }
 
     public function describe(array $args): string {
-        return sprintf('Команда на сервере «%s»: %s', Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'command') ?? '', 0, 300));
+        return sprintf(t('tool.ssh_run.komanda_na_servere'), Args::string($args, 'server') ?? '', mb_substr(Args::string($args, 'command') ?? '', 0, 300));
     }
 
     public function untrusted(): bool {

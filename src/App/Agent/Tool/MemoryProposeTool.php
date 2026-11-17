@@ -12,6 +12,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\Proposal;
 
+use function Mercurius\I18n\t;
+
 /**
  * Proposes a change to memory; the owner accepts or rejects it with a card. The run does not wait for the decision.
  *
@@ -32,11 +34,11 @@ final class MemoryProposeTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Предлагает владельцу изменить долговременную память; изменение вступит, когда владелец '
-            . 'примет карточку. add — новый факт: одно законченное утверждение, которое пригодится в других беседах (не пересказ '
-            . 'разговора, не секреты). change — новая формулировка факта fact_id; end — факт больше не верен; forget — забыть '
-            . 'насовсем. profile и summary — полный новый текст профиля владельца и сводки текущих дел (только в личном чате '
-            . 'владельца). reason — почему, коротко: владелец решает по ней.', [
+        return new ToolDefinition(self::NAME, t('tool.memory_propose.predlagaet_vladeltsu_izmenit_dolgovremen')
+            . t('tool.memory_propose.primet_kartochku_add_novyy_fakt')
+            . t('tool.memory_propose.razgovora_ne_sekrety_change_novaya')
+            . t('tool.memory_propose.nasovsem_profile_i_summary_polnyy')
+            . t('tool.memory_propose.vladeltsa_reason_pochemu_korotko_vladele'), [
             'type' => 'object',
             'properties' => [
                 'kind' => ['type' => 'string', 'enum' => Proposal::KINDS],
@@ -63,7 +65,7 @@ final class MemoryProposeTool implements Tool {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         if (($this->sent[$context->runId] ?? 0) >= self::PER_RUN) {
-            return ToolResult::error(sprintf('В одном запуске — не больше %d предложений: дождись решения владельца.', self::PER_RUN));
+            return ToolResult::error(sprintf(t('tool.memory_propose.v_odnom_zapuske_ne_bolshe'), self::PER_RUN));
         }
         try {
             $proposal = $this->proposals->propose(
@@ -83,8 +85,8 @@ final class MemoryProposeTool implements Tool {
             $this->sent = array_slice($this->sent, -50, null, true);
         }
         if (!$this->cards->show($proposal)) {
-            return ToolResult::error(sprintf('Предложение №%d сохранено, но карточку владельцу отправить не удалось; он увидит его в /memory.', $proposal->id));
+            return ToolResult::error(sprintf(t('tool.memory_propose.predlozhenie_sohraneno_no_kartochku_vlad'), $proposal->id));
         }
-        return ToolResult::ok(sprintf('Предложение №%d отправлено владельцу. Память изменится, когда он его примет; ждать не нужно.', $proposal->id));
+        return ToolResult::ok(sprintf(t('tool.memory_propose.predlozhenie_otpravleno_vladeltsu_pamyat'), $proposal->id));
     }
 }

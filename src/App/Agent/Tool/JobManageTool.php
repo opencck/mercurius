@@ -13,6 +13,8 @@ use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Repository\JobRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The jobs of the caller: the list, cancelling, a pause, resuming and a run now.
  *
@@ -30,8 +32,8 @@ final class JobManageTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Задания по расписанию. action: list — список своих заданий (по умолчанию); cancel — отменить; '
-            . 'pause — приостановить; resume — возобновить; run_now — запустить сейчас, не меняя расписания. Для всех, кроме list, нужен id.', [
+        return new ToolDefinition(self::NAME, t('tool.job_manage.zadaniya_po_raspisaniyu_action_list')
+            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -58,29 +60,29 @@ final class JobManageTool implements Tool {
         $action = Args::string($args, 'action') ?? ($id === null ? 'list' : 'cancel');
         if ($action === 'list') {
             $list = $this->jobs->list($context->principal->isOwner() ? null : $context->principal->id);
-            return ToolResult::ok($list === [] ? 'Заданий нет.' : implode("\n", array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list)));
+            return ToolResult::ok($list === [] ? t('tool.job_manage.zadaniy_net') : implode("\n", array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list)));
         }
         $job = $id === null ? null : $this->jobs->find($id);
         if ($job === null || $job->status === Job::DONE || (!$context->principal->isOwner() && $job->principalId !== $context->principal->id)) {
-            return ToolResult::error(sprintf('Задания #%d нет.', (int) $id));
+            return ToolResult::error(sprintf(t('tool.job_manage.zadaniya_net'), (int) $id));
         }
         return match ($action) {
-            'cancel' => $this->set($job, Job::DONE, 'отменено'),
-            'pause' => $this->set($job, Job::PAUSED, 'приостановлено'),
+            'cancel' => $this->set($job, Job::DONE, t('tool.job_manage.otmeneno')),
+            'pause' => $this->set($job, Job::PAUSED, t('tool.job_manage.priostanovleno')),
             'resume' => $this->resume($job),
             'run_now' => $this->runNow($job),
-            default => ToolResult::error('Неизвестное действие: ' . $action),
+            default => ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . $action),
         };
     }
 
     private function set(Job $job, string $status, string $what): ToolResult {
         $this->jobs->setStatus($job->id, $status);
-        return ToolResult::ok(sprintf('Задание #%d «%s» %s.', $job->id, $job->title, $what));
+        return ToolResult::ok(sprintf(t('tool.job_manage.zadanie'), $job->id, $job->title, $what));
     }
 
     private function resume(Job $job): ToolResult {
         if ($job->status === Job::ACTIVE) {
-            return ToolResult::ok(sprintf('Задание #%d «%s» и так идёт.', $job->id, $job->title));
+            return ToolResult::ok(sprintf(t('tool.job_manage.zadanie_i_tak_idet'), $job->id, $job->title));
         }
         if (!$job->byEvent()) {
             try {
@@ -89,22 +91,22 @@ final class JobManageTool implements Tool {
                 $next = null;
             }
             if ($next === null) {
-                return ToolResult::error(sprintf('У задания #%d нет следующего запуска: разовое время прошло.', $job->id));
+                return ToolResult::error(sprintf(t('tool.job_manage.u_zadaniya_net_sleduyuschego_zapuska'), $job->id));
             }
             $this->jobs->setNext($job->id, $next);
         }
-        return $this->set($job, Job::ACTIVE, 'возобновлено');
+        return $this->set($job, Job::ACTIVE, t('tool.job_manage.vozobnovleno'));
     }
 
     private function runNow(Job $job): ToolResult {
         if ($job->byEvent()) {
-            return ToolResult::error('Задание по событию запускается webhook, а не по команде.');
+            return ToolResult::error(t('tool.job_manage.zadanie_po_sobytiyu_zapuskaetsya_webhook'));
         }
         if ($job->status !== Job::ACTIVE) {
-            return ToolResult::error(sprintf('Задание #%d на паузе: сначала resume.', $job->id));
+            return ToolResult::error(sprintf(t('tool.job_manage.zadanie_na_pauze_snachala_resume'), $job->id));
         }
         $this->jobs->setNext($job->id, new DateTimeImmutable());
-        return ToolResult::ok(sprintf('Задание #%d «%s» запустится в течение минуты; дальше — по расписанию.', $job->id, $job->title));
+        return ToolResult::ok(sprintf(t('tool.job_manage.zadanie_zapustitsya_v_techenie_minuty'), $job->id, $job->title));
     }
 
     public static function line(Job $job, JobScheduler $scheduler): string {
@@ -114,11 +116,11 @@ final class JobManageTool implements Tool {
             $when = $job->schedule;
         }
         return sprintf(
-            '#%d «%s» — %s, %s; следующий: %s; запусков %d',
+            t('tool.job_manage.sleduyuschiy_zapuskov'),
             $job->id,
             $job->title,
             $when,
-            $job->status === Job::ACTIVE ? 'включено' : 'на паузе',
+            $job->status === Job::ACTIVE ? t('tool.job_manage.vklyucheno') : t('tool.job_manage.na_pauze'),
             $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zone())->format('Y-m-d H:i'),
             $job->runs,
         );

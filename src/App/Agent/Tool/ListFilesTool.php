@@ -8,16 +8,18 @@ use Mercurius\Llm\ToolDefinition;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 final class ListFilesTool extends SandboxTool {
     public const NAME = 'list_files';
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Список файлов и каталогов в твоём рабочем каталоге песочницы: тип, размер, путь '
-            . '(не больше 500 записей).', [
+        return new ToolDefinition(self::NAME, t('tool.list_files.spisok_faylov_i_katalogov_v')
+            . t('tool.list_files.ne_bolshe_500_zapisey'), [
             'type' => 'object',
             'properties' => [
-                'path' => ['type' => 'string', 'maxLength' => 4096, 'description' => 'Каталог, по умолчанию рабочий'],
-                'depth' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 3, 'description' => 'Глубина, по умолчанию 1'],
+                'path' => ['type' => 'string', 'maxLength' => 4096, 'description' => t('tool.list_files.katalog_po_umolchaniyu_rabochiy')],
+                'depth' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 3, 'description' => t('tool.list_files.glubina_po_umolchaniyu_1')],
             ],
             'additionalProperties' => false,
         ]);
@@ -30,7 +32,7 @@ final class ListFilesTool extends SandboxTool {
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
         $entries = $this->sandbox->list($context->principal->id, $limits, Args::string($args, 'path') ?? '.', Args::int($args, 'depth') ?? 1, $context->cancellation);
         if ($entries === []) {
-            return ToolResult::ok('Каталог пуст.');
+            return ToolResult::ok(t('tool.list_files.katalog_pust'));
         }
         return ToolResult::ok(implode("\n", array_map(static fn(array $e): string => sprintf('%s %d %s', $e['type'], $e['size'], $e['path']), $entries)));
     }

@@ -9,6 +9,8 @@ use Mercurius\Search\SearchException;
 use Mercurius\Search\SearchProvider;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * Searching the web: the agent picks a provider from the configured ones by what the task needs, or leaves it to the
  * order of SEARCH_PROVIDERS (a failed one hands over to the next); answers are cached for a while. The answer and the
@@ -37,13 +39,13 @@ final class WebSearchTool implements Tool {
         $choice = '';
         if (count($this->providers) > 1) {
             $properties['provider'] = ['type' => 'string', 'enum' => array_keys($this->providers)];
-            $choice = ' provider — какой поиск взять (без него — по порядку владельца): ' . implode('; ', array_map(
+            $choice = t('tool.web_search.provider_kakoy_poisk_vzyat_bez') . implode('; ', array_map(
                 fn(string $name): string => $name . ' — ' . ($this->about[$name] ?? ''),
                 array_keys($this->providers),
-            )) . '. Для простого факта хватит дешёвого поиска со ссылками; связный ответ — когда нужен разбор.';
+            )) . t('tool.web_search.dlya_prostogo_fakta_hvatit_deshevogo');
         }
-        return new ToolDefinition(self::NAME, 'Ищет в интернете: возвращает список страниц со ссылками и, если поиск его пишет, краткий ответ. '
-            . 'Ответ поиска может ошибаться — важное проверяй, открыв источник через web_read. Не повторяй одинаковые запросы.' . $choice, [
+        return new ToolDefinition(self::NAME, t('tool.web_search.ischet_v_internete_vozvraschaet_spisok')
+            . t('tool.web_search.otvet_poiska_mozhet_oshibatsya_vazhnoe') . $choice, [
             'type' => 'object',
             'properties' => $properties,
             'required' => ['query'],
@@ -68,7 +70,7 @@ final class WebSearchTool implements Tool {
         $name = Args::string($args, 'provider');
         $search = $name === null ? $this->search : ($this->providers[$name] ?? null);
         if ($search === null) {
-            return ToolResult::error(sprintf('Поиска «%s» нет. Есть: %s.', (string) $name, implode(', ', array_keys($this->providers))));
+            return ToolResult::error(sprintf(t('tool.web_search.poiska_net_est'), (string) $name, implode(', ', array_keys($this->providers))));
         }
         try {
             return ToolResult::ok($search->search(Args::string($args, 'query') ?? '', $limit, $context->cancellation)->toText());

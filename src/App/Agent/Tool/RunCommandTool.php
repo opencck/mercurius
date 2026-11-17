@@ -9,6 +9,8 @@ use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 /**
  * A shell command in the participant's sandbox home. Each command is independent: no shell state between calls,
  * state lives in files. Commands that act outside (git push, ssh, uploads) become irreversible with approvals.
@@ -25,14 +27,14 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
     }
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Выполняет команду bash в твоём рабочем каталоге песочницы (есть git, curl, '
-            . 'php с composer, python3, node с npm, go). Каждая команда независима: переменные и cd между вызовами не '
-            . 'сохраняются. Вывод — код выхода, stdout и stderr (длинный вывод сокращается).', [
+        return new ToolDefinition(self::NAME, t('tool.run_command.vypolnyaet_komandu_bash_v_tvoem')
+            . t('tool.run_command.php_s_composer_python3_node')
+            . t('tool.run_command.sohranyayutsya_vyvod_kod_vyhoda_stdout'), [
             'type' => 'object',
             'properties' => [
                 'command' => ['type' => 'string', 'maxLength' => 10000],
-                'cwd' => ['type' => 'string', 'maxLength' => 4096, 'description' => 'Каталог, по умолчанию рабочий'],
-                'timeout' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600, 'description' => 'Секунды'],
+                'cwd' => ['type' => 'string', 'maxLength' => 4096, 'description' => t('tool.run_command.katalog_po_umolchaniyu_rabochiy')],
+                'timeout' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600, 'description' => t('tool.run_command.sekundy')],
             ],
             'required' => ['command'],
             'additionalProperties' => false,
@@ -70,7 +72,7 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
             max(1, Args::int($args, 'timeout') ?? $this->defaultTimeout),
             $context->cancellation,
         );
-        $parts = [sprintf('Код выхода: %d', $outcome->exitCode)];
+        $parts = [sprintf(t('tool.run_command.kod_vyhoda'), $outcome->exitCode)];
         if ($outcome->stdout !== '') {
             $parts[] = "stdout:\n" . rtrim($outcome->stdout, "\n");
         }
@@ -78,10 +80,10 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
             $parts[] = "stderr:\n" . rtrim($outcome->stderr, "\n");
         }
         if ($outcome->timedOut) {
-            $parts[] = 'Команда не уложилась в отведённое время и остановлена.';
+            $parts[] = t('tool.run_command.komanda_ne_ulozhilas_v_otvedennoe');
         }
         if ($outcome->overQuota) {
-            $parts[] = 'Рабочий каталог превысил лимит — освободи место.';
+            $parts[] = t('tool.run_command.rabochiy_katalog_prevysil_limit_osvobodi');
         }
         return new ToolResult(implode("\n\n", $parts), $outcome->exitCode !== 0 || $outcome->timedOut);
     }

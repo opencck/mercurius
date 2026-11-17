@@ -13,6 +13,8 @@ use OpenCCK\Domain\Repository\RoutingDecisionRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Chooses the model of a conversation when it opens: the class of the first request picks a role, the role table
  * picks the model. Every choice is logged with its reason — data for the full model selection later.
@@ -37,7 +39,7 @@ final class ModelRouter {
         $model = $this->roles->model($role);
         $info = $this->catalog->find($model);
         if ($role !== ModelRole::MAIN && $info !== null && !$info->supportsTools()) {
-            $reason .= sprintf('; %s не вызывает инструменты — взята основная модель', $model);
+            $reason .= sprintf(t('model.model_router.ne_vyzyvaet_instrumenty_vzyata_osnovnaya'), $model);
             $role = ModelRole::MAIN;
             $model = $this->roles->model(ModelRole::MAIN);
         }

@@ -9,6 +9,8 @@ use Mercurius\Llm\ToolCall;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 
+use function Mercurius\I18n\t;
+
 /**
  * Checks tool calls of one model answer before anything runs.
  *
@@ -52,13 +54,13 @@ final class ToolCallValidator {
                     $truncated = true;
                 }
                 $result[] = $this->invalid($call, $tool, null, sprintf(
-                    'Аргументы не разобраны как JSON: %s. Для инструмента без параметров передай {}.',
+                    t('tool.tool_call_validator.argumenty_ne_razobrany_kak_json'),
                     $e->getMessage(),
                 ));
                 continue;
             }
             if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
-                $result[] = $this->invalid($call, $tool, null, 'Аргументы должны быть JSON-объектом.');
+                $result[] = $this->invalid($call, $tool, null, t('tool.tool_call_validator.argumenty_dolzhny_byt_json_obektom'));
                 continue;
             }
             /** @var array<string, mixed> $args */
@@ -66,14 +68,14 @@ final class ToolCallValidator {
 
             $key = $call->name . "\0" . CanonicalJson::encode($args);
             if (isset($seen[$key])) {
-                $result[] = $this->invalid($call, $tool, $args, sprintf('Повтор вызова %s в этом же ответе: смотри его результат.', $seen[$key]));
+                $result[] = $this->invalid($call, $tool, $args, sprintf(t('tool.tool_call_validator.povtor_vyzova_v_etom_zhe'), $seen[$key]));
                 continue;
             }
             $seen[$key] = $id;
 
             $errors = JsonSchema::validate($tool->definition()->parameters, $args);
             if ($errors !== []) {
-                $result[] = $this->invalid($call, $tool, $args, 'Аргументы не прошли проверку: ' . implode('; ', $errors) . '.');
+                $result[] = $this->invalid($call, $tool, $args, t('tool.tool_call_validator.argumenty_ne_proshli_proverku') . implode('; ', $errors) . '.');
                 continue;
             }
 
@@ -102,9 +104,9 @@ final class ToolCallValidator {
     private function unknown(string $name, ParticipantPolicy $policy): string {
         $names = $this->registry->names($policy);
         return sprintf(
-            'Неизвестный инструмент «%s». %s',
+            t('tool.tool_call_validator.neizvestnyy_instrument'),
             mb_substr($name, 0, 64),
-            $names === [] ? 'Инструменты сейчас недоступны.' : 'Доступны: ' . implode(', ', $names) . '.',
+            $names === [] ? t('tool.tool_call_validator.instrumenty_seychas_nedostupny') : t('tool.tool_call_validator.dostupny') . implode(', ', $names) . '.',
         );
     }
 

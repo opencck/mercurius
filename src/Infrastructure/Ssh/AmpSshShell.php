@@ -29,6 +29,8 @@ use function Amp\File\deleteFile;
 use function Amp\File\write;
 use function Amp\Ssh\connect;
 
+use function Mercurius\I18n\t;
+
 /**
  * SSH on amphp-ssh: one connection per command (and one to the server in between for a jump), the host key pinned,
  * the command wrapped in `timeout` on the server (the library cannot stop a remote command reliably), stdin given and
@@ -69,9 +71,9 @@ final class AmpSshShell implements RemoteShell {
         } catch (UnknownHostKey|RemoteFailure $e) {
             throw $e;
         } catch (CancelledException) {
-            throw new RemoteFailure(sprintf('команда не закончилась за %d с: соединение закрыто', $timeout));
+            throw new RemoteFailure(sprintf(t('ssh.amp_ssh_shell.komanda_ne_zakonchilas_za_s'), $timeout));
         } catch (Throwable $e) {
-            throw new RemoteFailure('ошибка выполнения: ' . self::reason($e));
+            throw new RemoteFailure(t('ssh.amp_ssh_shell.oshibka_vypolneniya') . self::reason($e));
         } finally {
             $ssh?->close();
             $jump?->close();
@@ -111,9 +113,9 @@ final class AmpSshShell implements RemoteShell {
         } catch (UnknownHostKey $e) {
             throw new UnknownHostKey($e->fingerprint, $e->changed, $server->name);
         } catch (CancelledException) {
-            throw new RemoteFailure(sprintf('не удалось подключиться к %s за %d с', $server->address(), self::CONNECT_SECONDS));
+            throw new RemoteFailure(sprintf(t('ssh.amp_ssh_shell.ne_udalos_podklyuchitsya_k_za'), $server->address(), self::CONNECT_SECONDS));
         } catch (Throwable $e) {
-            throw new RemoteFailure(sprintf('не удалось подключиться к %s: %s', $server->address(), self::reason($e)));
+            throw new RemoteFailure(sprintf(t('ssh.amp_ssh_shell.ne_udalos_podklyuchitsya_k'), $server->address(), self::reason($e)));
         } finally {
             if ($keyFile !== null) {
                 try {
@@ -154,15 +156,15 @@ final class AmpSshShell implements RemoteShell {
     private static function drained(Future $future): Drained {
         $value = $future->await();
         if (!$value instanceof Drained) {
-            throw new RemoteFailure('вывод команды не прочитан');
+            throw new RemoteFailure(t('ssh.amp_ssh_shell.vyvod_komandy_ne_prochitan'));
         }
         return $value;
     }
 
     private static function reason(Throwable $e): string {
         return match (true) {
-            $e instanceof \Amp\Ssh\Authentication\AuthenticationFailureException => 'вход отклонён (логин, пароль или ключ)',
-            $e instanceof \Amp\Socket\ConnectException => 'хост не отвечает',
+            $e instanceof \Amp\Ssh\Authentication\AuthenticationFailureException => t('ssh.amp_ssh_shell.vhod_otklonen_login_parol_ili'),
+            $e instanceof \Amp\Socket\ConnectException => t('ssh.amp_ssh_shell.host_ne_otvechaet'),
             default => (new \ReflectionClass($e))->getShortName(),
         };
     }

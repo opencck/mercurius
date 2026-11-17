@@ -233,7 +233,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $tail = array_slice($llm->requests[1]->messages, -2);
         self::assertSame(LlmRole::Assistant, $tail[0]->role);
         self::assertSame('Первая часть, ', $tail[0]->content);
-        self::assertSame(AgentLoop::CONTINUE_NOTE, $tail[1]->content);
+        self::assertSame(\Mercurius\I18n\t(AgentLoop::CONTINUE_NOTE), $tail[1]->content);
         $saved = $this->transcript->runMessages($run->id);
         $last = end($saved);
         self::assertNotFalse($last);
@@ -250,7 +250,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $messages = $llm->requests[1]->messages;
         $last = end($messages);
         self::assertNotFalse($last);
-        self::assertSame(AgentLoop::EMPTY_NOTE, $last->content);
+        self::assertSame(\Mercurius\I18n\t(AgentLoop::EMPTY_NOTE), $last->content);
     }
 
     public function testCutAnswerWithoutTextIsAnEmptyOneNotAContinuation(): void {
@@ -262,7 +262,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $messages = $llm->requests[1]->messages;
         $last = end($messages);
         self::assertNotFalse($last);
-        self::assertSame(AgentLoop::EMPTY_NOTE, $last->content);
+        self::assertSame(\Mercurius\I18n\t(AgentLoop::EMPTY_NOTE), $last->content);
     }
 
     public function testToolStepClearsAFragmentInProgress(): void {
@@ -279,7 +279,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $messages = $llm->requests[2]->messages;
         $last = end($messages);
         self::assertNotFalse($last);
-        self::assertNotSame(AgentLoop::CONTINUE_NOTE, $last->content);
+        self::assertNotSame(\Mercurius\I18n\t(AgentLoop::CONTINUE_NOTE), $last->content);
     }
 
     public function testEmptyAnswersGiveUpAfterThreeRetries(): void {

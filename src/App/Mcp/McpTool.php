@@ -14,6 +14,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Mcp\McpServer;
 use RuntimeException;
 
+use function Mercurius\I18n\t;
+
 /**
  * A tool of an external MCP server in the agent's registry: the same loop, limits and confirmations as a built-in one.
  * Its class comes from the server's annotations: read-only — a read, not destructive — a write, nothing said — an
@@ -78,6 +80,6 @@ final class McpTool implements Tool {
             $this->breaker->succeeded($this->server->name);
         }
         $text = SecretMasker::mask(McpManager::clean($text));
-        return $error ? ToolResult::error($text === '' ? 'Инструмент MCP сообщил об ошибке.' : $text) : ToolResult::ok($text === '' ? '(пусто)' : $text);
+        return $error ? ToolResult::error($text === '' ? t('mcp.mcp_tool.instrument_mcp_soobschil_ob_oshibke') : $text) : ToolResult::ok($text === '' ? t('mcp.mcp_tool.pusto') : $text);
     }
 }

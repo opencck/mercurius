@@ -9,6 +9,8 @@ use Amp\Http\Client\Request;
 use Mercurius\Llm\ToolDefinition;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * An HTTP request to a public URL. GET and HEAD read; other methods change something outside and are irreversible
  * (they wait for the owner's approval). The result is untrusted data. Redirects are followed by hand, at most 5, and every
@@ -29,14 +31,14 @@ final class HttpRequestTool implements Tool, GrantKeyed {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'HTTP-запрос к публичному адресу (GET, HEAD; POST, PUT, PATCH, DELETE — только с подтверждения владельца). Возвращает код ответа, '
-            . 'content-type и тело (до 1 МБ). Внутренние адреса недоступны.', [
+        return new ToolDefinition(self::NAME, t('tool.http_request.http_zapros_k_publichnomu_adresu')
+            . t('tool.http_request.content_type_i_telo_do'), [
             'type' => 'object',
             'properties' => [
-                'url' => ['type' => 'string', 'maxLength' => 2048, 'description' => 'Адрес http или https'],
-                'method' => ['type' => 'string', 'enum' => self::METHODS, 'description' => 'По умолчанию GET; остальные методы меняют что-то снаружи и требуют подтверждения владельца'],
-                'body' => ['type' => 'string', 'maxLength' => 1048576, 'description' => 'Тело запроса для POST, PUT, PATCH'],
-                'headers' => ['type' => 'object', 'description' => 'Дополнительные заголовки: имя → строка'],
+                'url' => ['type' => 'string', 'maxLength' => 2048, 'description' => t('tool.http_request.adres_http_ili_https')],
+                'method' => ['type' => 'string', 'enum' => self::METHODS, 'description' => t('tool.http_request.po_umolchaniyu_get_ostalnye_metody')],
+                'body' => ['type' => 'string', 'maxLength' => 1048576, 'description' => t('tool.http_request.telo_zaprosa_dlya_post_put')],
+                'headers' => ['type' => 'object', 'description' => t('tool.http_request.dopolnitelnye_zagolovki_imya_stroka')],
             ],
             'required' => ['url'],
             'additionalProperties' => false,
@@ -93,7 +95,7 @@ final class HttpRequestTool implements Tool, GrantKeyed {
             $parts = parse_url($url);
             $scheme = strtolower($parts['scheme'] ?? '');
             if (($scheme !== 'http' && $scheme !== 'https') || !isset($parts['host'])) {
-                return ToolResult::error('Поддерживаются только адреса http и https.');
+                return ToolResult::error(t('tool.http_request.podderzhivayutsya_tolko_adresa_http_i'));
             }
             $refusal = $this->guard->refusal($parts['host']);
             if ($refusal !== null) {
@@ -117,7 +119,7 @@ final class HttpRequestTool implements Tool, GrantKeyed {
             $text = sprintf("HTTP %d\ncontent-type: %s\n\n", $response->getStatus(), $response->getHeader('content-type') ?? '');
             return ToolResult::ok($text . $this->readBody($response->getBody(), $context));
         }
-        return ToolResult::error(sprintf('Слишком много перенаправлений (больше %d).', self::MAX_REDIRECTS));
+        return ToolResult::error(sprintf(t('tool.http_request.slishkom_mnogo_perenapravleniy_bolshe'), self::MAX_REDIRECTS));
     }
 
     private function readBody(\Amp\ByteStream\ReadableStream $body, ToolContext $context): string {
@@ -127,14 +129,14 @@ final class HttpRequestTool implements Tool, GrantKeyed {
             if (strlen($data) > self::MAX_BODY) {
                 $body->close();
                 $data = mb_strcut($data, 0, self::MAX_BODY, 'UTF-8');
-                return $this->text($data) . sprintf("\n\n[ответ обрезан: больше %d байт]", self::MAX_BODY);
+                return $this->text($data) . sprintf(t('tool.http_request.otvet_obrezan_bolshe_bayt'), self::MAX_BODY);
             }
         }
         return $this->text($data);
     }
 
     private function text(string $data): string {
-        return mb_check_encoding($data, 'UTF-8') ? $data : sprintf('[двоичные данные, %d байт]', strlen($data));
+        return mb_check_encoding($data, 'UTF-8') ? $data : sprintf(t('tool.http_request.dvoichnye_dannye_bayt'), strlen($data));
     }
 
     public static function resolveLocation(string $base, string $location): string {

@@ -13,6 +13,8 @@ use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Repository\JobRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner's commands for jobs: the list, the webhook of a job by event, the summary now.
  *
@@ -31,10 +33,10 @@ final class JobCommands {
     public function jobs(): string {
         $list = $this->jobs->list(null);
         if ($list === []) {
-            return 'Заданий нет. Агент ставит их сам: «напомни…», «проверяй каждый день…».';
+            return t('service.job_commands.zadaniy_net_agent_stavit_ih');
         }
-        return "Задания:\n" . implode("\n", array_map(
-            fn(Job $j): string => JobManageTool::line($j, $this->scheduler) . ($j->byEvent() ? ($j->hookSecret === null ? '; webhook не подключён' : '; webhook: секрет ' . $j->hookSecret) : ''),
+        return t('service.job_commands.zadaniya') . implode("\n", array_map(
+            fn(Job $j): string => JobManageTool::line($j, $this->scheduler) . ($j->byEvent() ? ($j->hookSecret === null ? t('service.job_commands.webhook_ne_podklyuchen') : t('service.job_commands.webhook_sekret') . $j->hookSecret) : ''),
             $list,
         ));
     }
@@ -45,24 +47,24 @@ final class JobCommands {
         $secret = $parts[1] ?? '';
         $job = $this->jobs->find($id);
         if ($job === null || $secret === '') {
-            return '/hook <номер задания> <имя секрета> — принимать webhook; /hook <номер> off — перестать. Секрет сначала сохраните: /secret <имя> <значение>.';
+            return t('service.job_commands.hook_nomer_zadaniya_imya_sekreta');
         }
         if (!$job->byEvent()) {
-            return sprintf('Задание #%d идёт по расписанию, а не по событию.', $id);
+            return sprintf(t('service.job_commands.zadanie_idet_po_raspisaniyu_a'), $id);
         }
         if ($secret === 'off') {
             $this->jobs->bindHook($id, null);
-            return sprintf('Задание #%d больше не принимает webhook.', $id);
+            return sprintf(t('service.job_commands.zadanie_bolshe_ne_prinimaet_webhook'), $id);
         }
         if (!$this->vault->enabled() || $this->vault->id($secret) === null) {
-            return sprintf('Секрета «%s» нет в хранилище: /secret %s <значение>.', $secret, $secret);
+            return sprintf(t('service.job_commands.sekreta_net_v_hranilische_secret'), $secret, $secret);
         }
         $this->jobs->bindHook($id, $secret);
         return sprintf(
-            "Задание #%d принимает webhook: POST %s/hooks/%d\n\nПодпись — секретом «%s»: заголовки X-Webhook-Timestamp (время Unix, ±%d с) и X-Webhook-Signature-V2 — hex HMAC-SHA256 от «<время>.<тело>». "
-            . 'Webhook GitHub с этим секретом тоже принимается. Тело — до %d КБ, не чаще %d раз в час; повтор той же доставки не запускает задание.',
+            t('service.job_commands.zadanie_prinimaet_webhook_post_hooks')
+            . t('service.job_commands.webhook_github_s_etim_sekretom'),
             $id,
-            rtrim($this->appUrl ?? 'https://<адрес>', '/'),
+            rtrim($this->appUrl ?? t('service.job_commands.https_adres'), '/'),
             $id,
             $secret,
             HookReceiver::WINDOW,
@@ -72,6 +74,6 @@ final class JobCommands {
     }
 
     public function digest(): string {
-        return $this->digest->text(new DateTimeImmutable()) ?? 'Сводка пуста: нет сроков на сегодня и завтра и нет заданий на сегодня.';
+        return $this->digest->text(new DateTimeImmutable()) ?? t('service.job_commands.svodka_pusta_net_srokov_na');
     }
 }

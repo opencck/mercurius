@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Settings;
 
+use function Mercurius\I18n\t;
+
 /**
  * The settings the owner changes in the dialog. Everything else stays in .env: the link to Telegram (the first
  * setup goes through it), the database, Compose, the vault master key, the tokens the sandbox and browser read.
@@ -16,51 +18,51 @@ final class SettingsCatalog {
     public const INT = 'int';
     public const FLOAT = 'float';
 
-    /** @var array<string, array{string, string, string}> key => [group, kind, what it is] */
+    /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
-        'OPENROUTER_API_KEY' => ['модели', self::SECRET, 'ключ OpenRouter'],
-        'OPENAI_API_KEY' => ['модели', self::SECRET, 'ключ OpenAI'],
-        'VLESS_URI' => ['модели', self::SECRET, 'VLESS для запросов к провайдерам моделей (пусто — напрямую)'],
-        'LLM_MODEL' => ['модели', self::TEXT, 'основная модель (author/slug или provider:id)'],
-        'LLM_CHEAP_MODEL' => ['модели', self::TEXT, 'дешёвая модель для простых задач и классификации'],
-        'LLM_REASONING_EFFORT' => ['модели', self::TEXT, 'усилие рассуждения: none, low, medium, high'],
-        'LLM_MAX_TOKENS' => ['модели', self::INT, 'потолок ответа модели, токенов'],
-        'LLM_HISTORY_LIMIT' => ['модели', self::INT, 'сообщений истории в контексте'],
-        'LLM_CONTEXT_WINDOW' => ['модели', self::INT, 'окно контекста, токенов'],
-        'AGENT_MAX_TURNS' => ['лимиты', self::INT, 'вызовов модели на запуск'],
-        'AGENT_TOKEN_BUDGET' => ['лимиты', self::INT, 'токенов на запуск'],
-        'AGENT_RUN_TIMEOUT' => ['лимиты', self::INT, 'секунд на запуск'],
-        'AGENT_TOOL_TIMEOUT' => ['лимиты', self::INT, 'секунд на вызов инструмента'],
-        'AGENT_APPROVAL_TIMEOUT' => ['лимиты', self::INT, 'секунд ожидания подтверждения'],
-        'AGENT_WORKER_MAX_TURNS' => ['лимиты', self::INT, 'вызовов модели у воркера'],
-        'AGENT_WORKER_TOKEN_BUDGET' => ['лимиты', self::INT, 'токенов у воркера'],
-        'AGENT_MAX_WORKERS_PER_RUN' => ['лимиты', self::INT, 'воркеров на запуск'],
-        'AGENT_DAILY_SPEND_CAP' => ['лимиты', self::FLOAT, 'потолок расхода в день, $ (пусто — нет)'],
-        'AGENT_MONTHLY_SPEND_CAP' => ['лимиты', self::FLOAT, 'потолок расхода в месяц, $ (пусто — нет)'],
-        'JOB_TOKEN_BUDGET' => ['лимиты', self::INT, 'токенов на запуск задания'],
-        'SEARCH_PROVIDERS' => ['поиск', self::TEXT, 'поставщики поиска по порядку: searxng, brave, tavily, openrouter'],
-        'SEARXNG_URL' => ['поиск', self::TEXT, 'адрес своего SearXNG'],
-        'BRAVE_SEARCH_API_KEY' => ['поиск', self::SECRET, 'ключ Brave Search'],
-        'TAVILY_API_KEY' => ['поиск', self::SECRET, 'ключ Tavily'],
-        'WEB_SEARCH_MODEL' => ['поиск', self::TEXT, 'модель OpenRouter для поиска'],
-        'AGENT_LANGUAGE' => ['агент', self::TEXT, 'язык агента: ru или en'],
-        'OWNER_TIMEZONE' => ['время', self::TEXT, 'часовой пояс владельца (Europe/Moscow или +03:00)'],
-        'QUIET_HOURS' => ['время', self::TEXT, 'тихие часы «с-до», например 23-8'],
-        'DIGEST_TIME' => ['время', self::TEXT, 'время ежедневной сводки ЧЧ:ММ (пусто — выключена)'],
-        'MEMORY_CHECK_HOUR' => ['память', self::INT, 'час ночной проверки памяти'],
-        'MEMORY_HRR_WEIGHT' => ['память', self::FLOAT, 'доля HRR в поиске по памяти, 0–1'],
-        'TRACE_RETENTION_DAYS' => ['трассы', self::INT, 'дней хранения полных промптов'],
-        'SSH_CONFIRM_GROUPS' => ['серверы', self::TEXT, 'группы серверов, где каждая команда — с подтверждением'],
-        'METRICS_TOKEN' => ['трассы', self::SECRET, 'токен /metrics для Prometheus (пусто — выключен)'],
-        'MAIL_HOST' => ['почта', self::TEXT, 'сервер почты (IMAP и SMTP), например mail.example.ru'],
-        'MAIL_IMAP_PORT' => ['почта', self::INT, 'порт IMAP с TLS, обычно 993'],
-        'MAIL_SMTP_PORT' => ['почта', self::INT, 'порт SMTP: 465 — TLS, 587 — STARTTLS'],
-        'MAIL_USER' => ['почта', self::TEXT, 'логин ящика'],
-        'MAIL_PASSWORD' => ['почта', self::SECRET, 'пароль ящика'],
-        'MAIL_FROM' => ['почта', self::TEXT, 'адрес отправителя (пусто — логин)'],
-        'MAIL_AUTHSERV_ID' => ['почта', self::TEXT, 'authserv-id своего сервера в Authentication-Results (пусто — MAIL_HOST)'],
-        'A2A_NAME' => ['сеть', self::TEXT, 'имя агента в карточке A2A для соседей'],
-        'A2A_DESCRIPTION' => ['сеть', self::TEXT, 'чем агент может помочь соседям (карточка A2A)'],
+        'OPENROUTER_API_KEY' => ['models', self::SECRET, 'settings.about.openrouter_api_key'],
+        'OPENAI_API_KEY' => ['models', self::SECRET, 'settings.about.openai_api_key'],
+        'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
+        'LLM_MODEL' => ['models', self::TEXT, 'settings.about.llm_model'],
+        'LLM_CHEAP_MODEL' => ['models', self::TEXT, 'settings.about.llm_cheap_model'],
+        'LLM_REASONING_EFFORT' => ['models', self::TEXT, 'settings.about.llm_reasoning_effort'],
+        'LLM_MAX_TOKENS' => ['models', self::INT, 'settings.about.llm_max_tokens'],
+        'LLM_HISTORY_LIMIT' => ['models', self::INT, 'settings.about.llm_history_limit'],
+        'LLM_CONTEXT_WINDOW' => ['models', self::INT, 'settings.about.llm_context_window'],
+        'AGENT_MAX_TURNS' => ['limits', self::INT, 'settings.about.agent_max_turns'],
+        'AGENT_TOKEN_BUDGET' => ['limits', self::INT, 'settings.about.agent_token_budget'],
+        'AGENT_RUN_TIMEOUT' => ['limits', self::INT, 'settings.about.agent_run_timeout'],
+        'AGENT_TOOL_TIMEOUT' => ['limits', self::INT, 'settings.about.agent_tool_timeout'],
+        'AGENT_APPROVAL_TIMEOUT' => ['limits', self::INT, 'settings.about.agent_approval_timeout'],
+        'AGENT_WORKER_MAX_TURNS' => ['limits', self::INT, 'settings.about.agent_worker_max_turns'],
+        'AGENT_WORKER_TOKEN_BUDGET' => ['limits', self::INT, 'settings.about.agent_worker_token_budget'],
+        'AGENT_MAX_WORKERS_PER_RUN' => ['limits', self::INT, 'settings.about.agent_max_workers_per_run'],
+        'AGENT_DAILY_SPEND_CAP' => ['limits', self::FLOAT, 'settings.about.agent_daily_spend_cap'],
+        'AGENT_MONTHLY_SPEND_CAP' => ['limits', self::FLOAT, 'settings.about.agent_monthly_spend_cap'],
+        'JOB_TOKEN_BUDGET' => ['limits', self::INT, 'settings.about.job_token_budget'],
+        'SEARCH_PROVIDERS' => ['search', self::TEXT, 'settings.about.search_providers'],
+        'SEARXNG_URL' => ['search', self::TEXT, 'settings.about.searxng_url'],
+        'BRAVE_SEARCH_API_KEY' => ['search', self::SECRET, 'settings.about.brave_search_api_key'],
+        'TAVILY_API_KEY' => ['search', self::SECRET, 'settings.about.tavily_api_key'],
+        'WEB_SEARCH_MODEL' => ['search', self::TEXT, 'settings.about.web_search_model'],
+        'AGENT_LANGUAGE' => ['agent', self::TEXT, 'settings.about.agent_language'],
+        'OWNER_TIMEZONE' => ['time', self::TEXT, 'settings.about.owner_timezone'],
+        'QUIET_HOURS' => ['time', self::TEXT, 'settings.about.quiet_hours'],
+        'DIGEST_TIME' => ['time', self::TEXT, 'settings.about.digest_time'],
+        'MEMORY_CHECK_HOUR' => ['memory', self::INT, 'settings.about.memory_check_hour'],
+        'MEMORY_HRR_WEIGHT' => ['memory', self::FLOAT, 'settings.about.memory_hrr_weight'],
+        'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
+        'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
+        'METRICS_TOKEN' => ['traces', self::SECRET, 'settings.about.metrics_token'],
+        'MAIL_HOST' => ['mail', self::TEXT, 'settings.about.mail_host'],
+        'MAIL_IMAP_PORT' => ['mail', self::INT, 'settings.about.mail_imap_port'],
+        'MAIL_SMTP_PORT' => ['mail', self::INT, 'settings.about.mail_smtp_port'],
+        'MAIL_USER' => ['mail', self::TEXT, 'settings.about.mail_user'],
+        'MAIL_PASSWORD' => ['mail', self::SECRET, 'settings.about.mail_password'],
+        'MAIL_FROM' => ['mail', self::TEXT, 'settings.about.mail_from'],
+        'MAIL_AUTHSERV_ID' => ['mail', self::TEXT, 'settings.about.mail_authserv_id'],
+        'A2A_NAME' => ['network', self::TEXT, 'settings.about.a2a_name'],
+        'A2A_DESCRIPTION' => ['network', self::TEXT, 'settings.about.a2a_description'],
     ];
 
     public static function has(string $key): bool {
@@ -75,13 +77,13 @@ final class SettingsCatalog {
     public static function problem(string $key, string $value): ?string {
         $kind = self::ALL[$key][1] ?? null;
         return match (true) {
-            $kind === null => sprintf('Настройки %s нет. Есть: %s.', $key, implode(', ', array_keys(self::ALL))),
-            strlen($value) > 4096 => 'Слишком длинное значение.',
-            $kind === self::INT && !ctype_digit($value) => $key . ' — целое число.',
-            $kind === self::FLOAT && !is_numeric($value) => $key . ' — число.',
-            $kind !== self::SECRET && preg_match('~[\x00-\x1F]~', $value) === 1 => 'Значение в одну строку.',
+            $kind === null => sprintf(t('settings.settings_catalog.nastroyki_net_est'), $key, implode(', ', array_keys(self::ALL))),
+            strlen($value) > 4096 => t('settings.settings_catalog.slishkom_dlinnoe_znachenie'),
+            $kind === self::INT && !ctype_digit($value) => $key . t('settings.settings_catalog.tseloe_chislo'),
+            $kind === self::FLOAT && !is_numeric($value) => $key . t('settings.settings_catalog.chislo'),
+            $kind !== self::SECRET && preg_match('~[\x00-\x1F]~', $value) === 1 => t('settings.settings_catalog.znachenie_v_odnu_stroku'),
             $key === 'AGENT_LANGUAGE' && !in_array($value, \Mercurius\I18n\Catalogs::LANGUAGES, true)
-                => 'AGENT_LANGUAGE — один из: ' . implode(', ', \Mercurius\I18n\Catalogs::LANGUAGES) . '.',
+                => t('settings.settings_catalog.agent_language_odin_iz') . implode(', ', \Mercurius\I18n\Catalogs::LANGUAGES) . '.',
             default => null,
         };
     }

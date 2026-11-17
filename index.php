@@ -160,6 +160,8 @@ use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 use Revolt\EventLoop;
 
+use function Mercurius\I18n\t;
+
 require __DIR__ . '/vendor/autoload.php';
 
 const PATH_ROOT = __DIR__;
@@ -320,7 +322,7 @@ if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
 }
 if ($webSearch !== null) {
-    $tools->register(new WebSearchTool($webSearch, $searchEach, \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
+    $tools->register(new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT)));
 }
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
 $tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies));

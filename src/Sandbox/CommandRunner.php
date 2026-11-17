@@ -7,6 +7,8 @@ namespace OpenCCK\Sandbox;
 use Amp\Cancellation;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 /**
  * Runs a shell command as the participant: prlimit sets the per-command limits (processes of the user, CPU seconds,
  * address space), setpriv drops to the participant's uid with no supplementary groups, env -i leaves only a minimal
@@ -40,7 +42,7 @@ final class CommandRunner implements Runner {
     ): CommandResult {
         $this->users->ensure($principalId);
         if (($this->running[$principalId] ?? 0) >= $limits->concurrentCommands) {
-            throw new SandboxError(sprintf('Слишком много одновременных команд (не больше %d).', $limits->concurrentCommands), 429);
+            throw new SandboxError(sprintf(t('sandbox.command_runner.slishkom_mnogo_odnovremennyh_komand_ne'), $limits->concurrentCommands), 429);
         }
         $this->running[$principalId] = ($this->running[$principalId] ?? 0) + 1;
         try {
@@ -75,7 +77,7 @@ final class CommandRunner implements Runner {
             'PATH=' . self::PATH,
             'LANG=C.UTF-8',
             'setsid', '--wait',
-            'bash', '-c', 'umask 077; cd -- "$1" || { echo "Каталог $1 недоступен." >&2; exit 2; }; eval "$2"',
+            'bash', '-c', t('sandbox.command_runner.umask_077_cd_1_echo'),
             'mercurius', $cwd, $command,
         ];
     }

@@ -9,6 +9,8 @@ use Throwable;
 
 use function Amp\async;
 
+use function Mercurius\I18n\t;
+
 /**
  * Creates the participant's Unix user and home on first use. Users do not survive a container rebuild, but the uid is
  * fixed (20000 + id), so files on the workspace volume keep their owner. Parallel first operations of a participant
@@ -58,7 +60,7 @@ final class Users {
     private function must(array $argv): void {
         $result = $this->proc->run($argv, '/', 30);
         if ($result->exitCode !== 0 && $result->exitCode !== self::EXISTS) {
-            throw new SandboxError(sprintf('Не удалось подготовить пользователя песочницы (%s).', $argv[0]), 500);
+            throw new SandboxError(sprintf(t('sandbox.users.ne_udalos_podgotovit_polzovatelya_pesoch'), $argv[0]), 500);
         }
     }
 }

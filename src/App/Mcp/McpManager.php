@@ -17,6 +17,8 @@ use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * External MCP servers: the owner adds and approves a server, its tools go into the registry; the approved set of
  * tools is hashed, and a server that changes its names, descriptions or schemas is turned off until the owner
@@ -83,10 +85,10 @@ final class McpManager {
     /** @throws DomainException */
     public function add(string $name, string $url, ?string $secret): McpServer {
         if (preg_match(McpServer::NAME_PATTERN, $name) !== 1) {
-            throw new DomainException('Имя MCP-сервера — строчные латинские буквы, цифры и подчёркивание, до 24 символов.');
+            throw new DomainException(t('mcp.mcp_manager.imya_mcp_servera_strochnye_latinskie'));
         }
         if (preg_match('~^https?://\S+$~', $url) !== 1) {
-            throw new DomainException('Адрес MCP-сервера — http(s)://…');
+            throw new DomainException(t('mcp.mcp_manager.adres_mcp_servera_http_s'));
         }
         return $this->servers->add($name, $url, $secret);
     }
@@ -97,12 +99,13 @@ final class McpManager {
      * @return string what was registered
      */
     public function approve(string $name, Cancellation $cancellation): string {
-        $server = $this->servers->find($name) ?? throw new DomainException(sprintf('MCP-сервера «%s» нет.', $name));
+        $server = $this->servers->find($name) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
         $count = $this->sync($server, true, $cancellation);
-        return sprintf('MCP-сервер «%s» одобрен: инструментов %d.', $name, $count);
+        return sprintf(t('mcp.mcp_manager.mcp_server_odobren_instrumentov'), $name, $count);
     }
 
-    public function disable(string $name, string $note = 'выключен владельцем'): bool {
+    public function disable(string $name, string $note = ''): bool {
+        $note = $note === '' ? t('mcp.mcp_manager.disabled_by_owner') : $note;
         $this->unregister($name);
         return $this->servers->update($name, McpServer::DISABLED, null, $note) !== null;
     }
@@ -114,7 +117,7 @@ final class McpManager {
      * @param string|null $include null — every tool; '' — none
      */
     public function filter(string $name, ?string $include, string $exclude, Cancellation $cancellation): McpServer {
-        $server = $this->servers->setFilter($name, $include, $exclude) ?? throw new DomainException(sprintf('MCP-сервера «%s» нет.', $name));
+        $server = $this->servers->setFilter($name, $include, $exclude) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
         if ($server->status === McpServer::ACTIVE) {
             $this->sync($server, false, $cancellation);
         }
@@ -158,8 +161,8 @@ final class McpManager {
         );
         $hash = hash('sha256', json_encode($cleaned, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         if (!$approve && $server->toolsHash !== null && !hash_equals($server->toolsHash, $hash)) {
-            $this->disable($server->name, 'набор инструментов изменился');
-            ($this->tell)(sprintf("MCP-сервер «%s» изменил инструменты (имена, описания или схемы) — я его выключил. Описание инструмента — это указание модели, поэтому смену проверяет владелец: /mcp on %s, чтобы одобрить новый набор.", $server->name, $server->name));
+            $this->disable($server->name, t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
+            ($this->tell)(sprintf(t('mcp.mcp_manager.mcp_server_izmenil_instrumenty_imena'), $server->name, $server->name));
             return 0;
         }
         $this->unregister($server->name);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Sandbox;
 
+use function Mercurius\I18n\t;
+
 /**
  * Keeps the beginning and the end of a stream while it is read, never more than head + tail bytes in memory.
  *
@@ -42,7 +44,7 @@ final class OutputWindow {
         if ($skipped <= 0) {
             return $this->head . $this->tail;
         }
-        return sprintf("%s\n… пропущено %d байт …\n%s", $this->head, $skipped, $this->tail);
+        return sprintf(t('sandbox.output_window.skipped'), $this->head, $skipped, $this->tail);
     }
 
     public function totalBytes(): int {

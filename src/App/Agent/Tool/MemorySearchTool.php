@@ -9,6 +9,8 @@ use OpenCCK\App\Agent\ConversationAudience;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Memory\App\Recall;
 
+use function Mercurius\I18n\t;
+
 /**
  * Searches memory within the conversation's audience: the same facts the run could be given, on the model's request.
  *
@@ -23,9 +25,9 @@ final class MemorySearchTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Ищет в долговременной памяти факты по запросу: о владельце, его серверах, проектах, '
-            . 'договорённостях. Возвращает строки «[#номер] факт»; номер нужен, чтобы предложить изменить, завершить или забыть факт. '
-            . 'query — что ищешь; related — вместо запроса одно имя или слово (сервер, проект, человек): всё, что с ним связано.', [
+        return new ToolDefinition(self::NAME, t('tool.memory_search.ischet_v_dolgovremennoy_pamyati_fakty')
+            . t('tool.memory_search.dogovorennostyah_vozvraschaet_stroki_nom')
+            . t('tool.memory_search.query_chto_ischesh_related_vmesto'), [
             'type' => 'object',
             'properties' => [
                 'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 500],
@@ -51,9 +53,9 @@ final class MemorySearchTool implements Tool {
         $scopes = $this->audience->scopes($context->principal, $context->conversationId);
         $related = Args::string($args, 'related');
         if ($related === null && Args::string($args, 'query') === null) {
-            return ToolResult::error('Нужен query или related.');
+            return ToolResult::error(t('tool.memory_search.nuzhen_query_ili_related'));
         }
         $facts = $related !== null ? $this->recall->related($related, $scopes) : $this->recall->find(Args::string($args, 'query') ?? '', $scopes);
-        return ToolResult::ok($facts === [] ? 'Ничего не нашлось.' : Recall::format($facts));
+        return ToolResult::ok($facts === [] ? t('tool.memory_search.nichego_ne_nashlos') : Recall::format($facts));
     }
 }

@@ -11,6 +11,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Experience;
 use OpenCCK\Domain\Repository\ExperienceRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * How earlier delegated parts went, for choosing how to split and whom to give a new one.
  *
@@ -27,10 +29,10 @@ final class ExperienceSearchTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Показывает, как шли прошлые части задач, порученные воркерам: цель, роль и профиль, '
-            . 'модель (и с какой был каскад), итог, вердикт проверяющего, ходы, токены, время. Пригодится перед делегированием: '
-            . 'какая модель справлялась с похожей задачей и во что она обошлась. query — слова цели (без него — последние), '
-            . 'model — только части этой модели.', [
+        return new ToolDefinition(self::NAME, t('tool.experience_search.pokazyvaet_kak_shli_proshlye_chasti')
+            . t('tool.experience_search.model_i_s_kakoy_byl')
+            . t('tool.experience_search.kakaya_model_spravlyalas_s_pohozhey')
+            . t('tool.experience_search.model_tolko_chasti_etoy_modeli'), [
             'type' => 'object',
             'properties' => [
                 'query' => ['type' => 'string', 'maxLength' => 300],
@@ -56,30 +58,30 @@ final class ExperienceSearchTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $scope = $this->audience->history($context->principal, $context->conversationId);
         if ($scope === null) {
-            return ToolResult::error('Беседа не найдена.');
+            return ToolResult::error(t('tool.experience_search.beseda_ne_naydena'));
         }
         $query = trim(Args::string($args, 'query') ?? '');
         $found = $this->experience->search($query === '' ? [] : [$query], $scope, Args::int($args, 'limit') ?? self::LIMIT, Args::string($args, 'model'));
         if ($found === []) {
-            return ToolResult::ok('Опыта по такому запросу нет.');
+            return ToolResult::ok(t('tool.experience_search.opyta_po_takomu_zaprosu_net'));
         }
         return ToolResult::ok(implode("\n\n", array_map(self::line(...), $found)));
     }
 
     public static function line(Experience $e): string {
         $at = $e->createdAt?->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d') ?? '';
-        $model = $e->firstModel === null ? $e->model : sprintf('%s (каскад с %s)', $e->model, $e->firstModel);
-        $outcome = $e->status . ($e->verdict === null ? '' : ', проверка: ' . $e->verdict) . ($e->reason === null ? '' : ', ' . $e->reason);
+        $model = $e->firstModel === null ? $e->model : sprintf(t('tool.experience_search.kaskad_s'), $e->model, $e->firstModel);
+        $outcome = $e->status . ($e->verdict === null ? '' : t('tool.experience_search.proverka') . $e->verdict) . ($e->reason === null ? '' : ', ' . $e->reason);
         $lines = [
-            sprintf('#%d %s · роль %s · %s · %s · ходов %d, токенов %d, %.1f с', $e->id, $at, $e->role, $model, $outcome, $e->turns, $e->tokens, $e->durationMs / 1000),
-            'цель: ' . SecretMasker::mask(HistorySearchTool::cut($e->goal, [], self::GOAL_CHARS)),
+            sprintf(t('tool.experience_search.rol_hodov_tokenov_s'), $e->id, $at, $e->role, $model, $outcome, $e->turns, $e->tokens, $e->durationMs / 1000),
+            t('tool.experience_search.tsel') . SecretMasker::mask(HistorySearchTool::cut($e->goal, [], self::GOAL_CHARS)),
         ];
         if ($e->profile !== []) {
             $scores = [];
             foreach ($e->profile as $axis => $score) {
                 $scores[] = $axis . ' ' . $score;
             }
-            $lines[] = 'профиль: ' . implode(', ', $scores);
+            $lines[] = t('tool.experience_search.profil') . implode(', ', $scores);
         }
         return implode("\n", $lines);
     }

@@ -11,6 +11,8 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent's side of the browser service (browser/): navigate, read, click, type, screenshot, each in a named profile
  * whose logins survive restarts.
@@ -44,12 +46,12 @@ final class BrowserClient {
             $response = $this->http->request($request, $cancellation);
             $text = $response->getBody()->buffer($cancellation);
         } catch (Throwable $e) {
-            throw new RuntimeException('браузер не ответил: ' . (new \ReflectionClass($e))->getShortName());
+            throw new RuntimeException(t('browser.browser_client.brauzer_ne_otvetil') . (new \ReflectionClass($e))->getShortName());
         }
         /** @var mixed $data */
         $data = json_decode($text, true, 16);
         if (!is_array($data)) {
-            throw new RuntimeException(sprintf('браузер ответил непонятно (HTTP %d)', $response->getStatus()));
+            throw new RuntimeException(sprintf(t('browser.browser_client.brauzer_otvetil_neponyatno_http'), $response->getStatus()));
         }
         if ($response->getStatus() !== 200) {
             throw new RuntimeException(isset($data['error']) && is_string($data['error']) ? $data['error'] : sprintf('HTTP %d', $response->getStatus()));

@@ -30,6 +30,8 @@ use Throwable;
 
 use function Amp\async;
 
+use function Mercurius\I18n\t;
+
 /**
  * The side that takes tasks from neighbouring agents over A2A v1.0 (JSON-RPC). The entrance needs the token of this
  * instance (A2A_TOKEN); who speaks is known by the ECDSA key that signs each request (method, path, time, a one-time
@@ -164,7 +166,7 @@ final class A2aServer implements JobRuns {
             'capabilities' => ['streaming' => false, 'pushNotifications' => false, 'stateTransitionHistory' => false, 'extendedAgentCard' => false],
             'defaultInputModes' => ['text/plain'],
             'defaultOutputModes' => ['text/plain'],
-            'skills' => [['id' => 'general', 'name' => 'general', 'description' => 'Задачи владельца этого агента по его правилам и правам', 'tags' => ['general']]],
+            'skills' => [['id' => 'general', 'name' => 'general', 'description' => t('peer.a2a_server.zadachi_vladeltsa_etogo_agenta_po'), 'tags' => ['general']]],
             'securitySchemes' => ['bearer' => ['type' => 'http', 'scheme' => 'bearer']],
             'security' => [['bearer' => []]],
             // Requests and answers are signed by ECDSA P-256 keys; the leader pins this key when it adds the agent.
@@ -203,7 +205,7 @@ final class A2aServer implements JobRuns {
         $stale = $this->peers->stale(($this->now)()->modify(sprintf('-%d seconds', self::STALE_SECONDS)));
         foreach ($stale as $task) {
             ($this->cancels[$task->id] ?? null)?->cancel();
-            $this->peers->updateTask($task->id, A2aTask::FAILED, null, 'Задача не закончилась за час.');
+            $this->peers->updateTask($task->id, A2aTask::FAILED, null, t('peer.a2a_server.zadacha_ne_zakonchilas_za_chas'));
         }
         return count($stale);
     }
@@ -248,9 +250,9 @@ final class A2aServer implements JobRuns {
         [$depth, $path] = self::chain($params);
         $taskId = 'task-' . bin2hex(random_bytes(8));
         $refusal = match (true) {
-            in_array($this->self, $path, true) => 'Цикл делегирования: задача уже проходила через этот экземпляр.',
-            $depth >= self::MAX_DEPTH => sprintf('Цепочка делегирования длиннее %d.', self::MAX_DEPTH),
-            $this->peers->contextTurns($agent->id, $contextId) >= self::MAX_TURNS => sprintf('В одном контексте не больше %d задач.', self::MAX_TURNS),
+            in_array($this->self, $path, true) => t('peer.a2a_server.tsikl_delegirovaniya_zadacha_uzhe_prohod'),
+            $depth >= self::MAX_DEPTH => sprintf(t('peer.a2a_server.tsepochka_delegirovaniya_dlinnee'), self::MAX_DEPTH),
+            $this->peers->contextTurns($agent->id, $contextId) >= self::MAX_TURNS => sprintf(t('peer.a2a_server.v_odnom_kontekste_ne_bolshe'), self::MAX_TURNS),
             default => null,
         };
         if (!$this->peers->createTask($taskId, $agent->id, $contextId, $messageId, $refusal === null ? A2aTask::SUBMITTED : A2aTask::REJECTED, $depth, [...$path, $this->self])) {
@@ -273,12 +275,12 @@ final class A2aServer implements JobRuns {
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
         $run = $this->runs->start($conversation, $agent->id, $this->model, $policy->run);
         if ($run === null) {
-            $this->peers->updateTask($taskId, A2aTask::REJECTED, null, 'В этом контексте уже идёт задача: дождитесь её конца.');
+            $this->peers->updateTask($taskId, A2aTask::REJECTED, null, t('peer.a2a_server.v_etom_kontekste_uzhe_idet'));
             return;
         }
         $this->transcript->appendUser($conversation, $run->id, sprintf(
-            "Задача от агента «%s» по сети агентов (A2A). Ответь итогом для этого агента; если без уточнения не обойтись — начни ответ с %s и задай вопрос.\n\n%s",
-            $agent->displayName ?? 'без имени',
+            t('peer.a2a_server.zadacha_ot_agenta_po_seti'),
+            $agent->displayName ?? t('peer.a2a_server.bez_imeni'),
             self::INPUT_REQUIRED_MARKER,
             $text,
         ));
@@ -296,7 +298,7 @@ final class A2aServer implements JobRuns {
                 $final = $this->loop->run($run, $this->policies->forPrincipal($agent), $agent, new SilentObserver(), $cancel->getCancellation());
             } catch (Throwable $e) {
                 $this->logger->error('A2A task failed', ['task' => $task->id, 'error' => $e::class]);
-                $this->peers->updateTask($task->id, A2aTask::FAILED, null, 'Внутренняя ошибка агента.');
+                $this->peers->updateTask($task->id, A2aTask::FAILED, null, t('peer.a2a_server.vnutrennyaya_oshibka_agenta'));
                 return;
             } finally {
                 unset($this->cancels[$task->id]);
@@ -324,7 +326,7 @@ final class A2aServer implements JobRuns {
                     : [A2aTask::COMPLETED, $text];
             }
         }
-        return [A2aTask::FAILED, 'Итога нет (' . ($final->stopReason?->label() ?? 'запуск не закончен') . ').'];
+        return [A2aTask::FAILED, t('peer.a2a_server.itoga_net') . ($final->stopReason?->label() ?? t('peer.a2a_server.zapusk_ne_zakonchen')) . ').'];
     }
 
     /**
@@ -349,7 +351,7 @@ final class A2aServer implements JobRuns {
             return self::error($id, self::ERR_TASK_NOT_CANCELABLE, 'task is not cancelable');
         }
         ($this->cancels[$task->id] ?? null)?->cancel();
-        $this->peers->updateTask($task->id, A2aTask::CANCELED, null, 'Отменено ведущим агентом.');
+        $this->peers->updateTask($task->id, A2aTask::CANCELED, null, t('peer.a2a_server.otmeneno_veduschim_agentom'));
         $canceled = $this->peers->task($task->id) ?? $task;
         return ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->view($canceled)];
     }

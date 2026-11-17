@@ -14,6 +14,8 @@ use OpenCCK\Domain\Group\PublicChannel;
 use OpenCCK\Domain\Repository\ChannelRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * Channels where the bot is an admin. The rights come from Telegram with the membership change; a channel is available
  * while the bot may post there. The owner is told when a channel becomes available or stops being so. Posts of the
@@ -52,12 +54,12 @@ final class ChannelRegistry implements MembershipHandler, PostHandler {
         $changed = $before !== null && $before->rights() !== $now->rights();
         $text = match (true) {
             $now->available && $before?->available !== true => sprintf(
-                'Я администратор канала «%s» (%s). Публикую, правлю и удаляю посты только с вашего подтверждения.',
+                t('service.channel_registry.ya_administrator_kanala_publikuyu_pravly'),
                 $now->title,
                 $now->rights(),
             ),
-            !$now->available && $before?->available === true => sprintf('Я больше не могу публиковать в канале «%s».', $now->title),
-            $now->available && $changed => sprintf('Права в канале «%s» изменились: %s.', $now->title, $now->rights()),
+            !$now->available && $before?->available === true => sprintf(t('service.channel_registry.ya_bolshe_ne_mogu_publikovat'), $now->title),
+            $now->available && $changed => sprintf(t('service.channel_registry.prava_v_kanale_izmenilis'), $now->title, $now->rights()),
             default => null,
         };
         if ($text !== null) {

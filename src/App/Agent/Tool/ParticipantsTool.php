@@ -11,6 +11,8 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Who is in the system: people and agents with their number, role, status and current rights. The owner asks "what
  * can I change for Sergey" — the agent finds him here, then changes his rights by the number.
@@ -26,8 +28,8 @@ final class ParticipantsTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Участники: люди и агенты, которые пишут агенту, — номер (principal_id), имя, вид, роль, статус и текущие права '
-            . '(инструменты и лимиты). query — часть имени или номер; без него — все. Только для владельца.', [
+        return new ToolDefinition(self::NAME, t('tool.participants.uchastniki_lyudi_i_agenty_kotorye')
+            . t('tool.participants.instrumenty_i_limity_query_chast'), [
             'type' => 'object',
             'properties' => ['query' => ['type' => 'string', 'maxLength' => 100]],
             'additionalProperties' => false,
@@ -48,40 +50,40 @@ final class ParticipantsTool implements Tool {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         if (!$context->principal->isOwner()) {
-            return ToolResult::error('Список участников видит только владелец.');
+            return ToolResult::error(t('tool.participants.spisok_uchastnikov_vidit_tolko_vladelets'));
         }
         $query = mb_strtolower(trim(Args::string($args, 'query') ?? ''));
         $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $query === ''
             || (string) $p->id === $query
             || str_contains(mb_strtolower($p->displayName ?? ''), $query)));
         if ($found === []) {
-            return ToolResult::ok($query === '' ? 'Участников нет.' : sprintf('Участника «%s» нет.', $query));
+            return ToolResult::ok($query === '' ? t('tool.participants.uchastnikov_net') : sprintf(t('tool.participants.uchastnika_net'), $query));
         }
         return ToolResult::ok(implode("\n", array_map(fn(Principal $p): string => $this->line($p), $found)));
     }
 
     private function line(Principal $p): string {
         $head = sprintf(
-            '#%d %s — %s, роль %s, %s',
+            t('tool.participants.rol'),
             $p->id,
-            $p->displayName ?? 'без имени',
-            $p->kind === PrincipalKind::Agent ? 'агент' : 'человек',
+            $p->displayName ?? t('tool.participants.bez_imeni'),
+            $p->kind === PrincipalKind::Agent ? t('tool.participants.agent') : t('tool.participants.chelovek'),
             $p->role->value,
             $p->status->value,
         );
         if ($p->isOwner()) {
-            return $head . '; владелец — все права';
+            return $head . t('tool.participants.vladelets_vse_prava');
         }
         $policy = $this->policies->forPrincipal($p);
-        $tools = $policy->tools === null ? 'все' : ($policy->tools === [] ? 'нет' : implode(', ', $policy->tools));
+        $tools = $policy->tools === null ? t('tool.participants.vse') : ($policy->tools === [] ? t('tool.participants.net') : implode(', ', $policy->tools));
         return sprintf(
-            '%s; инструменты: %s; лимиты: %d вызовов модели, %d токенов, %d с на запуск%s',
+            t('tool.participants.line'),
             $head,
             $tools,
             $policy->run->maxTurns,
             $policy->run->tokenBudget,
             $policy->run->runTimeout,
-            $policy->mayRequestApproval ? '; может просить подтверждения' : '',
+            $policy->mayRequestApproval ? t('tool.participants.mozhet_prosit_podtverzhdeniya') : '',
         );
     }
 }

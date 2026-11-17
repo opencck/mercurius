@@ -22,7 +22,7 @@ final class LoopGuard {
     public const MAX_PERIOD = 4;
     private const HISTORY = 64;
 
-    public const WARNING = 'Внимание: ты повторяешь те же вызовы с тем же результатом. Измени подход или подведи итог.';
+    public const WARNING = 'agent.loop_guard.warning';
 
     private ?string $streakSignature = null;
     private int $streak = 0;

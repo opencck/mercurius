@@ -8,6 +8,8 @@ use DomainException;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Principal;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent's own ECDSA key (P-256): made once, kept in the vault. Every request and answer between agents is signed
  * with it, so agents tell each other apart by the fingerprint of the public key, not by a shared token.
@@ -36,7 +38,7 @@ final class AgentIdentity {
         $key = openssl_pkey_get_private($pem);
         $details = $key === false ? false : openssl_pkey_get_details($key);
         if ($key === false || $details === false || !isset($details['key']) || !is_string($details['key'])) {
-            throw new DomainException('Ключ агента не читается.');
+            throw new DomainException(t('peer.agent_identity.klyuch_agenta_ne_chitaetsya'));
         }
         return new self($key, $details['key']);
     }
@@ -57,18 +59,18 @@ final class AgentIdentity {
                 return self::string($pem);
             }
         }
-        throw new DomainException('Не удалось создать ключ агента.');
+        throw new DomainException(t('peer.agent_identity.ne_udalos_sozdat_klyuch_agenta'));
     }
 
     public function fingerprint(): string {
-        return self::fingerprintOf($this->publicKey) ?? throw new DomainException('Ключ агента не P-256.');
+        return self::fingerprintOf($this->publicKey) ?? throw new DomainException(t('peer.agent_identity.klyuch_agenta_ne_p_256'));
     }
 
     /** base64 of the DER signature */
     public function sign(string $data): string {
         $signature = '';
         if (!openssl_sign($data, $signature, $this->private, OPENSSL_ALGO_SHA256) || self::string($signature) === '') {
-            throw new DomainException('Не удалось подписать.');
+            throw new DomainException(t('peer.agent_identity.ne_udalos_podpisat'));
         }
         return base64_encode(self::string($signature));
     }

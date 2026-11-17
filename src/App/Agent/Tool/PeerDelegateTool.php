@@ -13,6 +13,8 @@ use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PeerRepository;
 use RuntimeException;
 
+use function Mercurius\I18n\t;
+
 /**
  * Gives a task to a neighbouring agent over A2A and returns at once; the answer comes to this chat later, as data.
  *
@@ -29,9 +31,9 @@ final class PeerDelegateTool implements Tool {
 
     public function definition(): ToolDefinition {
         $names = $this->network->names();
-        return new ToolDefinition(self::NAME, 'Отдаёт задачу соседнему агенту (другому экземпляру Меркурия или агенту A2A) и сразу возвращается; '
-            . 'ответ придёт в этот чат позже. Задачу пиши полностью, без секретов и личных сведений — у соседа своя память и свои права. '
-            . 'Без peer — список соседей.', [
+        return new ToolDefinition(self::NAME, t('tool.peer_delegate.otdaet_zadachu_sosednemu_agentu_drugomu')
+            . t('tool.peer_delegate.otvet_pridet_v_etot_chat')
+            . t('tool.peer_delegate.bez_peer_spisok_sosedey'), [
             'type' => 'object',
             'properties' => [
                 'peer' => $names === [] ? ['type' => 'string', 'maxLength' => 40] : ['type' => 'string', 'enum' => $names],
@@ -60,9 +62,9 @@ final class PeerDelegateTool implements Tool {
         }
         $task = trim(Args::string($args, 'task') ?? '');
         if ($task === '') {
-            return ToolResult::error('Нужна задача: task.');
+            return ToolResult::error(t('tool.peer_delegate.nuzhna_zadacha_task'));
         }
-        $meta = $this->conversations->meta($context->conversationId) ?? throw new DomainException('Беседа не найдена.');
+        $meta = $this->conversations->meta($context->conversationId) ?? throw new DomainException(t('tool.peer_delegate.beseda_ne_naydena'));
         // A run that is itself a task from a neighbour carries its chain on.
         $parent = $meta->channel === A2aServer::CHANNEL ? $this->peers->taskByRun($context->runId) : null;
         try {
@@ -70,6 +72,6 @@ final class PeerDelegateTool implements Tool {
         } catch (DomainException | RuntimeException $e) {
             return ToolResult::error($e->getMessage());
         }
-        return ToolResult::ok(sprintf('Задача #%d отдана соседу «%s» (%s). Ответ придёт в этот чат.', $out->id, $out->peer, $out->remoteId));
+        return ToolResult::ok(sprintf(t('tool.peer_delegate.zadacha_otdana_sosedu_otvet_pridet'), $out->id, $out->peer, $out->remoteId));
     }
 }

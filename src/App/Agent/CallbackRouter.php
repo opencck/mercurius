@@ -8,6 +8,8 @@ use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 
+use function Mercurius\I18n\t;
+
 /**
  * Routes button presses by the prefix of their data ("ap:…" approvals, "pv:…" visitors, "pg:…" grants). Only the
  * owner may press: anyone else gets a notice and the card keeps waiting. Every press is answered.
@@ -26,7 +28,7 @@ final class CallbackRouter implements CallbackHandler {
 
     public function handleCallback(IncomingCallback $callback): void {
         if ($callback->userId !== $this->ownerUserId) {
-            $this->channel->answerCallback($callback->callbackId, 'Это может только владелец.', true);
+            $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
         }
         $prefix = explode(':', $callback->data, 2)[0];

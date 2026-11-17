@@ -14,6 +14,8 @@ use OpenCCK\Domain\Repository\GroupRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * In a forum every project has a topic of its own. A project started in the forum gets a new topic (or the topic it was
  * started in, when that one has no project yet); a finished project closes its topic and a return reopens it; a topic
@@ -41,16 +43,16 @@ final class ForumTopics {
             $this->channel->editTopic($meta->chatId, $meta->threadId, $project->name);
             $this->projects->activate($meta->channel, $meta->chatId, $project->id, $meta->threadId);
             $this->logger->notice('Forum topic linked to a project', ['chat' => $meta->chatId, 'thread' => $meta->threadId, 'project' => $project->id]);
-            return sprintf('Эта тема теперь — проект «%s».', $project->name);
+            return sprintf(t('service.forum_topics.eta_tema_teper_proekt'), $project->name);
         }
         $thread = $this->channel->createTopic($meta->chatId, $project->name);
         if ($thread === null) {
-            return 'Тему для проекта создать не вышло: дай боту в группе право управлять темами.';
+            return t('service.forum_topics.temu_dlya_proekta_sozdat_ne');
         }
         $this->projects->activate($meta->channel, $meta->chatId, $project->id, $thread);
-        $this->channel->send(new OutgoingMessage($meta->chatId, sprintf('Тема проекта «%s»: здесь его беседа, карточка и задачи.', $project->name), threadId: $thread));
+        $this->channel->send(new OutgoingMessage($meta->chatId, sprintf(t('service.forum_topics.tema_proekta_zdes_ego_beseda'), $project->name), threadId: $thread));
         $this->logger->notice('Forum topic created for a project', ['chat' => $meta->chatId, 'thread' => $thread, 'project' => $project->id]);
-        return sprintf('Создал тему «%s» для проекта.', $project->name);
+        return sprintf(t('service.forum_topics.sozdal_temu_dlya_proekta'), $project->name);
     }
 
     /** A project's status changes from $before->status to $status: done closes its topics, a return reopens them. */
@@ -78,7 +80,7 @@ final class ForumTopics {
         }
         $name = mb_substr(trim($name), 0, Project::NAME_MAX);
         try {
-            $project = $this->projects->create($name === '' ? 'Тема ' . $threadId : $name, '', $ownerId);
+            $project = $this->projects->create($name === '' ? t('service.forum_topics.tema') . $threadId : $name, '', $ownerId);
         } catch (DomainException) {
             // the name is taken: the topic joins the existing project of this owner
             $project = $this->projects->byName($name, $ownerId);
@@ -87,7 +89,7 @@ final class ForumTopics {
             }
         }
         $this->projects->activate($channel, $chatId, $project->id, $threadId);
-        $this->channel->send(new OutgoingMessage($chatId, sprintf('Связал тему с проектом «%s». Цель пока не задана — расскажите, что делаем, и я заполню карточку.', $project->name), threadId: $threadId));
+        $this->channel->send(new OutgoingMessage($chatId, sprintf(t('service.forum_topics.svyazal_temu_s_proektom_tsel'), $project->name), threadId: $threadId));
         $this->logger->notice('Forum topic became a project', ['chat' => $chatId, 'thread' => $threadId, 'project' => $project->id]);
         return $project;
     }

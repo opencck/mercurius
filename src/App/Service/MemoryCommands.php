@@ -11,6 +11,8 @@ use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\MemoryStore;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner's view of memory: what is remembered, what waits for a decision, and forgetting by number.
  *
@@ -29,7 +31,7 @@ final class MemoryCommands {
 
     /** The nightly check, now, even if memory has not changed. */
     public function consolidate(): string {
-        return $this->consolidation === null ? 'Проверка памяти не настроена.' : $this->consolidation->run(true);
+        return $this->consolidation === null ? t('service.memory_commands.proverka_pamyati_ne_nastroena') : $this->consolidation->run(true);
     }
 
     public function overview(string $channel, string $chatId): string {
@@ -40,24 +42,24 @@ final class MemoryCommands {
         }
         $facts = $this->store->recent([Audience::OWNER, Audience::chat($channel, $chatId)], self::RECENT);
         $parts[] = $facts === []
-            ? 'Фактов пока нет.'
-            : "Последние факты:\n" . implode("\n", array_map(static fn($f): string => sprintf('#%d %s', $f->id, self::cut($f->text)), $facts));
+            ? t('service.memory_commands.faktov_poka_net')
+            : t('service.memory_commands.poslednie_fakty') . implode("\n", array_map(static fn($f): string => sprintf('#%d %s', $f->id, self::cut($f->text)), $facts));
         $pending = $this->store->pending();
         if ($pending !== []) {
-            $parts[] = "Ждут решения:\n" . implode("\n", array_map(static fn($p): string => sprintf('№%d %s: %s', $p->id, $p->kind, self::cut($p->text)), $pending));
+            $parts[] = t('service.memory_commands.zhdut_resheniya') . implode("\n", array_map(static fn($p): string => sprintf('№%d %s: %s', $p->id, $p->kind, self::cut($p->text)), $pending));
         }
-        $parts[] = '/forget <номер> — забыть факт насовсем. /consolidate — проверить память сейчас.';
+        $parts[] = t('service.memory_commands.forget_nomer_zabyt_fakt_nasovsem');
         return implode("\n\n", $parts);
     }
 
     public function forget(string $argument): string {
         $id = ltrim(trim($argument), '#');
         if (!ctype_digit($id)) {
-            return 'Укажите номер факта: /forget 12';
+            return t('service.memory_commands.ukazhite_nomer_fakta_forget_12');
         }
         return $this->proposals->forget((int) $id)
-            ? sprintf('Факт #%s забыт: текст и его версии удалены, записать его снова нельзя.', $id)
-            : sprintf('Факта #%s нет.', $id);
+            ? sprintf(t('service.memory_commands.fakt_zabyt_tekst_i_ego'), $id)
+            : sprintf(t('service.memory_commands.fakta_net'), $id);
     }
 
     private static function cut(string $text): string {

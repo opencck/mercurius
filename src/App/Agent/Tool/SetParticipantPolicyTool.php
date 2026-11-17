@@ -11,6 +11,8 @@ use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Changes another participant's tools and limits. Works only in the owner's runs: the owner asks in words,
  * the agent calls the tool. Values above the owner's are cut down to them.
@@ -26,17 +28,17 @@ final class SetParticipantPolicyTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Меняет права участника (не владельца): доступные инструменты и лимиты запуска. '
-            . 'Только по просьбе владельца. Значения больше, чем у владельца, урезаются. Возвращает итоговую политику. '
-            . 'Номер участника (principal_id) — из инструмента participants.', [
+        return new ToolDefinition(self::NAME, t('tool.set_participant_policy.menyaet_prava_uchastnika_ne_vladeltsa')
+            . t('tool.set_participant_policy.tolko_po_prosbe_vladeltsa_znacheniya')
+            . t('tool.set_participant_policy.nomer_uchastnika_principal_id_iz'), [
             'type' => 'object',
             'properties' => [
                 'principal_id' => ['type' => 'integer', 'minimum' => 1],
-                'tools' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Разрешённые инструменты'],
+                'tools' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => t('tool.set_participant_policy.razreshennye_instrumenty')],
                 'max_turns' => ['type' => 'integer', 'minimum' => 1],
                 'token_budget' => ['type' => 'integer', 'minimum' => 1],
-                'run_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Секунды'],
-                'tool_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Секунды'],
+                'run_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.set_participant_policy.sekundy')],
+                'tool_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.set_participant_policy.sekundy')],
                 'may_request_approval' => ['type' => 'boolean'],
             ],
             'required' => ['principal_id'],
@@ -58,21 +60,21 @@ final class SetParticipantPolicyTool implements Tool {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         if (!$context->principal->isOwner()) {
-            return ToolResult::error('Права участников меняет только владелец.');
+            return ToolResult::error(t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet'));
         }
         $id = Args::int($args, 'principal_id');
         $target = $id === null ? null : $this->principals->find($id);
         if ($target === null) {
-            return ToolResult::error(sprintf('Участник %s не найден.', $id === null ? '?' : (string) $id));
+            return ToolResult::error(sprintf(t('tool.set_participant_policy.uchastnik_ne_nayden'), $id === null ? '?' : (string) $id));
         }
         $overrides = $args;
         unset($overrides['principal_id']);
         try {
             $policy = $this->policies->update($target, $overrides);
         } catch (DomainException) {
-            return ToolResult::error('Права владельца задаются в настройках сервера и здесь не меняются.');
+            return ToolResult::error(t('tool.set_participant_policy.prava_vladeltsa_zadayutsya_v_nastroykah'));
         } catch (InvalidArgumentException $e) {
-            return ToolResult::error('Неверное значение: ' . $e->getMessage());
+            return ToolResult::error(t('tool.set_participant_policy.nevernoe_znachenie') . $e->getMessage());
         }
         return ToolResult::ok(json_encode($policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }

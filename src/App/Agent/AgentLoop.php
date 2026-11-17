@@ -59,6 +59,8 @@ use Throwable;
 use function Amp\async;
 use function Amp\Future\await;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent loop: model → tool calls → results → model, until an answer or a limit. One iteration is a chain of
  * phases over one RunState; every stop has a named reason. State is saved after each step, so a run continues
@@ -77,12 +79,12 @@ final class AgentLoop {
     private const MAX_CONTINUATIONS = 4;
     /** Retries of an empty answer. */
     private const MAX_EMPTY_RETRIES = 3;
-    public const CONTINUE_NOTE = 'Ответ оборвался на лимите длины. Продолжи ровно с места обрыва, без повторов и вступлений.';
-    public const EMPTY_NOTE = 'Ответ пришёл пустым. Дай ответ по существу.';
+    public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
+    public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
     private const SUMMARY_TOKENS = 1000;
     /** Saved as the answer of a stopped run: the model sees the task as closed, not as waiting. */
-    public const STOPPED_NOTE = 'Задача остановлена владельцем по команде /stop. Не продолжай её, пока владелец не попросит снова.';
+    public const STOPPED_NOTE = 'agent.agent_loop.stopped_note';
     private const WARN_SHARE = 0.8;
 
     private readonly ToolCallValidator $validator;
@@ -280,7 +282,7 @@ final class AgentLoop {
         $calls = array_map(function (StoredToolCall $stored) use ($state): ValidatedCall {
             $call = new ToolCall($stored->callId, $stored->name, $stored->argumentsJson);
             $tool = $state->policy->allowsTool($stored->name) ? $this->registry->get($stored->name) : null;
-            $error = $tool === null || $stored->args === null ? 'Инструмент недоступен после перезапуска.' : null;
+            $error = $tool === null || $stored->args === null ? t('agent.agent_loop.instrument_nedostupen_posle_perezapuska') : null;
             return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger);
         }, $pending);
         return $this->execute($state, $calls);
@@ -357,9 +359,9 @@ final class AgentLoop {
      */
     private function tail(RunState $state): array {
         if ($state->partial !== '') {
-            return [Message::assistant($state->partial), Message::user(self::CONTINUE_NOTE)];
+            return [Message::assistant($state->partial), Message::user(\Mercurius\I18n\t(self::CONTINUE_NOTE))];
         }
-        return $state->emptyRetries > 0 ? [Message::user(self::EMPTY_NOTE)] : [];
+        return $state->emptyRetries > 0 ? [Message::user(\Mercurius\I18n\t(self::EMPTY_NOTE))] : [];
     }
 
     /**
@@ -473,7 +475,7 @@ final class AgentLoop {
         foreach ($this->planner->segments($calls) as $segment) {
             if ($halted) {
                 foreach ($segment as $call) {
-                    $this->writeResult($state, $call, ToolResult::error('Не выполнено: запуск остановлен, потому что действия повторялись.'));
+                    $this->writeResult($state, $call, ToolResult::error(t('agent.agent_loop.ne_vypolneno_zapusk_ostanovlen_potomu')));
                 }
                 continue;
             }
@@ -494,7 +496,7 @@ final class AgentLoop {
             if ($admission === 'granted') {
                 $first = $results[0] ?? null;
                 if ($first instanceof ToolResult) {
-                    $results[0] = new ToolResult($first->content . "\n\n[Выполнено по сохранённому разрешению владельца.]", $first->isError);
+                    $results[0] = new ToolResult($first->content . t('agent.agent_loop.vypolneno_po_sohranennomu_razresheniyu_v'), $first->isError);
                 }
             }
             foreach ($segment as $index => $call) {
@@ -527,11 +529,11 @@ final class AgentLoop {
     private function admit(RunState $state, ValidatedCall $call): bool|string|ToolResult {
         // spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — the verifier reads; no grant lets it write
         if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
-            return ToolResult::error('Здесь доступно только чтение: этот вызов меняет данные и не выполнен.');
+            return ToolResult::error(t('agent.agent_loop.zdes_dostupno_tolko_chtenie_etot'));
         }
         // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker gets no irreversible action, a saved grant included
         if (!$state->policy->irreversible && $call->executable() && $call->danger === DangerClass::Irreversible) {
-            return ToolResult::error('Воркеру необратимые действия недоступны, даже по сохранённому разрешению. Не выполнено: опиши в итоге, что нужно сделать, — решит оркестратор.');
+            return ToolResult::error(t('agent.agent_loop.vorkeru_neobratimye_deystviya_nedostupny'));
         }
         if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
             return true;
@@ -541,8 +543,8 @@ final class AgentLoop {
             return match ($approval->status) {
                 ApprovalStatus::Approved => true,
                 ApprovalStatus::Pending => false,
-                ApprovalStatus::Denied => ToolResult::error('Отказано владельцем' . ($approval->reason !== null ? ': ' . $approval->reason : '.') . ' Действие не выполнено.'),
-                ApprovalStatus::Expired => ToolResult::error('Владелец не ответил вовремя — молчание не согласие. Действие не выполнено.'),
+                ApprovalStatus::Denied => ToolResult::error(t('agent.agent_loop.otkazano_vladeltsem') . ($approval->reason !== null ? ': ' . $approval->reason : '.') . t('agent.agent_loop.deystvie_ne_vypolneno')),
+                ApprovalStatus::Expired => ToolResult::error(t('agent.agent_loop.vladelets_ne_otvetil_vovremya_molchanie')),
             };
         }
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
@@ -551,7 +553,7 @@ final class AgentLoop {
             return 'granted';
         }
         if ($this->gate === null || $this->approvals === null || !$state->policy->mayRequestApproval) {
-            return ToolResult::error('Действие требует подтверждения владельца, а запросить его сейчас нельзя. Не выполнено.');
+            return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
         }
         // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
         $this->transcript->setCallStatus($state->run->id, $call->call->id, ToolCallStatus::AwaitingApproval);
@@ -565,14 +567,14 @@ final class AgentLoop {
         $this->flushTime($state);
         $this->runs->setStatus($state->run->id, RunStatus::WaitingApproval);
         $paused = $this->runs->find($state->run->id) ?? $state->run;
-        $state->observer->waiting($paused, 'Жду подтверждения владельца…');
+        $state->observer->waiting($paused, t('agent.agent_loop.zhdu_podtverzhdeniya_vladeltsa'));
         $this->logger->info('Run waits for approval', ['run' => $state->run->id]);
         return $paused;
     }
 
     private function runCall(RunState $state, ValidatedCall $call): ToolResult {
         if (!$call->executable() || $call->tool === null) {
-            return ToolResult::error($call->error ?? 'Вызов не прошёл проверку.');
+            return ToolResult::error($call->error ?? t('agent.agent_loop.vyzov_ne_proshel_proverku'));
         }
         $this->transcript->startCall($state->run->id, $call->call->id);
         // The status message is in the chat: secrets in the arguments are masked there too.
@@ -601,11 +603,11 @@ final class AgentLoop {
     private function withNotes(RunState $state, ToolResult $result, bool $repeating): ToolResult {
         $notes = [];
         if ($repeating) {
-            $notes[] = LoopGuard::WARNING;
+            $notes[] = \Mercurius\I18n\t(LoopGuard::WARNING);
         }
         $limit = $this->nearLimit($state);
         if ($limit !== null && !$state->run->warned) {
-            $notes[] = sprintf('Израсходовано больше 80%% лимита (%s). Подводи итог.', $limit);
+            $notes[] = sprintf(t('agent.agent_loop.izrashodovano_bolshe_80_imita_podvodi'), $limit);
             $this->runs->markWarned($state->run->id);
             $state->run = $this->runs->find($state->run->id) ?? $state->run;
         }
@@ -615,9 +617,9 @@ final class AgentLoop {
     private function nearLimit(RunState $state): ?string {
         $run = $state->run;
         return match (true) {
-            $run->turns >= self::WARN_SHARE * (float) $run->limits->maxTurns => 'ходов',
-            $run->tokensUsed >= self::WARN_SHARE * (float) $run->limits->tokenBudget => 'токенов',
-            $this->elapsedMs($state) >= self::WARN_SHARE * (float) ($run->limits->runTimeout * 1000) => 'времени',
+            $run->turns >= self::WARN_SHARE * (float) $run->limits->maxTurns => t('agent.agent_loop.hodov'),
+            $run->tokensUsed >= self::WARN_SHARE * (float) $run->limits->tokenBudget => t('agent.agent_loop.tokenov'),
+            $this->elapsedMs($state) >= self::WARN_SHARE * (float) ($run->limits->runTimeout * 1000) => t('agent.agent_loop.vremeni'),
             default => null,
         };
     }
@@ -644,21 +646,21 @@ final class AgentLoop {
         } elseif ($reason === StopReason::Answered) {
             $messages = $this->transcript->runMessages($run->id);
             $text = $state->finalText ?? ($messages === [] ? '' : $messages[array_key_last($messages)]->content);
-            $text = trim($text) === '' ? 'Модель вернула пустой ответ.' : $text;
+            $text = trim($text) === '' ? t('agent.agent_loop.model_vernula_pustoy_otvet') : $text;
         } elseif ($reason->isLimit()) {
             $summary = $this->callModel(
                 $state,
-                $this->request($state, [], min(self::SUMMARY_TOKENS, $this->maxTokens), sprintf('Лимит исчерпан (%s). Кратко подведи итог: что сделано, что осталось.', $reason->label())),
+                $this->request($state, [], min(self::SUMMARY_TOKENS, $this->maxTokens), sprintf(t('agent.agent_loop.limit_ischerpan_kratko_podvedi_itog'), $reason->label())),
                 0,
                 self::SUMMARY_SECONDS,
             );
-            $text = $summary === null || trim($summary->text) === '' ? 'Итог подвести не удалось.' : $summary->text;
+            $text = $summary === null || trim($summary->text) === '' ? t('agent.agent_loop.itog_podvesti_ne_udalos') : $summary->text;
             if ($summary !== null) {
                 $this->saveAnswer($state, $summary->text);
             }
             $text .= $this->report($state, $reason);
         } else {
-            $text = 'Не удалось завершить задачу.' . $this->report($state, $reason);
+            $text = t('agent.agent_loop.ne_udalos_zavershit_zadachu') . $this->report($state, $reason);
             // Closes the task in the history: without an answer the next run would take it up again.
             $this->saveAnswer($state, $text);
         }
@@ -675,15 +677,15 @@ final class AgentLoop {
     /** /stop: calls without a result are closed as interrupted, the run is stopped. */
     private function stop(RunState $state): Run {
         foreach ($this->transcript->pendingCalls($state->run->id) as $call) {
-            $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->callId, ToolCallStatus::Interrupted, 'Остановлено владельцем.');
+            $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->callId, ToolCallStatus::Interrupted, t('agent.agent_loop.ostanovleno_vladeltsem'));
         }
         // Closes the task in the history, so the next run does not take a stopped task up again.
-        $this->saveAnswer($state, self::STOPPED_NOTE);
+        $this->saveAnswer($state, \Mercurius\I18n\t(self::STOPPED_NOTE));
         $this->flushTime($state);
         $this->runs->finish($state->run->id, StopReason::Stopped->status(), StopReason::Stopped);
         $final = $this->runs->find($state->run->id) ?? $state->run;
         $this->events->runFinished($state->run->id, 'stopped', StopReason::Stopped->value, $final->activeMs);
-        $state->observer->finished($final, 'Остановлено.', StopReason::Stopped);
+        $state->observer->finished($final, t('agent.agent_loop.ostanovleno'), StopReason::Stopped);
         $this->logger->info('Run stopped', ['run' => $state->run->id]);
         return $final;
     }
@@ -691,7 +693,7 @@ final class AgentLoop {
     private function report(RunState $state, StopReason $reason): string {
         $run = $this->runs->find($state->run->id) ?? $state->run;
         return sprintf(
-            "\n\nОстановлено: %s. Ходов: %d, токенов: %d, время: %d с.",
+            t('agent.agent_loop.ostanovleno_hodov_tokenov_vremya_s'),
             $reason->label(),
             $run->turns,
             $run->tokensUsed,

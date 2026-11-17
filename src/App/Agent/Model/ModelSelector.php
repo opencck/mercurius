@@ -15,6 +15,8 @@ use OpenCCK\Domain\Repository\RoutingDecisionRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * The cheapest model that meets a task profile. Each score becomes a requirement on a catalog index — score s asks for
  * at least the (s × 10)-th percentile of that index among catalog models; a high cost of error raises every score.
@@ -34,7 +36,7 @@ final class ModelSelector {
         'code' => 'coding',
         'agency' => 'agentic',
     ];
-    private const NAMES = ['intelligence' => 'интеллект', 'coding' => 'код', 'agentic' => 'агентность'];
+    private const NAMES = ['intelligence' => 'model.model_selector.intelligence', 'coding' => 'model.model_selector.coding', 'agentic' => 'model.model_selector.agentic'];
     /** Scores up to this a model without indices may serve. */
     private const UNSCORED_OK = 3;
     /** Our own record: a model that failed this share of at least MIN_RUNS worker runs in DAYS is not chosen. */
@@ -97,12 +99,12 @@ final class ModelSelector {
             if ($threshold !== null) {
                 $required[$index] = max($required[$index] ?? 0.0, $threshold);
             } elseif ($score > self::UNSCORED_OK) {
-                $missing[$index] = self::NAMES[$index];
+                $missing[$index] = t(self::NAMES[$index]);
             }
         }
         if ($missing !== []) {
             // Without the index nothing shows a model is good enough: not the cheapest one at random.
-            return $this->fallback($conversationId, sprintf('в каталоге нет оценок (%s) — роль strong', implode(', ', $missing)));
+            return $this->fallback($conversationId, sprintf(t('model.model_selector.v_kataloge_net_otsenok_rol'), implode(', ', $missing)));
         }
         $candidates = [];
         $skipped = 0;
@@ -123,8 +125,8 @@ final class ModelSelector {
             $candidates[] = ['ref' => $ref, 'info' => $m];
         }
         $needs = self::describe($required, $needsTools, $profile, $window)
-            . ($skipped > 0 ? sprintf('; без %d часто отказывавших у нас', $skipped) : '')
-            . ($slowSkipped > 0 ? sprintf('; без %d медленных у нас (p95 > %d с)', $slowSkipped, intdiv(self::SLOW_P95_MS, 1000)) : '');
+            . ($skipped > 0 ? sprintf(t('model.model_selector.bez_chasto_otkazyvavshih_u_nas'), $skipped) : '')
+            . ($slowSkipped > 0 ? sprintf(t('model.model_selector.bez_medlennyh_u_nas_p95'), $slowSkipped, intdiv(self::SLOW_P95_MS, 1000)) : '');
         usort(
             $candidates,
             /**
@@ -137,10 +139,10 @@ final class ModelSelector {
         );
         $chosen = $candidates[0] ?? null;
         if ($chosen === null) {
-            return $this->fallback($conversationId, sprintf('по профилю (%s) подходящих моделей нет — роль strong', $needs));
+            return $this->fallback($conversationId, sprintf(t('model.model_selector.po_profilyu_podhodyaschih_modeley_net'), $needs));
         }
         $model = $chosen['ref'];
-        $reason = sprintf('самая дешёвая из %d подходящих: %s', count($candidates), $needs);
+        $reason = sprintf(t('model.model_selector.samaya_deshevaya_iz_podhodyaschih'), count($candidates), $needs);
         $this->record($conversationId, 'profile', 'profile', (string) $model, $reason);
         return [$model, $reason];
     }
@@ -299,21 +301,21 @@ final class ModelSelector {
     private static function describe(array $required, bool $needsTools, TaskProfile $profile, int $window): string {
         $parts = [];
         foreach ($required as $index => $threshold) {
-            $parts[] = sprintf('%s ≥ %.1f', self::NAMES[$index] ?? $index, $threshold);
+            $parts[] = sprintf('%s ≥ %.1f', isset(self::NAMES[$index]) ? t(self::NAMES[$index]) : $index, $threshold);
         }
         if ($needsTools) {
-            $parts[] = 'инструменты';
+            $parts[] = t('model.model_selector.instrumenty');
         }
         if ($profile->score('images') >= 5) {
-            $parts[] = 'изображения';
+            $parts[] = t('model.model_selector.izobrazheniya');
         }
         if ($profile->score('audio') >= 5) {
-            $parts[] = 'звук';
+            $parts[] = t('model.model_selector.zvuk');
         }
         if ($window > 0) {
-            $parts[] = sprintf('окно ≥ %d', $window);
+            $parts[] = sprintf(t('model.model_selector.okno'), $window);
         }
-        return $parts === [] ? 'без требований' : implode(', ', $parts);
+        return $parts === [] ? t('model.model_selector.bez_trebovaniy') : implode(', ', $parts);
     }
 
     private function record(?int $conversationId, string $method, string $role, string $model, string $reason): void {

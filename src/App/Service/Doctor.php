@@ -12,6 +12,8 @@ use DateTimeZone;
 use OpenCCK\Infrastructure\Config\Env;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Checks of an installation: settings, the database and its migrations, the disk, the sandbox and the browser. Each
  * check says what is wrong and what to do; values of secrets are never shown.
@@ -47,7 +49,7 @@ final class Doctor {
         $lines = array_map(static fn(array $r): string => sprintf('%s %s: %s', $icon[$r[0]] ?? '?', $r[1], $r[2]), $results);
         $failed = count(array_filter($results, static fn(array $r): bool => $r[0] === self::FAIL));
         $warned = count(array_filter($results, static fn(array $r): bool => $r[0] === self::WARN));
-        return implode("\n", $lines) . "\n\n" . ($failed + $warned === 0 ? 'Всё в порядке.' : sprintf('Ошибок: %d, предупреждений: %d.', $failed, $warned));
+        return implode("\n", $lines) . "\n\n" . ($failed + $warned === 0 ? t('service.doctor.vse_v_poryadke') : sprintf(t('service.doctor.oshibok_preduprezhdeniy'), $failed, $warned));
     }
 
     /** @return list<array{string, string, string}> */
@@ -55,38 +57,38 @@ final class Doctor {
         $raw = fn(string $name): ?string => Env::raw($this->env, $name);
         $out = [];
         $out[] = $raw('TELEGRAM_BOT_TOKEN') !== null && preg_match('~^\d+:[\w-]{30,}$~', (string) $raw('TELEGRAM_BOT_TOKEN')) === 1
-            ? [self::OK, 'Токен бота', 'задан']
-            : [self::FAIL, 'Токен бота', 'TELEGRAM_BOT_TOKEN пуст или не похож на токен BotFather'];
+            ? [self::OK, t('service.doctor.token_bota'), t('service.doctor.zadan')]
+            : [self::FAIL, t('service.doctor.token_bota'), t('service.doctor.telegram_bot_token_pust_ili')];
         $out[] = ctype_digit((string) $raw('TELEGRAM_ADMIN_ID'))
-            ? [self::OK, 'Владелец', 'TELEGRAM_ADMIN_ID задан']
-            : [self::FAIL, 'Владелец', 'TELEGRAM_ADMIN_ID — числовой id владельца в Telegram'];
+            ? [self::OK, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_zadan')]
+            : [self::FAIL, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_chislovoy_id')];
         $out[] = $raw('OPENROUTER_API_KEY') !== null || $raw('OPENAI_API_KEY') !== null
-            ? [self::OK, 'Модели', $raw('OPENROUTER_API_KEY') !== null ? 'ключ OpenRouter задан' : 'ключ OpenAI задан']
-            : [self::FAIL, 'Модели', 'нужен OPENROUTER_API_KEY или OPENAI_API_KEY'];
+            ? [self::OK, t('service.doctor.modeli'), $raw('OPENROUTER_API_KEY') !== null ? t('service.doctor.klyuch_openrouter_zadan') : t('service.doctor.klyuch_openai_zadan')]
+            : [self::FAIL, t('service.doctor.modeli'), t('service.doctor.nuzhen_openrouter_api_key_ili')];
         $key = $raw('SECRETS_KEY');
         $out[] = match (true) {
-            $key === null => [self::WARN, 'Хранилище секретов', 'SECRETS_KEY пуст: секреты, SSH и webhook заданий выключены'],
-            strlen((string) base64_decode($key, true)) === 32 => [self::OK, 'Хранилище секретов', 'ключ 32 байта'],
-            default => [self::FAIL, 'Хранилище секретов', 'SECRETS_KEY — 32 байта в base64 (openssl rand -base64 32)'],
+            $key === null => [self::WARN, t('service.doctor.hranilische_sekretov'), t('service.doctor.secrets_key_pust_sekrety_ssh')],
+            strlen((string) base64_decode($key, true)) === 32 => [self::OK, t('service.doctor.hranilische_sekretov'), t('service.doctor.klyuch_32_bayta')],
+            default => [self::FAIL, t('service.doctor.hranilische_sekretov'), t('service.doctor.secrets_key_32_bayta_v')],
         };
         $appUrl = $raw('APP_URL');
         $out[] = $appUrl !== null
-            ? ($raw('TELEGRAM_WEBHOOK_SECRET') !== null ? [self::OK, 'Telegram', 'webhook на ' . $appUrl] : [self::FAIL, 'Telegram', 'APP_URL задан, а TELEGRAM_WEBHOOK_SECRET пуст'])
-            : [self::OK, 'Telegram', 'long polling (APP_URL пуст)'];
+            ? ($raw('TELEGRAM_WEBHOOK_SECRET') !== null ? [self::OK, 'Telegram', t('service.doctor.webhook_na') . $appUrl] : [self::FAIL, 'Telegram', t('service.doctor.app_url_zadan_a_telegram')])
+            : [self::OK, 'Telegram', t('service.doctor.long_polling_app_url_pust')];
         $zone = $raw('OWNER_TIMEZONE') ?? '+03:00';
         try {
             new DateTimeZone($zone);
-            $out[] = [self::OK, 'Часовой пояс', $zone];
+            $out[] = [self::OK, t('service.doctor.chasovoy_poyas'), $zone];
         } catch (Throwable) {
-            $out[] = [self::FAIL, 'Часовой пояс', 'OWNER_TIMEZONE не распознан: ' . $zone];
+            $out[] = [self::FAIL, t('service.doctor.chasovoy_poyas'), t('service.doctor.owner_timezone_ne_raspoznan') . $zone];
         }
         $quiet = $raw('QUIET_HOURS');
         if ($quiet !== null && preg_match('~^\d{1,2}-\d{1,2}$~', $quiet) !== 1) {
-            $out[] = [self::WARN, 'Тихие часы', 'QUIET_HOURS — «с-до», например 23-8; сейчас тихих часов нет'];
+            $out[] = [self::WARN, t('service.doctor.tihie_chasy'), t('service.doctor.quiet_hours_s_do_naprimer')];
         }
         $digest = $raw('DIGEST_TIME');
         if ($digest !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digest) !== 1) {
-            $out[] = [self::WARN, 'Сводка', 'DIGEST_TIME — ЧЧ:ММ; сейчас сводка выключена'];
+            $out[] = [self::WARN, t('service.doctor.svodka'), t('service.doctor.digest_time_chch_mm_seychas')];
         }
         return $out;
     }
@@ -100,17 +102,17 @@ final class Doctor {
             $latest = max($latest, (int) basename($file));
         }
         if ($this->db === null) {
-            return [self::FAIL, 'База', 'нет соединения'];
+            return [self::FAIL, t('service.doctor.baza'), t('service.doctor.net_soedineniya')];
         }
         try {
             $row = $this->db->query('SELECT coalesce(max(version), 0) AS v FROM schema_migrations')->fetchRow();
         } catch (Throwable $e) {
-            return [self::FAIL, 'База', 'запрос не прошёл: ' . $e::class];
+            return [self::FAIL, t('service.doctor.baza'), t('service.doctor.zapros_ne_proshel') . $e::class];
         }
         $applied = isset($row['v']) && is_int($row['v']) ? $row['v'] : 0;
         return $applied === $latest
-            ? [self::OK, 'База', sprintf('миграции применены (%d)', $applied)]
-            : [self::FAIL, 'База', sprintf('применено %d из %d миграций — перезапустите приложение', $applied, $latest)];
+            ? [self::OK, t('service.doctor.baza'), sprintf(t('service.doctor.migratsii_primeneny'), $applied)]
+            : [self::FAIL, t('service.doctor.baza'), sprintf(t('service.doctor.primeneno_iz_migratsiy_perezapustite_pri'), $applied, $latest)];
     }
 
     /** @return array{string, string, string} */
@@ -118,14 +120,14 @@ final class Doctor {
         $free = @disk_free_space($this->storage);
         $total = @disk_total_space($this->storage);
         if ($free === false || $total === false || $total <= 0.0) {
-            return [self::WARN, 'Диск', 'место не узнать'];
+            return [self::WARN, t('service.doctor.disk'), t('service.doctor.mesto_ne_uznat')];
         }
         $share = $free / $total;
-        $text = sprintf('свободно %.0f ГБ (%.0f%%)', $free / 1e9, $share * 100.0);
+        $text = sprintf(t('service.doctor.svobodno_gb'), $free / 1e9, $share * 100.0);
         return match (true) {
-            $share < 0.05 => [self::FAIL, 'Диск', $text . ' — уберите старые образы: docker image prune'],
-            $share < 0.15 => [self::WARN, 'Диск', $text],
-            default => [self::OK, 'Диск', $text],
+            $share < 0.05 => [self::FAIL, t('service.doctor.disk'), $text . t('service.doctor.uberite_starye_obrazy_docker_image')],
+            $share < 0.15 => [self::WARN, t('service.doctor.disk'), $text],
+            default => [self::OK, t('service.doctor.disk'), $text],
         };
     }
 
@@ -133,11 +135,11 @@ final class Doctor {
     private function services(): array {
         $out = [];
         foreach ([
-            'Песочница' => ['SANDBOX_TOKEN', Env::raw($this->env, 'SANDBOX_URL') ?? 'http://sandbox:9000'],
-            'Браузер' => ['BROWSER_TOKEN', Env::raw($this->env, 'BROWSER_URL') ?? 'http://browser:3000'],
+            t('service.doctor.sandbox') => ['SANDBOX_TOKEN', Env::raw($this->env, 'SANDBOX_URL') ?? 'http://sandbox:9000'],
+            t('service.doctor.browser') => ['BROWSER_TOKEN', Env::raw($this->env, 'BROWSER_URL') ?? 'http://browser:3000'],
         ] as $name => [$token, $url]) {
             if (Env::raw($this->env, $token) === null) {
-                $out[] = [self::WARN, $name, $token . ' пуст — выключен'];
+                $out[] = [self::WARN, $name, $token . t('service.doctor.pust_vyklyuchen')];
                 continue;
             }
             if ($this->http === null) {
@@ -146,9 +148,9 @@ final class Doctor {
             try {
                 $response = $this->http->request(new Request($url . '/health'), new TimeoutCancellation(5));
                 $response->getBody()->buffer();
-                $out[] = $response->getStatus() === 200 ? [self::OK, $name, 'отвечает'] : [self::FAIL, $name, 'ответ ' . $response->getStatus()];
+                $out[] = $response->getStatus() === 200 ? [self::OK, $name, t('service.doctor.otvechaet')] : [self::FAIL, $name, t('service.doctor.otvet') . $response->getStatus()];
             } catch (Throwable $e) {
-                $out[] = [self::FAIL, $name, 'не отвечает (' . $e::class . ') — docker compose ps'];
+                $out[] = [self::FAIL, $name, t('service.doctor.ne_otvechaet') . $e::class . ') — docker compose ps'];
             }
         }
         return $out;

@@ -18,6 +18,8 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
+use function Mercurius\I18n\t;
+
 /**
  * A stranger who writes becomes a pending visitor, and the owner gets one card: let them talk (no tools), make them a
  * user or an admin, or refuse. Until the owner decides, the stranger gets a short notice and the model is not called.
@@ -29,10 +31,10 @@ use Psr\Log\NullLogger;
  *      there is no code to leak or guess, and the decision is taken once in the database
  */
 final class VisitorService implements CallbackHandler {
-    public const WAITING = 'Передал владельцу, он скоро ответит.';
-    public const LET_IN_TALK = 'Владелец разрешил нам разговаривать. Пишите.';
-    public const LET_IN_USER = 'Владелец добавил вас как пользователя. Пишите.';
-    public const LET_IN_ADMIN = 'Владелец добавил вас как администратора. Пишите.';
+    public const WAITING = 'service.visitor_service.waiting';
+    public const LET_IN_TALK = 'service.visitor_service.let_in_talk';
+    public const LET_IN_USER = 'service.visitor_service.let_in_user';
+    public const LET_IN_ADMIN = 'service.visitor_service.let_in_admin';
     /** The stranger's first message shown on the card, cut to this many characters. */
     private const PREVIEW = 500;
 
@@ -49,15 +51,15 @@ final class VisitorService implements CallbackHandler {
         $text = trim($message->text);
         $preview = mb_strlen($text) > self::PREVIEW ? mb_substr($text, 0, self::PREVIEW) . '…' : $text;
         $card = sprintf(
-            "Новый собеседник\n\n%s\nНаписал:\n%s\n\nЧто ему можно?",
+            t('service.visitor.novyy_sobesednik_napisal_chto_emu'),
             self::who($visitor, $message->userName, $message->userId),
-            SecretMasker::mask($preview === '' ? '(не текст)' : $preview),
+            SecretMasker::mask($preview === '' ? t('service.visitor.ne_tekst') : $preview),
         );
         $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, $card, buttons: [[
-            new Button('Разговор', sprintf('pv:%d:t', $visitor->id)),
-            new Button('Пользователь', sprintf('pv:%d:u', $visitor->id)),
-            new Button('Админ', sprintf('pv:%d:a', $visitor->id)),
-            new Button('Отказать', sprintf('pv:%d:r', $visitor->id)),
+            new Button(t('service.visitor.razgovor'), sprintf('pv:%d:t', $visitor->id)),
+            new Button(t('service.visitor.polzovatel'), sprintf('pv:%d:u', $visitor->id)),
+            new Button(t('service.visitor.admin'), sprintf('pv:%d:a', $visitor->id)),
+            new Button(t('service.visitor.otkazat'), sprintf('pv:%d:r', $visitor->id)),
         ]]));
         if (!$result->success) {
             $this->logger->warning('Visitor card was not delivered', ['visitor' => $visitor->id]);
@@ -72,25 +74,25 @@ final class VisitorService implements CallbackHandler {
             return;
         }
         [$role, $status, $outcome] = match ($match[2]) {
-            't' => [Role::Visitor, PrincipalStatus::Active, 'Разговор разрешён.'],
-            'u' => [Role::User, PrincipalStatus::Active, 'Назначен пользователем.'],
-            'a' => [Role::Admin, PrincipalStatus::Active, 'Назначен администратором.'],
-            default => [Role::Visitor, PrincipalStatus::Rejected, 'Отказано.'],
+            't' => [Role::Visitor, PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
+            'u' => [Role::User, PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
+            'a' => [Role::Admin, PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
+            default => [Role::Visitor, PrincipalStatus::Rejected, t('service.visitor.otkazano')],
         };
         $decided = $this->principals->decideVisitor((int) $match[1], $role, $status);
         if ($decided === null) {
-            $this->channel->answerCallback($callback->callbackId, 'Уже решено.');
+            $this->channel->answerCallback($callback->callbackId, t('service.visitor.uzhe_resheno'));
             return;
         }
         $this->channel->answerCallback($callback->callbackId, $outcome);
         if ($callback->messageId !== null) {
-            $this->channel->edit($callback->chatId, $callback->messageId, sprintf("Собеседник\n\n%s\n\n%s", self::who($decided, null, null), $outcome));
+            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.visitor.sobesednik'), self::who($decided, null, null), $outcome));
         }
         if ($status === PrincipalStatus::Active) {
             $this->tell($decided, $callback->channel, match ($role) {
-                Role::User => self::LET_IN_USER,
-                Role::Admin => self::LET_IN_ADMIN,
-                default => self::LET_IN_TALK,
+                Role::User => \Mercurius\I18n\t(self::LET_IN_USER),
+                Role::Admin => \Mercurius\I18n\t(self::LET_IN_ADMIN),
+                default => \Mercurius\I18n\t(self::LET_IN_TALK),
             });
         }
         $this->logger->info('Visitor decided', ['visitor' => $decided->id, 'role' => $role->value, 'status' => $status->value]);
@@ -106,8 +108,8 @@ final class VisitorService implements CallbackHandler {
 
     private static function who(Principal $principal, ?string $userName, ?string $userId): string {
         return trim(sprintf(
-            '%s%s%s (участник %d)',
-            $principal->displayName ?? 'Без имени',
+            t('service.visitor.uchastnik'),
+            $principal->displayName ?? t('service.visitor.bez_imeni'),
             $userName !== null ? ' @' . $userName : '',
             $userId !== null ? ', id ' . $userId : '',
             $principal->id,

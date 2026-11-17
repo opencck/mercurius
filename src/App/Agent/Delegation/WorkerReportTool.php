@@ -13,6 +13,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The full answer of a worker whose report was cut: only of the current run's workers, or of a delegation of the same
  * conversation (a background report comes as a new run).
@@ -31,7 +33,7 @@ final class WorkerReportTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Полный итог воркера, если в отчёте delegate_task он обрезан. run — номер запуска воркера из отчёта.', [
+        return new ToolDefinition(self::NAME, t('delegation.worker_report_tool.polnyy_itog_vorkera_esli_v'), [
             'type' => 'object',
             'properties' => ['run' => ['type' => 'integer', 'minimum' => 1]],
             'required' => ['run'],
@@ -60,7 +62,7 @@ final class WorkerReportTool implements Tool {
         // In a group one conversation serves several participants: the run must also be theirs (or the owner asks).
         $theirs = $parent !== null && ($parent->principalId === $context->principal->id || $context->principal->isOwner());
         if ($run === null || $parent === null || !$theirs || ($parent->id !== $context->runId && $parent->conversationId !== $context->conversationId)) {
-            return ToolResult::error('Такого запуска воркера у этой задачи нет.');
+            return ToolResult::error(t('delegation.worker_report_tool.takogo_zapuska_vorkera_u_etoy'));
         }
         $messages = $this->transcript->runMessages($run->id);
         for ($i = count($messages) - 1; $i >= 0; $i--) {
@@ -68,6 +70,6 @@ final class WorkerReportTool implements Tool {
                 return ToolResult::ok(trim($messages[$i]->content));
             }
         }
-        return ToolResult::error('Итога у этого запуска нет.');
+        return ToolResult::error(t('delegation.worker_report_tool.itoga_u_etogo_zapuska_net'));
     }
 }

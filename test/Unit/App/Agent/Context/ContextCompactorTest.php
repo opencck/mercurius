@@ -163,7 +163,7 @@ final class ContextCompactorTest extends AsyncTestCase {
         self::assertStringContainsString('думаю', $request->messages[1]->content);
         $compaction = $this->conversations->compaction(1);
         self::assertSame('Цель: задача. Сделано: подумал.', $compaction->summary);
-        self::assertStringStartsWith(SummaryPrompt::HEADER, (string) $this->compactor()->summaryMessage(1));
+        self::assertStringStartsWith(\Mercurius\I18n\t(SummaryPrompt::HEADER), (string) $this->compactor()->summaryMessage(1));
         self::assertSame(0, $this->runs->find($this->run->id)?->turns, 'compaction takes no turn of the run');
         // The tail starts at the call whose result is the last message.
         self::assertSame(4, $compaction->uptoId);
@@ -217,7 +217,7 @@ final class ContextCompactorTest extends AsyncTestCase {
         self::assertCount(3, $this->llm->requests);
         $compaction = $this->conversations->compaction(1);
         self::assertSame(0, $compaction->failures);
-        self::assertStringContainsString(SummaryPrompt::STUB, (string) $compaction->summary);
+        self::assertStringContainsString(\Mercurius\I18n\t(SummaryPrompt::STUB), (string) $compaction->summary);
         self::assertStringContainsString('- исходная задача', (string) $compactor->summaryMessage(1));
     }
 
@@ -230,7 +230,7 @@ final class ContextCompactorTest extends AsyncTestCase {
         self::assertTrue($compactor->ensure($this->run, 'system', 40, 4000));
 
         self::assertCount(1, $this->llm->requests);
-        self::assertStringContainsString(SummaryPrompt::STUB, (string) $this->conversations->compaction(1)->summary);
+        self::assertStringContainsString(\Mercurius\I18n\t(SummaryPrompt::STUB), (string) $this->conversations->compaction(1)->summary);
     }
 
     public function testStubsDoNotRepeatTheUserList(): void {

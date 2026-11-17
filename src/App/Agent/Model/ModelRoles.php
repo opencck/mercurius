@@ -12,6 +12,8 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ModelCatalogRepository;
 use OpenCCK\Domain\Repository\ModelRoleRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Which model plays which role. The agent chooses models for tasks itself; so do the owner and those the owner
  * allowed (the set_model_role tool). What the owner fixed, only the owner changes.
@@ -57,7 +59,7 @@ final class ModelRoles {
     }
 
     public function seed(): void {
-        $this->roles->seed(array_map(ModelRef::parse(...), $this->seedTable()), 'начальная таблица ролей (BRIEF, 2026-11-16)');
+        $this->roles->seed(array_map(ModelRef::parse(...), $this->seedTable()), t('model.model_roles.nachalnaya_tablitsa_roley_brief_2026'));
     }
 
     /** A role whose model is of a provider without a key falls back to the seed value of the providers there are. */
@@ -106,32 +108,32 @@ final class ModelRoles {
      */
     public function set(string $role, string $model, string $reason, Principal $by, bool $fix): ModelRef {
         if (!in_array($role, ModelRole::ALL, true)) {
-            throw new DomainException(sprintf('Нет роли «%s». Роли: %s.', $role, implode(', ', ModelRole::ALL)));
+            throw new DomainException(sprintf(t('model.model_roles.net_roli_roli'), $role, implode(', ', ModelRole::ALL)));
         }
         if (mb_strlen(trim($reason)) < self::MIN_REASON) {
-            throw new DomainException('Нужна причина не короче 10 символов: она остаётся в таблице ролей.');
+            throw new DomainException(t('model.model_roles.nuzhna_prichina_ne_koroche_10'));
         }
         if ($fix && !$by->isOwner()) {
-            throw new DomainException('Зафиксировать роль может только владелец.');
+            throw new DomainException(t('model.model_roles.zafiksirovat_rol_mozhet_tolko_vladelets'));
         }
         try {
             $ref = ModelRef::parse(trim($model));
         } catch (InvalidArgumentException) {
-            throw new DomainException('Модель указывается как «провайдер:идентификатор» или идентификатор OpenRouter.');
+            throw new DomainException(t('model.model_roles.model_ukazyvaetsya_kak_provayder_identif'));
         }
         if (!in_array($ref->provider, $this->providers, true)) {
-            throw new DomainException(sprintf('У провайдера %s нет ключа: доступны %s.', $ref->provider, implode(', ', $this->providers)));
+            throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers)));
         }
         $info = $this->catalog->find($ref);
         if ($info === null) {
-            throw new DomainException(sprintf('Модели %s нет в каталоге провайдера %s.', $ref->model, $ref->provider));
+            throw new DomainException(sprintf(t('model.model_roles.modeli_net_v_kataloge_provaydera'), $ref->model, $ref->provider));
         }
         if ($role !== ModelRole::CHEAP && !$info->supportsTools()) {
-            throw new DomainException(sprintf('Модель %s не вызывает инструменты, а роль «%s» без них не работает.', $ref, $role));
+            throw new DomainException(sprintf(t('model.model_roles.model_ne_vyzyvaet_instrumenty_a'), $ref, $role));
         }
         $setBy = $fix ? ModelRole::SET_BY_OWNER : ModelRole::SET_BY_AGENT;
         if (!$this->roles->set($role, $ref, trim($reason), $setBy, $by->id, $by->isOwner())) {
-            throw new DomainException(sprintf('Роль «%s» зафиксировал владелец; изменить её может только он, указав fix.', $role));
+            throw new DomainException(sprintf(t('model.model_roles.rol_zafiksiroval_vladelets_izmenit_ee'), $role));
         }
         return $ref;
     }

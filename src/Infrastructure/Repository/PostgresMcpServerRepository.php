@@ -11,6 +11,8 @@ use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Repository\McpServerRepository;
 use UnexpectedValueException;
 
+use function Mercurius\I18n\t;
+
 final class PostgresMcpServerRepository implements McpServerRepository {
     private const COLUMNS = 'id, name, url, secret, status, tools_hash, note, tools_include, tools_exclude';
 
@@ -20,7 +22,7 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         try {
             $row = $this->db->execute('INSERT INTO mcp_servers (name, url, secret) VALUES (?, ?, ?) RETURNING ' . self::COLUMNS, [$name, $url, $secret])->fetchRow();
         } catch (SqlQueryError) {
-            throw new DomainException(sprintf('MCP-сервер «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_mcp_server.mcp_server_uzhe_est'), $name));
         }
         return self::server($row ?? throw new UnexpectedValueException('MCP server was not added'));
     }

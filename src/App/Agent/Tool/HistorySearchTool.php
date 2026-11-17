@@ -12,6 +12,8 @@ use OpenCCK\Domain\Agent\EpisodeMessage;
 use OpenCCK\Domain\Agent\SearchWords;
 use OpenCCK\Domain\Repository\EpisodeRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Searches past conversations and reads around a found message, within what this conversation's audience may see.
  * The messages come back as they were, without a model in between.
@@ -35,11 +37,11 @@ final class HistorySearchTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Ищет в прошлых разговорах. Если пользователь ссылается на прошлый разговор («как мы '
-            . 'решили…», «что я говорил про…», «на чём остановились») — сначала поищи здесь, не проси повторить. query — слова '
-            . 'для поиска; найденное приходит отрывками с номерами беседы и сообщения. conversation_id и message_id — прочитать '
-            . 'сообщения вокруг найденного. Текущая беседа не ищется — она и так перед тобой. Это только история переписки: если есть прямой источник (сервер, файл, сайт), '
-            . 'смотри его; «в истории не нашлось» не значит «не было».', [
+        return new ToolDefinition(self::NAME, t('tool.history_search.ischet_v_proshlyh_razgovorah_esli')
+            . t('tool.history_search.reshili_chto_ya_govoril_pro')
+            . t('tool.history_search.dlya_poiska_naydennoe_prihodit_otryvkami')
+            . t('tool.history_search.soobscheniya_vokrug_naydennogo_tekuschay')
+            . t('tool.history_search.smotri_ego_v_istorii_ne'), [
             'type' => 'object',
             'properties' => [
                 'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 300],
@@ -65,14 +67,14 @@ final class HistorySearchTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $scope = $this->audience->history($context->principal, $context->conversationId);
         if ($scope === null) {
-            return ToolResult::error('Беседа не найдена.');
+            return ToolResult::error(t('tool.history_search.beseda_ne_naydena'));
         }
         $conversation = Args::int($args, 'conversation_id');
         $message = Args::int($args, 'message_id');
         if ($conversation !== null && $message !== null) {
             $window = $this->episodes->around($conversation, $message, $scope, self::WINDOW);
             if ($window === []) {
-                return ToolResult::error(sprintf('Сообщение #%d беседы #%d не найдено или недоступно отсюда.', $message, $conversation));
+                return ToolResult::error(sprintf(t('tool.history_search.soobschenie_besedy_ne_naydeno_ili'), $message, $conversation));
             }
             return ToolResult::ok(implode("\n\n", array_map(
                 static fn(EpisodeMessage $m): string => self::head($m, $scope->isAll()) . "\n" . self::cut(self::clean($m->content), [], self::READ_CHARS),
@@ -81,11 +83,11 @@ final class HistorySearchTool implements Tool {
         }
         $query = Args::string($args, 'query') ?? '';
         if (trim($query) === '') {
-            return ToolResult::error('Нужен query или conversation_id вместе с message_id.');
+            return ToolResult::error(t('tool.history_search.nuzhen_query_ili_conversation_id'));
         }
         $found = $this->episodes->search([$query], $scope, self::LIMIT, self::PER_CONVERSATION, $context->conversationId);
         if ($found === []) {
-            return ToolResult::ok('В истории ничего не нашлось.');
+            return ToolResult::ok(t('tool.history_search.v_istorii_nichego_ne_nashlos'));
         }
         $words = SearchWords::terms([$query]);
         return ToolResult::ok(implode("\n\n", array_map(
@@ -97,12 +99,12 @@ final class HistorySearchTool implements Tool {
     private static function head(EpisodeMessage $m, bool $withChat): string {
         $at = $m->createdAt->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d H:i');
         return sprintf(
-            '[беседа #%d, сообщение #%d, %s, %s%s]',
+            t('tool.history_search.beseda_soobschenie'),
             $m->conversationId,
             $m->id,
             $at,
-            $m->role === 'assistant' ? 'агент' : 'пользователь',
-            $withChat ? sprintf(', чат %s:%s', $m->channel, $m->chatId) : '',
+            $m->role === 'assistant' ? t('tool.history_search.agent') : t('tool.history_search.polzovatel'),
+            $withChat ? sprintf(t('tool.history_search.chat'), $m->channel, $m->chatId) : '',
         );
     }
 

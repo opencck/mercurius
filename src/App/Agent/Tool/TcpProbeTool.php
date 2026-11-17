@@ -12,6 +12,8 @@ use Throwable;
 
 use function Amp\Socket\connect;
 
+use function Mercurius\I18n\t;
+
 /**
  * Whether a port answers, and how fast: a TCP connection and nothing sent. Only public addresses — the agent's own
  * network is not mapped from here; inside a network of the owner, probe from a server with ssh_run.
@@ -24,8 +26,8 @@ final class TcpProbeTool implements Tool {
     public function __construct(private readonly AddressGuard $guard) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Проверяет, отвечает ли TCP-порт (вместо ping): host, port, timeout до 10 с. Только публичные адреса; '
-            . 'внутри сети владельца проверяй с сервера через ssh_run (nc -z, curl).', [
+        return new ToolDefinition(self::NAME, t('tool.tcp_probe.proveryaet_otvechaet_li_tcp_port')
+            . t('tool.tcp_probe.vnutri_seti_vladeltsa_proveryay_s'), [
             'type' => 'object',
             'properties' => [
                 'host' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 253],
@@ -64,9 +66,9 @@ final class TcpProbeTool implements Tool {
         try {
             $socket = connect($address, (new ConnectContext())->withConnectTimeout((float) $timeout), new TimeoutCancellation((float) $timeout + 1.0));
             $socket->close();
-            return ToolResult::ok(sprintf('%s:%d (%s) — порт открыт, соединение за %d мс.', $host, $port, $ip, intdiv(hrtime(true) - $started, 1_000_000)));
+            return ToolResult::ok(sprintf(t('tool.tcp_probe.port_otkryt_soedinenie_za_ms'), $host, $port, $ip, intdiv(hrtime(true) - $started, 1_000_000)));
         } catch (Throwable $e) {
-            return ToolResult::ok(sprintf('%s:%d (%s) — не отвечает за %d с (%s).', $host, $port, $ip, $timeout, (new \ReflectionClass($e))->getShortName()));
+            return ToolResult::ok(sprintf(t('tool.tcp_probe.ne_otvechaet_za_s'), $host, $port, $ip, $timeout, (new \ReflectionClass($e))->getShortName()));
         }
     }
 }

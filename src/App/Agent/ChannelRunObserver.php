@@ -19,6 +19,8 @@ use Revolt\EventLoop;
 
 use function Amp\delay;
 
+use function Mercurius\I18n\t;
+
 /**
  * Shows a run in the chat with one status message: a placeholder, then the current step, then the streamed answer;
  * the final text replaces it, long text goes on in new messages. Edits are throttled as in the plain chat.
@@ -28,7 +30,7 @@ use function Amp\delay;
 final class ChannelRunObserver implements RunObserver {
     public const PLACEHOLDER = '…';
     /** What the preview says when the answer of a long run comes as a new message. */
-    public const ANSWER_BELOW = 'Готово — ответ ниже.';
+    public const ANSWER_BELOW = 'agent.channel_run_observer.answer_below';
 
     private ?string $messageId = null;
     private bool $started = false;
@@ -98,7 +100,7 @@ final class ChannelRunObserver implements RunObserver {
     public function toolStarted(Run $run, string $name, string $argsPreview): void {
         // Text the model wrote before calling a tool is a thought, not the answer: the next call streams anew.
         $this->text = '';
-        $this->show(sprintf('Выполняю %s: %s …', $name, $argsPreview), ParseMode::Plain, force: true);
+        $this->show(sprintf(t('agent.channel_run_observer.vypolnyayu'), $name, $argsPreview), ParseMode::Plain, force: true);
     }
 
     public function textDelta(Run $run, string $text): void {
@@ -151,7 +153,7 @@ final class ChannelRunObserver implements RunObserver {
             // The preview points below only once something is below.
             $preview = $fresh ? $messageId : null;
             if ($sent && $preview !== null) {
-                $this->channel->edit($this->chatId, $preview, self::ANSWER_BELOW, ParseMode::Plain);
+                $this->channel->edit($this->chatId, $preview, \Mercurius\I18n\t(self::ANSWER_BELOW), ParseMode::Plain);
             }
         }
         foreach ($parts as $part) {

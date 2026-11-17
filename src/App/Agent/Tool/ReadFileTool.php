@@ -8,17 +8,19 @@ use Mercurius\Llm\ToolDefinition;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 final class ReadFileTool extends SandboxTool implements Unspillable {
     public const NAME = 'read_file';
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Читает текстовый файл из твоего рабочего каталога в песочнице: строки с номерами, '
-            . 'по умолчанию первые 500. Пути — относительно рабочего каталога.', [
+        return new ToolDefinition(self::NAME, t('tool.read_file.chitaet_tekstovyy_fayl_iz_tvoego')
+            . t('tool.read_file.po_umolchaniyu_pervye_500_puti'), [
             'type' => 'object',
             'properties' => [
                 'path' => ['type' => 'string', 'maxLength' => 4096],
-                'start_line' => ['type' => 'integer', 'minimum' => 1, 'description' => 'С какой строки, по умолчанию 1'],
-                'max_lines' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2000, 'description' => 'Сколько строк, по умолчанию 500'],
+                'start_line' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.read_file.s_kakoy_stroki_po_umolchaniyu')],
+                'max_lines' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2000, 'description' => t('tool.read_file.skolko_strok_po_umolchaniyu_500')],
             ],
             'required' => ['path'],
             'additionalProperties' => false,
@@ -40,7 +42,7 @@ final class ReadFileTool extends SandboxTool implements Unspillable {
         $text = implode("\n", $numbered);
         $end = $start + count($lines) - 1;
         if ($start > 1 || $end < $read['totalLines']) {
-            $text .= ($text === '' ? '' : "\n") . sprintf('Показаны строки %d–%d из %d.', $start, max($start, $end), $read['totalLines']);
+            $text .= ($text === '' ? '' : "\n") . sprintf(t('tool.read_file.pokazany_stroki_iz'), $start, max($start, $end), $read['totalLines']);
         }
         return ToolResult::ok($text);
     }

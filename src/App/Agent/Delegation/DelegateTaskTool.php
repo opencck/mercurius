@@ -13,6 +13,8 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * Hands parts of a task to workers and returns their short reports. A write: it spends the run's budget.
  *
@@ -32,12 +34,12 @@ final class DelegateTaskTool implements Tool, LongRunning {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Поручает части задачи воркерам — отдельным агентам с чистым контекстом. '
-            . 'Дели, только когда части независимы и каждая требует заметной работы: у каждого воркера свои накладные '
-            . 'расходы. Воркер не видит беседы — в goal и context пиши всё нужное. Задачи только на чтение идут '
-            . 'параллельно. role: cheap — простая массовая работа, main — обычная, strong — сложная. Возвращает отчёт по '
-            . 'каждой задаче; сведи их сам и разреши противоречия. background: true — для долгих частей, ответ на которые '
-            . 'не нужен в этом ходе: инструмент сразу вернёт номер, а отчёт придёт в беседу отдельным сообщением.', [
+        return new ToolDefinition(self::NAME, t('delegation.delegate_task_tool.poruchaet_chasti_zadachi_vorkeram_otdeln')
+            . t('delegation.delegate_task_tool.deli_tolko_kogda_chasti_nezavisimy')
+            . t('delegation.delegate_task_tool.rashody_vorker_ne_vidit_besedy')
+            . t('delegation.delegate_task_tool.parallelno_role_cheap_prostaya_massovaya')
+            . t('delegation.delegate_task_tool.kazhdoy_zadache_svedi_ih_sam')
+            . t('delegation.delegate_task_tool.ne_nuzhen_v_etom_hode'), [
             'type' => 'object',
             'properties' => [
                 'tasks' => [
@@ -47,24 +49,24 @@ final class DelegateTaskTool implements Tool, LongRunning {
                     'items' => [
                         'type' => 'object',
                         'properties' => [
-                            'goal' => ['type' => 'string', 'minLength' => 1, 'description' => 'Что сделать, конкретно и самодостаточно'],
-                            'context' => ['type' => 'string', 'description' => 'Фон, который нужен воркеру'],
-                            'output' => ['type' => 'string', 'description' => 'Какой нужен ответ'],
-                            'tools' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Инструменты воркера'],
+                            'goal' => ['type' => 'string', 'minLength' => 1, 'description' => t('delegation.delegate_task_tool.chto_sdelat_konkretno_i_samodostatochno')],
+                            'context' => ['type' => 'string', 'description' => t('delegation.delegate_task_tool.fon_kotoryy_nuzhen_vorkeru')],
+                            'output' => ['type' => 'string', 'description' => t('delegation.delegate_task_tool.kakoy_nuzhen_otvet')],
+                            'tools' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => t('delegation.delegate_task_tool.instrumenty_vorkera')],
                             'role' => ['type' => 'string', 'enum' => ['cheap', 'main', 'strong']],
                             'profile' => [
                                 'type' => 'object',
-                                'description' => 'Вместо role: оценки 1–10, что нужно от модели; код подберёт самую дешёвую подходящую. Цена ошибки поднимает планку',
+                                'description' => t('delegation.delegate_task_tool.vmesto_role_otsenki_1_10'),
                                 'properties' => array_fill_keys(TaskProfile::AXES, ['type' => 'integer', 'minimum' => 1, 'maximum' => 10]),
                                 'additionalProperties' => false,
                             ],
-                            'verify' => ['type' => 'boolean', 'description' => 'Проверить ответ отдельным проверяющим с чистым контекстом: для частей, где ошибка дорога'],
+                            'verify' => ['type' => 'boolean', 'description' => t('delegation.delegate_task_tool.proverit_otvet_otdelnym_proveryayuschim')],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
                     ],
                 ],
-                'background' => ['type' => 'boolean', 'description' => 'Выполнить в фоне: ответ придёт отдельным сообщением'],
+                'background' => ['type' => 'boolean', 'description' => t('delegation.delegate_task_tool.vypolnit_v_fone_otvet_pridet')],
             ],
             'required' => ['tasks'],
             'additionalProperties' => false,
@@ -106,14 +108,14 @@ final class DelegateTaskTool implements Tool, LongRunning {
             }
         }
         if ($tasks === [] || count($tasks) > self::MAX_TASKS) {
-            return ToolResult::error(sprintf('Нужно от 1 до %d задач.', self::MAX_TASKS));
+            return ToolResult::error(sprintf(t('delegation.delegate_task_tool.nuzhno_ot_1_do_zadach'), self::MAX_TASKS));
         }
         try {
             if (($args['background'] ?? false) === true && $this->background !== null) {
                 $delegation = $this->background->spawn($context, $tasks);
                 return ToolResult::ok(sprintf(
-                    'Фоновое делегирование #%d начато: задач %d. Отчёт придёт в эту беседу отдельным сообщением, когда все '
-                    . 'задачи закончатся. Сейчас его не жди: скажи владельцу, что работа идёт в фоне.',
+                    t('delegation.delegate_task_tool.fonovoe_delegirovanie_nachato_zadach_otc')
+                    . t('delegation.delegate_task_tool.zadachi_zakonchatsya_seychas_ego_ne'),
                     $delegation->id,
                     count($tasks),
                 ));

@@ -24,10 +24,10 @@ final class SearchSettings {
 
     /** What each provider is good for: the agent chooses by it. */
     public const ABOUT = [
-        'searxng' => 'бесплатный метапоиск, только ссылки',
-        'brave' => 'Brave Search: ссылки с описаниями, недорого',
-        'tavily' => 'поиск для агентов: ссылки и краткий ответ',
-        'openrouter' => 'модель с веб-поиском: связный ответ со ссылками, дороже',
+        'searxng' => 'search.about.searxng',
+        'brave' => 'search.about.brave',
+        'tavily' => 'search.about.tavily',
+        'openrouter' => 'search.about.openrouter',
     ];
 
     /**

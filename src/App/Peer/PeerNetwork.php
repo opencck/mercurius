@@ -23,6 +23,8 @@ use OpenCCK\Domain\Repository\TranscriptRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent's side of the network: the agents it lets in by the fingerprint of their key, the neighbours it connects to
  * (their key pinned from the card), tasks it gives them and the polling of their state; a result comes to the chat and
@@ -53,17 +55,17 @@ final class PeerNetwork {
     /** Lets an agent in by the fingerprint of its key; it becomes a participant with the role. */
     public function allow(string $name, string $fingerprint, Role $role): string {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new DomainException('Имя агента — латиница, цифры, дефис; до 40 символов.');
+            throw new DomainException(t('peer.peer_network.imya_agenta_latinitsa_tsifry_defis'));
         }
         if (preg_match('~^SHA256:[0-9a-f]{64}$~', $fingerprint) !== 1) {
-            throw new DomainException('Отпечаток — SHA256:<64 hex>, его показывает /peers у того агента.');
+            throw new DomainException(t('peer.peer_network.otpechatok_sha256_64_hex_ego'));
         }
         if (!in_array($role, [Role::User, Role::Admin], true)) {
-            throw new DomainException('Роль агента — user или admin.');
+            throw new DomainException(t('peer.peer_network.rol_agenta_user_ili_admin'));
         }
         $agent = $this->principals->createAgent($name, $role);
         $this->peers->allowKey($agent->id, $name, $fingerprint);
-        return sprintf('Агент «%s» (%s) может подключаться, роль %s. Права по умолчанию — без инструментов: выдать — попросите меня изменить его политику.', $name, $fingerprint, $role->value);
+        return sprintf(t('peer.peer_network.agent_mozhet_podklyuchatsya_rol_prava'), $name, $fingerprint, $role->value);
     }
 
     public function revoke(string $name): bool {
@@ -77,24 +79,24 @@ final class PeerNetwork {
     /** A neighbour: its card is fetched, its public key pinned; the token of its entrance is a vault secret by name. */
     public function add(Principal $owner, string $name, string $url, string $secret): string {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new DomainException('Имя соседа — латиница, цифры, дефис; до 40 символов.');
+            throw new DomainException(t('peer.peer_network.imya_soseda_latinitsa_tsifry_defis'));
         }
         if (preg_match('~^https://[^\s/]+(/[^\s]*)?$~', $url) !== 1) {
-            throw new DomainException('Адрес соседа — https://…');
+            throw new DomainException(t('peer.peer_network.adres_soseda_https'));
         }
         if ($this->vault->reveal($secret, $owner) === null) {
-            throw new DomainException(sprintf('Секрета «%s» нет: /secret %s <токен соседа>.', $secret, $secret));
+            throw new DomainException(sprintf(t('peer.peer_network.sekreta_net_secret_token_soseda'), $secret, $secret));
         }
         try {
             $card = $this->client->card($url);
         } catch (Throwable $e) {
-            throw new DomainException('Карточку соседа не получить: ' . $e->getMessage());
+            throw new DomainException(t('peer.peer_network.kartochku_soseda_ne_poluchit') . $e->getMessage());
         }
-        $key = A2aClient::cardKey($card) ?? throw new DomainException('В карточке соседа нет ключа ECDSA P-256 — это не Меркурий или старая версия.');
+        $key = A2aClient::cardKey($card) ?? throw new DomainException(t('peer.peer_network.v_kartochke_soseda_net_klyucha'));
         $this->peers->addPeer($name, rtrim($url, '/'), $secret, $key, $card);
         $title = isset($card['name']) && is_string($card['name']) ? $card['name'] : '?';
         return sprintf(
-            "Сосед «%s» добавлен: %s (%s).\nЕго ключ: %s — сверьте с /peers у соседа. Чтобы он пустил меня, его владелец выполняет:\n/peer allow <имя для меня> %s",
+            t('peer.peer_network.sosed_dobavlen_ego_klyuch_sverte'),
             $name,
             $title,
             rtrim($url, '/'),
@@ -109,14 +111,14 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      */
     public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path): OutgoingTask {
-        $peer = $this->peers->peer($peerName) ?? throw new DomainException(sprintf('Соседа «%s» нет.', $peerName));
+        $peer = $this->peers->peer($peerName) ?? throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
         if (!$who->isOwner() && $who->kind !== PrincipalKind::Agent) {
-            throw new DomainException('Отдавать задачи соседям может владелец или агент сети с таким правом.');
+            throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
         }
-        $owner = ($this->owner)() ?? throw new DomainException('Владелец не найден.');
-        $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf('Нет токена соседа (секрет «%s»).', $peer->secret));
+        $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
+        $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
         $remote = $this->client->send($peer, $token, 'msg-' . bin2hex(random_bytes(8)), SecretMasker::mask($task), $depth + 1, [...$path, $this->self]);
-        $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException('Сосед не вернул номер задачи.');
+        $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state);
         if (in_array($state, A2aTask::TERMINAL, true)) {
@@ -132,7 +134,7 @@ final class PeerNetwork {
             $owner = ($this->owner)();
             $token = $peer === null || $owner === null ? null : $this->vault->reveal($peer->secret, $owner);
             if ($peer === null || $token === null) {
-                $this->finish($out, A2aTask::FAILED, 'Сосед или его токен удалены.');
+                $this->finish($out, A2aTask::FAILED, t('peer.peer_network.sosed_ili_ego_token_udaleny'));
                 continue;
             }
             try {
@@ -151,38 +153,38 @@ final class PeerNetwork {
     private function finish(OutgoingTask $out, string $state, string $answer): void {
         $this->peers->finishOutgoing($out->id, $state, mb_substr($answer, 0, 20_000));
         $label = match ($state) {
-            A2aTask::COMPLETED => 'ответ',
-            A2aTask::INPUT_REQUIRED => 'вопрос',
-            A2aTask::REJECTED => 'отказ',
-            A2aTask::CANCELED => 'отменено',
-            default => 'сбой',
+            A2aTask::COMPLETED => t('peer.peer_network.otvet'),
+            A2aTask::INPUT_REQUIRED => t('peer.peer_network.vopros'),
+            A2aTask::REJECTED => t('peer.peer_network.otkaz'),
+            A2aTask::CANCELED => t('peer.peer_network.otmeneno'),
+            default => t('peer.peer_network.sboy'),
         };
-        $text = sprintf("📨 Агент «%s», задача #%d (%s), %s:\n\n%s", $out->peer, $out->id, $out->remoteId, $label, $answer === '' ? '(без текста)' : $answer);
+        $text = sprintf(t('peer.peer_network.agent_zadacha'), $out->peer, $out->id, $out->remoteId, $label, $answer === '' ? t('peer.peer_network.bez_teksta') : $answer);
         if ($out->channel !== A2aServer::CHANNEL) {
             // A task given from a task of a neighbour has no chat: its result stays in that conversation.
             $this->channel->send(new OutgoingMessage($out->chatId, SecretMasker::mask(mb_substr($text, 0, 3800))));
         }
         // The next turn of the conversation sees the reply as data, not instructions.
         $conversation = $this->conversations->openConversation($out->principalId, $out->channel, $out->chatId);
-        $this->transcript->appendUser($conversation, null, UntrustedWrapper::wrap('agent:' . $out->peer, sprintf('Итог задачи #%d соседу «%s» (%s): %s', $out->id, $out->peer, $label, $answer)));
+        $this->transcript->appendUser($conversation, null, UntrustedWrapper::wrap('agent:' . $out->peer, sprintf(t('peer.peer_network.itog_zadachi_sosedu'), $out->id, $out->peer, $label, $answer)));
     }
 
     public function text(): string {
-        $lines = ['Мой ключ: ' . $this->identity->fingerprint(), '', 'Соседи (я подключаюсь к ним):'];
+        $lines = [t('peer.peer_network.moy_klyuch') . $this->identity->fingerprint(), '', t('peer.peer_network.sosedi_ya_podklyuchayus_k_nim')];
         foreach ($this->peers->peers() as $peer) {
-            $lines[] = sprintf('• %s — %s, ключ %s (токен входа в секрете %s)', $peer->name, $peer->url, AgentIdentity::fingerprintOf($peer->publicKey) ?? '?', $peer->secret);
+            $lines[] = sprintf(t('peer.peer_network.klyuch_token_vhoda_v_sekrete'), $peer->name, $peer->url, AgentIdentity::fingerprintOf($peer->publicKey) ?? '?', $peer->secret);
         }
         if (count($lines) === 3) {
-            $lines[] = '• нет — /peer add <имя> <https://адрес> <секрет с токеном входа соседа>';
+            $lines[] = t('peer.peer_network.net_peer_add_imya_https');
         }
         $lines[] = '';
-        $lines[] = 'Агенты, которых я пускаю (по ключу):';
+        $lines[] = t('peer.peer_network.agenty_kotoryh_ya_puskayu_po');
         $keys = $this->peers->keys();
         foreach ($keys as $k) {
-            $lines[] = sprintf('• %s — %s%s', $k['name'], $k['fingerprint'], $k['revoked'] ? ' — отозван' : '');
+            $lines[] = sprintf('• %s — %s%s', $k['name'], $k['fingerprint'], $k['revoked'] ? t('peer.peer_network.otozvan') : '');
         }
         if ($keys === []) {
-            $lines[] = '• нет — /peer allow <имя> <отпечаток> [user|admin]';
+            $lines[] = t('peer.peer_network.net_peer_allow_imya_otpechatok');
         }
         return implode("\n", $lines);
     }

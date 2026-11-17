@@ -13,6 +13,8 @@ use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
 use SensitiveParameter;
 
+use function Mercurius\I18n\t;
+
 /**
  * Commands for secrets, servers and the journal. A secret comes only by command, never through the model; the message
  * that carried it is deleted by the caller.
@@ -33,11 +35,11 @@ final class ServerCommands {
         $argument = trim($argument);
         if (str_starts_with($argument, '- ')) {
             $name = trim(substr($argument, 2));
-            return $this->vault->remove($name, $principal) ? sprintf('Секрет «%s» удалён.', $name) : sprintf('Секрета «%s» нет или он не ваш.', $name);
+            return $this->vault->remove($name, $principal) ? sprintf(t('service.server_commands.sekret_udalen'), $name) : sprintf(t('service.server_commands.sekreta_net_ili_on_ne'), $name);
         }
         $parts = preg_split('~\s+~', $argument, 2) ?: [];
         if (count($parts) < 2 || $parts[1] === '') {
-            return 'Формат: /secret <имя> <значение>. Сообщение с секретом я удалю из чата.';
+            return t('service.server_commands.format_secret_imya_znachenie_soobschenie');
         }
         [$name, $value] = $parts;
         $kind = str_starts_with($value, '-----BEGIN') ? 'private_key' : 'password';
@@ -46,7 +48,7 @@ final class ServerCommands {
         } catch (DomainException $e) {
             return $e->getMessage();
         }
-        return sprintf('Секрет «%s» сохранён (%s). Сообщение с ним удаляю из чата.', $name, $kind === 'private_key' ? 'закрытый ключ' : 'пароль');
+        return sprintf(t('service.server_commands.sekret_sohranen_soobschenie_s_nim'), $name, $kind === 'private_key' ? t('service.server_commands.zakrytyy_klyuch') : t('service.server_commands.parol'));
     }
 
     /**
@@ -64,34 +66,34 @@ final class ServerCommands {
 
     public function secrets(Principal $principal): string {
         if (!$this->vault->enabled()) {
-            return 'Хранилище секретов выключено: в .env нет SECRETS_KEY.';
+            return t('service.server_commands.hranilische_sekretov_vyklyucheno_v_env');
         }
         $names = $this->vault->names($principal);
-        return $names === [] ? 'Секретов нет. /secret <имя> <значение> — сохранить.' : "Секреты (только имена):\n" . implode("\n", array_map(static fn(array $s): string => sprintf('%s — %s', $s['name'], $s['kind']), $names));
+        return $names === [] ? t('service.server_commands.sekretov_net_secret_imya_znachenie') : t('service.server_commands.sekrety_tolko_imena') . implode("\n", array_map(static fn(array $s): string => sprintf('%s — %s', $s['name'], $s['kind']), $names));
     }
 
     public function servers(): string {
         $all = $this->servers->all();
         if ($all === []) {
-            return 'Серверов в реестре нет. Попросите меня добавить сервер (server_add), секрет для входа — /secret.';
+            return t('service.server_commands.serverov_v_reestre_net_poprosite');
         }
-        return "Серверы:\n" . implode("\n", array_map(static fn(Server $s): string => sprintf(
+        return t('service.server_commands.servery') . implode("\n", array_map(static fn(Server $s): string => sprintf(
             '%s — %s@%s (%s)%s',
             $s->name,
             $s->username,
             $s->address(),
             $s->group,
-            $s->hostKey === null ? ', ключ хоста не подтверждён' : '',
+            $s->hostKey === null ? t('service.server_commands.klyuch_hosta_ne_podtverzhden') : '',
         ), $all));
     }
 
     public function audit(): string {
         $broken = $this->audit->verify();
         $lines = array_map(
-            static fn(array $r): string => sprintf('#%d %s %s [%s, %s%s] %s', $r['id'], $r['at'], $r['server'], $r['class'], $r['event'], $r['exit'] === null ? '' : ', код ' . $r['exit'], mb_substr(SecretMasker::mask($r['command']), 0, 200)),
+            static fn(array $r): string => sprintf('#%d %s %s [%s, %s%s] %s', $r['id'], $r['at'], $r['server'], $r['class'], $r['event'], $r['exit'] === null ? '' : t('service.server_commands.kod') . $r['exit'], mb_substr(SecretMasker::mask($r['command']), 0, 200)),
             $this->audit->recent(self::AUDIT),
         );
-        $chain = $broken === null ? 'Цепочка журнала цела.' : sprintf('⚠ Цепочка журнала нарушена на записи #%d.', $broken);
-        return $lines === [] ? "Журнал команд пуст.\n" . $chain : "Последние команды:\n" . implode("\n", $lines) . "\n\n" . $chain;
+        $chain = $broken === null ? t('service.server_commands.tsepochka_zhurnala_tsela') : sprintf(t('service.server_commands.tsepochka_zhurnala_narushena_na_zapisi'), $broken);
+        return $lines === [] ? t('service.server_commands.zhurnal_komand_pust') . $chain : t('service.server_commands.poslednie_komandy') . implode("\n", $lines) . "\n\n" . $chain;
     }
 }

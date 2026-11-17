@@ -11,6 +11,8 @@ use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Registers a provider's key in the owner's OpenRouter account (bring your own key), for example a key someone sent.
  * The key and the management key come from the vault; the call changes the account, so it waits for the owner.
@@ -29,9 +31,9 @@ final class OpenRouterByokTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Регистрирует ключ провайдера (openai, anthropic…) в аккаунте OpenRouter владельца (BYOK); ждёт '
-            . 'подтверждения владельца. key_secret — имя секрета с ключом провайдера; ключ управления OpenRouter — в секрете '
-            . '«' . self::MANAGEMENT_SECRET . '». Модели самого агента этим не переключаются.', [
+        return new ToolDefinition(self::NAME, t('tool.open_router_byok.registriruet_klyuch_provaydera_openai_an')
+            . t('tool.open_router_byok.podtverzhdeniya_vladeltsa_key_secret_imy')
+            . '«' . self::MANAGEMENT_SECRET . t('tool.open_router_byok.modeli_samogo_agenta_etim_ne'), [
             'type' => 'object',
             'properties' => [
                 'provider' => ['type' => 'string', 'pattern' => '^[a-z0-9-]{2,40}$'],
@@ -58,11 +60,11 @@ final class OpenRouterByokTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $management = $this->vault->reveal(self::MANAGEMENT_SECRET, $context->principal);
         if ($management === null) {
-            return ToolResult::error(sprintf('Нет секрета «%s» с ключом управления OpenRouter: владелец кладёт его командой /secret.', self::MANAGEMENT_SECRET));
+            return ToolResult::error(sprintf(t('tool.open_router_byok.net_sekreta_s_klyuchom_upravleniya'), self::MANAGEMENT_SECRET));
         }
         $key = $this->vault->reveal(Args::string($args, 'key_secret') ?? '', $context->principal);
         if ($key === null) {
-            return ToolResult::error('Секрет с ключом провайдера недоступен.');
+            return ToolResult::error(t('tool.open_router_byok.sekret_s_klyuchom_provaydera_nedostupen'));
         }
         $body = ['provider' => Args::string($args, 'provider') ?? '', 'key' => trim($key)];
         $name = Args::string($args, 'name');
@@ -76,15 +78,15 @@ final class OpenRouterByokTool implements Tool {
             $response = $this->http->request($request, $context->cancellation);
             $text = $response->getBody()->buffer($context->cancellation);
         } catch (Throwable $e) {
-            return ToolResult::error('OpenRouter не ответил: ' . (new \ReflectionClass($e))->getShortName());
+            return ToolResult::error(t('tool.open_router_byok.openrouter_ne_otvetil') . (new \ReflectionClass($e))->getShortName());
         }
         /** @var mixed $data */
         $data = json_decode($text, true, 8);
         if ($response->getStatus() !== 201 && $response->getStatus() !== 200) {
-            return ToolResult::error('OpenRouter отказал: ' . SecretMasker::mask(self::field($data, 'error', 'message') ?? 'HTTP ' . $response->getStatus()));
+            return ToolResult::error(t('tool.open_router_byok.openrouter_otkazal') . SecretMasker::mask(self::field($data, 'error', 'message') ?? 'HTTP ' . $response->getStatus()));
         }
         return ToolResult::ok(sprintf(
-            'Ключ %s зарегистрирован в OpenRouter: id %s, метка %s.',
+            t('tool.open_router_byok.klyuch_zaregistrirovan_v_openrouter_id'),
             $body['provider'],
             self::field($data, 'data', 'id') ?? '?',
             self::field($data, 'data', 'label') ?? '?',

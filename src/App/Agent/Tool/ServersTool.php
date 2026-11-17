@@ -9,6 +9,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
 
+use function Mercurius\I18n\t;
+
 /**
  * The registry of servers: names, addresses, logins and whether the host key is trusted; never a secret.
  *
@@ -20,7 +22,7 @@ final class ServersTool implements Tool {
     public function __construct(private readonly ServerRepository $servers) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Список серверов из реестра: имя, адрес, пользователь, группа, подтверждён ли ключ хоста.');
+        return new ToolDefinition(self::NAME, t('tool.servers.spisok_serverov_iz_reestra_imya'));
     }
 
     public function danger(array $args): DangerClass {
@@ -38,17 +40,17 @@ final class ServersTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $all = $this->servers->all();
         if ($all === []) {
-            return ToolResult::ok('Серверов в реестре нет. Добавить — server_add (с подтверждением владельца).');
+            return ToolResult::ok(t('tool.servers.serverov_v_reestre_net_dobavit'));
         }
         return ToolResult::ok(implode("\n", array_map(static fn(Server $s): string => sprintf(
-            '%s — %s@%s, группа %s, маршрут %s, ключ хоста: %s%s',
+            t('tool.servers.line'),
             $s->name,
             $s->username,
             $s->address(),
             $s->group,
-            $s->route ?? 'напрямую',
-            $s->hostKey === null ? ($s->pendingHostKey === null ? 'ещё не видели' : 'ждёт подтверждения владельца') : 'подтверждён',
-            $s->secretId === null ? ', секрета для входа нет' : '',
+            $s->route ?? t('tool.servers.napryamuyu'),
+            $s->hostKey === null ? ($s->pendingHostKey === null ? t('tool.servers.esche_ne_videli') : t('tool.servers.zhdet_podtverzhdeniya_vladeltsa')) : t('tool.servers.podtverzhden'),
+            $s->secretId === null ? t('tool.servers.sekreta_dlya_vhoda_net') : '',
         ), $all)));
     }
 }

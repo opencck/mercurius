@@ -14,6 +14,8 @@ use Psr\Log\NullLogger;
 use SensitiveParameter;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * The executor's HTTP API. POST /v1/<operation> with a JSON body and a bearer token; GET /health without one.
  * Refusals keep their text for the model; anything unexpected becomes a generic error, the class goes to the log.
@@ -42,13 +44,13 @@ final class ExecutorServer implements RequestHandler {
         // Participants' commands share this network namespace and connect over loopback; the core never does.
         $peer = $request->getClient()->getRemoteAddress()->toString();
         if (str_starts_with($peer, '127.') || str_starts_with($peer, '[::1]')) {
-            return self::json(HttpStatus::FORBIDDEN, ['ok' => false, 'error' => 'Нет доступа.']);
+            return self::json(HttpStatus::FORBIDDEN, ['ok' => false, 'error' => t('sandbox.executor_server.net_dostupa')]);
         }
         if ($request->getMethod() !== 'POST' || !str_starts_with($path, '/v1/')) {
-            return self::json(HttpStatus::NOT_FOUND, ['ok' => false, 'error' => 'Нет такой операции.']);
+            return self::json(HttpStatus::NOT_FOUND, ['ok' => false, 'error' => t('sandbox.executor_server.net_takoy_operatsii')]);
         }
         if (!hash_equals('Bearer ' . $this->token, $request->getHeader('authorization') ?? '')) {
-            return self::json(HttpStatus::UNAUTHORIZED, ['ok' => false, 'error' => 'Нет доступа.']);
+            return self::json(HttpStatus::UNAUTHORIZED, ['ok' => false, 'error' => t('sandbox.executor_server.net_dostupa')]);
         }
 
         try {
@@ -59,7 +61,7 @@ final class ExecutorServer implements RequestHandler {
             return self::json($e->status, ['ok' => false, 'error' => $e->getMessage()]);
         } catch (Throwable $e) {
             $this->logger->error('Executor failed', ['error' => $e::class]);
-            return self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => 'Внутренняя ошибка песочницы.']);
+            return self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => t('sandbox.executor_server.vnutrennyaya_oshibka_pesochnitsy')]);
         }
     }
 
@@ -78,7 +80,7 @@ final class ExecutorServer implements RequestHandler {
             'list' => ['entries' => $this->files->list($id, $limits, $request->string('path', '.'), $request->int('depth', 1, 1, 3))],
             'usage' => ['bytes' => $this->files->usage($id)],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
-            default => throw new SandboxError('Нет такой операции.', 404),
+            default => throw new SandboxError(t('sandbox.executor_server.net_takoy_operatsii'), 404),
         };
     }
 

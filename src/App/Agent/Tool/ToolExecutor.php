@@ -13,6 +13,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Runs one validated call. A tool error, an exception or a timeout is always a result for the model;
  * only cancellation of the run itself (/stop, shutdown) propagates.
@@ -35,7 +37,7 @@ final class ToolExecutor {
     /** @param positive-int $timeoutSeconds */
     public function run(ValidatedCall $call, ToolContext $context, int $timeoutSeconds): ToolResult {
         if ($call->error !== null || $call->tool === null || $call->args === null) {
-            return ToolResult::error($call->error ?? 'Вызов не прошёл проверку.');
+            return ToolResult::error($call->error ?? t('tool.tool_executor.vyzov_ne_proshel_proverku'));
         }
         $tool = $call->tool;
         $name = $call->call->name;
@@ -48,11 +50,11 @@ final class ToolExecutor {
                 throw $e;
             }
             $this->logger->warning('Tool timed out', ['tool' => $name, 'timeout' => $timeoutSeconds]);
-            return ToolResult::error(sprintf('Инструмент %s не уложился в %d с.', $name, $timeoutSeconds));
+            return ToolResult::error(sprintf(t('tool.tool_executor.instrument_ne_ulozhilsya_v_s'), $name, $timeoutSeconds));
         } catch (Throwable $e) {
             // The message may carry secrets or internals: the model and the log get the class only.
             $this->logger->error('Tool failed', ['tool' => $name, 'error' => $e::class]);
-            return ToolResult::error(sprintf('Инструмент %s завершился с ошибкой (%s).', $name, (new \ReflectionClass($e))->getShortName()));
+            return ToolResult::error(sprintf(t('tool.tool_executor.instrument_zavershilsya_s_oshibkoy'), $name, (new \ReflectionClass($e))->getShortName()));
         }
 
         // PostgreSQL text cannot hold NUL, and a fetched body may contain it.
@@ -89,7 +91,7 @@ final class ToolExecutor {
             return null;
         }
         return mb_substr($content, 0, $this->previewChars)
-            . sprintf("\n…\n[Полный результат (%d символов) сохранён: %s. Читай его через read_file.]", $length, $path);
+            . sprintf(t('tool.tool_executor.polnyy_rezultat_simvolov_sohranen_chitay'), $length, $path);
     }
 
     private function truncate(string $content): string {
@@ -98,6 +100,6 @@ final class ToolExecutor {
             return $content;
         }
         return mb_substr($content, 0, $this->maxResultChars)
-            . sprintf("\n… [обрезано: показано %d из %d символов]", $this->maxResultChars, $length);
+            . sprintf(t('tool.tool_executor.obrezano_pokazano_iz_simvolov'), $this->maxResultChars, $length);
     }
 }

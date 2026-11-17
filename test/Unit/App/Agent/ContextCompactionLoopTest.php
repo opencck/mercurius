@@ -125,7 +125,7 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         $last = self::lastMain($llm);
         self::assertPairsIntact($last);
         $texts = self::text($last);
-        self::assertStringContainsString(SummaryPrompt::HEADER, $texts);
+        self::assertStringContainsString(\Mercurius\I18n\t(SummaryPrompt::HEADER), $texts);
         self::assertStringContainsString('исходная задача', $texts);
         self::assertStringNotContainsString('думаю думаю', $texts);
         self::assertSame(Role::User, $last->messages[1]->role);
@@ -146,7 +146,7 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         $this->execute($loop, 'новый вопрос');
 
         $request = self::lastMain($llm);
-        self::assertStringStartsWith(SummaryPrompt::HEADER, $request->messages[1]->content);
+        self::assertStringStartsWith(\Mercurius\I18n\t(SummaryPrompt::HEADER), $request->messages[1]->content);
         $messages = $request->messages;
         $lastMessage = end($messages);
         self::assertInstanceOf(Message::class, $lastMessage);

@@ -11,6 +11,8 @@ use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Projects of the owner: the list, or one project with its card, open tasks and the caller's relation to it.
  *
@@ -27,8 +29,8 @@ final class ProjectTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Проекты владельца. Без name — список проектов (отмечен проект этого чата); с name — карточка '
-            . 'проекта, его открытые задачи и отношение собеседника к проекту.', [
+        return new ToolDefinition(self::NAME, t('tool.project.proekty_vladeltsa_bez_name_spisok')
+            . t('tool.project.proekta_ego_otkrytye_zadachi_i'), [
             'type' => 'object',
             'properties' => [
                 'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => Project::NAME_MAX],
@@ -59,33 +61,33 @@ final class ProjectTool implements Tool {
         if ($name === null) {
             $all = $this->projects->all(self::LIST, Project::scopeOf($context->principal));
             if ($all === []) {
-                return ToolResult::ok('Проектов пока нет.');
+                return ToolResult::ok(t('tool.project.proektov_poka_net'));
             }
             return ToolResult::ok(implode("\n", array_map(
                 fn(Project $p): string => sprintf(
-                    '%s — %s%s; открытых задач: %d%s',
+                    t('tool.project.line'),
                     $p->name,
                     ProjectContext::status($p->status),
-                    $p->goal === '' ? '' : '; цель: ' . mb_substr($p->goal, 0, 120),
+                    $p->goal === '' ? '' : t('tool.project.tsel') . mb_substr($p->goal, 0, 120),
                     count($this->projects->openTasks($p->id, 100)),
-                    $active?->id === $p->id ? ' (проект этого чата)' : '',
+                    $active?->id === $p->id ? t('tool.project.proekt_etogo_chata') : '',
                 ),
                 $all,
             )));
         }
         $project = $this->projects->byName($name, Project::scopeOf($context->principal));
         if ($project === null) {
-            return ToolResult::error(sprintf('Проекта «%s» нет.', $name));
+            return ToolResult::error(sprintf(t('tool.project.proekta_net'), $name));
         }
         $parts = [sprintf('%s — %s', $project->name, ProjectContext::status($project->status))];
-        $parts[] = 'Цель: ' . ($project->goal === '' ? '(не задана)' : $project->goal);
-        $parts[] = "Карточка:\n" . ($project->card === '' ? '(пусто)' : $project->card);
+        $parts[] = t('tool.project.tsel_2') . ($project->goal === '' ? t('tool.project.ne_zadana') : $project->goal);
+        $parts[] = t('tool.project.kartochka') . ($project->card === '' ? t('tool.project.pusto') : $project->card);
         $relation = $this->projects->relation($project->id, $context->principal->id);
         if ($relation !== null) {
-            $parts[] = "Отношение собеседника:\n" . $relation;
+            $parts[] = t('tool.project.otnoshenie_sobesednika') . $relation;
         }
         $tasks = $this->projects->openTasks($project->id, self::TASKS);
-        $parts[] = "Открытые задачи:\n" . ($tasks === [] ? '(нет)' : implode("\n", array_map(ProjectContext::task(...), $tasks)));
+        $parts[] = t('tool.project.otkrytye_zadachi') . ($tasks === [] ? t('tool.project.net') : implode("\n", array_map(ProjectContext::task(...), $tasks)));
         return ToolResult::ok(SecretMasker::mask(implode("\n\n", $parts)));
     }
 }

@@ -10,6 +10,8 @@ use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;
 
+use function Mercurius\I18n\t;
+
 /**
  * Changes which model plays a role. A write without approval; the reason is required and stays in the table.
  * Who may call it is the participant's tool policy: the owner always, others when the owner allowed it.
@@ -22,10 +24,10 @@ final class SetModelRoleTool implements Tool {
     public function __construct(private readonly ModelRoles $roles) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Назначает модель роли: cheap — вспомогательные вызовы, main — обычные задачи, '
-            . 'strong — сложные, media — изображения и звук. Модель — «провайдер:идентификатор» или идентификатор OpenRouter; '
-            . 'она должна быть в каталоге. Причина обязательна. fix — закрепить (только владелец): больше никто не изменит. '
-            . 'Новая модель действует для диалогов, открытых после изменения. Возвращает таблицу ролей.', [
+        return new ToolDefinition(self::NAME, t('tool.set_model_role.naznachaet_model_roli_cheap_vspomogateln')
+            . t('tool.set_model_role.strong_slozhnye_media_izobrazheniya_i')
+            . t('tool.set_model_role.ona_dolzhna_byt_v_kataloge')
+            . t('tool.set_model_role.novaya_model_deystvuet_dlya_dialogov'), [
             'type' => 'object',
             'properties' => [
                 'role' => ['type' => 'string', 'enum' => ModelRole::ALL],
@@ -73,6 +75,6 @@ final class SetModelRoleTool implements Tool {
         foreach ($this->roles->all() as $role) {
             $lines[] = sprintf('%s: %s (%s; %s)', $role->role, $role->model, $role->setBy, $role->reason);
         }
-        return ToolResult::ok("Роли моделей:\n" . implode("\n", $lines));
+        return ToolResult::ok(t('tool.set_model_role.roli_modeley') . implode("\n", $lines));
     }
 }

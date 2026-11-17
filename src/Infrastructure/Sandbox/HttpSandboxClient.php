@@ -21,6 +21,8 @@ use SensitiveParameter;
 
 use function Amp\ByteStream\buffer;
 
+use function Mercurius\I18n\t;
+
 /**
  * Talks to the sandbox executor over the sandbox network with a bearer token. Cancelling an exec also asks the
  * executor to kill the command.
@@ -114,24 +116,24 @@ final class HttpSandboxClient implements Sandbox {
             if ($cancellation->isRequested()) {
                 throw $e;
             }
-            throw new SandboxFailure('Песочница не ответила вовремя.');
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_ne_otvetila_vovremya'));
         } catch (HttpException) {
-            throw new SandboxFailure('Песочница недоступна.');
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_nedostupna'));
         }
 
         try {
             /** @var mixed $decoded */
             $decoded = json_decode($text, true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw new SandboxFailure('Песочница вернула непонятный ответ.');
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_vernula_neponyatnyy_otvet'));
         }
         if (!is_array($decoded)) {
-            throw new SandboxFailure('Песочница вернула непонятный ответ.');
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_vernula_neponyatnyy_otvet'));
         }
         $body = array_combine(array_map('strval', array_keys($decoded)), array_values($decoded));
         if (($body['ok'] ?? false) !== true) {
             $error = self::string($body, 'error');
-            throw new SandboxFailure($error !== '' ? $error : 'Песочница отказала.');
+            throw new SandboxFailure($error !== '' ? $error : t('sandbox.http_sandbox_client.pesochnitsa_otkazala'));
         }
         return $body;
     }

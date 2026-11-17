@@ -26,6 +26,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Revolt\EventLoop;
 
+use function Mercurius\I18n\t;
+
 /**
  * Approvals in the owner's private chat (presses "ap:<id>:a|g|d") and the list of saved grants (/permissions,
  * presses "pg:<id>:x" revoke one).
@@ -82,23 +84,23 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $inFile = mb_strlen($shown) > self::CARD_LIMIT;
         // ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L2744-L2763 (send_exec_approval) — an action
         //      the owner could not read in full can only be refused
-        $unreadable = $inFile && !$this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, 'Действие целиком')->success;
+        $unreadable = $inFile && !$this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, t('agent.approval_service.deystvie_tselikom'))->success;
         $text = sprintf(
-            "Подтвердите действие\n\n%s\nИнструмент: %s\nАргументы:\n%s\n\nПросит: %s\nЖду до %s UTC; молчание — отказ.",
+            t('agent.approval_service.podtverdite_deystvie_instrument_argument'),
             $label,
             $call->call->name,
-            $unreadable ? '(показать целиком не удалось — подтвердить нельзя, только отказать)' : ($inFile ? '(целиком — в файле выше)' : $shown),
-            $principal->displayName ?? ('участник ' . $principal->id),
+            $unreadable ? t('agent.approval_service.pokazat_tselikom_ne_udalos_podtverdit') : ($inFile ? t('agent.approval_service.tselikom_v_fayle_vyshe') : $shown),
+            $principal->displayName ?? (t('agent.approval_service.uchastnik') . $principal->id),
             (new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)))->setTimezone(new \DateTimeZone('UTC'))->format('H:i'),
         );
         $row = [];
         if (!$unreadable) {
-            $row[] = new Button('Разрешить', sprintf('ap:%d:a', $approval->id));
+            $row[] = new Button(t('agent.approval_service.razreshit'), sprintf('ap:%d:a', $approval->id));
             if ($key !== null) {
-                $row[] = new Button('Разрешать всегда', sprintf('ap:%d:g', $approval->id));
+                $row[] = new Button(t('agent.approval_service.razreshat_vsegda'), sprintf('ap:%d:g', $approval->id));
             }
         }
-        $row[] = new Button('Отказать', sprintf('ap:%d:d', $approval->id));
+        $row[] = new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id));
         $card = new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]);
         $sent = $this->channel->send($card);
         // The run streams into the same chat: a short flood is waited out before the action is refused.
@@ -112,9 +114,9 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             // ref: references/hermes-agent/tools/approval.py@e96221fa:L950 — a card nobody can see is a refusal now,
             //      not a wait for the timeout
             $this->logger->warning('Approval card was not delivered; refused', ['approval' => $approval->id, 'run' => $run->id]);
-            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, 'Карточка подтверждения не дошла до владельца.', null);
+            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, t('agent.approval_service.kartochka_podtverzhdeniya_ne_doshla_do'), null);
             if ($decided !== null) {
-                $this->closeCard($decided, 'Карточка не дошла — отказ.');
+                $this->closeCard($decided, t('agent.approval_service.kartochka_ne_doshla_otkaz'));
                 // The run is still pausing in this fiber: it continues once the pause is saved.
                 EventLoop::defer(fn() => $this->continue($decided));
             }
@@ -132,18 +134,18 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $lines = [];
         $rows = [];
         foreach ($grants as $grant) {
-            $name = $this->principals->find($grant->principalId)->displayName ?? ('участник ' . $grant->principalId);
+            $name = $this->principals->find($grant->principalId)->displayName ?? (t('agent.approval_service.uchastnik') . $grant->principalId);
             $lines[] = sprintf('%d. %s — %s', $grant->id, $grant->key, $name);
-            $rows[] = [new Button(sprintf('Отозвать %d', $grant->id), sprintf('pg:%d:x', $grant->id))];
+            $rows[] = [new Button(sprintf(t('agent.approval_service.otozvat'), $grant->id), sprintf('pg:%d:x', $grant->id))];
         }
-        $this->channel->send(new OutgoingMessage($chatId, "Сохранённые разрешения\n\n" . implode("\n", $lines), $replyTo, buttons: $rows));
+        $this->channel->send(new OutgoingMessage($chatId, t('agent.approval_service.sohranennye_razresheniya') . implode("\n", $lines), $replyTo, buttons: $rows));
         return true;
     }
 
     public function handleCallback(IncomingCallback $callback): void {
         if (preg_match('/^pg:(\d+):x$/', $callback->data, $grant) === 1) {
             $revoked = $this->approvals->revokeGrant((int) $grant[1]);
-            $this->channel->answerCallback($callback->callbackId, $revoked === null ? 'Уже отозвано.' : 'Отозвано.');
+            $this->channel->answerCallback($callback->callbackId, $revoked === null ? t('agent.approval_service.uzhe_otozvano') : t('agent.approval_service.otozvano'));
             if ($revoked !== null) {
                 $this->logger->info('Grant revoked', ['grant' => $revoked->id, 'key' => $revoked->key]);
             }
@@ -158,25 +160,25 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $decided = $approval === null ? null : $this->approvals->decide(
             $id,
             $match[2] === 'd' ? ApprovalStatus::Denied : ApprovalStatus::Approved,
-            $match[2] === 'd' ? 'Отказано владельцем.' : null,
+            $match[2] === 'd' ? t('agent.approval_service.otkazano_vladeltsem') : null,
             $this->principals->findByIdentity($callback->channel, $callback->userId)?->id,
         );
         if ($decided === null) {
-            $this->channel->answerCallback($callback->callbackId, 'Уже решено.');
+            $this->channel->answerCallback($callback->callbackId, t('agent.approval_service.uzhe_resheno'));
             return;
         }
         if ($match[2] === 'g' && $decided->grantKey !== null) {
             $this->approvals->addGrant($decided->principalId, $decided->grantKey);
         }
         $this->channel->answerCallback($callback->callbackId, match ($match[2]) {
-            'a' => 'Разрешено.',
-            'g' => 'Разрешено и запомнено.',
-            default => 'Отказано.',
+            'a' => t('agent.approval_service.razresheno'),
+            'g' => t('agent.approval_service.razresheno_i_zapomneno'),
+            default => t('agent.approval_service.otkazano'),
         });
         $this->closeCard($decided, match ($match[2]) {
-            'a' => 'Разрешено владельцем.',
-            'g' => sprintf('Разрешено владельцем и запомнено: %s.', $decided->grantKey ?? 'без ключа'),
-            default => 'Отказано владельцем.',
+            'a' => t('agent.approval_service.razresheno_vladeltsem'),
+            'g' => sprintf(t('agent.approval_service.razresheno_vladeltsem_i_zapomneno'), $decided->grantKey ?? t('agent.approval_service.bez_klyucha')),
+            default => t('agent.approval_service.otkazano_vladeltsem'),
         });
         $this->continue($decided);
     }
@@ -205,7 +207,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         foreach ($this->approvals->due(new DateTimeImmutable()) as $approval) {
             $decided = $this->approvals->decide($approval->id, ApprovalStatus::Expired, null, null);
             if ($decided !== null) {
-                $this->closeCard($decided, 'Время вышло — молчание не согласие.');
+                $this->closeCard($decided, t('agent.approval_service.vremya_vyshlo_molchanie_ne_soglasie'));
                 $this->continue($decided);
             }
         }
@@ -219,7 +221,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $this->channel->edit(
             $approval->cardChatId,
             $approval->cardMessageId,
-            sprintf("Действие\n\n%s\n\n%s", $approval->summary, $outcome),
+            sprintf(t('agent.approval_service.deystvie'), $approval->summary, $outcome),
         );
     }
 

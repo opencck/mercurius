@@ -10,6 +10,8 @@ use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Repository\McpServerRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner connects MCP servers from the chat: the list, adding, approving (turning on), turning off, removing.
  *
@@ -30,11 +32,11 @@ final class McpCommands {
                 '' => $this->list(),
                 'add' => $this->add($name, $parts[2] ?? '', $parts[3] ?? null),
                 'on' => $this->manager->approve($name, new TimeoutCancellation(60)),
-                'off' => $this->manager->disable($name) ? sprintf('MCP-сервер «%s» выключен.', $name) : sprintf('MCP-сервера «%s» нет.', $name),
-                'remove' => $this->manager->remove($name) ? sprintf('MCP-сервер «%s» удалён.', $name) : sprintf('MCP-сервера «%s» нет.', $name),
+                'off' => $this->manager->disable($name) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
+                'remove' => $this->manager->remove($name) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
                 'tools' => $this->tools($name, $parts[2] ?? '', $parts[3] ?? ''),
-                default => '/mcp — список; /mcp add <имя> <url> [секрет с токеном]; /mcp on <имя> — одобрить; /mcp off <имя>; /mcp remove <имя>; '
-                    . '/mcp tools <имя> include|exclude <имена или маски через запятую> | all — какие инструменты подключать',
+                default => t('service.mcp_commands.mcp_spisok_mcp_add_imya')
+                    . t('service.mcp_commands.mcp_tools_imya_include_exclude'),
             };
         } catch (DomainException $e) {
             return $e->getMessage();
@@ -50,38 +52,38 @@ final class McpCommands {
             default => null,
         };
         if ($server === null) {
-            return '/mcp tools <имя> include <имена или маски через запятую> — только они; exclude <…> — все, кроме них; all — все';
+            return t('service.mcp_commands.mcp_tools_imya_include_imena');
         }
-        return sprintf('Инструменты MCP-сервера «%s»: %s.', $server->name, self::filterText($server));
+        return sprintf(t('service.mcp_commands.instrumenty_mcp_servera'), $server->name, self::filterText($server));
     }
 
     private static function filterText(McpServer $server): string {
         return match (true) {
-            $server->include === '' => 'ни одного',
-            $server->include !== null => 'только ' . $server->include,
-            $server->exclude !== '' => 'все, кроме: ' . $server->exclude,
-            default => 'все',
+            $server->include === '' => t('service.mcp_commands.ni_odnogo'),
+            $server->include !== null => t('service.mcp_commands.tolko') . $server->include,
+            $server->exclude !== '' => t('service.mcp_commands.vse_krome') . $server->exclude,
+            default => t('service.mcp_commands.vse'),
         };
     }
 
     private function add(string $name, string $url, ?string $secret): string {
         $server = $this->manager->add($name, $url, $secret);
-        return sprintf('MCP-сервер «%s» добавлен и ждёт одобрения: /mcp on %s — подключить его инструменты.', $server->name, $server->name);
+        return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $server->name, $server->name);
     }
 
     private function list(): string {
         $all = $this->servers->all();
         if ($all === []) {
-            return 'MCP-серверов нет. /mcp add <имя> <url> [секрет с токеном]';
+            return t('service.mcp_commands.mcp_serverov_net_mcp_add');
         }
-        return "MCP-серверы:\n" . implode("\n", array_map(fn(McpServer $s): string => sprintf(
+        return t('service.mcp_commands.mcp_servery') . implode("\n", array_map(fn(McpServer $s): string => sprintf(
             '%s — %s, %s%s%s',
             $s->name,
             $s->url,
             match ($s->status) {
-                McpServer::ACTIVE => 'включён',
-                McpServer::DISABLED => 'выключен',
-                default => 'ждёт одобрения',
+                McpServer::ACTIVE => t('service.mcp_commands.vklyuchen'),
+                McpServer::DISABLED => t('service.mcp_commands.vyklyuchen'),
+                default => t('service.mcp_commands.zhdet_odobreniya'),
             },
             $s->note === '' ? '' : ' (' . $s->note . ')',
             ($tools = $this->manager->tools($s->name)) === [] ? '' : ': ' . implode(', ', $tools),

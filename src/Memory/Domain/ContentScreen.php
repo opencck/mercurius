@@ -6,6 +6,8 @@ namespace OpenCCK\Memory\Domain;
 
 use Closure;
 
+use function Mercurius\I18n\t;
+
 /**
  * Why a text must not go into memory, or null. Memory comes back into every later conversation, so one poisoned
  * fact is a standing instruction: no commands to the assistant, no role markup, no secrets, nothing invisible.
@@ -41,36 +43,36 @@ final class ContentScreen {
     public function problem(string $text, int $max = self::FACT_MAX): ?string {
         $text = trim($text);
         if ($text === '') {
-            return 'пустой текст';
+            return t('domain.content_screen.pustoy_tekst');
         }
         if (mb_strlen($text) > $max) {
-            return sprintf('слишком длинно (%d символов, не больше %d): запиши вывод, а не исходные данные', mb_strlen($text), $max);
+            return sprintf(t('domain.content_screen.slishkom_dlinno_simvolov_ne_bolshe'), mb_strlen($text), $max);
         }
         if (str_starts_with($text, '{') || str_starts_with($text, '[')) {
             try {
                 json_decode($text, flags: JSON_THROW_ON_ERROR);
-                return 'похоже на JSON или вывод инструмента: запиши смысл предложением';
+                return t('domain.content_screen.pohozhe_na_json_ili_vyvod');
             } catch (\JsonException) {
             }
         }
         if (preg_match(self::ROLE_MARKUP, $text) === 1) {
-            return 'содержит разметку ролей или вызова инструмента';
+            return t('domain.content_screen.soderzhit_razmetku_roley_ili_vyzova');
         }
         $unquoted = preg_replace(self::QUOTED, ' ', $text) ?? $text;
         if (preg_match(self::INJECTION, $unquoted) === 1) {
-            return 'читается как указание ассистенту, а не как факт';
+            return t('domain.content_screen.chitaetsya_kak_ukazanie_assistentu_a');
         }
         if (($this->hasSecret)($text)) {
-            return 'похоже на секрет (пароль, ключ, токен): секреты в память не записываются';
+            return t('domain.content_screen.pohozhe_na_sekret_parol_klyuch');
         }
         if (self::hidden($text)) {
-            return 'содержит невидимые символы форматирования';
+            return t('domain.content_screen.soderzhit_nevidimye_simvoly_formatirovan');
         }
         if (preg_match(self::IMAGE, $text) === 1) {
-            return 'содержит изображение: клиент, который его покажет, сам обратится по адресу';
+            return t('domain.content_screen.soderzhit_izobrazhenie_klient_kotoryy_eg');
         }
         if (preg_match(self::BLOB, $text) === 1) {
-            return 'содержит длинную закодированную строку';
+            return t('domain.content_screen.soderzhit_dlinnuyu_zakodirovannuyu_strok');
         }
         return null;
     }

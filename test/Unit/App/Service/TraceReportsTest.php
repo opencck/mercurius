@@ -100,7 +100,7 @@ final class TraceReportsTest extends AsyncTestCase {
     public function testUnknownTraceSaysSo(): void {
         $this->stack->say('/trace 999');
 
-        self::assertSame(TraceReports::NO_RUN, $this->lastText());
+        self::assertSame(\Mercurius\I18n\t(TraceReports::NO_RUN), $this->lastText());
     }
 
     public function testLongTraceGoesAsAFile(): void {

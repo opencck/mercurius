@@ -6,6 +6,8 @@ namespace OpenCCK\App\Mcp;
 
 use Closure;
 
+use function Mercurius\I18n\t;
+
 /**
  * A circuit breaker per MCP server: after three failures in a row the calls are refused for a minute with a message
  * that tells the model to stop retrying; then one call probes the server, success closes the breaker and failure
@@ -44,16 +46,16 @@ final class McpBreaker {
         $retry = max(1, (int) (self::COOLDOWN - $age));
         if ($this->rejected[$server] ?? false) {
             return sprintf(
-                'MCP-сервер «%s» отклонил %d последних вызова (он отвечает — смотри текст их ошибок). Пауза ~%d с. '
-                . 'Не повторяй тот же вызов: исправь аргументы или зайди с другой стороны.',
+                t('mcp.mcp_breaker.mcp_server_otklonil_poslednih_vyzova')
+                . t('mcp.mcp_breaker.ne_povtoryay_tot_zhe_vyzov'),
                 $server,
                 $failures,
                 $retry,
             );
         }
         return sprintf(
-            'MCP-сервер «%s» недоступен после %d неудач подряд. Повтор будет возможен через ~%d с. '
-            . 'Не вызывай его сейчас: обойдись без него или попроси владельца проверить сервер.',
+            t('mcp.mcp_breaker.mcp_server_nedostupen_posle_neudach')
+            . t('mcp.mcp_breaker.ne_vyzyvay_ego_seychas_oboydis'),
             $server,
             $failures,
             $retry,

@@ -8,6 +8,8 @@ use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 
+use function Mercurius\I18n\t;
+
 /**
  * When a job runs: once at a moment, every N minutes, or every day at a local time. The next run is computed from now,
  * never from the missed ones: a downtime catches up with one run, not with every one missed.
@@ -18,7 +20,7 @@ use InvalidArgumentException;
 final class Schedule {
     public const MIN_EVERY = 5;
     public const DAYS = ['mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6, 'sun' => 7];
-    private const DAY_NAMES = [1 => 'пн', 2 => 'вт', 3 => 'ср', 4 => 'чт', 5 => 'пт', 6 => 'сб', 7 => 'вс'];
+    private const DAY_NAMES = [1 => 'job.schedule.day_1', 2 => 'job.schedule.day_2', 3 => 'job.schedule.day_3', 4 => 'job.schedule.day_4', 5 => 'job.schedule.day_5', 6 => 'job.schedule.day_6', 7 => 'job.schedule.day_7'];
     /** runs on a webhook, never by time */
     public const EVENT = 'event';
 
@@ -36,7 +38,7 @@ final class Schedule {
             $kind === 'every' && ctype_digit($value) && (int) $value >= self::MIN_EVERY => new self('every', $value),
             $kind === 'daily' && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $value) === 1 => new self('daily', $value),
             $kind === 'weekly' && self::weekly($value) !== null => new self('weekly', $value),
-            default => throw new InvalidArgumentException(sprintf('Расписание — once:<время ISO>, every:<минут, не меньше %d>, daily:<ЧЧ:ММ>, weekly:<дни через запятую: mon…sun или weekdays>@<ЧЧ:ММ> или event.', self::MIN_EVERY)),
+            default => throw new InvalidArgumentException(sprintf(t('job.schedule.raspisanie_once_vremya_iso_every'), self::MIN_EVERY)),
         };
     }
 
@@ -76,11 +78,11 @@ final class Schedule {
 
     public function describe(): string {
         return match ($this->kind) {
-            'once' => 'однажды ' . $this->value,
-            'every' => sprintf('каждые %d мин', (int) $this->value),
-            self::EVENT => 'по событию (webhook)',
+            'once' => t('job.schedule.odnazhdy') . $this->value,
+            'every' => sprintf(t('job.schedule.kazhdye_min'), (int) $this->value),
+            self::EVENT => t('job.schedule.po_sobytiyu_webhook'),
             'weekly' => self::describeWeekly($this->value),
-            default => 'каждый день в ' . $this->value,
+            default => t('job.schedule.kazhdyy_den_v') . $this->value,
         };
     }
 
@@ -119,7 +121,7 @@ final class Schedule {
             return $value;
         }
         [$days, $hour, $minute] = $parsed;
-        $names = $days === [1, 2, 3, 4, 5] ? 'по будням' : 'по ' . implode(', ', array_map(static fn(int $d): string => self::DAY_NAMES[$d] ?? '?', $days));
-        return sprintf('%s в %02d:%02d', $names, $hour, $minute);
+        $names = $days === [1, 2, 3, 4, 5] ? t('job.schedule.po_budnyam') : t('job.schedule.po') . implode(', ', array_map(static fn(int $d): string => isset(self::DAY_NAMES[$d]) ? t(self::DAY_NAMES[$d]) : '?', $days));
+        return sprintf(t('job.schedule.v'), $names, $hour, $minute);
     }
 }

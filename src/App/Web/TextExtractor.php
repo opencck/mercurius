@@ -12,6 +12,8 @@ use ZipArchive;
 use function Amp\File\deleteFile;
 use function Amp\File\write;
 
+use function Mercurius\I18n\t;
+
 /**
  * Readable text out of what the web returns: an HTML page without its scripts, styles, menus and footers, the text of
  * a DOCX or the cells of an XLSX. PDF is not read here.
@@ -32,15 +34,15 @@ final class TextExtractor {
             $type === 'text/html' || $type === 'application/xhtml+xml' || ($type === '' && stripos($body, '<html') !== false) => $this->html($body),
             str_contains($type, 'wordprocessingml') || str_ends_with($path, '.docx') => ['', $this->docx($body)],
             str_contains($type, 'spreadsheetml') || str_ends_with($path, '.xlsx') => ['', $this->xlsx($body)],
-            $type === 'application/pdf' => ['', '(PDF: извлечение текста пока не поддерживается)'],
+            $type === 'application/pdf' => ['', t('web.text_extractor.pdf_izvlechenie_teksta_poka_ne')],
             str_starts_with($type, 'text/') || $type === 'application/json' || $type === 'application/xml' || $type === '' => ['', $body],
-            default => ['', sprintf('(двоичное содержимое %s, %d байт)', $type, strlen($body))],
+            default => ['', sprintf(t('web.text_extractor.dvoichnoe_soderzhimoe_bayt'), $type, strlen($body))],
         };
         [$title, $plain] = $text;
         $plain = mb_scrub($plain, 'UTF-8');
         $plain = trim(preg_replace("~\n{3,}~", "\n\n", preg_replace('~[ \x{00A0}]+~u', ' ', $plain) ?? $plain) ?? $plain);
         if (mb_strlen($plain) > self::MAX_CHARS) {
-            $plain = mb_substr($plain, 0, self::MAX_CHARS) . "\n…(обрезано)";
+            $plain = mb_substr($plain, 0, self::MAX_CHARS) . t('web.text_extractor.obrezano');
         }
         return [$title, $plain];
     }
@@ -107,7 +109,7 @@ final class TextExtractor {
     private function docx(string $body): string {
         $xml = $this->zipEntry($body, 'word/document.xml');
         if ($xml === null) {
-            return '(DOCX не прочитан)';
+            return t('web.text_extractor.docx_ne_prochitan');
         }
         $xml = preg_replace(['~</w:p>~', '~<w:tab/>~', '~<w:br/>~'], ["\n", "\t", "\n"], $xml) ?? $xml;
         return html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1, 'UTF-8');
@@ -123,7 +125,7 @@ final class TextExtractor {
         }
         $sheet = $this->zipEntry($body, 'xl/worksheets/sheet1.xml');
         if ($sheet === null) {
-            return '(XLSX не прочитан)';
+            return t('web.text_extractor.xlsx_ne_prochitan');
         }
         $rows = [];
         preg_match_all('~<row[^>]*>(.*?)</row>~s', $sheet, $rowMatches);

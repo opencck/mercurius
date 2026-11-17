@@ -27,6 +27,8 @@ use OpenCCK\Domain\Entity\LlmCallRecord;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Keeps the context of a run under the threshold of the model's window. First, without a model: old tool results
  * outside the protected tail are cut to 200 characters. If that is not enough, the middle is summarised by the cheap
@@ -152,10 +154,10 @@ final class ContextCompactor {
             array_unshift($shown, $line);
         }
         $hidden = count($users) - count($shown);
-        $list = $shown === [] && $hidden === 0 ? '' : "\n\n" . SummaryPrompt::USERS . "\n"
-            . ($hidden > 0 ? sprintf("(ранних сообщений не показано: %d; они сохранены в истории)\n", $hidden) : '')
+        $list = $shown === [] && $hidden === 0 ? '' : "\n\n" . \Mercurius\I18n\t(SummaryPrompt::USERS) . "\n"
+            . ($hidden > 0 ? sprintf(t('context.context_compactor.rannih_soobscheniy_ne_pokazano_oni'), $hidden) : '')
             . implode("\n", $shown);
-        return SummaryPrompt::HEADER . "\n\n" . $compaction->summary . $list;
+        return \Mercurius\I18n\t(SummaryPrompt::HEADER) . "\n\n" . $compaction->summary . $list;
     }
 
     /**
@@ -165,15 +167,15 @@ final class ContextCompactor {
      */
     private function summarise(Run $run, ?string $previous, array $middle, ?Cancellation $cancellation): ?string {
         // Masked whole: the earlier summary may carry what a user typed.
-        $text = SecretMasker::mask(($previous === null ? '' : "Прежнее резюме (обнови его):\n" . $previous . "\n\n") . "Новая часть переписки:\n" . $this->render($middle));
+        $text = SecretMasker::mask(($previous === null ? '' : t('context.context_compactor.prezhnee_rezyume_obnovi_ego') . $previous . "\n\n") . t('context.context_compactor.novaya_chast_perepiski') . $this->render($middle));
         $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->windowFor($run->model));
-        $reserved = ContextBudget::tokens(SummaryPrompt::SYSTEM . $text) + $maxTokens;
+        $reserved = ContextBudget::tokens(\Mercurius\I18n\t(SummaryPrompt::SYSTEM) . $text) + $maxTokens;
         if (!$this->runs->reserve($run->id, $reserved)) {
             $this->logger->warning('No budget for a context summary', ['run' => $run->id]);
             return null;
         }
         $model = $this->cheapModelOf !== null ? ($this->cheapModelOf)() : $this->cheapModel;
-        $request = new ChatRequest($model, [Message::system(SummaryPrompt::SYSTEM), Message::user($text)], [], $maxTokens);
+        $request = new ChatRequest($model, [Message::system(\Mercurius\I18n\t(SummaryPrompt::SYSTEM)), Message::user($text)], [], $maxTokens);
         $started = microtime(true);
         $usage = new Usage();
         $error = null;
@@ -212,12 +214,12 @@ final class ContextCompactor {
                 $tools[$call->name] = ($tools[$call->name] ?? 0) + 1;
             }
         }
-        $lines = [SummaryPrompt::STUB];
+        $lines = [\Mercurius\I18n\t(SummaryPrompt::STUB)];
         if ($tools !== []) {
-            $lines[] = 'Вызывались инструменты: ' . implode(', ', array_map(static fn(string $name, int $n): string => sprintf('%s ×%d', $name, $n), array_keys($tools), $tools)) . '.';
+            $lines[] = t('context.context_compactor.vyzyvalis_instrumenty') . implode(', ', array_map(static fn(string $name, int $n): string => sprintf('%s ×%d', $name, $n), array_keys($tools), $tools)) . '.';
         }
         if ($previous !== null) {
-            $lines[] = "Прежнее резюме:\n" . $previous;
+            $lines[] = t('context.context_compactor.prezhnee_rezyume') . $previous;
         }
         return implode("\n\n", $lines);
     }
@@ -228,12 +230,12 @@ final class ContextCompactor {
         foreach ($entries as $entry) {
             $message = $entry->message;
             $line = match ($message->role) {
-                Role::User => '[собеседник] ' . self::cut($message->content, 4000),
-                Role::Tool => sprintf('[результат %s] %s', $entry->toolName ?? 'инструмента', self::cut($message->content, 2000)),
-                default => '[агент] ' . self::cut($message->content, 4000),
+                Role::User => t('context.context_compactor.sobesednik') . self::cut($message->content, 4000),
+                Role::Tool => sprintf(t('context.context_compactor.rezultat'), $entry->toolName ?? t('context.context_compactor.instrumenta'), self::cut($message->content, 2000)),
+                default => t('context.context_compactor.agent') . self::cut($message->content, 4000),
             };
             foreach ($message->toolCalls as $call) {
-                $line .= sprintf("\n[вызов] %s(%s)", $call->name, self::cut($call->argumentsJson, 500));
+                $line .= sprintf(t('context.context_compactor.vyzov'), $call->name, self::cut($call->argumentsJson, 500));
             }
             $lines[] = $line;
         }
@@ -313,17 +315,23 @@ final class ContextCompactor {
         ];
     }
 
+    /** A result already cut by an earlier compaction, in whichever language it was cut. */
+    private static function pruned(string $content): bool {
+        $mark = explode(' (%d', explode("\n", t('context.context_compactor.staryy_rezultat_instrumenta_ubran_iz'), 2)[1] ?? '')[0];
+        return str_contains($content, '[Старый результат инструмента убран') || ($mark !== '' && str_contains($content, $mark));
+    }
+
     /** @param list<TranscriptEntry> $entries */
     private function prune(array $entries): bool {
         $changed = false;
         foreach ($entries as $entry) {
             $content = $entry->message->content;
-            if ($entry->message->role !== Role::Tool || mb_strlen($content) <= self::PRUNE_ABOVE || str_contains($content, '[Старый результат инструмента убран')) {
+            if ($entry->message->role !== Role::Tool || mb_strlen($content) <= self::PRUNE_ABOVE || self::pruned($content)) {
                 continue;
             }
-            $path = preg_match('/сохранён: (\S+?)\. Читай/u', $content, $match) === 1 ? sprintf(' Полный — в %s.', $match[1]) : '';
+            $path = preg_match('/: (\S+?)\.\s[^\]]*read_file/u', $content, $match) === 1 ? sprintf(t('context.context_compactor.polnyy_v'), $match[1]) : '';
             $this->transcript->compactContent($entry->id, sprintf(
-                "%s\n[Старый результат инструмента убран из контекста (%d символов).%s]",
+                t('context.context_compactor.staryy_rezultat_instrumenta_ubran_iz'),
                 mb_substr($content, 0, self::PRUNE_ABOVE),
                 mb_strlen($content),
                 $path,

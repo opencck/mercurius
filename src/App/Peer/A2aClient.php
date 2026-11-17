@@ -12,6 +12,8 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Talks to a neighbouring agent over A2A v1.0: its card, a task, the state of a task. Each request is signed by this
  * agent's key; an answer counts only when it is signed by the key pinned for the neighbour. Errors carry no token.
@@ -91,9 +93,9 @@ final class A2aClient {
         $data = $this->request($request, $cancellation, $peer->publicKey, $nonce);
         if (isset($data['error']) && is_array($data['error'])) {
             $message = isset($data['error']['message']) && is_string($data['error']['message']) ? $data['error']['message'] : 'error';
-            throw new RuntimeException('Сосед отказал: ' . mb_substr($message, 0, 200));
+            throw new RuntimeException(t('peer.a2a_client.sosed_otkazal') . mb_substr($message, 0, 200));
         }
-        return isset($data['result']) && is_array($data['result']) ? $data['result'] : throw new RuntimeException('Сосед ответил без результата.');
+        return isset($data['result']) && is_array($data['result']) ? $data['result'] : throw new RuntimeException(t('peer.a2a_client.sosed_otvetil_bez_rezultata'));
     }
 
     /** @return array<array-key, mixed> */
@@ -104,24 +106,24 @@ final class A2aClient {
             $response = $this->http->request($request, $cancellation ?? new \Amp\NullCancellation());
             $body = $response->getBody()->buffer($cancellation, 1_048_576);
         } catch (Throwable $e) {
-            throw new RuntimeException('Сосед не ответил (' . (new \ReflectionClass($e))->getShortName() . ').');
+            throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . (new \ReflectionClass($e))->getShortName() . ').');
         }
         if ($peerKey !== null && !in_array($response->getStatus(), [401, 403], true)
             && !AgentIdentity::verify($peerKey, AgentIdentity::responseData($nonce, $body), $response->getHeader('x-a2a-signature') ?? '')) {
-            throw new RuntimeException('Ответ подписан не ключом этого соседа — говорит кто-то другой.');
+            throw new RuntimeException(t('peer.a2a_client.otvet_podpisan_ne_klyuchom_etogo'));
         }
         try {
             /** @var mixed $data */
             $data = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            throw new RuntimeException(sprintf('Сосед ответил не JSON (HTTP %d).', $response->getStatus()));
+            throw new RuntimeException(sprintf(t('peer.a2a_client.sosed_otvetil_ne_json_http'), $response->getStatus()));
         }
         if (!is_array($data)) {
-            throw new RuntimeException('Сосед ответил не объектом.');
+            throw new RuntimeException(t('peer.a2a_client.sosed_otvetil_ne_obektom'));
         }
         if ($response->getStatus() === 401 || $response->getStatus() === 403) {
             $message = isset($data['error']) && is_array($data['error']) && isset($data['error']['message']) && is_string($data['error']['message']) ? $data['error']['message'] : '';
-            throw new RuntimeException('Сосед не пустил: ' . mb_substr($message, 0, 200));
+            throw new RuntimeException(t('peer.a2a_client.sosed_ne_pustil') . mb_substr($message, 0, 200));
         }
         return $data;
     }

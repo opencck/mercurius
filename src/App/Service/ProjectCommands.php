@@ -10,6 +10,8 @@ use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner's commands for projects: the list, the project of this chat, binding a chat to a project.
  *
@@ -25,10 +27,10 @@ final class ProjectCommands {
     public function list(string $channel, string $chatId, string $threadId = ''): string {
         $all = $this->projects->all(self::LIST);
         if ($all === []) {
-            return 'Проектов пока нет. /project <имя> — завести проект и привязать к нему этот чат.';
+            return t('service.project_commands.proektov_poka_net_project_imya');
         }
         $active = $this->projects->active($channel, $chatId, $threadId);
-        return "Проекты:\n" . implode("\n", array_map(
+        return t('service.project_commands.proekty') . implode("\n", array_map(
             static fn(Project $p): string => sprintf('%s%s — %s', $active?->id === $p->id ? '▶ ' : '', $p->name, ProjectContext::status($p->status)),
             $all,
         ));
@@ -40,22 +42,22 @@ final class ProjectCommands {
         if ($name === '') {
             $project = $this->projects->active($channel, $chatId, $threadId);
             if ($project === null) {
-                return 'У этого чата нет проекта. /project <имя> — привязать.';
+                return t('service.project_commands.u_etogo_chata_net_proekta');
             }
             $tasks = $this->projects->openTasks($project->id, self::TASKS);
             return SecretMasker::mask(implode("\n\n", array_filter([
-                sprintf('Проект чата: %s — %s', $project->name, ProjectContext::status($project->status)),
-                $project->goal === '' ? '' : 'Цель: ' . $project->goal,
-                $project->card === '' ? '' : "Карточка:\n" . $project->card,
-                $tasks === [] ? 'Открытых задач нет.' : "Открытые задачи:\n" . implode("\n", array_map(ProjectContext::task(...), $tasks)),
+                sprintf(t('service.project_commands.proekt_chata'), $project->name, ProjectContext::status($project->status)),
+                $project->goal === '' ? '' : t('service.project_commands.tsel') . $project->goal,
+                $project->card === '' ? '' : t('service.project_commands.kartochka') . $project->card,
+                $tasks === [] ? t('service.project_commands.otkrytyh_zadach_net') : t('service.project_commands.otkrytye_zadachi') . implode("\n", array_map(ProjectContext::task(...), $tasks)),
             ], static fn(string $part): bool => $part !== '')));
         }
         if ($name === '-') {
             $this->projects->activate($channel, $chatId, null, $threadId);
-            return 'Чат отвязан от проекта; со следующей беседы (/new) карточки в контексте не будет.';
+            return t('service.project_commands.chat_otvyazan_ot_proekta_so');
         }
         if (mb_strlen($name) > Project::NAME_MAX) {
-            return sprintf('Имя проекта — до %d символов.', Project::NAME_MAX);
+            return sprintf(t('service.project_commands.imya_proekta_do_simvolov'), Project::NAME_MAX);
         }
         $project = $this->projects->byName($name);
         $created = false;
@@ -68,6 +70,6 @@ final class ProjectCommands {
             }
         }
         $this->projects->activate($channel, $chatId, $project->id, $threadId);
-        return sprintf('%s«%s» — проект этого чата. Карточка и задачи будут в контексте со следующей беседы (/new).', $created ? 'Заведён проект. ' : '', $project->name);
+        return sprintf(t('service.project_commands.proekt_etogo_chata_kartochka_i'), $created ? t('service.project_commands.zaveden_proekt') : '', $project->name);
     }
 }

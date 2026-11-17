@@ -8,6 +8,8 @@ use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 /**
  * Common part of the tools that work in the participant's sandbox home. Without sandbox limits in the policy the
  * participant has no sandbox; a sandbox refusal is a result for the model.
@@ -28,7 +30,7 @@ abstract class SandboxTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $limits = $context->policy?->sandbox;
         if ($limits === null) {
-            return ToolResult::error('Песочница недоступна для участника.');
+            return ToolResult::error(t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
         }
         try {
             return $this->run($args, $context, $limits);

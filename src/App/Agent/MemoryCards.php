@@ -20,6 +20,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * A memory proposal is a card in the owner's chat: accept or reject, decided once. The run that proposed does not
  * wait; the change applies when the owner presses.
@@ -40,8 +42,8 @@ final class MemoryCards implements CallbackHandler {
 
     public function show(Proposal $proposal): bool {
         $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, $this->card($proposal, true), buttons: [[
-            new Button('Принять', sprintf('%s:%d:a', self::PREFIX, $proposal->id)),
-            new Button('Отклонить', sprintf('%s:%d:r', self::PREFIX, $proposal->id)),
+            new Button(t('agent.memory_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $proposal->id)),
+            new Button(t('agent.memory_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $proposal->id)),
         ]]));
         if (!$result->success || $result->messageId === null) {
             $this->logger->warning('Memory card was not delivered', ['proposal' => $proposal->id]);
@@ -61,11 +63,11 @@ final class MemoryCards implements CallbackHandler {
             $decision = $this->proposals->decide((int) $match[1], $approve);
         } catch (Throwable $e) {
             $this->logger->error('Memory proposal could not be applied', ['proposal' => (int) $match[1], 'error' => $e::class]);
-            $this->channel->answerCallback($callback->callbackId, 'Не получилось изменить память. Нажмите ещё раз.', true);
+            $this->channel->answerCallback($callback->callbackId, t('agent.memory_cards.ne_poluchilos_izmenit_pamyat_nazhmite'), true);
             return;
         }
         if ($decision === null) {
-            $this->channel->answerCallback($callback->callbackId, 'Уже решено.');
+            $this->channel->answerCallback($callback->callbackId, t('agent.memory_cards.uzhe_resheno'));
             return;
         }
         $this->channel->answerCallback($callback->callbackId, $decision->outcome);
@@ -81,7 +83,7 @@ final class MemoryCards implements CallbackHandler {
      */
     public function forgotten(Fact $fact, array $cards): void {
         foreach ($cards as [$chatId, $messageId]) {
-            $this->channel->edit($chatId, $messageId, sprintf('Память: факт #%d забыт владельцем.', $fact->id));
+            $this->channel->edit($chatId, $messageId, sprintf(t('agent.memory_cards.pamyat_fakt_zabyt_vladeltsem'), $fact->id));
         }
     }
 
@@ -91,21 +93,21 @@ final class MemoryCards implements CallbackHandler {
      */
     private function card(Proposal $proposal, bool $withOld = false): string {
         $what = match ($proposal->kind) {
-            Proposal::ADD => 'запомнить новый факт',
-            Proposal::CHANGE => sprintf('изменить факт #%d', (int) $proposal->factId),
-            Proposal::END => sprintf('отметить, что факт #%d больше не верен', (int) $proposal->factId),
-            Proposal::FORGET => sprintf('забыть факт #%d насовсем', (int) $proposal->factId),
-            Proposal::PROFILE => 'заменить профиль владельца',
-            Proposal::SUMMARY => 'заменить сводку текущих дел',
+            Proposal::ADD => t('agent.memory_cards.zapomnit_novyy_fakt'),
+            Proposal::CHANGE => sprintf(t('agent.memory_cards.izmenit_fakt'), (int) $proposal->factId),
+            Proposal::END => sprintf(t('agent.memory_cards.otmetit_chto_fakt_bolshe_ne'), (int) $proposal->factId),
+            Proposal::FORGET => sprintf(t('agent.memory_cards.zabyt_fakt_nasovsem'), (int) $proposal->factId),
+            Proposal::PROFILE => t('agent.memory_cards.zamenit_profil_vladeltsa'),
+            Proposal::SUMMARY => t('agent.memory_cards.zamenit_svodku_tekuschih_del'),
             default => $proposal->kind,
         };
         $text = SecretMasker::mask($proposal->text);
         if ($withOld && $proposal->kind === Proposal::CHANGE && $proposal->factId !== null) {
             $old = $this->store->fact($proposal->factId)->text ?? '';
-            $text = sprintf("Было:\n%s\n\nСтанет:\n%s", SecretMasker::mask($old), $text);
+            $text = sprintf(t('agent.memory_cards.bylo_stanet'), SecretMasker::mask($old), $text);
         }
         return sprintf(
-            "Память: предложение №%d — %s\nПредложил: %s\nГде будет видно: %s\n\n%s\n\nПричина (слова агента, проверьте сами): %s",
+            t('agent.memory_cards.pamyat_predlozhenie_predlozhil_gde_budet'),
             $proposal->id,
             $what,
             $this->who($proposal->principalId),
@@ -117,25 +119,25 @@ final class MemoryCards implements CallbackHandler {
 
     private function who(?int $principalId): string {
         if ($principalId === null) {
-            return 'агент';
+            return t('agent.memory_cards.agent');
         }
         $principal = $this->principals->find($principalId);
         if ($principal === null) {
-            return sprintf('участник #%d', $principalId);
+            return sprintf(t('agent.memory_cards.uchastnik'), $principalId);
         }
-        return $principal->isOwner() ? 'агент в разговоре с вами' : sprintf('агент в разговоре с «%s»', $principal->displayName ?? ('#' . $principalId));
+        return $principal->isOwner() ? t('agent.memory_cards.agent_v_razgovore_s_vami') : sprintf(t('agent.memory_cards.agent_v_razgovore_s'), $principal->displayName ?? ('#' . $principalId));
     }
 
     private function place(string $scope): string {
         if ($scope === Audience::OWNER) {
-            return 'ваша память: только вам в личном чате';
+            return t('agent.memory_cards.vasha_pamyat_tolko_vam_v');
         }
         if (str_starts_with($scope, 'principal:')) {
             $id = (int) substr($scope, strlen('principal:'));
             $name = $this->principals->find($id)->displayName ?? ('#' . $id);
-            return sprintf('личная память участника «%s»', $name);
+            return sprintf(t('agent.memory_cards.lichnaya_pamyat_uchastnika'), $name);
         }
         $chat = explode(':', $scope, 3);
-        return sprintf('чат %s (%s): всем его участникам', $chat[2] ?? $scope, $chat[1] ?? '');
+        return sprintf(t('agent.memory_cards.chat_vsem_ego_uchastnikam'), $chat[2] ?? $scope, $chat[1] ?? '');
     }
 }

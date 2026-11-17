@@ -9,6 +9,8 @@ use OpenCCK\Domain\Agent\TraceSpan;
 use OpenCCK\Domain\Repository\TraceReportRepository;
 use OpenCCK\Domain\Repository\TraceRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Texts of the owner's reports: spend for a period, the latest runs, the chain of steps of one run.
  *
@@ -16,7 +18,7 @@ use OpenCCK\Domain\Repository\TraceRepository;
  * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
  */
 final class TraceReports {
-    public const NO_RUN = 'Такого запуска в трассах нет.';
+    public const NO_RUN = 'service.trace_reports.no_run';
 
     public function __construct(
         private readonly TraceReportRepository $figures,
@@ -26,39 +28,39 @@ final class TraceReports {
     public function usage(int $days): string {
         $days = max(1, min(90, $days));
         $since = new DateTimeImmutable(sprintf('-%d days', $days));
-        $lines = [sprintf('Расход за %d дн.', $days), '', 'По моделям:'];
+        $lines = [sprintf(t('service.trace_reports.rashod_za_dn'), $days), '', t('service.trace_reports.po_modelyam')];
         $total = 0.0;
         foreach ($this->figures->usageByModel($since) as $row) {
             $total += $row['cost'];
-            $lines[] = sprintf('• %s — %s, вызовов %d, токенов %s / %s', $row['model'], self::usd($row['cost']), $row['calls'], self::n($row['input']), self::n($row['output']));
+            $lines[] = sprintf(t('service.trace_reports.vyzovov_tokenov'), $row['model'], self::usd($row['cost']), $row['calls'], self::n($row['input']), self::n($row['output']));
         }
         $lines[] = '';
-        $lines[] = 'По дням:';
+        $lines[] = t('service.trace_reports.po_dnyam');
         foreach ($this->figures->usageByDay($since) as $row) {
-            $lines[] = sprintf('• %s — %s, вызовов %d', $row['day'], self::usd($row['cost']), $row['calls']);
+            $lines[] = sprintf(t('service.trace_reports.vyzovov'), $row['day'], self::usd($row['cost']), $row['calls']);
         }
         $costliest = $this->figures->costliestRuns($since, 5);
         if ($costliest !== []) {
             $lines[] = '';
-            $lines[] = 'Самые дорогие запуски:';
+            $lines[] = t('service.trace_reports.samye_dorogie_zapuski');
             foreach ($costliest as $row) {
-                $lines[] = sprintf('• #%d — %s, токенов %s', $row['id'], self::usd($row['cost']), self::n($row['tokens']));
+                $lines[] = sprintf(t('service.trace_reports.tokenov'), $row['id'], self::usd($row['cost']), self::n($row['tokens']));
             }
         }
         $lines[] = '';
-        $lines[] = 'Итого: ' . self::usd($total);
+        $lines[] = t('service.trace_reports.itogo') . self::usd($total);
         return implode("\n", $lines);
     }
 
     public function runs(int $limit = 10): string {
         $rows = $this->figures->recentRuns($limit);
         if ($rows === []) {
-            return 'Запусков ещё не было.';
+            return t('service.trace_reports.zapuskov_esche_ne_bylo');
         }
-        $lines = ['Последние запуски:'];
+        $lines = [t('service.trace_reports.poslednie_zapuski')];
         foreach ($rows as $row) {
             $lines[] = sprintf(
-                '• #%d %s — %s%s, ходов %d, токенов %s, %s, %s (%s)',
+                t('service.trace_reports.hodov_tokenov'),
                 $row['id'],
                 $row['started'],
                 $row['status'],
@@ -71,7 +73,7 @@ final class TraceReports {
             );
         }
         $lines[] = '';
-        $lines[] = 'Разбор запуска: /trace <номер>';
+        $lines[] = t('service.trace_reports.razbor_zapuska_trace_nomer');
         return implode("\n", $lines);
     }
 
@@ -85,19 +87,19 @@ final class TraceReports {
         $since = new DateTimeImmutable(sprintf('-%d days', $days));
         $f = $this->figures->delegation($since);
         $lines = [
-            sprintf('Делегирование за %d дн.', $days),
+            sprintf(t('service.trace_reports.delegirovanie_za_dn'), $days),
             '',
-            sprintf('Запусков: %d, из них с делегированием: %d (%s)', $f['top'], $f['delegating'], self::share($f['delegating'], $f['top'])),
-            sprintf('Воркеров: %d, повторов каскада: %d, фоновых делегирований: %d', $f['workers'], $f['cascades'], $f['background']),
-            sprintf('Проверяющих: %d, отклонили ответ: %d', $f['verifiers'], $f['rejected']),
+            sprintf(t('service.trace_reports.zapuskov_iz_nih_s_delegirovaniem'), $f['top'], $f['delegating'], self::share($f['delegating'], $f['top'])),
+            sprintf(t('service.trace_reports.vorkerov_povtorov_kaskada_fonovyh_delegi'), $f['workers'], $f['cascades'], $f['background']),
+            sprintf(t('service.trace_reports.proveryayuschih_otklonili_otvet'), $f['verifiers'], $f['rejected']),
         ];
         $models = $this->figures->workerModels($since);
         if ($models !== []) {
             $lines[] = '';
-            $lines[] = 'Запуски воркеров по моделям:';
+            $lines[] = t('service.trace_reports.zapuski_vorkerov_po_modelyam');
             foreach ($models as $row) {
                 $lines[] = sprintf(
-                    '• %s — %d, ответили %s, отказы модели %d, токенов %s, %s, в среднем %s',
+                    t('service.trace_reports.otvetili_otkazy_modeli_tokenov_v'),
                     $row['model'],
                     $row['runs'],
                     self::share($row['answered'], $row['runs']),
@@ -122,15 +124,15 @@ final class TraceReports {
         foreach ($spans as $span) {
             $cost += $span->costUsd ?? 0.0;
             if ($span->kind === TraceSpan::RUN) {
-                array_unshift($lines, sprintf('Запуск #%d — %s, %s, %s', $runId, $span->name, $span->status, $span->durationMs === null ? 'идёт' : self::seconds($span->durationMs)), '');
+                array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), '');
                 continue;
             }
             $line = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0));
             if ($span->inputTokens > 0 || $span->outputTokens > 0) {
-                $line .= sprintf(', вход %d (кеш %d), выход %d', $span->inputTokens, $span->cacheReadTokens, $span->outputTokens);
+                $line .= sprintf(t('service.trace_reports.vhod_kesh_vyhod'), $span->inputTokens, $span->cacheReadTokens, $span->outputTokens);
             }
             if ($span->costUsd !== null) {
-                $line .= ', ' . self::usd($span->costUsd) . ($span->costStatus === TraceSpan::COST_ESTIMATED ? ' (оценка)' : '');
+                $line .= ', ' . self::usd($span->costUsd) . ($span->costStatus === TraceSpan::COST_ESTIMATED ? t('service.trace_reports.otsenka') : '');
             }
             if ($span->error !== null) {
                 $line .= ' — ' . $span->error;
@@ -138,7 +140,7 @@ final class TraceReports {
             $lines[] = $line;
         }
         $lines[] = '';
-        $lines[] = 'Стоимость шагов: ' . self::usd($cost);
+        $lines[] = t('service.trace_reports.stoimost_shagov') . self::usd($cost);
         return implode("\n", $lines);
     }
 
@@ -155,6 +157,6 @@ final class TraceReports {
     }
 
     private static function seconds(int $ms): string {
-        return $ms < 10_000 ? sprintf('%.1f с', $ms / 1000) : sprintf('%d с', intdiv($ms, 1000));
+        return $ms < 10_000 ? sprintf(t('service.trace_reports.s'), $ms / 1000) : sprintf(t('service.trace_reports.s_2'), intdiv($ms, 1000));
     }
 }

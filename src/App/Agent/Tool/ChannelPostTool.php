@@ -14,6 +14,8 @@ use OpenCCK\Domain\Group\ChannelPost;
 use OpenCCK\Domain\Group\PublicChannel;
 use OpenCCK\Domain\Repository\ChannelRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Posts in channels where the bot is an admin. Subscribers see a post at once and it cannot be taken back, so
  * publishing, editing and deleting are irreversible: each waits for the owner's card with the whole post, and the owner
@@ -34,9 +36,9 @@ final class ChannelPostTool implements Tool, GrantKeyed {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Посты в каналах, где бот — администратор. list — каналы и права; history — последние посты '
-            . 'канала; publish (text), edit (message_id, text), delete (message_id) — каждое с подтверждением владельца, '
-            . 'он увидит пост целиком. channel — название или номер канала; если доступен один канал, можно не указывать.', [
+        return new ToolDefinition(self::NAME, t('tool.channel_post.posty_v_kanalah_gde_bot')
+            . t('tool.channel_post.kanala_publish_text_edit_message')
+            . t('tool.channel_post.on_uvidit_post_tselikom_channel'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -61,13 +63,13 @@ final class ChannelPostTool implements Tool, GrantKeyed {
 
     public function describe(array $args): string {
         $target = $this->target($args);
-        $where = $target === null ? 'канал не найден' : sprintf('«%s»', $target->title);
+        $where = $target === null ? t('tool.channel_post.kanal_ne_nayden') : sprintf('«%s»', $target->title);
         $text = Args::string($args, 'text') ?? '';
         return match (Args::string($args, 'action')) {
-            'publish' => sprintf("Публикация в канал %s:\n\n%s", $where, $text),
-            'edit' => sprintf("Правка поста #%d в канале %s, новый текст:\n\n%s", Args::int($args, 'message_id') ?? 0, $where, $text),
-            'delete' => sprintf('Удаление поста #%d в канале %s', Args::int($args, 'message_id') ?? 0, $where),
-            default => 'Каналы',
+            'publish' => sprintf(t('tool.channel_post.publikatsiya_v_kanal'), $where, $text),
+            'edit' => sprintf(t('tool.channel_post.pravka_posta_v_kanale_novyy'), Args::int($args, 'message_id') ?? 0, $where, $text),
+            'delete' => sprintf(t('tool.channel_post.udalenie_posta_v_kanale'), Args::int($args, 'message_id') ?? 0, $where),
+            default => t('tool.channel_post.kanaly'),
         };
     }
 
@@ -87,7 +89,7 @@ final class ChannelPostTool implements Tool, GrantKeyed {
         }
         $target = $this->target($args);
         if ($target === null) {
-            return ToolResult::error('Канал не найден или их несколько: назови channel (list — список).');
+            return ToolResult::error(t('tool.channel_post.kanal_ne_nayden_ili_ih'));
         }
         if ($action === 'history') {
             return ToolResult::ok($this->history($target));
@@ -102,32 +104,32 @@ final class ChannelPostTool implements Tool, GrantKeyed {
         if ($action === 'publish') {
             $sent = $this->channel->send(new OutgoingMessage($target->chatId, $text, parseMode: ParseMode::Markdown));
             if (!$sent->success || $sent->messageId === null) {
-                return ToolResult::error('Telegram не принял пост.');
+                return ToolResult::error(t('tool.channel_post.telegram_ne_prinyal_post'));
             }
             $this->channels->savePost($target->channel, $target->chatId, $sent->messageId, $text, new DateTimeImmutable(), false);
-            return ToolResult::ok(sprintf('Опубликовано в «%s»: пост #%s.', $target->title, $sent->messageId));
+            return ToolResult::ok(sprintf(t('tool.channel_post.opublikovano_v_post'), $target->title, $sent->messageId));
         }
         if ($action === 'edit') {
             if (!$this->channel->edit($target->chatId, $id, $text, ParseMode::Markdown)->success) {
-                return ToolResult::error('Telegram не дал изменить пост.');
+                return ToolResult::error(t('tool.channel_post.telegram_ne_dal_izmenit_post'));
             }
             $this->channels->savePost($target->channel, $target->chatId, $id, $text, new DateTimeImmutable(), true);
-            return ToolResult::ok(sprintf('Пост #%s в «%s» изменён.', $id, $target->title));
+            return ToolResult::ok(sprintf(t('tool.channel_post.post_v_izmenen'), $id, $target->title));
         }
         if (!$this->channel->delete($target->chatId, $id)) {
-            return ToolResult::error('Telegram не дал удалить пост.');
+            return ToolResult::error(t('tool.channel_post.telegram_ne_dal_udalit_post'));
         }
         $this->channels->deletePost($target->channel, $target->chatId, $id);
-        return ToolResult::ok(sprintf('Пост #%s в «%s» удалён.', $id, $target->title));
+        return ToolResult::ok(sprintf(t('tool.channel_post.post_v_udalen'), $id, $target->title));
     }
 
     private function list(): string {
         $all = $this->channels->all();
         if ($all === []) {
-            return 'Каналов нет: бота нужно сделать администратором канала.';
+            return t('tool.channel_post.kanalov_net_bota_nuzhno_sdelat');
         }
         return implode("\n", array_map(
-            static fn(PublicChannel $c): string => sprintf('«%s» (%s): %s', $c->title, $c->chatId, $c->available ? $c->rights() : 'недоступен'),
+            static fn(PublicChannel $c): string => sprintf('«%s» (%s): %s', $c->title, $c->chatId, $c->available ? $c->rights() : t('tool.channel_post.nedostupen')),
             $all,
         ));
     }
@@ -135,10 +137,10 @@ final class ChannelPostTool implements Tool, GrantKeyed {
     private function history(PublicChannel $target): string {
         $posts = $this->channels->posts($target->channel, $target->chatId, self::HISTORY);
         if ($posts === []) {
-            return sprintf('В канале «%s» постов пока не видно.', $target->title);
+            return sprintf(t('tool.channel_post.v_kanale_postov_poka_ne'), $target->title);
         }
         return implode("\n\n", array_map(
-            static fn(ChannelPost $p): string => sprintf('#%s %s%s: %s', $p->messageId, $p->postedAt->format('Y-m-d H:i'), $p->editedAt === null ? '' : ' (изменён)', $p->text),
+            static fn(ChannelPost $p): string => sprintf('#%s %s%s: %s', $p->messageId, $p->postedAt->format('Y-m-d H:i'), $p->editedAt === null ? '' : t('tool.channel_post.izmenen'), $p->text),
             $posts,
         ));
     }
@@ -146,10 +148,10 @@ final class ChannelPostTool implements Tool, GrantKeyed {
     /** Why the change cannot go, checked before the owner's card; null — it can. */
     private function refusal(PublicChannel $target, string $action, string $text, ?int $messageId): ?string {
         if (!in_array($action, self::CHANGES, true)) {
-            return 'Неизвестное действие: ' . $action;
+            return t('tool.channel_post.neizvestnoe_deystvie') . $action;
         }
         if (!$target->available) {
-            return sprintf('В канале «%s» бот больше не администратор.', $target->title);
+            return sprintf(t('tool.channel_post.v_kanale_bot_bolshe_ne'), $target->title);
         }
         $allowed = match ($action) {
             'publish' => $target->canPost,
@@ -157,16 +159,16 @@ final class ChannelPostTool implements Tool, GrantKeyed {
             default => $target->canDelete,
         };
         if (!$allowed) {
-            return sprintf('В канале «%s» у бота нет на это права (%s).', $target->title, $target->rights());
+            return sprintf(t('tool.channel_post.v_kanale_u_bota_net'), $target->title, $target->rights());
         }
         if ($action !== 'delete' && $text === '') {
-            return 'Нужен текст поста: text.';
+            return t('tool.channel_post.nuzhen_tekst_posta_text');
         }
         if ($action !== 'publish' && $messageId === null) {
-            return 'Нужен номер поста: message_id.';
+            return t('tool.channel_post.nuzhen_nomer_posta_message_id');
         }
         if ($text !== '' && SecretMasker::mask($text) !== $text) {
-            return 'В пост не кладут секреты: уберите их из текста.';
+            return t('tool.channel_post.v_post_ne_kladut_sekrety');
         }
         return null;
     }

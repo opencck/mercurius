@@ -21,6 +21,8 @@ use OpenCCK\Domain\Repository\GroupRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * Work in group chats. A new group waits for the owner's card (by mention, freely, or leave); until then the bot is
  * silent, after a refusal it leaves. In an approved group the agent answers a mention, a reply to its message or
@@ -92,7 +94,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
         $context = $this->recent[$message->chatId] ?? [];
-        $this->remember($message->chatId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : ' (тема #' . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
+        $this->remember($message->chatId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
         if ($group->status !== Group::APPROVED) {
             return null;
         }
@@ -109,12 +111,12 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId, $this->runOfReply($message))]);
-        $prefix = sprintf('[Группа «%s», пишет %s; это сообщение #%s%s.', $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
+        $prefix = sprintf(t('service.group_gate.gruppa_pishet_eto_soobschenie'), $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
         $prefix .= $group->mode === Group::FREE && !$addressed
-            ? ' Тебя не звали: ответь, только если от тебя тут правда есть польза; иначе ответь ровно ' . self::SILENT . '.]'
+            ? t('service.group_gate.tebya_ne_zvali_otvet_tolko') . self::SILENT . '.]'
             : ']';
         if ($context !== []) {
-            $prefix .= "\n" . UntrustedWrapper::wrap('group-chat', "Последние сообщения группы:\n" . implode("\n", array_slice($context, -self::RECENT)));
+            $prefix .= "\n" . UntrustedWrapper::wrap('group-chat', t('service.group_gate.poslednie_soobscheniya_gruppy') . implode("\n", array_slice($context, -self::RECENT)));
         }
         return [$principal, new IncomingMessage(
             $message->channel,
@@ -149,7 +151,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             unset($this->left[$change->chatId], $this->recent[$change->chatId]);
             if ($group !== null && $group->status === Group::APPROVED) {
                 $this->groups->decide($change->channel, $change->chatId, Group::PENDING, $group->mode);
-                $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf('Меня убрали из группы «%s».', $group->title)));
+                $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.menya_ubrali_iz_gruppy'), $group->title)));
             }
             $this->logger->notice('Bot removed from a group', ['chat' => $change->chatId, 'status' => $change->status]);
             return;
@@ -174,9 +176,9 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return;
         }
         [$status, $mode, $outcome] = match ($m[2]) {
-            'm' => [Group::APPROVED, Group::MENTION, 'Работаю в группе: отвечаю на упоминание и ответ мне.'],
-            'f' => [Group::APPROVED, Group::FREE, 'Работаю в группе свободно: сам решаю, когда ответить.'],
-            default => [Group::REFUSED, Group::MENTION, 'Выхожу из группы.'],
+            'm' => [Group::APPROVED, Group::MENTION, t('service.group_gate.rabotayu_v_gruppe_otvechayu_na')],
+            'f' => [Group::APPROVED, Group::FREE, t('service.group_gate.rabotayu_v_gruppe_svobodno_sam')],
+            default => [Group::REFUSED, Group::MENTION, t('service.group_gate.vyhozhu_iz_gruppy')],
         };
         $group = $this->groups->decide($callback->channel, $m[1], $status, $mode);
         $this->channel->answerCallback($callback->callbackId, $outcome);
@@ -184,7 +186,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return;
         }
         if ($callback->messageId !== null) {
-            $this->channel->edit($callback->chatId, $callback->messageId, sprintf("Группа «%s»\n\n%s", $group->title, $outcome));
+            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.group_gate.gruppa'), $group->title, $outcome));
         }
         if ($status === Group::REFUSED) {
             $this->left[$group->chatId] = true;
@@ -246,10 +248,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     }
 
     private function card(string $chatId, string $title): void {
-        $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf("Меня добавили в группу «%s». Работать там?\n\nПо упоминанию — отвечаю, когда обращаются ко мне. Свободно — сам решаю, когда вмешаться.", $title), buttons: [[
-            new Button('По упоминанию', sprintf('gr:%s:m', $chatId)),
-            new Button('Свободно', sprintf('gr:%s:f', $chatId)),
-            new Button('Выйти', sprintf('gr:%s:r', $chatId)),
+        $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.menya_dobavili_v_gruppu_rabotat'), $title), buttons: [[
+            new Button(t('service.group_gate.po_upominaniyu'), sprintf('gr:%s:m', $chatId)),
+            new Button(t('service.group_gate.svobodno'), sprintf('gr:%s:f', $chatId)),
+            new Button(t('service.group_gate.vyyti'), sprintf('gr:%s:r', $chatId)),
         ]]));
         if (!$result->success) {
             $this->logger->warning('Group card was not delivered', ['chat' => $chatId]);
@@ -261,6 +263,6 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $chat = $message->raw['chat'] ?? null;
         /** @var mixed $title */
         $title = is_array($chat) ? ($chat['title'] ?? null) : null;
-        return is_string($title) && $title !== '' ? mb_substr($title, 0, 200) : 'без названия';
+        return is_string($title) && $title !== '' ? mb_substr($title, 0, 200) : t('service.group_gate.bez_nazvaniya');
     }
 }

@@ -9,6 +9,8 @@ use Mercurius\Messenger\Channel;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Repository\ConversationRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The forum topic the conversation goes on in: rename, close, reopen, delete. Projects open and close their topics
  * themselves (ForumTopics); this is for the rest. Deleting erases every message of the topic, so it waits for the owner.
@@ -25,9 +27,9 @@ final class ForumTopicTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Тема форума, в которой идёт эта беседа: rename (name), close, reopen, delete. '
-            . 'Тему проекта при завершении и возобновлении проекта закрывать и открывать не нужно — это делается само. '
-            . 'delete стирает всю переписку темы и требует подтверждения владельца.', [
+        return new ToolDefinition(self::NAME, t('tool.forum_topic.tema_foruma_v_kotoroy_idet')
+            . t('tool.forum_topic.temu_proekta_pri_zavershenii_i')
+            . t('tool.forum_topic.delete_stiraet_vsyu_perepisku_temy'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -53,12 +55,12 @@ final class ForumTopicTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $meta = $this->conversations->meta($context->conversationId);
         if ($meta === null || $meta->threadId === '') {
-            return ToolResult::error('Эта беседа идёт не в теме форума.');
+            return ToolResult::error(t('tool.forum_topic.eta_beseda_idet_ne_v'));
         }
         $action = Args::string($args, 'action') ?? '';
         $name = trim(Args::string($args, 'name') ?? '');
         if ($action === 'rename' && $name === '') {
-            return ToolResult::error('Нужно новое имя темы: name.');
+            return ToolResult::error(t('tool.forum_topic.nuzhno_novoe_imya_temy_name'));
         }
         $done = match ($action) {
             'rename' => $this->channel->editTopic($meta->chatId, $meta->threadId, $name),
@@ -68,13 +70,13 @@ final class ForumTopicTool implements Tool {
             default => null,
         };
         return match ($done) {
-            null => ToolResult::error('Неизвестное действие: ' . $action),
-            false => ToolResult::error('Telegram не дал изменить тему: нужно право боту управлять темами.'),
+            null => ToolResult::error(t('tool.forum_topic.neizvestnoe_deystvie') . $action),
+            false => ToolResult::error(t('tool.forum_topic.telegram_ne_dal_izmenit_temu')),
             true => ToolResult::ok(match ($action) {
-                'rename' => sprintf('Тема переименована: «%s».', $name),
-                'close' => 'Тема закрыта.',
-                'reopen' => 'Тема снова открыта.',
-                default => 'Тема удалена вместе с перепиской.',
+                'rename' => sprintf(t('tool.forum_topic.tema_pereimenovana'), $name),
+                'close' => t('tool.forum_topic.tema_zakryta'),
+                'reopen' => t('tool.forum_topic.tema_snova_otkryta'),
+                default => t('tool.forum_topic.tema_udalena_vmeste_s_perepiskoy'),
             }),
         };
     }

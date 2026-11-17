@@ -12,6 +12,8 @@ use OpenCCK\Memory\Domain\Proposal;
 use Throwable;
 use UnexpectedValueException;
 
+use function Mercurius\I18n\t;
+
 /**
  * spec: BRIEF.md#факты — facts with versions in PostgreSQL, keys in a GIN-indexed array
  * ref: references/hermes-plugin-holographic/history.py@4a794f8:L489-L710 (change_fact, end_fact, forget_fact, _erase)
@@ -31,7 +33,7 @@ final class PostgresMemoryStore implements MemoryStore {
                 [$scope, $category, $text, $keys, $trust, $provenance, $runId, self::vector($keys)],
             )->fetchRow() ?? throw new UnexpectedValueException('Fact was not created');
             $fact = self::fact_($row);
-            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, 1, ?, ?)', [$fact->id, $text, 'добавлен']);
+            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, 1, ?, ?)', [$fact->id, $text, t('infrastructure.postgres_memory_store.dobavlen')]);
             $transaction->commit();
             return $fact;
         } catch (Throwable $e) {
@@ -205,7 +207,7 @@ final class PostgresMemoryStore implements MemoryStore {
         if ($row === null) {
             return false;
         }
-        $this->db->execute('UPDATE fact_versions SET valid_to = now(), reason = reason || ?::text WHERE fact_id = ? AND valid_to IS NULL', ['; завершён: ' . $reason, $id]);
+        $this->db->execute('UPDATE fact_versions SET valid_to = now(), reason = reason || ?::text WHERE fact_id = ? AND valid_to IS NULL', [t('infrastructure.postgres_memory_store.zavershen') . $reason, $id]);
         return true;
     }
 

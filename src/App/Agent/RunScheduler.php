@@ -39,6 +39,8 @@ use Throwable;
 use function Amp\async;
 use function Amp\delay;
 
+use function Mercurius\I18n\t;
+
 /**
  * At most one active run per conversation, each in its own fiber outside the chat queue: the message handler only
  * hands the message over and returns, so /stop and later messages are never stuck behind a run. A message that
@@ -52,10 +54,10 @@ use function Amp\delay;
  *      the next turn instead of vanishing
  */
 final class RunScheduler {
-    public const RESUMED = 'Продолжаю задачу после перезапуска.';
-    public const INTERRUPTED = 'Прервано перезапуском: неизвестно, выполнено ли действие. Проверь состояние, прежде чем повторять.';
-    public const CRASHED = 'Задача прервана из-за внутренней ошибки. Подробности — в журнале сервера.';
-    public const NOT_STARTED = 'Не удалось начать задачу из-за внутренней ошибки. Попробуйте ещё раз.';
+    public const RESUMED = 'agent.run_scheduler.resumed';
+    public const INTERRUPTED = 'agent.run_scheduler.interrupted';
+    public const CRASHED = 'agent.run_scheduler.crashed';
+    public const NOT_STARTED = 'agent.run_scheduler.not_started';
 
     /** @var array<int, true> conversations whose run was told to stop and is still finishing */
     private array $stopping = [];
@@ -178,7 +180,7 @@ final class RunScheduler {
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
         // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
-        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, 'Отказано: владелец ответил текстом.') === true) {
+        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, t('agent.run_scheduler.otkazano_vladelets_otvetil_tekstom')) === true) {
             $this->resumeRun($run->id);
             return;
         }
@@ -265,17 +267,17 @@ final class RunScheduler {
             }
             return false;
         }
-        $this->approvals?->denyPending($run->id, 'Остановлено владельцем.', 'Остановлено владельцем.');
+        $this->approvals?->denyPending($run->id, t('agent.run_scheduler.ostanovleno_vladeltsem'), t('agent.run_scheduler.ostanovleno_vladeltsem'));
         foreach ($this->transcript->pendingCalls($run->id) as $call) {
-            $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, 'Остановлено владельцем.');
+            $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, t('agent.run_scheduler.ostanovleno_vladeltsem'));
         }
-        $this->transcript->appendAssistant($run->conversationId, $run->id, AgentLoop::STOPPED_NOTE, []);
+        $this->transcript->appendAssistant($run->conversationId, $run->id, \Mercurius\I18n\t(AgentLoop::STOPPED_NOTE), []);
         $this->runs->finish($run->id, StopReason::Stopped->status(), StopReason::Stopped);
         $this->events->runFinished($run->id, 'stopped', StopReason::Stopped->value, ($this->runs->find($run->id) ?? $run)->activeMs);
         $this->transcript->consumeInbox($run->id);
         $meta = $this->conversations->meta($run->conversationId);
         if ($meta !== null) {
-            $this->channel->send(new OutgoingMessage($meta->chatId, 'Остановлено.'));
+            $this->channel->send(new OutgoingMessage($meta->chatId, t('agent.run_scheduler.ostanovleno')));
         }
         $this->logger->info('Waiting run stopped', ['run' => $run->id]);
         return true;
@@ -361,7 +363,7 @@ final class RunScheduler {
             $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
         } catch (Throwable $e) {
             $this->logger->error('Could not start a run', ['conversation' => $conversationId, 'error' => $e::class]);
-            $this->channel->send(new OutgoingMessage($pending['message']->chatId, self::NOT_STARTED, $pending['message']->messageId));
+            $this->channel->send(new OutgoingMessage($pending['message']->chatId, \Mercurius\I18n\t(self::NOT_STARTED), $pending['message']->messageId));
         }
     }
 
@@ -451,7 +453,7 @@ final class RunScheduler {
             $this->logger->warning('Memory recall failed', ['conversation' => $meta->id, 'error' => $e::class]);
             return $text;
         }
-        return $facts === '' ? $text : $text . "\n\n" . UntrustedWrapper::wrap('memory', "Из памяти, справочные данные, не новый запрос:\n" . $facts);
+        return $facts === '' ? $text : $text . "\n\n" . UntrustedWrapper::wrap('memory', t('agent.run_scheduler.iz_pamyati_spravochnye_dannye_ne') . $facts);
     }
 
     /** @return int|null the run the text started; null when it joined another run or nothing started */
@@ -515,12 +517,12 @@ final class RunScheduler {
         }
         foreach ($this->transcript->pendingCalls($run->id) as $call) {
             if ($call->status === ToolCallStatus::Running && $call->danger !== DangerClass::Read) {
-                $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, self::INTERRUPTED);
+                $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, \Mercurius\I18n\t(self::INTERRUPTED));
             }
         }
         $this->logger->info('Resuming run after restart', ['run' => $run->id]);
         $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages);
-        $observer->start(self::RESUMED);
+        $observer->start(\Mercurius\I18n\t(self::RESUMED));
         $this->launch($run, $principal, $observer);
     }
 
@@ -553,27 +555,27 @@ final class RunScheduler {
     /** A run that crashed is closed as failed, so the conversation is free and the owner knows. */
     private function fail(Run $run, ChannelRunObserver $observer): void {
         try {
-            $this->approvals?->denyPending($run->id, 'Задача прервана из-за внутренней ошибки.', 'Задача прервана из-за внутренней ошибки.');
+            $this->approvals?->denyPending($run->id, t('agent.run_scheduler.zadacha_prervana_iz_za_vnutrenney'), t('agent.run_scheduler.zadacha_prervana_iz_za_vnutrenney'));
         } catch (Throwable $e) {
             $this->logger->error('Could not close the approval of a crashed run', ['run' => $run->id, 'error' => $e::class]);
         }
         try {
             foreach ($this->transcript->pendingCalls($run->id) as $call) {
-                $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Failed, 'Не выполнено: внутренняя ошибка.');
+                $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Failed, t('agent.run_scheduler.ne_vypolneno_vnutrennyaya_oshibka'));
             }
         } catch (Throwable $e) {
             $this->logger->error('Could not close calls of a crashed run', ['run' => $run->id, 'error' => $e::class]);
         }
         try {
             // Closes the task in the history, so the next run does not take it up again.
-            $this->transcript->appendAssistant($run->conversationId, $run->id, self::CRASHED, []);
+            $this->transcript->appendAssistant($run->conversationId, $run->id, \Mercurius\I18n\t(self::CRASHED), []);
         } catch (Throwable $e) {
             $this->logger->error('Could not close the history of a crashed run', ['run' => $run->id, 'error' => $e::class]);
         }
         try {
             $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
             $this->events->runFinished($run->id, 'failed', StopReason::InternalError->value, ($this->runs->find($run->id) ?? $run)->activeMs);
-            $observer->finished($this->runs->find($run->id) ?? $run, self::CRASHED, StopReason::InternalError);
+            $observer->finished($this->runs->find($run->id) ?? $run, \Mercurius\I18n\t(self::CRASHED), StopReason::InternalError);
         } catch (Throwable $e) {
             $this->logger->error('Could not close a crashed run', ['run' => $run->id, 'error' => $e::class]);
         }

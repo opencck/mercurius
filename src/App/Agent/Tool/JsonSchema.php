@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Tool;
 
+use function Mercurius\I18n\t;
+
 /**
  * The subset of JSON Schema that tool arguments use: type, properties, required, enum, items,
  * additionalProperties: false, minimum, maximum, maxLength. Errors are in Russian, for the model.
@@ -29,13 +31,13 @@ final class JsonSchema {
     private static function check(array $schema, mixed $value, string $path, array &$errors): void {
         $type = self::string($schema, 'type');
         if ($type !== null && !self::hasType($type, $value)) {
-            $errors[] = self::at($path, 'ожидается ' . $type);
+            $errors[] = self::at($path, t('tool.json_schema.ozhidaetsya') . $type);
             return;
         }
 
         $enum = self::array($schema, 'enum');
         if ($enum !== null && !in_array($value, $enum, true)) {
-            $errors[] = self::at($path, 'допустимо одно из ' . implode(', ', array_map(self::show(...), $enum)));
+            $errors[] = self::at($path, t('tool.json_schema.dopustimo_odno_iz') . implode(', ', array_map(self::show(...), $enum)));
             return;
         }
 
@@ -43,16 +45,16 @@ final class JsonSchema {
             $minimum = self::number($schema, 'minimum');
             $maximum = self::number($schema, 'maximum');
             if ($minimum !== null && $value < $minimum) {
-                $errors[] = self::at($path, sprintf('не меньше %s', $minimum));
+                $errors[] = self::at($path, sprintf(t('tool.json_schema.ne_menshe'), $minimum));
             }
             if ($maximum !== null && $value > $maximum) {
-                $errors[] = self::at($path, sprintf('не больше %s', $maximum));
+                $errors[] = self::at($path, sprintf(t('tool.json_schema.ne_bolshe'), $maximum));
             }
         }
 
         $maxLength = self::number($schema, 'maxLength');
         if (is_string($value) && is_int($maxLength) && mb_strlen($value) > $maxLength) {
-            $errors[] = self::at($path, sprintf('не длиннее %d символов', $maxLength));
+            $errors[] = self::at($path, sprintf(t('tool.json_schema.ne_dlinnee_simvolov'), $maxLength));
         }
 
         if (!is_array($value)) {
@@ -71,7 +73,7 @@ final class JsonSchema {
         foreach (array_keys($required) as $index) {
             $name = self::string($required, $index);
             if ($name !== null && !array_key_exists($name, $value)) {
-                $errors[] = self::at(self::join($path, $name), 'обязательное поле');
+                $errors[] = self::at(self::join($path, $name), t('tool.json_schema.obyazatelnoe_pole'));
             }
         }
         foreach (array_keys($value) as $name) {
@@ -80,7 +82,7 @@ final class JsonSchema {
             if ($property !== null) {
                 self::check($property, $value[$name], self::join($path, $name), $errors);
             } elseif (($schema['additionalProperties'] ?? true) === false) {
-                $errors[] = self::at(self::join($path, $name), 'неизвестное поле');
+                $errors[] = self::at(self::join($path, $name), t('tool.json_schema.neizvestnoe_pole'));
             }
         }
     }

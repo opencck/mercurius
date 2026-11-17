@@ -10,6 +10,8 @@ use Closure;
 
 use function Amp\Dns\resolve;
 
+use function Mercurius\I18n\t;
+
 /**
  * Keeps outgoing requests away from internal addresses: private, loopback, link-local (cloud metadata), CGNAT,
  * multicast, reserved, IPv4 wrapped in IPv6, and names without a dot (services of the compose project).
@@ -66,16 +68,16 @@ final class AddressGuard {
         if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
             $ips = [$host];
         } elseif (!str_contains(rtrim($host, '.'), '.')) {
-            throw new AddressRefused(sprintf('Адрес %s — внутренний: такие запросы запрещены.', $host));
+            throw new AddressRefused(sprintf(t('tool.address_guard.adres_vnutrenniy_takie_zaprosy_zapresche'), $host));
         } else {
             $ips = ($this->resolver)($host);
         }
         if ($ips === []) {
-            throw new AddressRefused(sprintf('Не удалось найти адрес %s.', $host));
+            throw new AddressRefused(sprintf(t('tool.address_guard.ne_udalos_nayti_adres'), $host));
         }
         foreach ($ips as $ip) {
             if (self::isBlockedIp($ip)) {
-                throw new AddressRefused(sprintf('Адрес %s — внутренний: такие запросы запрещены.', $host));
+                throw new AddressRefused(sprintf(t('tool.address_guard.adres_vnutrenniy_takie_zaprosy_zapresche'), $host));
             }
         }
         return $ips;

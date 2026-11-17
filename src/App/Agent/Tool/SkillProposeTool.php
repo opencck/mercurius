@@ -10,6 +10,8 @@ use OpenCCK\App\Agent\SkillCards;
 use OpenCCK\App\Skill\SkillCatalog;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * skill_propose: a new skill or a new version of one, from the agent; the owner accepts it with a card. Active skills
  * are never changed in place.
@@ -25,9 +27,9 @@ final class SkillProposeTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Предлагает владельцу новый скилл или новую версию существующего (полный текст); в каталог он '
-            . 'попадёт после одобрения. Скилл — инструкция для повторяющейся задачи: когда применять, что нужно, шаги, ловушки, '
-            . 'как проверить. description — одна строка до 120 символов; name — латиницей через дефис.', [
+        return new ToolDefinition(self::NAME, t('tool.skill_propose.predlagaet_vladeltsu_novyy_skill_ili')
+            . t('tool.skill_propose.popadet_posle_odobreniya_skill_instrukts')
+            . t('tool.skill_propose.kak_proverit_description_odna_stroka'), [
             'type' => 'object',
             'properties' => [
                 'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
@@ -66,8 +68,8 @@ final class SkillProposeTool implements Tool {
             return ToolResult::error($e->getMessage());
         }
         if (!$this->cards->show($version)) {
-            return ToolResult::error(sprintf('Версия %d скилла «%s» сохранена, но карточку владельцу отправить не удалось.', $version->version, $version->name));
+            return ToolResult::error(sprintf(t('tool.skill_propose.versiya_skilla_sohranena_no_kartochku'), $version->version, $version->name));
         }
-        return ToolResult::ok(sprintf('Скилл «%s» версии %d отправлен владельцу на одобрение; до решения он не используется.', $version->name, $version->version));
+        return ToolResult::ok(sprintf(t('tool.skill_propose.skill_versii_otpravlen_vladeltsu_na'), $version->name, $version->version));
     }
 }

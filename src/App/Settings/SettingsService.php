@@ -11,6 +11,8 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\SettingRepository;
 use SensitiveParameter;
 
+use function Mercurius\I18n\t;
+
 /**
  * The settings of the agent: stored values over .env. A value is checked by the same checks as at the start before it
  * is kept, so a bad one cannot stop the agent; it takes effect after a restart. Secret values live in the vault.
@@ -63,8 +65,8 @@ final class SettingsService {
         $out = [];
         foreach (SettingsCatalog::ALL as $key => [$group, $kind, $about]) {
             $raw = isset($stored[$key]) ? ($stored[$key]['secret'] ? '***' : ($stored[$key]['value'] ?? '')) : (isset($this->env[$key]) && is_string($this->env[$key]) ? $this->env[$key] : '');
-            $shown = $raw === '' ? '—' : ($kind === SettingsCatalog::SECRET ? 'задан' : $raw);
-            $out[] = ['key' => $key, 'group' => $group, 'about' => $about, 'value' => $shown, 'source' => isset($stored[$key]) ? 'диалог' : ($raw === '' ? 'по умолчанию' : '.env')];
+            $shown = $raw === '' ? '—' : ($kind === SettingsCatalog::SECRET ? t('settings.settings_service.zadan') : $raw);
+            $out[] = ['key' => $key, 'group' => t('settings.group.' . $group), 'about' => t($about), 'value' => $shown, 'source' => isset($stored[$key]) ? t('settings.settings_service.dialog') : ($raw === '' ? t('settings.settings_service.po_umolchaniyu') : '.env')];
         }
         return $out;
     }
@@ -82,7 +84,7 @@ final class SettingsService {
             }
             $lines[] = sprintf('%s = %s (%s) — %s', $s['key'], $s['value'], $s['source'], $s['about']);
         }
-        return $lines === [] ? 'Таких настроек нет.' : implode("\n", $lines);
+        return $lines === [] ? t('settings.settings_service.takih_nastroek_net') : implode("\n", $lines);
     }
 
     /**
@@ -108,16 +110,16 @@ final class SettingsService {
         }
         $failure = ($this->validate)($candidate);
         if ($failure !== null) {
-            throw new DomainException('Не сохранено: с этим значением агент не запустится — ' . $failure);
+            throw new DomainException(t('settings.settings_service.ne_sohraneno_s_etim_znacheniem') . $failure);
         }
         if ($value === '') {
             $this->settings->delete($key);
             $this->vault->remove(self::VAULT_PREFIX . $key, $who);
-            return sprintf('%s сброшена к значению из .env. Применится после перезапуска (/restart).', $key);
+            return sprintf(t('settings.settings_service.sbroshena_k_znacheniyu_iz_env'), $key);
         }
         if (SettingsCatalog::secret($key)) {
             if (!$this->vault->enabled()) {
-                throw new DomainException('Хранилище секретов выключено: в .env нет SECRETS_KEY.');
+                throw new DomainException(t('settings.settings_service.hranilische_sekretov_vyklyucheno_v_env'));
             }
             $this->vault->remove(self::VAULT_PREFIX . $key, $who);
             $this->vault->put(self::VAULT_PREFIX . $key, 'token', $value, $who);
@@ -125,14 +127,14 @@ final class SettingsService {
         } else {
             $this->settings->set($key, $value, false, $who->id);
         }
-        return sprintf('%s сохранена. Применится после перезапуска (/restart).', $key);
+        return sprintf(t('settings.settings_service.sohranena_primenitsya_posle_perezapuska'), $key);
     }
 
     /** A secret setting takes the value of a vault secret the owner put with /secret: the value never enters the dialog. */
     public function setFromSecret(Principal $who, string $key, string $secretName): string {
         $value = $this->vault->reveal($secretName, $who);
         if ($value === null) {
-            throw new DomainException(sprintf('Секрета «%s» нет: владелец кладёт его командой /secret %s <значение>.', $secretName, $secretName));
+            throw new DomainException(sprintf(t('settings.settings_service.sekreta_net_vladelets_kladet_ego'), $secretName, $secretName));
         }
         return $this->set($who, $key, $value);
     }

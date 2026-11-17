@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\CommandPolicy;
 
+use function Mercurius\I18n\t;
+
 /**
  * Classifies a shell command before it runs on a server. A read is proven: a command from the list of readers with
  * arguments its grammar knows and no shell syntax at all; anything else is a change and needs the owner. The "never"
@@ -68,10 +70,10 @@ final class CommandClassifier {
     public function classify(string $command): Classification {
         $command = trim($command);
         if ($command === '') {
-            return new Classification(Classification::CHANGE, 'пустая команда');
+            return new Classification(Classification::CHANGE, t('commandpolicy.command_classifier.pustaya_komanda'));
         }
         if (mb_strlen($command) > self::MAX_LENGTH || str_contains($command, "\0")) {
-            return new Classification(Classification::CHANGE, 'команда слишком длинная или с нулевым байтом');
+            return new Classification(Classification::CHANGE, t('commandpolicy.command_classifier.komanda_slishkom_dlinnaya_ili_s'));
         }
         $never = $this->never($command);
         if ($never !== null) {
@@ -91,20 +93,20 @@ final class CommandClassifier {
             }
             $name = self::commandName($words);
             if ($name !== null && in_array($name, self::ELEVATE, true)) {
-                return new Classification(Classification::PRIVILEGED, sprintf('повышение прав (%s)', $name));
+                return new Classification(Classification::PRIVILEGED, sprintf(t('commandpolicy.command_classifier.povyshenie_prav'), $name));
             }
             if ($name === 'docker' && (in_array('--privileged', $words, true) || self::hasRootUser($words))) {
-                return new Classification(Classification::PRIVILEGED, 'docker с правами root');
+                return new Classification(Classification::PRIVILEGED, t('commandpolicy.command_classifier.docker_s_pravami_root'));
             }
         }
         if (preg_match('~[;&|<>`$(){}\n\r\\\\]~', $command) === 1) {
-            return new Classification(Classification::CHANGE, 'синтаксис оболочки: прочитать команду нельзя');
+            return new Classification(Classification::CHANGE, t('commandpolicy.command_classifier.sintaksis_obolochki_prochitat_komandu_ne'));
         }
         if (preg_match('~[*?\[]~', $command) === 1) {
-            return new Classification(Classification::CHANGE, 'шаблон имён: оболочка развернёт его в неизвестное');
+            return new Classification(Classification::CHANGE, t('commandpolicy.command_classifier.shablon_imen_obolochka_razvernet_ego'));
         }
         if (count($segments) !== 1 || $segments[0] === null) {
-            return new Classification(Classification::CHANGE, 'команду не удалось разобрать');
+            return new Classification(Classification::CHANGE, t('commandpolicy.command_classifier.komandu_ne_udalos_razobrat'));
         }
         return $this->reader($segments[0]);
     }
@@ -122,41 +124,41 @@ final class CommandClassifier {
                 }
             }
             if ($sub === null || !in_array($sub, self::SUBREADERS[$name], true)) {
-                return new Classification(Classification::CHANGE, sprintf('%s %s не в списке читающих', $name, $sub ?? ''));
+                return new Classification(Classification::CHANGE, sprintf(t('commandpolicy.command_classifier.ne_v_spiske_chitayuschih'), $name, $sub ?? ''));
             }
         } elseif (!array_key_exists($name, self::READERS)) {
-            return new Classification(Classification::CHANGE, sprintf('%s не в списке читающих команд', $name));
+            return new Classification(Classification::CHANGE, sprintf(t('commandpolicy.command_classifier.ne_v_spiske_chitayuschih_komand'), $name));
         } else {
             $max = self::READERS[$name];
             $operands = array_values(array_filter($args, static fn(string $a): bool => !str_starts_with($a, '-')));
             if ($max !== null && count($operands) > $max) {
-                return new Classification(Classification::CHANGE, sprintf('у %s слишком много операндов: последний может быть файлом для записи', $name));
+                return new Classification(Classification::CHANGE, sprintf(t('commandpolicy.command_classifier.u_slishkom_mnogo_operandov_posledniy'), $name));
             }
         }
         foreach ($args as $arg) {
             foreach (self::DISQUALIFY[$name] ?? [] as $bad) {
                 if ($arg === $bad || str_starts_with($arg, $bad . '=') || (strlen($bad) === 2 && str_starts_with($arg, $bad) && $bad[0] === '-' && $bad[1] !== '-')) {
-                    return new Classification(Classification::CHANGE, sprintf('аргумент %s у %s пишет или запускает', $bad, $name));
+                    return new Classification(Classification::CHANGE, sprintf(t('commandpolicy.command_classifier.argument_u_pishet_ili_zapuskaet'), $bad, $name));
                 }
             }
         }
-        return new Classification(Classification::READ, sprintf('%s только читает', $name));
+        return new Classification(Classification::READ, sprintf(t('commandpolicy.command_classifier.tolko_chitaet'), $name));
     }
 
     /** What is never allowed, read as operations; null when nothing of it is there. */
     private function never(string $command): ?string {
         $flat = preg_replace('~\s+~', ' ', $command) ?? $command;
         if (preg_match('~:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}~', $flat) === 1) {
-            return 'fork-бомба';
+            return t('commandpolicy.command_classifier.fork_bomba');
         }
         if (preg_match('~\b(curl|wget|fetch)\b[^|]*\|\s*(sudo\s+)?(ba|z|da|k|a)?sh\b~', $flat) === 1) {
-            return 'загрузка в оболочку из сети';
+            return t('commandpolicy.command_classifier.zagruzka_v_obolochku_iz_seti');
         }
         if (preg_match('~>\s*/dev/(sd|nvme|vd|hd|xvd|mmcblk)~', $flat) === 1) {
-            return 'запись поверх диска';
+            return t('commandpolicy.command_classifier.zapis_poverh_diska');
         }
         if (preg_match('~(>>?\s*|\btee\b[^;|&]*\s|\b(cp|mv|install|ln)\b[^;|&]*\s)\S*(authorized_keys|/etc/cron|/etc/sudoers|/etc/systemd/)~', $flat) === 1) {
-            return 'запись в authorized_keys, cron, sudoers или systemd';
+            return t('commandpolicy.command_classifier.zapis_v_authorized_keys_cron');
         }
         foreach (self::segments($command) as $words) {
             if ($words === null) {
@@ -173,33 +175,33 @@ final class CommandClassifier {
                 continue;
             }
             if (in_array($name, self::SHUTDOWN, true) || $name === 'eval') {
-                return sprintf('%s запрещён', $name);
+                return sprintf(t('commandpolicy.command_classifier.zapreschen'), $name);
             }
             if ($name === 'init' && array_intersect($args, ['0', '6']) !== []) {
-                return 'выключение через init';
+                return t('commandpolicy.command_classifier.vyklyuchenie_cherez_init');
             }
             if ($name === 'systemctl' && array_intersect($args, ['reboot', 'poweroff', 'halt', 'kexec', 'emergency', 'rescue']) !== []) {
-                return 'выключение через systemctl';
+                return t('commandpolicy.command_classifier.vyklyuchenie_cherez_systemctl');
             }
             if (preg_match('~^(mkfs(\..+)?|mke2fs|mkswap|wipefs|mkdosfs|mkntfs)$~', $name) === 1) {
-                return 'форматирование устройства';
+                return t('commandpolicy.command_classifier.formatirovanie_ustroystva');
             }
             if ($name === 'dd' && preg_grep('~^of=/dev/~', $args) !== []) {
-                return 'запись dd на устройство';
+                return t('commandpolicy.command_classifier.zapis_dd_na_ustroystvo');
             }
             if ($name === 'rm' && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
-                return 'рекурсивное удаление корня';
+                return t('commandpolicy.command_classifier.rekursivnoe_udalenie_kornya');
             }
             if (($name === 'chmod' || $name === 'chown') && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
-                return sprintf('рекурсивный %s корня', $name);
+                return sprintf(t('commandpolicy.command_classifier.rekursivnyy_kornya'), $name);
             }
             if ($name === 'iptables' || $name === 'ip6tables') {
                 if (array_intersect($args, ['-F', '--flush', '-X']) !== [] || (in_array('-P', $args, true) && in_array('ACCEPT', $args, true))) {
-                    return 'сброс межсетевого экрана';
+                    return t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana');
                 }
             }
             if ($name === 'nft' && in_array('flush', $args, true)) {
-                return 'сброс межсетевого экрана';
+                return t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana');
             }
         }
         return null;

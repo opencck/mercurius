@@ -11,6 +11,8 @@ use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
 use UnexpectedValueException;
 
+use function Mercurius\I18n\t;
+
 final class PostgresServerRepository implements ServerRepository {
     private const COLUMNS = 'id, name, host, port, username, secret_id, server_group, host_key, pending_host_key, route';
 
@@ -18,7 +20,7 @@ final class PostgresServerRepository implements ServerRepository {
 
     public function add(string $name, string $host, int $port, string $username, ?int $secretId, string $group, ?string $route = null): Server {
         if ($this->byName($name) !== null) {
-            throw new DomainException(sprintf('Сервер «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_server.server_uzhe_est'), $name));
         }
         try {
             $row = $this->db->execute(
@@ -26,7 +28,7 @@ final class PostgresServerRepository implements ServerRepository {
                 [$name, $host, $port, $username, $secretId, $group, $route],
             )->fetchRow();
         } catch (SqlQueryError) {
-            throw new DomainException(sprintf('Сервер «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_server.server_uzhe_est'), $name));
         }
         return self::server($row ?? throw new UnexpectedValueException('Server was not added'));
     }

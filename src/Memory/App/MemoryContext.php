@@ -6,6 +6,8 @@ namespace OpenCCK\Memory\App;
 
 use OpenCCK\Memory\Domain\MemoryStore;
 
+use function Mercurius\I18n\t;
+
 /**
  * What memory adds to a run: layer 1 for the system prompt and the facts that answer the message.
  *
@@ -39,8 +41,8 @@ final class MemoryContext {
      */
     public function core(string $scope = Audience::OWNER): string {
         $parts = [];
-        $who = $scope === Audience::OWNER ? 'владельца' : 'собеседника';
-        foreach ([self::PROFILE => 'Профиль ' . $who, self::SUMMARY => 'Текущие дела'] as $section => $title) {
+        $who = $scope === Audience::OWNER ? t('app.memory_context.vladeltsa') : t('app.memory_context.sobesednika');
+        foreach ([self::PROFILE => t('app.memory_context.profil') . $who, self::SUMMARY => t('app.memory_context.tekuschie_dela')] as $section => $title) {
             $text = trim($this->store->core(self::section($section, $scope)));
             if ($text !== '') {
                 $parts[] = $title . ":\n" . $text;

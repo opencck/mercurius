@@ -13,6 +13,8 @@ use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * Keeps projects: the agent writes the card and the tasks itself; a new project, its goal or status, and a
  * participant's relation to it wait for the owner — those calls are irreversible, so the owner gets a card.
@@ -54,13 +56,13 @@ final class ProjectEditTool implements Tool {
     }
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Ведёт проекты. project — имя проекта (без него — проект этого чата). action: create — новый '
-            . 'проект (text — цель); goal — новая цель (text); status — active, paused или done; card — полный новый текст карточки: состав, '
-            . 'репозитории, серверы, стек, принятые решения; add_task — задача (text; parent_id — если это часть другой; profile — оценки '
-            . '1–10 по осям, если ясны; due — срок: ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ по часовому поясу владельца); task_status — task_id и status '
-            . '(open, doing, done, dropped), для done и dropped text — итог; task_due — task_id и due (пусто — снять срок); '
-            . 'relation — отношение собеседника к проекту его словами (роль, приоритет, ожидания), не твои выводы; activate — сделать '
-            . 'проект проектом этого чата. create, goal, status и relation ждут подтверждения владельца.', [
+        return new ToolDefinition(self::NAME, t('tool.project_edit.vedet_proekty_project_imya_proekta')
+            . t('tool.project_edit.proekt_text_tsel_goal_novaya')
+            . t('tool.project_edit.repozitorii_servery_stek_prinyatye_reshe')
+            . t('tool.project_edit.1_10_po_osyam_esli')
+            . t('tool.project_edit.open_doing_done_dropped_dlya')
+            . t('tool.project_edit.relation_otnoshenie_sobesednika_k_proekt')
+            . t('tool.project_edit.proekt_proektom_etogo_chata_create'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -93,12 +95,12 @@ final class ProjectEditTool implements Tool {
         $action = Args::string($args, 'action') ?? '';
         $text = trim(Args::string($args, 'text') ?? '');
         if ($text !== '' && SecretMasker::mask($text) !== $text) {
-            return ToolResult::error('В проекте не хранят секреты: уберите их из текста.');
+            return ToolResult::error(t('tool.project_edit.v_proekte_ne_hranyat_sekrety'));
         }
         if ($action === 'create') {
             $name = trim(Args::string($args, 'project') ?? '');
             if ($name === '') {
-                return ToolResult::error('Нужно имя проекта: project.');
+                return ToolResult::error(t('tool.project_edit.nuzhno_imya_proekta_project'));
             }
             try {
                 $project = $this->projects->create($name, mb_substr($text, 0, Project::GOAL_MAX), Project::scopeOf($context->principal));
@@ -108,24 +110,24 @@ final class ProjectEditTool implements Tool {
             $meta = $this->conversations->meta($context->conversationId);
             // spec: BRIEF.md#форум-темы--проекты — a new project in a forum gets its own topic
             $topic = $meta === null ? '' : ($this->forum?->created($project, $meta) ?? '');
-            return ToolResult::ok(trim(sprintf('Проект «%s» заведён. %s', $project->name, $topic)));
+            return ToolResult::ok(trim(sprintf(t('tool.project_edit.proekt_zaveden'), $project->name, $topic)));
         }
         $project = $this->project($args, $context);
         if ($project === null) {
-            return ToolResult::error('Проект не найден: назови его в project или привяжи к чату (activate).');
+            return ToolResult::error(t('tool.project_edit.proekt_ne_nayden_nazovi_ego'));
         }
         return match ($action) {
-            'goal' => $this->update($project, $text === '' ? null : mb_substr($text, 0, Project::GOAL_MAX), null, null, 'Цель'),
+            'goal' => $this->update($project, $text === '' ? null : mb_substr($text, 0, Project::GOAL_MAX), null, null, t('tool.project_edit.tsel')),
             'status' => in_array(Args::string($args, 'status'), Project::STATUSES, true)
-                ? $this->update($project, null, Args::string($args, 'status'), null, 'Статус')
-                : ToolResult::error('status проекта — active, paused или done.'),
-            'card' => $this->update($project, null, null, $text, 'Карточка'),
+                ? $this->update($project, null, Args::string($args, 'status'), null, t('tool.project_edit.status'))
+                : ToolResult::error(t('tool.project_edit.status_proekta_active_paused_ili')),
+            'card' => $this->update($project, null, null, $text, t('tool.project_edit.kartochka')),
             'add_task' => $this->addTask($project, $text, Args::int($args, 'parent_id'), $args),
             'task_status' => $this->taskStatus($project, Args::int($args, 'task_id'), Args::string($args, 'status'), $text),
             'task_due' => $this->taskDue($project, Args::int($args, 'task_id'), Args::string($args, 'due') ?? ''),
             'relation' => $this->relation($project, $context, $text),
             'activate' => $this->activate($project, $context),
-            default => ToolResult::error('Неизвестное действие: ' . $action),
+            default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
 
@@ -146,38 +148,38 @@ final class ProjectEditTool implements Tool {
         if ($status !== null) {
             $this->forum?->statusChanged($project, $status);
         }
-        return ToolResult::ok(sprintf('%s проекта «%s» обновлена.', $what, $project->name));
+        return ToolResult::ok(sprintf(t('tool.project_edit.proekta_obnovlena'), $what, $project->name));
     }
 
     /** @param array<string, mixed> $args */
     private function addTask(Project $project, string $title, ?int $parentId, array $args): ToolResult {
         if ($title === '' || mb_strlen($title) > ProjectTask::TITLE_MAX) {
-            return ToolResult::error(sprintf('Задаче нужна формулировка до %d символов: text.', ProjectTask::TITLE_MAX));
+            return ToolResult::error(sprintf(t('tool.project_edit.zadache_nuzhna_formulirovka_do_simvolov'), ProjectTask::TITLE_MAX));
         }
         if ($parentId !== null && $this->projects->task($parentId)?->projectId !== $project->id) {
-            return ToolResult::error(sprintf('Задачи #%d в проекте «%s» нет.', $parentId, $project->name));
+            return ToolResult::error(sprintf(t('tool.project_edit.zadachi_v_proekte_net'), $parentId, $project->name));
         }
         $profile = isset($args['profile']) && is_array($args['profile']) ? TaskProfile::fromArray($args['profile'])->nonTrivial() : [];
         $dueText = Args::string($args, 'due') ?? '';
         $due = $dueText === '' ? null : self::due($dueText, $this->zone);
         if ($dueText !== '' && $due === null) {
-            return ToolResult::error('Срок — ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ.');
+            return ToolResult::error(t('tool.project_edit.srok_gggg_mm_dd_ili'));
         }
         $task = $this->projects->addTask($project->id, $title, $parentId, $profile, $due);
-        return ToolResult::ok(sprintf('Задача #%d добавлена в «%s»%s.', $task->id, $project->name, $due === null ? '' : ', срок ' . $this->when($due)));
+        return ToolResult::ok(sprintf(t('tool.project_edit.zadacha_dobavlena_v'), $task->id, $project->name, $due === null ? '' : t('tool.project_edit.srok') . $this->when($due)));
     }
 
     private function taskDue(Project $project, ?int $taskId, string $dueText): ToolResult {
         $task = $taskId === null ? null : $this->projects->task($taskId);
         if ($task === null || $task->projectId !== $project->id) {
-            return ToolResult::error(sprintf('Задачи #%d в проекте «%s» нет.', (int) $taskId, $project->name));
+            return ToolResult::error(sprintf(t('tool.project_edit.zadachi_v_proekte_net'), (int) $taskId, $project->name));
         }
         $due = trim($dueText) === '' ? null : self::due($dueText, $this->zone);
         if (trim($dueText) !== '' && $due === null) {
-            return ToolResult::error('Срок — ГГГГ-ММ-ДД или ГГГГ-ММ-ДДTЧЧ:ММ.');
+            return ToolResult::error(t('tool.project_edit.srok_gggg_mm_dd_ili'));
         }
         $this->projects->setTaskDue($task->id, $due);
-        return ToolResult::ok($due === null ? sprintf('Срок задачи #%d снят.', $task->id) : sprintf('Срок задачи #%d: %s.', $task->id, $this->when($due)));
+        return ToolResult::ok($due === null ? sprintf(t('tool.project_edit.srok_zadachi_snyat'), $task->id) : sprintf(t('tool.project_edit.srok_zadachi'), $task->id, $this->when($due)));
     }
 
     private function when(\DateTimeImmutable $at): string {
@@ -187,33 +189,33 @@ final class ProjectEditTool implements Tool {
     private function taskStatus(Project $project, ?int $taskId, ?string $status, string $result): ToolResult {
         $task = $taskId === null ? null : $this->projects->task($taskId);
         if ($task === null || $task->projectId !== $project->id) {
-            return ToolResult::error(sprintf('Задачи #%d в проекте «%s» нет.', (int) $taskId, $project->name));
+            return ToolResult::error(sprintf(t('tool.project_edit.zadachi_v_proekte_net'), (int) $taskId, $project->name));
         }
         if (!in_array($status, ProjectTask::STATUSES, true)) {
-            return ToolResult::error('status задачи — open, doing, done или dropped.');
+            return ToolResult::error(t('tool.project_edit.status_zadachi_open_doing_done'));
         }
         $closing = $status === ProjectTask::DONE || $status === ProjectTask::DROPPED;
         if ($closing && $result === '') {
-            return ToolResult::error('Закрытой задаче нужен итог: text.');
+            return ToolResult::error(t('tool.project_edit.zakrytoy_zadache_nuzhen_itog_text'));
         }
         $this->projects->setTaskStatus($task->id, $status, $result === '' ? null : mb_substr($result, 0, ProjectTask::RESULT_MAX));
-        return ToolResult::ok(sprintf('Задача #%d: %s.', $task->id, $status));
+        return ToolResult::ok(sprintf(t('tool.project_edit.zadacha'), $task->id, $status));
     }
 
     private function relation(Project $project, ToolContext $context, string $text): ToolResult {
         if ($text === '' || mb_strlen($text) > self::RELATION_MAX) {
-            return ToolResult::error(sprintf('Отношение — словами собеседника, до %d символов: text.', self::RELATION_MAX));
+            return ToolResult::error(sprintf(t('tool.project_edit.otnoshenie_slovami_sobesednika_do_simvol'), self::RELATION_MAX));
         }
         $this->projects->setRelation($project->id, $context->principal->id, $text);
-        return ToolResult::ok(sprintf('Отношение к проекту «%s» записано.', $project->name));
+        return ToolResult::ok(sprintf(t('tool.project_edit.otnoshenie_k_proektu_zapisano'), $project->name));
     }
 
     private function activate(Project $project, ToolContext $context): ToolResult {
         $meta = $this->conversations->meta($context->conversationId);
         if ($meta === null) {
-            return ToolResult::error('Беседа не найдена.');
+            return ToolResult::error(t('tool.project_edit.beseda_ne_naydena'));
         }
         $this->projects->activate($meta->channel, $meta->chatId, $project->id, $meta->threadId);
-        return ToolResult::ok(sprintf('«%s» — проект этого чата; карточка придёт в контекст со следующей беседы (/new).', $project->name));
+        return ToolResult::ok(sprintf(t('tool.project_edit.proekt_etogo_chata_kartochka_pridet'), $project->name));
     }
 }

@@ -7,6 +7,8 @@ namespace OpenCCK\App\Service;
 use Mercurius\Messenger\IncomingMessage;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 
+use function Mercurius\I18n\t;
+
 /**
  * What the agent knows about a message besides its text: its number, the forum topic, and the message it answers
  * (author and a piece of its text). The owner asked "which message am I replying to?" and the agent could not tell.
@@ -34,7 +36,7 @@ final class MessageMeta {
         if ($parts === [] && !$always) {
             return '';
         }
-        return sprintf('[Это сообщение #%s%s]', $message->messageId, $parts === [] ? '' : '; ' . implode('; ', $parts));
+        return sprintf(t('service.message_meta.eto_soobschenie'), $message->messageId, $parts === [] ? '' : '; ' . implode('; ', $parts));
     }
 
     /**
@@ -64,7 +66,7 @@ final class MessageMeta {
             $value = $created['name'] ?? null;
             $name = is_string($value) ? $value : null;
         }
-        return $name === null ? sprintf('тема #%s', $message->threadId) : sprintf('тема «%s» (#%s)', $name, $message->threadId);
+        return $name === null ? sprintf(t('service.message_meta.tema'), $message->threadId) : sprintf(t('service.message_meta.tema_2'), $name, $message->threadId);
     }
 
     /**
@@ -80,21 +82,21 @@ final class MessageMeta {
         $id = $reply['message_id'] ?? null;
         /** @var mixed $from */
         $from = $reply['from'] ?? null;
-        $author = 'неизвестно кто';
+        $author = t('service.message_meta.neizvestno_kto');
         if (is_array($from)) {
             /** @var mixed $fromId */
             $fromId = $from['id'] ?? null;
             /** @var mixed $first */
             $first = $from['first_name'] ?? null;
             $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId
-                ? 'ты (агент)' . ($run === null ? '' : ' в запуске #' . $run)
-                : (is_string($first) ? $first : 'участник');
+                ? t('service.message_meta.ty_agent') . ($run === null ? '' : t('service.message_meta.v_zapuske') . $run)
+                : (is_string($first) ? $first : t('service.message_meta.uchastnik'));
         }
         /** @var mixed $text */
         $text = $reply['text'] ?? ($reply['caption'] ?? null);
         $piece = is_string($text) ? mb_substr(trim($text), 0, self::QUOTE) : '';
         return sprintf(
-            'оно отвечает на сообщение #%s, которое написал %s%s',
+            t('service.message_meta.ono_otvechaet_na_soobschenie_kotoroe'),
             is_int($id) || is_string($id) ? (string) $id : '?',
             $author,
             $piece === '' ? '' : ': «' . SecretMasker::mask($piece) . '»',

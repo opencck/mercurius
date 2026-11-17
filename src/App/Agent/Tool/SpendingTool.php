@@ -9,6 +9,8 @@ use OpenCCK\App\Service\TraceReports;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Repository\RunRepository;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent's own spend: tokens of this run so far, a run by its number, recent runs, spend by day and model. The
  * owner asked how many tokens an answer took and the agent could only guess.
@@ -27,10 +29,10 @@ final class SpendingTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Расход токенов и денег. action: run — этот запуск, запуск run_id или запуск, '
-            . 'который написал сообщение message_id в этом чате (номер запуска есть и в заголовке ответа на твоё сообщение); '
-            . 'recent — последние запуски; days — расход по дням и моделям (days, по умолчанию 7). '
-            . 'Числа бери только отсюда и только из вызова в этом ответе: не прикидывай и не бери из прошлых ответов.', [
+        return new ToolDefinition(self::NAME, t('tool.spending.rashod_tokenov_i_deneg_action')
+            . t('tool.spending.kotoryy_napisal_soobschenie_message_id')
+            . t('tool.spending.recent_poslednie_zapuski_days_rashod')
+            . t('tool.spending.chisla_beri_tolko_otsyuda_i'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => ['run', 'recent', 'days']],
@@ -58,7 +60,7 @@ final class SpendingTool implements Tool {
         $action = Args::string($args, 'action') ?? 'run';
         $owner = $context->principal->isOwner();
         if ($action !== 'run' && !$owner) {
-            return ToolResult::error('Общий расход видит только владелец.');
+            return ToolResult::error(t('tool.spending.obschiy_rashod_vidit_tolko_vladelets'));
         }
         if ($action === 'recent') {
             return ToolResult::ok($this->reports->runs(10));
@@ -73,21 +75,21 @@ final class SpendingTool implements Tool {
             $meta = $this->conversations?->meta($context->conversationId);
             $found = $meta === null ? null : $this->messages?->runOf($meta->channel, $meta->chatId, (string) $messageId);
             if ($found === null) {
-                return ToolResult::error(sprintf('Неизвестно, какой запуск написал сообщение #%d: такие записи ведутся с 2026-11-17. Не угадывай — скажи, что не знаешь.', $messageId));
+                return ToolResult::error(sprintf(t('tool.spending.neizvestno_kakoy_zapusk_napisal_soobsche'), $messageId));
             }
             $runId = $found;
-            $prefix = sprintf("Сообщение #%d написал запуск #%d.\n", $messageId, $found);
+            $prefix = sprintf(t('tool.spending.soobschenie_napisal_zapusk'), $messageId, $found);
         }
         $run = $this->runs->find($runId);
         if ($run === null || (!$owner && $run->principalId !== $context->principal->id)) {
-            return ToolResult::error(sprintf('Запуска #%d нет.', $runId));
+            return ToolResult::error(sprintf(t('tool.spending.zapuska_net'), $runId));
         }
         $summary = $prefix . ($runId === $context->runId
-            ? sprintf('Запуск #%d идёт сейчас: потрачено %d токенов за %d вызовов модели (этот ответ ещё не посчитан).', $run->id, $run->tokensUsed, $run->turns)
-            : sprintf('Запуск #%d: итого %d токенов, %d вызовов модели.', $run->id, $run->tokensUsed, $run->turns));
+            ? sprintf(t('tool.spending.zapusk_idet_seychas_potracheno_tokenov'), $run->id, $run->tokensUsed, $run->turns)
+            : sprintf(t('tool.spending.zapusk_itogo_tokenov_vyzovov_modeli'), $run->id, $run->tokensUsed, $run->turns));
         if (!$owner) {
             return ToolResult::ok($summary);
         }
-        return ToolResult::ok($summary . "\n\n" . ($this->reports->trace($runId) ?? 'Трассы этого запуска нет.'));
+        return ToolResult::ok($summary . "\n\n" . ($this->reports->trace($runId) ?? t('tool.spending.trassy_etogo_zapuska_net')));
     }
 }

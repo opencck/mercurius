@@ -13,6 +13,8 @@ use OpenCCK\Domain\Repository\RoutingDecisionRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * Where a run goes when its model fails: the same model at the other provider, else the main role, else the strong
  * one. One switch per run; the prompt cache is lost once, which is cheaper than a failed run.
@@ -45,23 +47,23 @@ final class FallbackModels {
         if ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, self::OPENAI_PREFIX) && in_array(ModelRef::OPENAI, $providers, true)) {
             $twin = new ModelRef(ModelRef::OPENAI, substr($ref->model, strlen(self::OPENAI_PREFIX)));
             if ($this->catalog->find($twin) !== null) {
-                [$next, $why] = [$twin, 'та же модель напрямую у OpenAI'];
+                [$next, $why] = [$twin, t('model.fallback_models.ta_zhe_model_napryamuyu_u')];
             }
         } elseif ($ref->provider === ModelRef::OPENAI && in_array(ModelRef::OPENROUTER, $providers, true)) {
             $twin = new ModelRef(ModelRef::OPENROUTER, self::OPENAI_PREFIX . $ref->model);
             if ($this->catalog->find($twin) !== null) {
-                [$next, $why] = [$twin, 'та же модель через OpenRouter'];
+                [$next, $why] = [$twin, t('model.fallback_models.ta_zhe_model_cherez_openrouter')];
             }
         }
         if ($next === null) {
             $main = $this->roles->model(ModelRole::MAIN);
             $strong = $this->roles->model(ModelRole::STRONG);
-            [$next, $why] = (string) $main !== (string) $ref ? [$main, 'роль main'] : ((string) $strong !== (string) $ref ? [$strong, 'роль strong'] : [null, '']);
+            [$next, $why] = (string) $main !== (string) $ref ? [$main, t('model.fallback_models.rol_main')] : ((string) $strong !== (string) $ref ? [$strong, t('model.fallback_models.rol_strong')] : [null, '']);
         }
         if ($next === null) {
             return null;
         }
-        $reason = sprintf('модель %s не ответила — %s', $ref, $why);
+        $reason = sprintf(t('model.fallback_models.model_ne_otvetila'), $ref, $why);
         $this->logger->warning('Model failed; switching once', ['from' => (string) $ref, 'to' => (string) $next]);
         try {
             $this->decisions->record(new RoutingDecision($conversationId, 'fallback', 'failure', 'fallback', (string) $next, $reason));

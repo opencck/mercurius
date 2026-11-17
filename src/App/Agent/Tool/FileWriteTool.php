@@ -10,6 +10,8 @@ use OpenCCK\CommandPolicy\Classification;
 use OpenCCK\CommandPolicy\CommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * Writes a file on a server: the content goes on stdin of `cat`, no SFTP is needed. Every write waits for the owner;
  * the places of the "never" list (authorized_keys, cron, sudoers, systemd) are refused. Reading a file is ssh_run with
@@ -28,8 +30,8 @@ final class FileWriteTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Записывает файл на сервере из реестра (ждёт подтверждения владельца): path — путь, content — содержимое '
-            . '(до 512 КБ текста), append — дописать в конец. Прочитать файл — ssh_run с cat.', [
+        return new ToolDefinition(self::NAME, t('tool.file_write.zapisyvaet_fayl_na_servere_iz')
+            . t('tool.file_write.do_512_kb_teksta_append'), [
             'type' => 'object',
             'properties' => [
                 'server' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
@@ -58,29 +60,29 @@ final class FileWriteTool implements Tool {
         $path = Args::string($args, 'path') ?? '';
         $content = Args::string($args, 'content') ?? '';
         if (preg_match('~[\x00-\x1F\x7F]~', $path) === 1 || preg_match('~[\p{Cf}]~u', $path) === 1 || trim($path) !== $path) {
-            return ToolResult::error('В пути — управляющие или невидимые символы или пробелы по краям.');
+            return ToolResult::error(t('tool.file_write.v_puti_upravlyayuschie_ili_nevidimye'));
         }
         if (strlen($content) > self::MAX_BYTES) {
-            return ToolResult::error('Слишком большой файл: до 512 КБ.');
+            return ToolResult::error(t('tool.file_write.slishkom_bolshoy_fayl_do_512'));
         }
         $append = ($args['append'] ?? false) === true;
         $command = sprintf('cat %s %s', $append ? '>>' : '>', self::quote($path));
         $class = $this->classifier->classify($command);
         if ($class->class === Classification::NEVER) {
-            return ToolResult::error(sprintf('Сюда писать нельзя никогда: %s.', $class->reason));
+            return ToolResult::error(sprintf(t('tool.file_write.syuda_pisat_nelzya_nikogda'), $class->reason));
         }
         [$ok, $text] = $this->console->runPrepared(
             $context->principal,
             $context->runId,
             Args::string($args, 'server') ?? '',
-            sprintf('file %s %s (%d байт)', $append ? 'append' : 'write', $path, strlen($content)),
+            sprintf(t('tool.file_write.file_bayt'), $append ? 'append' : 'write', $path, strlen($content)),
             Classification::CHANGE,
             $command,
             $content,
             60,
             $context->cancellation,
         );
-        return $ok ? ToolResult::ok(sprintf('Записано %d байт в %s.', strlen($content), $path)) : ToolResult::error($text);
+        return $ok ? ToolResult::ok(sprintf(t('tool.file_write.zapisano_bayt_v'), strlen($content), $path)) : ToolResult::error($text);
     }
 
     private static function quote(string $text): string {

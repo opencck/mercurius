@@ -9,6 +9,8 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\SecretRepository;
 use SensitiveParameter;
 
+use function Mercurius\I18n\t;
+
 /**
  * Secrets encrypted with the master key: libsodium XChaCha20-Poly1305 with the name as associated data, a fresh nonce
  * for every value. A secret is read by its
@@ -40,15 +42,15 @@ final class Vault {
 
     /** @throws DomainException when the vault is off, the name or kind is wrong, or the name is taken */
     public function put(string $name, string $kind, #[SensitiveParameter] string $value, Principal $author): int {
-        $key = $this->key ?? throw new DomainException('Хранилище секретов выключено: в .env нет SECRETS_KEY.');
+        $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new DomainException('Имя секрета — буквы, цифры, точка, дефис, подчёркивание; до 64 символов.');
+            throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
         }
         if (!in_array($kind, self::KINDS, true)) {
-            throw new DomainException('Вид секрета — password, private_key или token.');
+            throw new DomainException(t('vault.vault.vid_sekreta_password_private_key'));
         }
         if ($value === '' || strlen($value) > self::VALUE_MAX) {
-            throw new DomainException('Пустой или слишком длинный секрет.');
+            throw new DomainException(t('vault.vault.pustoy_ili_slishkom_dlinnyy_sekret'));
         }
         $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         return $this->secrets->store($name, $kind, $nonce, sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key), $author->id);

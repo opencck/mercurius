@@ -11,6 +11,8 @@ use DomainException;
 use OpenCCK\Domain\Repository\SecretRepository;
 use UnexpectedValueException;
 
+use function Mercurius\I18n\t;
+
 final class PostgresSecretRepository implements SecretRepository {
     private const COLUMNS = "id, name, kind, encode(nonce, 'base64') AS nonce, encode(ciphertext, 'base64') AS ciphertext, principal_id";
 
@@ -18,7 +20,7 @@ final class PostgresSecretRepository implements SecretRepository {
 
     public function store(string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int {
         if ($this->find($name) !== null) {
-            throw new DomainException(sprintf('Секрет «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_secret.sekret_uzhe_est'), $name));
         }
         try {
             $row = $this->db->execute(
@@ -26,7 +28,7 @@ final class PostgresSecretRepository implements SecretRepository {
                 [$name, $kind, new PostgresByteA($nonce), new PostgresByteA($ciphertext), $principalId],
             )->fetchRow();
         } catch (SqlQueryError) {
-            throw new DomainException(sprintf('Секрет «%s» уже есть.', $name));
+            throw new DomainException(sprintf(t('repository.postgres_secret.sekret_uzhe_est'), $name));
         }
         $id = $row['id'] ?? null;
         return is_int($id) ? $id : throw new UnexpectedValueException('Secret was not stored');

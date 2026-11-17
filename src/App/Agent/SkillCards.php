@@ -12,6 +12,8 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\Domain\Repository\SkillRepository;
 use OpenCCK\Domain\Skill\SkillVersion;
 
+use function Mercurius\I18n\t;
+
 /**
  * A proposed skill or a new version of one is a card in the owner's chat: accept or reject. Until accepted it is not
  * in the index and cannot be loaded.
@@ -29,19 +31,19 @@ final class SkillCards implements CallbackHandler {
     ) {}
 
     public function show(SkillVersion $version): bool {
-        $body = mb_strlen($version->body) > self::PREVIEW ? mb_substr($version->body, 0, self::PREVIEW) . "\n…(полностью — /skill {$version->name} show после решения)" : $version->body;
+        $body = mb_strlen($version->body) > self::PREVIEW ? mb_substr($version->body, 0, self::PREVIEW) . sprintf(t('agent.skill_cards.full_after'), $version->name) : $version->body;
         $text = sprintf(
-            "Скилл «%s», версия %d%s\nОписание: %s\n\n%s\n\nПричина (слова агента, проверьте сами): %s",
+            t('agent.skill_cards.skill_versiya_opisanie_prichina_slova'),
             $version->name,
             $version->version,
-            $version->version === 1 ? ' — новый' : '',
+            $version->version === 1 ? t('agent.skill_cards.novyy') : '',
             $version->description,
             $body,
             $version->reason,
         );
         return $this->channel->send(new OutgoingMessage($this->ownerChatId, $text, buttons: [[
-            new Button('Принять', sprintf('%s:%d:a', self::PREFIX, $version->id)),
-            new Button('Отклонить', sprintf('%s:%d:r', self::PREFIX, $version->id)),
+            new Button(t('agent.skill_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $version->id)),
+            new Button(t('agent.skill_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $version->id)),
         ]]))->success;
     }
 
@@ -53,13 +55,13 @@ final class SkillCards implements CallbackHandler {
         $version = $this->skills->version((int) $match[1]);
         if ($match[2] === 'a') {
             $skill = $this->skills->accept((int) $match[1]);
-            $outcome = $skill === null ? null : sprintf('Принято: скилл «%s» версии %d в каталоге.', $skill->name, $skill->version);
+            $outcome = $skill === null ? null : sprintf(t('agent.skill_cards.prinyato_skill_versii_v_kataloge'), $skill->name, $skill->version);
         } else {
-            $outcome = $this->skills->reject((int) $match[1]) ? 'Отклонено.' : null;
+            $outcome = $this->skills->reject((int) $match[1]) ? t('agent.skill_cards.otkloneno') : null;
         }
-        $this->channel->answerCallback($callback->callbackId, $outcome ?? 'Уже решено.');
+        $this->channel->answerCallback($callback->callbackId, $outcome ?? t('agent.skill_cards.uzhe_resheno'));
         if ($outcome !== null && $callback->messageId !== null && $version !== null) {
-            $this->channel->edit($callback->chatId, $callback->messageId, sprintf("Скилл «%s», версия %d: %s", $version->name, $version->version, $outcome));
+            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('agent.skill_cards.skill_versiya'), $version->name, $version->version, $outcome));
         }
     }
 }

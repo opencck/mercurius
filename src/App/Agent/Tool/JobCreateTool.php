@@ -14,6 +14,8 @@ use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Memory\Domain\ContentScreen;
 
+use function Mercurius\I18n\t;
+
 /**
  * The agent sets itself a reminder or a check: a job by a schedule, its report comes to this chat.
  *
@@ -32,10 +34,10 @@ final class JobCreateTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Ставит задание по расписанию: напоминание, проверку, сводку. Оно выполнится без владельца в новой '
-            . 'беседе, итог придёт в этот чат. schedule: once:<время ISO 8601> — однажды; every:<минут, от 5> — периодически; '
-            . 'daily:<ЧЧ:ММ> — каждый день по часовому поясу владельца; weekly:<mon,wed,fri | weekdays | weekends>@<ЧЧ:ММ> — по дням недели; event — по событию: запускается webhook, который владелец подключает '
-            . 'командой /hook. prompt — что сделать, полностью, без ссылок на «этот разговор».', [
+        return new ToolDefinition(self::NAME, t('tool.job_create.stavit_zadanie_po_raspisaniyu_napominani')
+            . t('tool.job_create.besede_itog_pridet_v_etot')
+            . t('tool.job_create.daily_chch_mm_kazhdyy_den')
+            . t('tool.job_create.komandoy_hook_prompt_chto_sdelat'), [
             'type' => 'object',
             'properties' => [
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
@@ -64,7 +66,7 @@ final class JobCreateTool implements Tool {
         $prompt = trim(Args::string($args, 'prompt') ?? '');
         $problem = $this->screen->problem($prompt, self::PROMPT_MAX) ?? $this->screen->problem($title, 100);
         if ($problem !== null) {
-            return ToolResult::error('Текст задания не принят: ' . $problem);
+            return ToolResult::error(t('tool.job_create.tekst_zadaniya_ne_prinyat') . $problem);
         }
         try {
             $schedule = Schedule::parse(Args::string($args, 'schedule') ?? '');
@@ -74,18 +76,18 @@ final class JobCreateTool implements Tool {
         $first = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone(), true);
         $byEvent = (string) $schedule === Schedule::EVENT;
         if ($first === null && !$byEvent) {
-            return ToolResult::error('Это время уже прошло.');
+            return ToolResult::error(t('tool.job_create.eto_vremya_uzhe_proshlo'));
         }
         $meta = $this->conversations->meta($context->conversationId);
         if ($meta === null) {
-            return ToolResult::error('Беседа не найдена.');
+            return ToolResult::error(t('tool.job_create.beseda_ne_naydena'));
         }
         $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first);
         if ($first === null) {
-            return ToolResult::ok(sprintf('Задание #%d «%s» поставлено: по событию. Владелец подключает webhook командой /hook %d <имя секрета>.', $job->id, $job->title, $job->id));
+            return ToolResult::ok(sprintf(t('tool.job_create.zadanie_postavleno_po_sobytiyu_vladelets'), $job->id, $job->title, $job->id));
         }
         return ToolResult::ok(sprintf(
-            'Задание #%d «%s» поставлено: %s, первый запуск %s.',
+            t('tool.job_create.zadanie_postavleno_pervyy_zapusk'),
             $job->id,
             $job->title,
             $schedule->describe(),

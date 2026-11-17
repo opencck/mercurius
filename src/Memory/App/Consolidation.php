@@ -11,6 +11,8 @@ use OpenCCK\Memory\Domain\Fact;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
 
+use function Mercurius\I18n\t;
+
 /**
  * The nightly check of memory, by code alone: duplicates become a proposal to forget one of them, facts that disagree
  * in numbers and facts nobody used are listed for the owner, a sharp drop of memory raises an alert. Nothing is
@@ -71,7 +73,7 @@ final class Consolidation {
             || array_filter($facts, static fn(Fact $f): bool => $f->updatedAt >= $last['at']) !== [];
         if (!$force && !$changed) {
             $this->journal->save(ConsolidationJournal::SKIPPED, $count, $chars, self::ms($started), []);
-            return 'Память не менялась — проверять нечего.';
+            return t('app.consolidation.pamyat_ne_menyalas_proveryat_nechego');
         }
 
         $report = [];
@@ -87,9 +89,9 @@ final class Consolidation {
 
         $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report);
         if ($report === []) {
-            return sprintf('Проверено фактов: %d. Замечаний нет.', $count);
+            return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count);
         }
-        $text = "Память: ночная проверка.\n\n" . implode("\n\n", $report);
+        $text = t('app.consolidation.pamyat_nochnaya_proverka') . implode("\n\n", $report);
         ($this->tell)($text);
         return $text;
     }
@@ -101,7 +103,7 @@ final class Consolidation {
             return null;
         }
         return sprintf(
-            '⚠ Памяти стало заметно меньше: фактов было %d, стало %d; символов было %d, стало %d. Если это не вы забывали факты — проверьте /memory.',
+            t('app.consolidation.pamyati_stalo_zametno_menshe_faktov'),
             $facts,
             $nowFacts,
             $chars,
@@ -139,7 +141,7 @@ final class Consolidation {
                         Proposal::FORGET,
                         $drop->id,
                         '',
-                        sprintf('Ночная проверка: повторяет факт #%d «%s».', $keep->id, self::cut($keep->text)),
+                        sprintf(t('app.consolidation.nochnaya_proverka_povtoryaet_fakt'), $keep->id, self::cut($keep->text)),
                         [$drop->scope],
                         null,
                         null,
@@ -148,7 +150,7 @@ final class Consolidation {
                     continue;
                 }
                 ($this->show)($proposal);
-                return sprintf('Факт #%d повторяет #%d — предложил забыть #%d (карточка №%d).', $drop->id, $keep->id, $drop->id, $proposal->id);
+                return sprintf(t('app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch'), $drop->id, $keep->id, $drop->id, $proposal->id);
             }
         }
         return null;
@@ -172,7 +174,7 @@ final class Consolidation {
                     continue;
                 }
                 $found[] = sprintf(
-                    "Возможно, противоречат друг другу (разные числа):\n#%d %s\n#%d %s\nВерное оставьте, неверное — /forget <номер> или попросите меня изменить.",
+                    t('app.consolidation.vozmozhno_protivorechat_drug_drugu_razny'),
                     $a->id,
                     self::cut($a->text),
                     $b->id,
@@ -207,7 +209,7 @@ final class Consolidation {
                 $lines[] = sprintf('#%d %s', $fact->id, self::cut($fact->text));
             }
         }
-        return $lines === [] ? [] : ["Давно не пригождались — нужны ли ещё (если нет — /forget <номер>):\n" . implode("\n", $lines)];
+        return $lines === [] ? [] : [t('app.consolidation.davno_ne_prigozhdalis_nuzhny_li') . implode("\n", $lines)];
     }
 
     /** Near-copies: the same numbers, and nearly the same words. */

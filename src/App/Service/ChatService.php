@@ -89,7 +89,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($principal->status === PrincipalStatus::Pending) {
-            $this->reply($message, VisitorService::WAITING);
+            $this->reply($message, \Mercurius\I18n\t(VisitorService::WAITING));
             return;
         }
         $this->proceed($principal, $message);
@@ -153,7 +153,7 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, $this->servers->secret($principal, $argument));
             }
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
-                $this->reply($message, 'Не удалось удалить сообщение с секретом — удалите его сами.');
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
         }
@@ -172,7 +172,7 @@ final class ChatService implements MessageHandler {
                 });
             }
             if ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$this->channel->delete($message->chatId, $message->messageId)) {
-                $this->reply($message, 'Не удалось удалить сообщение с ключом — удалите его сами.');
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s_2'));
             }
             return;
         }
@@ -276,11 +276,11 @@ final class ChatService implements MessageHandler {
         $name = $message->isPrivateChat && $principal->role !== Role::Visitor ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
         $deleted = $this->channel->delete($message->chatId, $message->messageId);
         $this->reply($message, sprintf(
-            'В сообщении был секрет: %s%s',
-            $deleted ? 'я удалил сообщение из чата' : 'удалить сообщение не удалось — удалите его сами',
-            $name === null ? '; сохранить секрет можно только в личном чате командой /secret.' : sprintf('; текст сохранён в хранилище как «%s».', $name),
+            t('service.chat.v_soobschenii_byl_sekret'),
+            $deleted ? t('service.chat.ya_udalil_soobschenie_iz_chata') : t('service.chat.udalit_soobschenie_ne_udalos_udalite'),
+            $name === null ? t('service.chat.sohranit_sekret_mozhno_tolko_v') : sprintf(t('service.chat.tekst_sohranen_v_hranilische_kak'), $name),
         ));
-        $note = $name === null ? '' : sprintf("\n\n[Сообщение содержало секрет: оно удалено из чата, полный текст — в хранилище секретов как «%s».]", $name);
+        $note = $name === null ? '' : sprintf(t('service.chat.soobschenie_soderzhalo_sekret_ono_udalen'), $name);
         return new IncomingMessage(
             $message->channel,
             $message->chatId,
@@ -314,9 +314,9 @@ final class ChatService implements MessageHandler {
             '/runs' => $this->reports->runs(),
             '/delegation' => $this->reports->delegation(ctype_digit($argument) ? (int) $argument : 14),
             default => ctype_digit($argument) ? $this->reports->trace((int) $argument) : null,
-        } ?? TraceReports::NO_RUN;
+        } ?? \Mercurius\I18n\t(TraceReports::NO_RUN);
         if (mb_strlen($text) > self::REPORT_LIMIT) {
-            $this->channel->sendFile($message->chatId, sprintf('%s-%s.txt', ltrim($command, '/'), $argument === '' ? 'report' : $argument), $text, 'Отчёт целиком');
+            $this->channel->sendFile($message->chatId, sprintf('%s-%s.txt', ltrim($command, '/'), $argument === '' ? 'report' : $argument), $text, t('service.chat.otchet_tselikom'));
             return;
         }
         $this->reply($message, $text);

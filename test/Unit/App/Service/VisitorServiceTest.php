@@ -57,7 +57,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertCount(1, $this->cards());
         self::assertStringContainsString('привет, я Вася', $this->cards()[0]);
         self::assertSame(['pv:2:t', 'pv:2:u', 'pv:2:a', 'pv:2:r'], $this->lastButtons());
-        self::assertContains(VisitorService::WAITING, $this->stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
         self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find(2)?->status);
     }
@@ -157,14 +157,14 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->say('привет', '99');
         $this->stack->press('pv:2:u');
 
-        self::assertContains(VisitorService::LET_IN_USER, $this->sentTo('99'));
+        self::assertContains(\Mercurius\I18n\t(VisitorService::LET_IN_USER), $this->sentTo('99'));
     }
 
     public function testVisitorIsToldWhenAllowedToTalk(): void {
         $this->stack->say('привет', '99');
         $this->stack->press('pv:2:t');
 
-        self::assertContains(VisitorService::LET_IN_TALK, $this->sentTo('99'));
+        self::assertContains(\Mercurius\I18n\t(VisitorService::LET_IN_TALK), $this->sentTo('99'));
     }
 
     public function testRefusedVisitorIsNotToldAnything(): void {

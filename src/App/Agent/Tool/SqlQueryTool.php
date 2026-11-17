@@ -10,6 +10,8 @@ use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\Classification;
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * SQL on a database the owner's server reaches, through that server's psql or mysql — the same way as any command:
  * the journal, the route, the host key. A read runs inside a read-only transaction, so the database itself refuses a
@@ -32,9 +34,9 @@ final class SqlQueryTool implements Tool {
     ) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'SQL-запрос к базе через сервер из реестра (на сервере нужен psql или mysql). engine — postgres или mysql; '
-            . 'host и port — адрес базы с точки зрения сервера (по умолчанию 127.0.0.1); secret — имя секрета с паролем базы. Без write '
-            . 'запрос — одно выражение в транзакции только для чтения и выполняется сразу; write: true — изменение, ждёт подтверждения владельца.', [
+        return new ToolDefinition(self::NAME, t('tool.sql_query.sql_zapros_k_baze_cherez')
+            . t('tool.sql_query.host_i_port_adres_bazy')
+            . t('tool.sql_query.zapros_odno_vyrazhenie_v_tranzaktsii'), [
             'type' => 'object',
             'properties' => [
                 'server' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
@@ -73,15 +75,15 @@ final class SqlQueryTool implements Tool {
         $write = ($args['write'] ?? false) === true;
         foreach (['database' => $database, 'user' => $user, 'host' => $host] as $field => $value) {
             if (preg_match('~^[A-Za-z0-9._:\-\[\]]+$~', $value) !== 1) {
-                return ToolResult::error(sprintf('%s — латиница, цифры, точка, дефис, подчёркивание.', $field));
+                return ToolResult::error(sprintf(t('tool.sql_query.latinitsa_tsifry_tochka_defis_podcherkiv'), $field));
             }
         }
         if (!$write) {
             if (str_contains($query, ';')) {
-                return ToolResult::error('Для чтения — одно выражение без «;». Несколько изменений — write: true с подтверждением владельца.');
+                return ToolResult::error(t('tool.sql_query.dlya_chteniya_odno_vyrazhenie_bez'));
             }
             if (preg_match(self::NOT_A_READ, $query) === 1 || preg_match(self::SIDE_EFFECTS, $query) === 1) {
-                return ToolResult::error('Это не чтение: такой запрос — только с write: true и подтверждением владельца.');
+                return ToolResult::error(t('tool.sql_query.eto_ne_chtenie_takoy_zapros'));
             }
         }
         $password = null;
@@ -89,7 +91,7 @@ final class SqlQueryTool implements Tool {
         if ($secret !== null) {
             $password = $this->vault->reveal($secret, $context->principal);
             if ($password === null) {
-                return ToolResult::error(sprintf('Секрет «%s» недоступен.', $secret));
+                return ToolResult::error(sprintf(t('tool.sql_query.sekret_nedostupen'), $secret));
             }
         }
         $port = Args::int($args, 'port');
@@ -107,7 +109,7 @@ final class SqlQueryTool implements Tool {
             $context->principal,
             $context->runId,
             Args::string($args, 'server') ?? '',
-            sprintf('sql %s %s@%s/%s%s: %s', $engine, $user, $host, $database, $write ? ' (запись)' : '', mb_substr($query, 0, 2000)),
+            sprintf('sql %s %s@%s/%s%s: %s', $engine, $user, $host, $database, $write ? t('tool.sql_query.zapis') : '', mb_substr($query, 0, 2000)),
             $write ? Classification::CHANGE : Classification::READ,
             $command,
             $stdin,

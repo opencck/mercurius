@@ -12,6 +12,8 @@ use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * Takes a webhook for a job by event. The request is signed with a secret from the vault: HMAC-SHA256 of
  * "<timestamp>.<body>" with a timestamp within five minutes, or GitHub's HMAC of the body. A delivery is taken once,
@@ -120,8 +122,8 @@ final class HookReceiver {
         } catch (\JsonException) {
         }
         if (mb_strlen($text) > self::EVENT_MAX) {
-            $text = mb_substr($text, 0, self::EVENT_MAX) . "\n… (обрезано)";
+            $text = mb_substr($text, 0, self::EVENT_MAX) . t('job.hook_receiver.obrezano');
         }
-        return ($type === '' ? '' : 'Тип события: ' . mb_substr($type, 0, 100) . "\n") . $text;
+        return ($type === '' ? '' : t('job.hook_receiver.tip_sobytiya') . mb_substr($type, 0, 100) . "\n") . $text;
     }
 }

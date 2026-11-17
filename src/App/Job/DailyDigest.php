@@ -17,6 +17,8 @@ use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner's morning summary: overdue tasks, deadlines today and tomorrow, jobs of the day. It is built by code
  * from the records, spends no tokens, comes once a day at the set time, not in the quiet hours, and is not sent when
@@ -72,7 +74,7 @@ final class DailyDigest {
         $local = $now->setTimezone($zone);
         $endToday = $local->setTime(23, 59, 59);
         $endTomorrow = $endToday->modify('+1 day');
-        $groups = ['Просрочено' => [], 'Сегодня' => [], 'Завтра' => []];
+        $groups = [t('job.daily_digest.prosrocheno') => [], t('job.daily_digest.segodnya') => [], t('job.daily_digest.zavtra') => []];
         $names = [];
         foreach ($this->projects->dueTasks($endTomorrow, self::TASKS) as $task) {
             $due = $task->dueAt;
@@ -83,7 +85,7 @@ final class DailyDigest {
                 $project = $this->projects->find($task->projectId);
                 $names[$task->projectId] = $project === null ? '?' : $project->name;
             }
-            $group = $due < $now ? 'Просрочено' : ($due <= $endToday ? 'Сегодня' : 'Завтра');
+            $group = $due < $now ? t('job.daily_digest.prosrocheno') : ($due <= $endToday ? t('job.daily_digest.segodnya') : t('job.daily_digest.zavtra'));
             $groups[$group][] = self::task($task, $names[$task->projectId], $due->setTimezone($zone));
         }
         $jobs = array_map(
@@ -93,14 +95,14 @@ final class DailyDigest {
         if (array_merge(...array_values($groups)) === [] && $jobs === []) {
             return null;
         }
-        $parts = [sprintf('🗓 Сводка на %s', $local->format('Y-m-d'))];
+        $parts = [sprintf(t('job.daily_digest.svodka_na'), $local->format('Y-m-d'))];
         foreach ($groups as $title => $lines) {
             if ($lines !== []) {
                 $parts[] = $title . ":\n" . implode("\n", $lines);
             }
         }
         if ($jobs !== []) {
-            $parts[] = "Задания сегодня:\n" . implode("\n", $jobs);
+            $parts[] = t('job.daily_digest.zadaniya_segodnya') . implode("\n", $jobs);
         }
         return implode("\n\n", $parts);
     }

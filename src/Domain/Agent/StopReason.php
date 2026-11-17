@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Agent;
 
+use function Mercurius\I18n\t;
+
 /**
  * Why a run ended. Every stop has a named reason.
  *
@@ -39,18 +41,18 @@ enum StopReason: string {
     /** Text for the owner's report. */
     public function label(): string {
         return match ($this) {
-            self::Answered => 'ответ дан',
-            self::TurnLimit => 'исчерпан лимит ходов',
-            self::TokenBudget => 'исчерпан бюджет токенов',
-            self::Deadline => 'истекло время запуска',
-            self::LoopGuard => 'агент повторял одни и те же действия',
-            self::InvalidCalls => 'модель несколько раз подряд вызывала инструменты с ошибками',
-            self::Truncated => 'ответ модели обрывался на середине вызова инструмента',
-            self::PersistFailed => 'не удалось сохранить шаг в базу',
-            self::ModelFailed => 'модель недоступна',
-            self::Stopped => 'остановлено владельцем',
-            self::InternalError => 'внутренняя ошибка',
-            self::SpendCap => 'достигнут лимит расхода в деньгах (AGENT_DAILY_SPEND_CAP, AGENT_MONTHLY_SPEND_CAP)',
+            self::Answered => t('agent.stop_reason.otvet_dan'),
+            self::TurnLimit => t('agent.stop_reason.ischerpan_limit_hodov'),
+            self::TokenBudget => t('agent.stop_reason.ischerpan_byudzhet_tokenov'),
+            self::Deadline => t('agent.stop_reason.isteklo_vremya_zapuska'),
+            self::LoopGuard => t('agent.stop_reason.agent_povtoryal_odni_i_te'),
+            self::InvalidCalls => t('agent.stop_reason.model_neskolko_raz_podryad_vyzyvala'),
+            self::Truncated => t('agent.stop_reason.otvet_modeli_obryvalsya_na_seredine'),
+            self::PersistFailed => t('agent.stop_reason.ne_udalos_sohranit_shag_v'),
+            self::ModelFailed => t('agent.stop_reason.model_nedostupna'),
+            self::Stopped => t('agent.stop_reason.ostanovleno_vladeltsem'),
+            self::InternalError => t('agent.stop_reason.vnutrennyaya_oshibka'),
+            self::SpendCap => t('agent.stop_reason.dostignut_limit_rashoda_v_dengah'),
         };
     }
 }

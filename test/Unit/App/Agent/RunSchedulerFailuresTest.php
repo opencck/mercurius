@@ -39,14 +39,14 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Failed, self::status($stack, 1));
         $edits = $stack->channel->texts('edit');
-        self::assertSame(RunScheduler::CRASHED, end($edits));
+        self::assertSame(\Mercurius\I18n\t(RunScheduler::CRASHED), end($edits));
 
         $stack->transcript->beforeToolResult = null;
         $stack->say('ещё раз');
         $stack->scheduler->awaitIdle();
         self::assertSame(RunStatus::Done, self::status($stack, 2));
         $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
-        self::assertSame(['задача', RunScheduler::CRASHED, 'ещё раз'], $contents);
+        self::assertSame(['задача', \Mercurius\I18n\t(RunScheduler::CRASHED), 'ещё раз'], $contents);
     }
 
     /** C1: /stop during the closing summary call stops the run instead of crashing it. */
@@ -97,7 +97,7 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         $contents = array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1));
-        self::assertSame(['старая задача', AgentLoop::STOPPED_NOTE, 'новая задача'], $contents);
+        self::assertSame(['старая задача', \Mercurius\I18n\t(AgentLoop::STOPPED_NOTE), 'новая задача'], $contents);
     }
 
     /** A run that failed for a reason other than a limit is closed in the history as well. */
@@ -125,7 +125,7 @@ final class RunSchedulerFailuresTest extends AsyncTestCase {
         $stack->say('задача');
         $stack->scheduler->awaitIdle();
 
-        self::assertContains(RunScheduler::NOT_STARTED, $stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(RunScheduler::NOT_STARTED), $stack->channel->texts('send'));
     }
 
     /** I4: a message right after /stop starts a new run instead of vanishing into the stopped one. */

@@ -117,7 +117,7 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         $observer->finished(self::finishedRun(), 'Итог', StopReason::Answered);
 
         self::assertContains('Итог', $channel->texts('send'));
-        self::assertSame([ChannelRunObserver::ANSWER_BELOW], $channel->texts('edit'));
+        self::assertSame([\Mercurius\I18n\t(ChannelRunObserver::ANSWER_BELOW)], $channel->texts('edit'));
     }
 
     public function testQuickAnswerReplacesThePreview(): void {

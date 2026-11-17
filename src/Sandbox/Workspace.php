@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Sandbox;
 
+use function Mercurius\I18n\t;
+
 /**
  * Participants' homes in the sandbox: user p<id>, uid 20000 + id, home /workspace/p<id>.
  * resolve() is the first line of defence (lexical); the second is the kernel, because every operation runs as
@@ -36,7 +38,7 @@ final class Workspace {
      */
     public function resolve(int $principalId, string $path): string {
         if (str_contains($path, "\0") || strlen($path) > self::MAX_PATH) {
-            throw new SandboxError('Недопустимый путь.');
+            throw new SandboxError(t('sandbox.workspace.nedopustimyy_put'));
         }
         $home = $this->home($principalId);
         $full = str_starts_with($path, '/') ? $path : $home . '/' . $path;
@@ -63,6 +65,6 @@ final class Workspace {
     }
 
     private function outside(string $path): SandboxError {
-        return new SandboxError(sprintf('Путь %s — вне рабочего каталога участника.', mb_substr($path, 0, 200)), 403);
+        return new SandboxError(sprintf(t('sandbox.workspace.put_vne_rabochego_kataloga_uchastnika'), mb_substr($path, 0, 200)), 403);
     }
 }

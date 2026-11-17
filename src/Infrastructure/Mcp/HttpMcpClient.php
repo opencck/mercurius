@@ -13,6 +13,8 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * MCP over Streamable HTTP: JSON-RPC 2.0 by POST, the answer as JSON or as a server-sent event. A session per use:
  * initialize, then the request.
@@ -65,7 +67,7 @@ final class HttpMcpClient implements McpClient {
             $type = isset($part['type']) && is_string($part['type']) ? $part['type'] : '';
             $texts[] = $type === 'text' && isset($part['text']) && is_string($part['text'])
                 ? $part['text']
-                : sprintf('(%s)', $type === '' ? 'неизвестное содержимое' : $type);
+                : sprintf('(%s)', $type === '' ? t('mcp.http_mcp_client.neizvestnoe_soderzhimoe') : $type);
         }
         if (isset($result['structuredContent']) && $texts === []) {
             $json = json_encode($result['structuredContent'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -92,8 +94,8 @@ final class HttpMcpClient implements McpClient {
     private function rpc(McpServer $server, ?string $token, ?string $session, string $method, array $params, Cancellation $cancellation): array {
         [$message] = $this->send($server, $token, $session, ['jsonrpc' => '2.0', 'id' => 2, 'method' => $method, 'params' => (object) $params], $cancellation);
         if (isset($message['error']) && is_array($message['error'])) {
-            $text = isset($message['error']['message']) && is_string($message['error']['message']) ? $message['error']['message'] : 'ошибка';
-            throw new RuntimeException('MCP-сервер ответил ошибкой: ' . mb_substr($text, 0, 300));
+            $text = isset($message['error']['message']) && is_string($message['error']['message']) ? $message['error']['message'] : t('mcp.http_mcp_client.oshibka');
+            throw new RuntimeException(t('mcp.http_mcp_client.mcp_server_otvetil_oshibkoy') . mb_substr($text, 0, 300));
         }
         return isset($message['result']) && is_array($message['result']) ? $message['result'] : [];
     }
@@ -123,10 +125,10 @@ final class HttpMcpClient implements McpClient {
             $response = $this->http->request($request, $cancellation);
             $text = $response->getBody()->buffer($cancellation);
         } catch (Throwable $e) {
-            throw new RuntimeException('MCP-сервер не ответил: ' . (new \ReflectionClass($e))->getShortName());
+            throw new RuntimeException(t('mcp.http_mcp_client.mcp_server_ne_otvetil') . (new \ReflectionClass($e))->getShortName());
         }
         if ($response->getStatus() >= 400) {
-            throw new RuntimeException(sprintf('MCP-сервер ответил HTTP %d', $response->getStatus()));
+            throw new RuntimeException(sprintf(t('mcp.http_mcp_client.mcp_server_otvetil_http'), $response->getStatus()));
         }
         $session = $response->getHeader('mcp-session-id') ?? $session;
         if (!isset($body['id'])) {
@@ -137,7 +139,7 @@ final class HttpMcpClient implements McpClient {
                 return [$message, $session];
             }
         }
-        throw new RuntimeException('MCP-сервер не прислал ответ на запрос');
+        throw new RuntimeException(t('mcp.http_mcp_client.mcp_server_ne_prislal_otvet'));
     }
 
     /** @return list<array<array-key, mixed>> JSON-RPC messages of a JSON body or of an event stream */

@@ -13,6 +13,8 @@ use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
 use OpenCCK\Memory\Domain\TextAnalyzer;
 
+use function Mercurius\I18n\t;
+
 /**
  * Changes to memory go through the owner: the agent proposes, the owner accepts or rejects, and only an accepted
  * proposal changes memory, with a new version. A forgotten text leaves a keyed fingerprint, so it cannot come back.
@@ -57,7 +59,7 @@ final class Proposals {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
-            throw new InvalidArgumentException('Здесь память недоступна.');
+            throw new InvalidArgumentException(t('app.proposals.zdes_pamyat_nedostupna'));
         }
         $scope = $readable[0];
         switch ($kind) {
@@ -70,7 +72,7 @@ final class Proposals {
             case Proposal::FORGET:
                 $fact = $factId === null ? null : $this->store->fact($factId);
                 if ($fact === null || !$fact->active || !in_array($fact->scope, $readable, true)) {
-                    throw new InvalidArgumentException('Такого факта здесь нет.');
+                    throw new InvalidArgumentException(t('app.proposals.takogo_fakta_zdes_net'));
                 }
                 $scope = $fact->scope;
                 if ($kind === Proposal::CHANGE) {
@@ -83,17 +85,17 @@ final class Proposals {
             case Proposal::PROFILE:
             case Proposal::SUMMARY:
                 if (!in_array(Audience::OWNER, $readable, true)) {
-                    throw new InvalidArgumentException('Профиль и сводка меняются только в личном чате владельца.');
+                    throw new InvalidArgumentException(t('app.proposals.profil_i_svodka_menyayutsya_tolko'));
                 }
                 $this->check($text, $kind === Proposal::PROFILE ? self::PROFILE_MAX : self::SUMMARY_MAX);
                 $scope = Audience::OWNER;
                 $factId = null;
                 break;
             default:
-                throw new InvalidArgumentException('Неизвестный вид изменения: ' . $kind);
+                throw new InvalidArgumentException(t('app.proposals.neizvestnyy_vid_izmeneniya') . $kind);
         }
         if ($reason === '') {
-            throw new InvalidArgumentException('Нужна причина: владелец решает по ней.');
+            throw new InvalidArgumentException(t('app.proposals.nuzhna_prichina_vladelets_reshaet_po'));
         }
         return $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId);
     }
@@ -108,14 +110,14 @@ final class Proposals {
         if ($approve && $pending !== null && in_array($pending->kind, [Proposal::ADD, Proposal::CHANGE], true)
             && $this->store->forgotten($this->fingerprint($pending->text))) {
             $rejected = $this->store->decide($id, Proposal::REJECTED);
-            return $rejected === null ? null : new Decision($rejected, false, 'Отклонено: этот текст велено забыть.');
+            return $rejected === null ? null : new Decision($rejected, false, t('app.proposals.otkloneno_etot_tekst_veleno_zabyt'));
         }
         $proposal = $this->store->decide($id, $approve ? Proposal::APPROVED : Proposal::REJECTED);
         if ($proposal === null) {
             return null;
         }
         if (!$approve) {
-            return new Decision($proposal, false, 'Отклонено.');
+            return new Decision($proposal, false, t('app.proposals.otkloneno'));
         }
         try {
             $applied = $this->apply($proposal);
@@ -123,7 +125,7 @@ final class Proposals {
             $this->store->reopen($proposal->id);
             throw $e;
         }
-        return new Decision($proposal, $applied, $applied ? 'Принято: память изменена.' : 'Принято, но менять уже нечего: факта нет или он больше не действует.');
+        return new Decision($proposal, $applied, $applied ? t('app.proposals.prinyato_pamyat_izmenena') : t('app.proposals.prinyato_no_menyat_uzhe_nechego'));
     }
 
     private function apply(Proposal $proposal): bool {
@@ -167,7 +169,7 @@ final class Proposals {
 
     private function notForgotten(string $text): void {
         if ($this->store->forgotten($this->fingerprint($text))) {
-            throw new InvalidArgumentException('Владелец велел забыть этот текст: снова он не записывается.');
+            throw new InvalidArgumentException(t('app.proposals.vladelets_velel_zabyt_etot_tekst'));
         }
     }
 
@@ -179,7 +181,7 @@ final class Proposals {
     private function check(string $text, int $max): void {
         $problem = $this->screen->problem($text, $max);
         if ($problem !== null) {
-            throw new InvalidArgumentException('Не записываю: ' . $problem . '.');
+            throw new InvalidArgumentException(t('app.proposals.ne_zapisyvayu') . $problem . '.');
         }
     }
 }

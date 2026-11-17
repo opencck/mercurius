@@ -20,7 +20,7 @@ final class ChatServiceTest extends AsyncTestCase {
         $stack->say('привет', '99');
         $stack->scheduler->awaitIdle();
 
-        self::assertContains(VisitorService::WAITING, $stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $stack->channel->texts('send'));
         self::assertSame([], $stack->llm->requests);
     }
 

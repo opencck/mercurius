@@ -8,12 +8,14 @@ use Mercurius\Llm\ToolDefinition;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
 
+use function Mercurius\I18n\t;
+
 final class WriteFileTool extends SandboxTool {
     public const NAME = 'write_file';
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, 'Пишет файл в твоём рабочем каталоге песочницы: либо целиком (content), либо '
-            . 'заменой фрагмента (old → new; old должен встречаться в файле ровно один раз). Каталоги создаются сами.', [
+        return new ToolDefinition(self::NAME, t('tool.write_file.pishet_fayl_v_tvoem_rabochem')
+            . t('tool.write_file.zamenoy_fragmenta_old_new_old'), [
             'type' => 'object',
             'properties' => [
                 'path' => ['type' => 'string', 'maxLength' => 4096],
@@ -37,12 +39,12 @@ final class WriteFileTool extends SandboxTool {
         $new = Args::string($args, 'new');
         if ($content !== null && $old === null && $new === null) {
             $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
-            return ToolResult::ok(sprintf('Файл %s записан (%d байт).', $path, strlen($content)));
+            return ToolResult::ok(sprintf(t('tool.write_file.fayl_zapisan_bayt'), $path, strlen($content)));
         }
         if ($content === null && $old !== null && $new !== null) {
             $this->sandbox->replace($context->principal->id, $limits, $path, $old, $new, $context->cancellation);
-            return ToolResult::ok(sprintf('Файл %s изменён.', $path));
+            return ToolResult::ok(sprintf(t('tool.write_file.fayl_izmenen'), $path));
         }
-        return ToolResult::error('Укажи content или пару old/new.');
+        return ToolResult::error(t('tool.write_file.ukazhi_content_ili_paru_old'));
     }
 }

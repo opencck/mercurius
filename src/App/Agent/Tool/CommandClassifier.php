@@ -6,6 +6,8 @@ namespace OpenCCK\App\Agent\Tool;
 
 use OpenCCK\Domain\Agent\DangerClass;
 
+use function Mercurius\I18n\t;
+
 /**
  * Tells a sandbox command that acts outside (pushes, remote shells, uploads) from local work. Commands inside the
  * sandbox are writes without approval; outward actions are irreversible and need the owner. What cannot be parsed
@@ -42,7 +44,7 @@ final class CommandClassifier {
     public function classify(string $command): Classification {
         foreach (self::OPAQUE as $pattern) {
             if (preg_match($pattern, $command) === 1) {
-                return new Classification(DangerClass::Irreversible, null, 'команда, которую нельзя разобрать с уверенностью');
+                return new Classification(DangerClass::Irreversible, null, t('tool.command_classifier.komanda_kotoruyu_nelzya_razobrat_s'));
             }
         }
         // Redirections such as 2>&1 and &>file are not separators.
@@ -61,7 +63,7 @@ final class CommandClassifier {
             }
         }
         if ($findings === []) {
-            return new Classification(DangerClass::Write, null, 'команда в песочнице');
+            return new Classification(DangerClass::Write, null, t('tool.command_classifier.komanda_v_pesochnitse'));
         }
         if ($commands === 1 && count($findings) === 1) {
             return $findings[0];
@@ -87,7 +89,7 @@ final class CommandClassifier {
         }
         $program = basename(array_shift($tokens));
         if (in_array($program, self::WRAPPERS, true)) {
-            return self::wraps($tokens) ? new Classification(DangerClass::Irreversible, null, $program . ' запускает внешнее действие') : null;
+            return self::wraps($tokens) ? new Classification(DangerClass::Irreversible, null, $program . t('tool.command_classifier.zapuskaet_vneshnee_deystvie')) : null;
         }
         $found = match ($program) {
             'git' => $this->git($tokens),
@@ -118,7 +120,7 @@ final class CommandClassifier {
         $optionsBefore = ($tokens[0] ?? '') !== 'push';
         $remote = $args[1] ?? null;
         $url = $remote === null ? null : self::urlTarget($remote);
-        $label = 'git push в ' . ($remote ?? 'удалённый репозиторий по умолчанию');
+        $label = t('tool.command_classifier.git_push_v') . ($remote ?? t('tool.command_classifier.udalennyy_repozitoriy_po_umolchaniyu'));
         // A remote name can be pointed anywhere by a local write (git remote set-url), so only an address has a key.
         return new Classification(DangerClass::Irreversible, $url === null || $optionsBefore ? null : 'git-push:' . $url, $label);
     }
@@ -127,7 +129,7 @@ final class CommandClassifier {
     private function remoteShell(string $program, array $tokens): ?Classification {
         $args = self::positional($tokens, ['-p', '-P', '-i', '-l', '-o', '-F', '-J', '-L', '-R', '-D', '-b', '-c', '-E', '-S', '-W', '-w']);
         $host = isset($args[0]) ? self::host($args[0]) : null;
-        return $host === null ? null : new Classification(DangerClass::Irreversible, $program . ':' . $host, $program . ' на ' . $host);
+        return $host === null ? null : new Classification(DangerClass::Irreversible, $program . ':' . $host, $program . t('tool.command_classifier.na') . $host);
     }
 
     /** @param list<string> $tokens */
@@ -138,7 +140,7 @@ final class CommandClassifier {
             }
             $host = self::host(substr($token, 0, (int) strpos($token, ':')));
             if ($host !== null) {
-                return new Classification(DangerClass::Irreversible, $program . ':' . $host, $program . ' на ' . $host);
+                return new Classification(DangerClass::Irreversible, $program . ':' . $host, $program . t('tool.command_classifier.na') . $host);
             }
         }
         return null;
@@ -164,7 +166,7 @@ final class CommandClassifier {
             return null;
         }
         $host ??= 'unknown';
-        return new Classification(DangerClass::Irreversible, 'upload:' . $host, $program . ' отправляет данные на ' . $host);
+        return new Classification(DangerClass::Irreversible, 'upload:' . $host, $program . t('tool.command_classifier.otpravlyaet_dannye_na') . $host);
     }
 
     /**
