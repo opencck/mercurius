@@ -60,7 +60,7 @@ FROM php:8.2-cli-bookworm AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
-        python3-docx python3-openpyxl python3-lxml python3-pil python3-xlsxwriter python3-typing-extensions \
+        python3-docx python3-openpyxl python3-lxml python3-pil python3-xlsxwriter python3-typing-extensions poppler-utils \
     # python-pptx is not packaged in bookworm: from PyPI, its dependencies from the lines above
     && pip3 install --break-system-packages --no-cache-dir --no-deps python-pptx==1.0.2 \
     && docker-php-ext-install pcntl sockets \
@@ -73,6 +73,8 @@ WORKDIR /app
 COPY --from=base /app/vendor ./vendor
 COPY composer.json sandbox.php ./
 COPY src ./src
+# spec: BRIEF.md#входящие-вложения — the text of an incoming document comes out here, as the participant
+COPY bin/extract_text.py /opt/mercurius/extract_text.py
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM
