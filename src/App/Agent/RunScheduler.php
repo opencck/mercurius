@@ -66,7 +66,7 @@ final class RunScheduler {
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
-    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, future: Future<void>}> */
+    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
     /** @var list<JobRuns> */
@@ -99,6 +99,10 @@ final class RunScheduler {
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly float $debounce = 0.35,
         private readonly float $debounceCap = 1.0,
+        /** talk nobody addressed to the agent (a free group) waits for this much silence… */
+        private readonly float $quietDebounce = 8.0,
+        /** …but not longer than this after its first message */
+        private readonly float $quietCap = 30.0,
         private readonly float $editInterval = 1.5,
         private readonly ?ModelRouter $router = null,
         private readonly AgentEvents $events = new NullEvents(),
@@ -180,7 +184,8 @@ final class RunScheduler {
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false): void {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
-        $this->silence[$conversationId] = $silenceAllowed;
+        // the batch may stay silent only if nobody in it asked the agent
+        $this->silence[$conversationId] = isset($this->pending[$conversationId]) ? ($this->silence[$conversationId] ?? false) && $silenceAllowed : $silenceAllowed;
         $text = trim($message->text);
         $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
@@ -198,6 +203,8 @@ final class RunScheduler {
         if (isset($this->pending[$conversationId])) {
             $this->pending[$conversationId]['texts'][] = $text;
             $this->pending[$conversationId]['last'] = $now;
+            // someone asked: the batch no longer waits for the group to fall silent
+            $this->pending[$conversationId]['quiet'] = $this->pending[$conversationId]['quiet'] && $silenceAllowed;
             return;
         }
         $this->pending[$conversationId] = [
@@ -206,6 +213,7 @@ final class RunScheduler {
             'last' => $now,
             'message' => $message,
             'principal' => $principal,
+            'quiet' => $silenceAllowed,
             'future' => async($this->startAfterDebounce(...), $conversationId),
         ];
     }
@@ -350,7 +358,11 @@ final class RunScheduler {
     private function startAfterDebounce(int $conversationId): void {
         while (isset($this->pending[$conversationId])) {
             $pending = $this->pending[$conversationId];
-            $wait = min($pending['last'] + $this->debounce, $pending['first'] + $this->debounceCap) - microtime(true);
+            // ref: references/hermes-agent/gateway/platforms/webhook_coalesce.py@e96221fa:L1-L9 — a burst waits for a quiet
+            //      window, bounded past its first event, and goes as one run; here the window is for a free group's talk
+            $wait = $pending['quiet']
+                ? min($pending['last'] + $this->quietDebounce, $pending['first'] + $this->quietCap) - microtime(true)
+                : min($pending['last'] + $this->debounce, $pending['first'] + $this->debounceCap) - microtime(true);
             if ($wait <= 0) {
                 break;
             }

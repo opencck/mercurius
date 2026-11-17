@@ -60,6 +60,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly ?VisitorService $visitors = null,
         /** the observed talk by chat and topic; null — in the memory of the process */
         ?\OpenCCK\Domain\Repository\GroupTalkRepository $talk = null,
+        /** @var (\Closure(string, string): int)|null tokens the chat's runs spent today; null — not counted */
+        private readonly ?\Closure $spentToday = null,
+        /** in the free mode the agent joins in by itself until the chat spends this many tokens a day; 0 — no limit */
+        private readonly int $freeDailyTokens = 0,
     ) {
         $this->talk = $talk ?? new \OpenCCK\Infrastructure\Repository\InMemoryGroupTalkRepository();
     }
@@ -114,6 +118,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         }
         $addressed = $this->addressed($message);
         if (!$addressed && $group->mode !== Group::FREE) {
+            return null;
+        }
+        // spec: BRIEF.md#группа — over its daily tokens a free group gets answers only when it asks
+        if (!$addressed && $this->overDailyTokens($message)) {
             return null;
         }
         $principal = $this->principals->findByIdentity($message->channel, $message->userId);
@@ -232,6 +240,18 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     private function runOfReply(IncomingMessage $message): ?int {
         $replied = MessageMeta::repliedToAgent($message, $this->botId);
         return $replied === null ? null : $this->runMessages?->runOf($message->channel, $message->chatId, $replied);
+    }
+
+    private function overDailyTokens(IncomingMessage $message): bool {
+        if ($this->freeDailyTokens <= 0 || $this->spentToday === null) {
+            return false;
+        }
+        try {
+            return ($this->spentToday)($message->channel, $message->chatId) >= $this->freeDailyTokens;
+        } catch (\Throwable $e) {
+            $this->logger->warning('Group spend was not read', ['chat' => $message->chatId, 'error' => $e::class]);
+            return false;
+        }
     }
 
     /** A mention of the bot, a reply to its message, or a command addressed to it. */

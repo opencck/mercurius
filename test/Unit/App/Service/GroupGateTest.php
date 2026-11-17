@@ -27,8 +27,8 @@ final class GroupGateTest extends AsyncTestCase {
     private GroupGate $gate;
     private int $id = 100;
 
-    private function stack(ScriptedLlm $llm): void {
-        $this->stack = new AgentStack($llm);
+    private function stack(ScriptedLlm $llm, float $quiet = 0.0): void {
+        $this->stack = new AgentStack($llm, quietDebounce: $quiet);
         $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
         $this->groups = new InMemoryGroupRepository();
         $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), visitors: $this->stack->visitors);
@@ -154,6 +154,40 @@ final class GroupGateTest extends AsyncTestCase {
         $prompt = array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '';
         self::assertStringContainsString('в теме 12 про свет', $prompt, 'the talk survived the restart');
         self::assertStringNotContainsString('в теме 13 про воду', $prompt, 'another topic is another talk');
+    }
+
+    public function testABurstOfTalkInAFreeGroupIsOneRunAndAnAddressIsNotKeptWaiting(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('[SILENT]'), ScriptedLlm::text('ок')]), quiet: 0.3);
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+
+        $this->say('раз');
+        $this->say('два');
+        $this->say('три');
+        self::assertCount(0, $this->stack->llm->requests, 'the group is still talking');
+        delay(0.5);
+
+        self::assertCount(1, $this->stack->llm->requests, 'one run for the burst');
+        $prompt = array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '';
+        self::assertStringContainsString('раз', $prompt);
+        self::assertStringContainsString('три', $prompt);
+
+        $this->say('@mrcuribot а ты что думаешь?');
+        delay(0.1);
+        self::assertCount(2, $this->stack->llm->requests, 'someone asked: no waiting');
+    }
+
+    public function testAFreeGroupOverItsDailyTokensOnlyAnswersWhenAsked(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), spentToday: static fn(string $channel, string $chatId): int => 250_000, freeDailyTokens: 200_000);
+        $this->stack->useGroups($this->gate);
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+
+        $this->say('просто болтаем');
+        self::assertCount(0, $this->stack->llm->requests, 'over the limit the agent does not join in by itself');
+        $this->say('@mrcuribot а сколько времени?');
+        self::assertCount(1, $this->stack->llm->requests, 'but answers when asked');
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {

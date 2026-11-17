@@ -40,6 +40,7 @@ final class SettingsCatalog {
         'AGENT_DAILY_SPEND_CAP' => ['limits', self::FLOAT, 'settings.about.agent_daily_spend_cap'],
         'AGENT_MONTHLY_SPEND_CAP' => ['limits', self::FLOAT, 'settings.about.agent_monthly_spend_cap'],
         'JOB_TOKEN_BUDGET' => ['limits', self::INT, 'settings.about.job_token_budget'],
+        'GROUP_FREE_DAILY_TOKENS' => ['limits', self::INT, 'settings.about.group_free_daily_tokens'],
         'SEARCH_PROVIDERS' => ['search', self::TEXT, 'settings.about.search_providers'],
         'SEARXNG_URL' => ['search', self::TEXT, 'settings.about.searxng_url'],
         'BRAVE_SEARCH_API_KEY' => ['search', self::SECRET, 'settings.about.brave_search_api_key'],

@@ -604,6 +604,17 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     $runMessages,
     $visitors,
     new \OpenCCK\Infrastructure\Repository\PostgresGroupTalkRepository($db),
+    // spec: BRIEF.md#группа — tokens the runs of a group spent since midnight UTC
+    static function (string $channel, string $chatId) use ($db): int {
+        $row = $db->execute(
+            "SELECT coalesce(sum(r.tokens_used), 0)::bigint AS spent FROM runs r JOIN conversations c ON c.id = r.conversation_id
+             WHERE c.channel = ? AND c.chat_id = ? AND r.created_at >= date_trunc('day', now())",
+            [$channel, $chatId],
+        )->fetchRow();
+        $spent = $row['spent'] ?? 0;
+        return is_int($spent) ? $spent : 0;
+    },
+    is_numeric($_ENV['GROUP_FREE_DAILY_TOKENS'] ?? null) ? (int) $_ENV['GROUP_FREE_DAILY_TOKENS'] : 200000,
 );
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),

@@ -48,6 +48,8 @@ final class AgentStack {
         public readonly ScriptedLlm $llm = new ScriptedLlm(),
         RunLimits $limits = new RunLimits(30, 100_000, 900, 120),
         float $debounce = 0.0,
+        /** the quiet window of a free group's talk; 0 — none */
+        float $quietDebounce = 0.0,
         int $maxMessageLength = 4096,
         ?ModelRouter $router = null,
         ?TraceReports $reports = null,
@@ -74,6 +76,7 @@ final class AgentStack {
             $this->channel,
             'test/model',
             debounce: $debounce,
+            quietDebounce: $quietDebounce,
             editInterval: 0.0,
             router: $router,
             events: $events,
