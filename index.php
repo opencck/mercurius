@@ -563,11 +563,21 @@ $a2aToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TOKEN');
 $agentIdentity = $vault->enabled()
     ? \OpenCCK\App\Peer\AgentIdentity::load($vault, $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null))
     : \OpenCCK\App\Peer\AgentIdentity::generate();
+// spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — keys the agent makes itself, the
+// transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
+$agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId), $agentIdentity);
+$a2aConnect = static function (string $url, string $token): \OpenCCK\App\Peer\A2aChannel {
+    if (preg_match('~^wss?://~', $url) !== 1) {
+        throw new \RuntimeException('not a websocket address');
+    }
+    $handshake = (new \Amp\Websocket\Client\WebsocketHandshake($url, ['authorization' => 'Bearer ' . $token]))->withTcpConnectTimeout(10)->withTlsHandshakeTimeout(10);
+    return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel(\Amp\Websocket\Client\connect($handshake, new \Amp\TimeoutCancellation(20)));
+};
 $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,
     $principals,
     $vault,
-    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity),
+    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect),
     $conversations,
     $transcript,
     $channel,
@@ -575,8 +585,12 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $logger,
     $agentIdentity,
     static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+    $agentKeys,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
+$tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
+// ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
+$a2aTransport = (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TRANSPORT') ?? 'ws') === 'http' ? 'http' : 'ws';
 $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? null : new \OpenCCK\App\Peer\A2aServer(
     $peerRepository,
     $principals,
@@ -592,6 +606,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     $logger,
     $agentIdentity,
     $a2aToken,
+    transport: $a2aTransport,
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
@@ -680,7 +695,12 @@ if ($webhookSecret !== null) {
 
 if ($a2aServer !== null) {
     $routes[] = ['GET', '/.well-known/agent-card.json', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
-    $routes[] = ['POST', '/a2a', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
+    if ($a2aServer->transport === 'http') {
+        $routes[] = ['POST', '/a2a', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
+    } else {
+        $a2aSocket = new \OpenCCK\Infrastructure\API\Handler\A2aSocketHandler($a2aServer);
+        $routes[] = ['GET', '/a2a/ws', static fn(\Amp\Http\Server\HttpServer $http): \Amp\Websocket\Server\Websocket => new \Amp\Websocket\Server\Websocket($http, $logger, $a2aSocket, $a2aSocket)];
+    }
 }
 
 // spec: BRIEF.md#планировщик-и-проекты — a signed event starts a job by event

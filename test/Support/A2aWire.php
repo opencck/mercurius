@@ -21,6 +21,10 @@ final class A2aWire implements DelegateHttpClient {
         if ($request->getMethod() === 'GET') {
             return new Response('1.1', 200, null, [], json_encode($this->server->card(), JSON_THROW_ON_ERROR), $request);
         }
+        if ($this->server->transport === 'ws') {
+            // the follower takes WebSocket only: POST /a2a is not there
+            return new Response('1.1', 404, null, [], '{"error":"not found"}', $request);
+        }
         $body = '';
         $stream = $request->getBody()->getContent();
         while (($chunk = $stream->read()) !== null) {

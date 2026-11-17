@@ -31,7 +31,8 @@ final class Server implements AppModuleInterface {
 
     /**
      * @param int<1, 65535> $port
-     * @param list<array{non-empty-string, non-empty-string, RequestHandler}> $routes extra routes: method, path, handler
+     * @param list<array{non-empty-string, non-empty-string, RequestHandler|\Closure(\Amp\Http\Server\HttpServer): RequestHandler}> $routes extra
+     *        routes: method, path, handler (or a function that makes it with the server, as a WebSocket endpoint needs)
      */
     public function __construct(
         private readonly LoggerInterface $logger,
@@ -54,7 +55,7 @@ final class Server implements AppModuleInterface {
             json_encode(['name' => 'mercurius', 'version' => $this->version], JSON_THROW_ON_ERROR),
         )));
         foreach ($this->routes as [$method, $path, $routeHandler]) {
-            $router->addRoute($method, $path, $routeHandler);
+            $router->addRoute($method, $path, $routeHandler instanceof RequestHandler ? $routeHandler : $routeHandler($server));
         }
 
         $handler = stackMiddleware($router, new RequestIdMiddleware(), new AccessLogMiddleware($this->logger));

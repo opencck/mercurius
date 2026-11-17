@@ -22,7 +22,13 @@ final class AgentIdentity {
     private function __construct(
         private readonly \OpenSSLAsymmetricKey $private,
         public readonly string $publicKey,
+        #[\SensitiveParameter] private readonly string $pem = '',
     ) {}
+
+    /** The private key in PEM, to keep it in the vault. */
+    public function privatePem(): string {
+        return $this->pem;
+    }
 
     /** The key from the vault, made and kept there on the first start. */
     public static function load(Vault $vault, Principal $owner): self {
@@ -40,7 +46,7 @@ final class AgentIdentity {
         if ($key === false || $details === false || !isset($details['key']) || !is_string($details['key'])) {
             throw new DomainException(t('peer.agent_identity.klyuch_agenta_ne_chitaetsya'));
         }
-        return new self($key, $details['key']);
+        return new self($key, $details['key'], $pem);
     }
 
     public static function generate(): self {
@@ -101,6 +107,23 @@ final class AgentIdentity {
     /** What is signed in an answer: bound to the request by its one-time number. */
     public static function responseData(string $nonce, string $body): string {
         return implode("\n", ['a2a-response', $nonce, hash('sha256', $body)]);
+    }
+
+    /**
+     * What the follower signs on a WebSocket handshake: both random numbers and the leader's fingerprint, so the
+     * signature serves this connection to this leader only.
+     *
+     * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+     */
+    public static function wsServerData(string $clientNonce, string $serverNonce, string $clientFingerprint): string {
+        return implode("
+", ['a2a-ws-server', $clientNonce, $serverNonce, $clientFingerprint]);
+    }
+
+    /** What the leader signs: the follower's random number first — the phrase it has to prove its key on. */
+    public static function wsClientData(string $serverNonce, string $clientNonce, string $serverFingerprint): string {
+        return implode("
+", ['a2a-ws-client', $serverNonce, $clientNonce, $serverFingerprint]);
     }
 
     /** An output of OpenSSL: the analysers type its by-reference results differently. */

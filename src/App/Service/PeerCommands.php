@@ -31,7 +31,9 @@ final class PeerCommands {
                 '' => $this->network->text(),
                 'allow' => $this->network->allow($parts[1] ?? '', $parts[2] ?? '', Role::tryFrom($parts[3] ?? 'user') ?? Role::Visitor),
                 'revoke' => $this->network->revoke($parts[1] ?? '') ? sprintf(t('service.peer_commands.agent_bolshe_ne_podklyuchitsya'), $parts[1] ?? '') : t('service.peer_commands.takogo_dopuschennogo_agenta_net'),
-                'add' => $this->network->add($owner, $parts[1] ?? '', $parts[2] ?? '', $parts[3] ?? ''),
+                'add' => $this->network->add($owner, $parts[1] ?? '', $parts[2] ?? '', $parts[3] ?? '', $parts[4] ?? ''),
+                // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — which key a neighbour sees
+                'key' => $this->network->useKey($parts[1] ?? '', $parts[2] ?? ''),
                 'remove' => $this->peers->removePeer($parts[1] ?? '') ? t('service.peer_commands.sosed_udalen') : t('service.peer_commands.takogo_soseda_net'),
                 default => t('service.peer_commands.peers_spisok_i_moy_klyuch')
                     . t('service.peer_commands.peer_add_imya_https_adres'),

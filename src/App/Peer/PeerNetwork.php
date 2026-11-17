@@ -50,6 +50,8 @@ final class PeerNetwork {
         private readonly AgentIdentity $identity,
         /** @var Closure(): ?Principal the owner reads the tokens of neighbours */
         private readonly Closure $owner,
+        /** the keys this agent may present to neighbours; null — the main key only */
+        private readonly ?AgentKeys $keys = null,
     ) {}
 
     /** Lets an agent in by the fingerprint of its key; it becomes a participant with the role. */
@@ -68,6 +70,32 @@ final class PeerNetwork {
         return sprintf(t('peer.peer_network.agent_mozhet_podklyuchatsya_rol_prava'), $name, $fingerprint, $role->value);
     }
 
+    /**
+     * The key this agent presents to the neighbour from now on ('' — the main one); a new key is made. The neighbour's
+     * owner lets the new fingerprint in with /peer allow.
+     *
+     * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+     */
+    public function useKey(string $peer, string $key): string {
+        $mine = $this->myKey($key);
+        if (!$this->peers->setIdentity($peer, $key)) {
+            throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peer));
+        }
+        return sprintf(t('peer.peer_network.key_used'), $peer, $key === '' ? t('peer.peer_network.main_key') : $key, $mine->fingerprint());
+    }
+
+    /** A key of this agent by name, made when there is none: the agent makes them itself, the owner is not asked. */
+    public function makeKey(string $key): string {
+        return sprintf(t('peer.peer_network.key_ready'), $key, $this->myKey($key)->fingerprint());
+    }
+
+    private function myKey(string $key): AgentIdentity {
+        if ($key === '') {
+            return $this->identity;
+        }
+        return ($this->keys ?? throw new DomainException(t('peer.agent_keys.bad_name')))->get($key);
+    }
+
     public function revoke(string $name): bool {
         return $this->peers->revokeKey($name);
     }
@@ -77,7 +105,7 @@ final class PeerNetwork {
     }
 
     /** A neighbour: its card is fetched, its public key pinned; the token of its entrance is a vault secret by name. */
-    public function add(Principal $owner, string $name, string $url, string $secret): string {
+    public function add(Principal $owner, string $name, string $url, string $secret, string $key = ''): string {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('peer.peer_network.imya_soseda_latinitsa_tsifry_defis'));
         }
@@ -92,16 +120,17 @@ final class PeerNetwork {
         } catch (Throwable $e) {
             throw new DomainException(t('peer.peer_network.kartochku_soseda_ne_poluchit') . $e->getMessage());
         }
-        $key = A2aClient::cardKey($card) ?? throw new DomainException(t('peer.peer_network.v_kartochke_soseda_net_klyucha'));
-        $this->peers->addPeer($name, rtrim($url, '/'), $secret, $key, $card);
+        $publicKey = A2aClient::cardKey($card) ?? throw new DomainException(t('peer.peer_network.v_kartochke_soseda_net_klyucha'));
+        $mine = $this->myKey($key);
+        $this->peers->addPeer($name, rtrim($url, '/'), $secret, $publicKey, $card, $key);
         $title = isset($card['name']) && is_string($card['name']) ? $card['name'] : '?';
         return sprintf(
             t('peer.peer_network.sosed_dobavlen_ego_klyuch_sverte'),
             $name,
             $title,
             rtrim($url, '/'),
-            AgentIdentity::fingerprintOf($key) ?? '?',
-            $this->identity->fingerprint(),
+            AgentIdentity::fingerprintOf($publicKey) ?? '?',
+            $mine->fingerprint(),
         );
     }
 
@@ -117,7 +146,8 @@ final class PeerNetwork {
         }
         $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
         $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
-        $remote = $this->client->send($peer, $token, 'msg-' . bin2hex(random_bytes(8)), SecretMasker::mask($task), $depth + 1, [...$path, $this->self]);
+        $messageId = 'msg-' . bin2hex(random_bytes(8));
+        $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self]));
         $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state);
@@ -138,7 +168,7 @@ final class PeerNetwork {
                 continue;
             }
             try {
-                $task = $this->client->get($peer, $token, $out->remoteId);
+                $task = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->get($p, $token, $out->remoteId));
             } catch (Throwable $e) {
                 $this->logger->notice('A2A poll failed', ['task' => $out->id, 'error' => $e->getMessage()]);
                 continue;
@@ -147,6 +177,28 @@ final class PeerNetwork {
             if (in_array($state, A2aTask::TERMINAL, true)) {
                 $this->finish($out, $state, A2aClient::answer($task));
             }
+        }
+    }
+
+    /**
+     * A call to the neighbour; when it has moved to another transport, its card is read again and the call repeated
+     * once. The card is taken only with the key pinned for the neighbour: a card with another key is someone else.
+     *
+     * @template T
+     * @param Closure(\OpenCCK\Domain\Peer\Peer): T $call
+     * @return T
+     */
+    private function followed(\OpenCCK\Domain\Peer\Peer $peer, Closure $call): mixed {
+        try {
+            return $call($peer);
+        } catch (A2aMoved) {
+            $card = $this->client->card($peer->url);
+            if (A2aClient::cardKey($card) !== $peer->publicKey) {
+                throw new DomainException(t('peer.a2a_client.otvet_podpisan_ne_klyuchom_etogo'));
+            }
+            $this->peers->addPeer($peer->name, $peer->url, $peer->secret, $peer->publicKey, $card, $peer->identity);
+            $this->logger->info('Neighbour card read again', ['peer' => $peer->name, 'transport' => A2aClient::transport($this->peers->peer($peer->name) ?? $peer)]);
+            return $call($this->peers->peer($peer->name) ?? $peer);
         }
     }
 
@@ -172,10 +224,18 @@ final class PeerNetwork {
     public function text(): string {
         $lines = [t('peer.peer_network.moy_klyuch') . $this->identity->fingerprint(), '', t('peer.peer_network.sosedi_ya_podklyuchayus_k_nim')];
         foreach ($this->peers->peers() as $peer) {
-            $lines[] = sprintf(t('peer.peer_network.klyuch_token_vhoda_v_sekrete'), $peer->name, $peer->url, AgentIdentity::fingerprintOf($peer->publicKey) ?? '?', $peer->secret);
+            $lines[] = sprintf(t('peer.peer_network.klyuch_token_vhoda_v_sekrete'), $peer->name, $peer->url, AgentIdentity::fingerprintOf($peer->publicKey) ?? '?', $peer->secret)
+                . sprintf(t('peer.peer_network.peer_transport'), A2aClient::transport($peer), $peer->identity === '' ? t('peer.peer_network.main_key') : $peer->identity);
         }
         if (count($lines) === 3) {
             $lines[] = t('peer.peer_network.net_peer_add_imya_https');
+        }
+        if ($this->keys !== null) {
+            $lines[] = '';
+            $lines[] = t('peer.peer_network.my_keys');
+            foreach ($this->keys->list() as $k) {
+                $lines[] = sprintf('• %s — %s', $k['name'] === '' ? t('peer.peer_network.main_key') : $k['name'], $k['fingerprint']);
+            }
         }
         $lines[] = '';
         $lines[] = t('peer.peer_network.agenty_kotoryh_ya_puskayu_po');

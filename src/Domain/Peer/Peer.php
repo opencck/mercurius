@@ -18,5 +18,7 @@ final class Peer {
         public readonly string $secret,
         public readonly string $publicKey,
         public readonly ?array $card,
+        /** the name of this agent's key it presents to the neighbour; '' — the main key */
+        public readonly string $identity = '',
     ) {}
 }

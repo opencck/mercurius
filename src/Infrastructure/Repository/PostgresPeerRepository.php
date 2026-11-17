@@ -94,22 +94,26 @@ final class PostgresPeerRepository implements PeerRepository {
     }
 
     /** @param array<array-key, mixed>|null $card */
-    public function addPeer(string $name, string $url, string $secret, string $publicKey, ?array $card): void {
+    public function addPeer(string $name, string $url, string $secret, string $publicKey, ?array $card, string $identity = ''): void {
         $this->db->execute(
-            'INSERT INTO peers (name, url, secret, public_key, card) VALUES (?, ?, ?, ?, ?::jsonb)
-             ON CONFLICT (name) DO UPDATE SET url = excluded.url, secret = excluded.secret, public_key = excluded.public_key, card = excluded.card',
-            [$name, $url, $secret, $publicKey, $card === null ? null : json_encode($card, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)],
+            'INSERT INTO peers (name, url, secret, public_key, card, identity) VALUES (?, ?, ?, ?, ?::jsonb, ?)
+             ON CONFLICT (name) DO UPDATE SET url = excluded.url, secret = excluded.secret, public_key = excluded.public_key, card = excluded.card, identity = excluded.identity',
+            [$name, $url, $secret, $publicKey, $card === null ? null : json_encode($card, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $identity],
         );
     }
 
+    public function setIdentity(string $name, string $identity): bool {
+        return $this->db->execute('UPDATE peers SET identity = ? WHERE name = ? RETURNING name', [$identity, $name])->fetchRow() !== null;
+    }
+
     public function peer(string $name): ?Peer {
-        $row = $this->db->execute('SELECT name, url, secret, public_key, card::text AS card FROM peers WHERE name = ?', [$name])->fetchRow();
+        $row = $this->db->execute('SELECT name, url, secret, public_key, card::text AS card, identity FROM peers WHERE name = ?', [$name])->fetchRow();
         return $row === null ? null : self::peerRow($row);
     }
 
     public function peers(): array {
         $found = [];
-        foreach ($this->db->query('SELECT name, url, secret, public_key, card::text AS card FROM peers ORDER BY name') as $row) {
+        foreach ($this->db->query('SELECT name, url, secret, public_key, card::text AS card, identity FROM peers ORDER BY name') as $row) {
             $found[] = self::peerRow($row);
         }
         return $found;
@@ -182,7 +186,7 @@ final class PostgresPeerRepository implements PeerRepository {
             $decoded = json_decode($row['card'], true, 32, JSON_THROW_ON_ERROR);
             $card = is_array($decoded) ? $decoded : null;
         }
-        return new Peer(self::str($row, 'name'), self::str($row, 'url'), self::str($row, 'secret'), self::str($row, 'public_key'), $card);
+        return new Peer(self::str($row, 'name'), self::str($row, 'url'), self::str($row, 'secret'), self::str($row, 'public_key'), $card, self::str($row, 'identity'));
     }
 
     /** @param array<string, mixed> $row */

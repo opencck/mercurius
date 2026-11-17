@@ -99,8 +99,15 @@ final class A2aServer implements JobRuns {
         private readonly AgentIdentity $identity,
         #[SensitiveParameter] private readonly string $token,
         ?Closure $now = null,
+        /** ws — neighbours connect by WebSocket (/a2a/ws) and prove their keys once; http — POST /a2a, every request signed */
+        public readonly string $transport = 'http',
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
+    }
+
+    /** The entrance token of this instance, as the Authorization header carries it. */
+    public function entrance(string $authorization): bool {
+        return hash_equals('Bearer ' . $this->token, trim($authorization));
     }
 
     public function identity(): AgentIdentity {
@@ -142,6 +149,93 @@ final class A2aServer implements JobRuns {
     }
 
     /**
+     * One WebSocket connection of a neighbour (its entrance token was checked before the upgrade): the handshake proves
+     * whose key it is, then each frame is a JSON-RPC request answered on the same connection. A connection that does
+     * not prove a known key in $timeout seconds is closed.
+     *
+     * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+     */
+    public function serveSocket(A2aChannel $channel, float $timeout = 10.0): void {
+        try {
+            $agent = $this->handshake($channel, $timeout);
+            if ($agent === null) {
+                return;
+            }
+            while (($frame = $channel->receive()) !== null) {
+                try {
+                    /** @var mixed $request */
+                    $request = json_decode($frame, true, 32, JSON_THROW_ON_ERROR);
+                } catch (\JsonException) {
+                    $request = null;
+                }
+                [, $answer] = is_array($request)
+                    ? $this->handle($agent, $request)
+                    : [400, self::error(null, self::ERR_PARSE, 'parse error')];
+                $channel->send(json_encode($answer, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            }
+        } catch (Throwable $e) {
+            $this->logger->notice('A2A connection ended', ['error' => $e::class]);
+        } finally {
+            $channel->close();
+        }
+    }
+
+    /** The agent that proved its key on this connection; null — refused (the connection is told why). */
+    private function handshake(A2aChannel $channel, float $timeout): ?Principal {
+        $deadline = new \Amp\TimeoutCancellation($timeout);
+        $hello = self::frame($channel->receive($deadline));
+        $key = isset($hello['key']) && is_string($hello['key']) ? $hello['key'] : '';
+        $clientNonce = isset($hello['nonce']) && is_string($hello['nonce']) ? $hello['nonce'] : '';
+        $fingerprint = AgentIdentity::fingerprintOf($key);
+        if (($hello['type'] ?? null) !== 'hello' || $fingerprint === null || preg_match('~^[A-Za-z0-9_-]{16,64}$~', $clientNonce) !== 1) {
+            $this->deny($channel, 'a hello with a P-256 key and a random number was expected');
+            return null;
+        }
+        $serverNonce = bin2hex(random_bytes(16));
+        $channel->send(json_encode([
+            'type' => 'challenge',
+            'nonce' => $serverNonce,
+            'key' => $this->identity->publicKey,
+            'signature' => $this->identity->sign(AgentIdentity::wsServerData($clientNonce, $serverNonce, $fingerprint)),
+        ], JSON_THROW_ON_ERROR));
+        $auth = self::frame($channel->receive($deadline));
+        $signature = isset($auth['signature']) && is_string($auth['signature']) ? $auth['signature'] : '';
+        if (($auth['type'] ?? null) !== 'auth' || !AgentIdentity::verify($key, AgentIdentity::wsClientData($serverNonce, $clientNonce, $this->identity->fingerprint()), $signature)) {
+            $this->deny($channel, 'the random number is not signed by the key of the hello');
+            return null;
+        }
+        $id = $this->peers->principalByFingerprint($fingerprint);
+        $agent = $id === null ? null : $this->principals->find($id);
+        if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
+            $this->logger->notice('Unknown agent key', ['fingerprint' => $fingerprint]);
+            $this->deny($channel, 'unknown agent ' . $fingerprint . ': its owner lets it in with /peer allow');
+            return null;
+        }
+        $channel->send(json_encode(['type' => 'ready', 'agent' => $agent->displayName], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        return $agent;
+    }
+
+    private function deny(A2aChannel $channel, string $why): void {
+        try {
+            $channel->send(json_encode(['type' => 'denied', 'reason' => $why], JSON_THROW_ON_ERROR));
+        } catch (Throwable) {
+            // already gone
+        }
+        $channel->close();
+    }
+
+    /** @return array<array-key, mixed> */
+    private static function frame(?string $text): array {
+        try {
+            /** @var mixed $data */
+            $data = $text === null ? null : json_decode($text, true, 8, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+        return is_array($data) ? $data : [];
+    }
+
+    /**
      * Headers that sign an answer with this agent's key, bound to the request by its one-time number.
      *
      * @return array<non-empty-string, string>
@@ -151,6 +245,11 @@ final class A2aServer implements JobRuns {
             'x-a2a-key' => base64_encode($this->identity->publicKey),
             'x-a2a-signature' => $this->identity->sign(AgentIdentity::responseData($nonce, $body)),
         ];
+    }
+
+    /** wss://<this agent>/a2a/ws */
+    public function socketUrl(): string {
+        return (preg_replace('~^http~', 'ws', rtrim($this->self, '/')) ?? $this->self) . '/a2a/ws';
     }
 
     /** @return array<string, mixed> the A2A v1.0 agent card */
@@ -170,7 +269,9 @@ final class A2aServer implements JobRuns {
             'securitySchemes' => ['bearer' => ['type' => 'http', 'scheme' => 'bearer']],
             'security' => [['bearer' => []]],
             // Requests and answers are signed by ECDSA P-256 keys; the leader pins this key when it adds the agent.
-            'mercurius' => ['publicKey' => $this->identity->publicKey, 'fingerprint' => $this->identity->fingerprint(), 'signing' => 'x-a2a-signature'],
+            'mercurius' => ['publicKey' => $this->identity->publicKey, 'fingerprint' => $this->identity->fingerprint(), 'signing' => 'x-a2a-signature']
+                // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — the transport this agent takes
+                + ($this->transport === 'ws' ? ['transport' => 'ws', 'ws' => $this->socketUrl()] : ['transport' => 'http']),
         ];
     }
 

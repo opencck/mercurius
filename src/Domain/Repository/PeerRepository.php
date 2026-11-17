@@ -49,7 +49,10 @@ interface PeerRepository {
     public function stale(DateTimeImmutable $before): array;
 
     /** @param array<array-key, mixed>|null $card */
-    public function addPeer(string $name, string $url, string $secret, string $publicKey, ?array $card): void;
+    public function addPeer(string $name, string $url, string $secret, string $publicKey, ?array $card, string $identity = ''): void;
+
+    /** The key this agent presents to the neighbour; false — no such neighbour. */
+    public function setIdentity(string $name, string $identity): bool;
 
     public function peer(string $name): ?Peer;
 
