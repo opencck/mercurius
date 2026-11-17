@@ -6,11 +6,13 @@
     "require": {
         "php": ">=8.2",
         "ext-json": "*",
+        "ext-sodium": "*",
         "amphp/amp": "^3",
-        "amphp/file": "^3",
+        "amphp/file": "3.2.0 as 4.0.0",
         "amphp/http-client": "^5",
         "amphp/log": "^2",
         "amphp/postgres": "^2.2",
+        "amphp/ssh": "dev-master",
         "monolog/monolog": "^3",
         "opencck/mercurius-connectors": "dev-master",
         "opencck/mercurius-llm": "dev-master",
@@ -87,6 +89,10 @@
                     "opencck/mercurius-messenger": "dev-master"
                 }
             }
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/rekryt/amphp-ssh"
         }
     ],
     "minimum-stability": "stable"

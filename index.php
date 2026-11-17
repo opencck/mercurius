@@ -76,17 +76,26 @@ use OpenCCK\Infrastructure\Module\TraceRetentionModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\App\Agent\ConversationAudience;
+use OpenCCK\App\Agent\HostKeyCards;
 use OpenCCK\App\Agent\ProjectContext;
 use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\App\Agent\Tool\MemoryProposeTool;
 use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
+use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\App\Agent\Tool\ServerAddTool;
+use OpenCCK\App\Agent\Tool\ServersTool;
 use OpenCCK\App\Agent\Tool\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\ProjectTool;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Infrastructure\Config\MemorySettings;
+use OpenCCK\Infrastructure\Config\VaultSettings;
 use OpenCCK\App\Service\MemoryCommands;
+use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\App\Vault\Vault;
+use OpenCCK\App\Service\ServerCommands;
+use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\App\Service\ProjectCommands;
 use OpenCCK\Memory\App\Consolidation;
 use OpenCCK\Memory\App\MemoryContext;
@@ -111,6 +120,10 @@ use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
+use OpenCCK\Infrastructure\Ssh\AmpSshShell;
+use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
+use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
+use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
 use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
 use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
 use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
@@ -131,6 +144,7 @@ try {
     $sandboxSettings = SandboxSettings::fromEnv($_ENV);
     $traceSettings = TraceSettings::fromEnv($_ENV);
     $memorySettings = MemorySettings::fromEnv($_ENV);
+    $vaultSettings = VaultSettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
     exit(78); // EX_CONFIG
@@ -313,6 +327,19 @@ $consolidation = new Consolidation(
         $channel->send(new OutgoingMessage($telegram->ownerId, $text));
     },
 );
+// spec: BRIEF.md#фаза-7-по-частям — the vault, the registry of servers, SSH with a command policy and a journal
+$vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key());
+if (!$vault->enabled()) {
+    $logger->warning('SECRETS_KEY is not set: the vault and SSH are off');
+}
+$serverRepository = new PostgresServerRepository($db);
+$commandAudit = new PostgresCommandAuditRepository($db);
+$hostKeyCards = new HostKeyCards($serverRepository, $channel, $telegram->ownerId);
+$serverConsole = new ServerConsole($serverRepository, $vault, new CommandClassifier(), $commandAudit, new AmpSshShell(), $hostKeyCards->ask(...), $logger);
+$tools->register(new ServersTool($serverRepository));
+$tools->register(new ServerAddTool($serverRepository, $vault));
+$tools->register(new SshRunTool($serverConsole));
+
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
@@ -335,8 +362,9 @@ $chat = new ChatService(
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
+    new ServerCommands($vault, $serverRepository, $commandAudit),
 );
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

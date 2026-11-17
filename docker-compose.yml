@@ -119,9 +119,21 @@ services:
       POSTGRES_HOST: postgres
       # A separate database: integration tests never touch the application data.
       POSTGRES_DB: ${POSTGRES_DB}_test
+      # The SSH server of the tests; real servers of the owner are never touched by them.
+      SSH_TEST_HOST: sshd-test
     depends_on:
       postgres:
         condition: service_healthy
+      sshd-test:
+        condition: service_started
+    networks:
+      - internal
+
+  # An SSH server for the integration tests of SSH, on demand with the test profile.
+  sshd-test:
+    profiles: ["test"]
+    build:
+      context: docker/sshd-test
     networks:
       - internal
 

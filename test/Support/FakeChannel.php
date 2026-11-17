@@ -84,6 +84,18 @@ final class FakeChannel implements Channel {
         ));
     }
 
+    /** @var list<array{string, string}> deleted messages: chat, message */
+    public array $deleted = [];
+    public bool $deleteFails = false;
+
+    public function delete(string $chatId, string $messageId): bool {
+        if ($this->deleteFails) {
+            return false;
+        }
+        $this->deleted[] = [$chatId, $messageId];
+        return true;
+    }
+
     public function answerCallback(string $callbackId, ?string $text = null, bool $alert = false): void {
         $this->answers[] = [$callbackId, $text, $alert];
     }

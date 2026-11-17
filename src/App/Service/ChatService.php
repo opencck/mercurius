@@ -11,6 +11,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -28,12 +29,13 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
     public const PRIVATE_ONLY = 'Отчёты показываю только в личном чате.';
     public const MEMORY_PRIVATE = 'Память показываю только в личном чате.';
+    public const SECRET_PRIVATE = 'Секреты — только в личном чате; сообщение с секретом я удалю.';
     private const REPORT_LIMIT = 3500;
 
     public function __construct(
@@ -46,6 +48,7 @@ final class ChatService implements MessageHandler {
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?MemoryCommands $memory = null,
         private readonly ?ProjectCommands $projects = null,
+        private readonly ?ServerCommands $servers = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -102,6 +105,34 @@ final class ChatService implements MessageHandler {
                     default => $this->memory->forget(substr($text, strlen($command))),
                 });
             }
+            return;
+        }
+        if ($command === '/secret' && $this->servers !== null) {
+            // spec: BRIEF.md#фаза-7-по-частям — a secret goes to the vault and its message leaves the chat
+            $argument = substr($text, strlen($command));
+            $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
+            if ($principal->role === Role::Visitor) {
+                $this->reply($message, self::OWNER_ONLY);
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, self::SECRET_PRIVATE);
+            } else {
+                $this->reply($message, $this->servers->secret($principal, $argument));
+            }
+            if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
+                $this->reply($message, 'Не удалось удалить сообщение с секретом — удалите его сами.');
+            }
+            return;
+        }
+        if ($command === '/secrets' && $this->servers !== null) {
+            $this->reply($message, $principal->role !== Role::Visitor && $message->isPrivateChat ? $this->servers->secrets($principal) : self::SECRET_PRIVATE);
+            return;
+        }
+        if (in_array($command, ['/servers', '/audit'], true) && $this->servers !== null) {
+            $this->reply($message, match (true) {
+                !$principal->isOwner() => self::OWNER_ONLY,
+                $command === '/servers' => $this->servers->servers(),
+                default => $this->servers->audit(),
+            });
             return;
         }
         if (in_array($command, ['/project', '/projects'], true) && $this->projects !== null) {

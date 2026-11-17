@@ -35,7 +35,7 @@ final class AgentStack {
     public readonly ToolRegistry $registry;
     public readonly FakeChannel $channel;
     public readonly RunScheduler $scheduler;
-    public readonly ChatService $chat;
+    public ChatService $chat;
     public readonly InMemoryApprovalRepository $approvals;
     public readonly ApprovalService $approvalService;
     public readonly CallbackRouter $callbacks;
@@ -83,6 +83,11 @@ final class AgentStack {
         $this->visitors = new VisitorService($this->principals, $this->channel, '42');
         $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'pv' => $this->visitors]);
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, reports: $reports);
+    }
+
+    /** The chat with the commands of servers and secrets. */
+    public function useServers(\OpenCCK\App\Service\ServerCommands $servers): void {
+        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, servers: $servers);
     }
 
     /** A press on a button, as the channel delivers it. */
