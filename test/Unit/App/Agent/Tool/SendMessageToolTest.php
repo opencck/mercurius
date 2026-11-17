@@ -83,6 +83,29 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertCount(1, $this->relays->relays);
     }
 
+    public function testTheAnswerOfSomeoneElseComesBackUnlessToldNot(): void {
+        $this->stack(new ScriptedLlm([]));
+        $conversation = $this->stack->conversations->openConversation(1, 'telegram', '-100', '');
+
+        $this->tool->execute(['to' => 'Roman', 'text' => 'Как дела?'], $this->context($conversation));
+        self::assertCount(1, $this->relays->relays, 'a question to someone waits for their answer by default');
+
+        $this->tool->execute(['to' => 'Сергей Аринин', 'text' => 'К сведению', 'expect_reply' => false], $this->context($conversation));
+        $this->tool->execute(['to' => 'owner', 'text' => 'Итоги'], $this->context($conversation));
+        self::assertCount(1, $this->relays->relays, 'not when told so, and never for the owner: their chat is their own');
+    }
+
+    public function testAskingTheSamePersonAgainReplacesTheOldQuestion(): void {
+        $this->stack(new ScriptedLlm([]));
+        $conversation = $this->stack->conversations->openConversation(1, 'telegram', '-100', '');
+
+        $this->tool->execute(['to' => 'Roman', 'text' => 'Как дела?'], $this->context($conversation));
+        $this->tool->execute(['to' => 'Roman', 'text' => 'Как дела? (ещё раз)'], $this->context($conversation));
+
+        self::assertCount(1, $this->relays->relays, 'one answer of Roman closes the question: a second open one would swallow his next message');
+        self::assertSame('Как дела? (ещё раз)', array_values($this->relays->relays)[0]->question);
+    }
+
     public function testANameMatchingSeveralPeopleIsAskedAgain(): void {
         $this->stack(new ScriptedLlm([]));
         $conversation = $this->stack->conversations->openConversation(1, 'telegram', '42', '');

@@ -635,10 +635,52 @@ final class AgentLoop {
 
     private function saveAnswer(RunState $state, string $text): void {
         try {
+            // the note goes right before the answer: the answer itself stays what the model wrote (jobs and reports read it)
+            $note = $this->actionsNote($state->run->id);
+            if ($note !== '') {
+                $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $note, []);
+            }
             $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, []);
         } catch (Throwable $e) {
             $this->logger->error('Could not save the final answer', ['run' => $state->run->id, 'error' => $e::class]);
         }
+    }
+
+    /**
+     * What the run did, kept with its answer. Later runs see earlier ones without their tool rounds, so without this note
+     * the model doubts its own actions and repeats them (a message sent twice, a card shown twice). Reads are left out.
+     *
+     * spec: BRIEF.md#контекст — history of earlier runs without tool rounds, with the actions they made
+     */
+    private function actionsNote(int $runId): string {
+        $calls = [];
+        $lines = [];
+        try {
+            foreach ($this->transcript->runEntries($runId) as $entry) {
+                foreach ($entry->message->toolCalls as $call) {
+                    $calls[$call->id] = $call;
+                }
+                $call = $entry->message->toolCallId === null ? null : ($calls[$entry->message->toolCallId] ?? null);
+                $tool = $call === null ? null : $this->registry->get($call->name);
+                if ($call === null || $tool === null || count($lines) >= 10) {
+                    continue;
+                }
+                /** @var mixed $args */
+                $args = json_decode($call->argumentsJson, true);
+                if (!is_array($args)) {
+                    continue;
+                }
+                /** @var array<string, mixed> $args */
+                if ($tool->danger($args) === DangerClass::Read) {
+                    continue;
+                }
+                $result = preg_replace('~\s+~u', ' ', $entry->message->content) ?? '';
+                $lines[] = sprintf('%s %s → %s', $call->name, mb_substr($call->argumentsJson, 0, 200), mb_substr($result, 0, 160));
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('Actions of the run were not listed', ['run' => $runId, 'error' => $e::class]);
+        }
+        return $lines === [] ? '' : sprintf(t('agent.agent_loop.actions_note'), implode('; ', $lines));
     }
 
     /**

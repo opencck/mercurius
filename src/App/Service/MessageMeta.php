@@ -29,6 +29,44 @@ final class MessageMeta {
         return mb_strlen($text) > $max ? mb_substr($text, 0, $max - 1) . '…' : $text;
     }
 
+    /**
+     * The text of the message, or what it was when it had none: a sticker, a photo, a voice message. Without this a group
+     * member's sticker or voice reply was an empty line the agent could not tell from nothing.
+     */
+    public static function content(IncomingMessage $message): string {
+        $text = trim($message->text);
+        if ($text !== '') {
+            return $text;
+        }
+        $raw = $message->raw;
+        $field = static function (string $kind, string $key) use ($raw): string {
+            /** @var mixed $part */
+            $part = $raw[$kind] ?? null;
+            /** @var mixed $value */
+            $value = is_array($part) ? ($part[$key] ?? null) : null;
+            return is_string($value) || is_int($value) ? self::inline((string) $value, 80) : '';
+        };
+        $kinds = [
+            'sticker' => fn(): string => trim(t('service.message_meta.sticker') . ' ' . $field('sticker', 'emoji')),
+            'voice' => fn(): string => sprintf(t('service.message_meta.voice'), (int) $field('voice', 'duration')),
+            'video_note' => fn(): string => t('service.message_meta.video_note'),
+            'audio' => fn(): string => trim(t('service.message_meta.audio') . ' ' . $field('audio', 'title')),
+            'photo' => fn(): string => t('service.message_meta.photo'),
+            'video' => fn(): string => t('service.message_meta.video'),
+            'animation' => fn(): string => t('service.message_meta.animation'),
+            'document' => fn(): string => trim(t('service.message_meta.document') . ' ' . $field('document', 'file_name')),
+            'location' => fn(): string => t('service.message_meta.location'),
+            'contact' => fn(): string => t('service.message_meta.contact'),
+            'poll' => fn(): string => trim(t('service.message_meta.poll') . ' ' . $field('poll', 'question')),
+        ];
+        foreach ($kinds as $kind => $describe) {
+            if (isset($raw[$kind])) {
+                return '[' . $describe() . ']';
+            }
+        }
+        return '[' . t('service.message_meta.empty') . ']';
+    }
+
     /** A header line, or '' when there is nothing beyond the text (a plain private message). */
     public static function header(IncomingMessage $message, string $botId, bool $always = false, ?int $run = null): string {
         $parts = [];

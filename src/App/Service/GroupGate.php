@@ -109,7 +109,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         // spec: BRIEF.md#группа — the talk of a topic is its own and survives a restart
         $thread = MessageMeta::topicKey($message);
         $context = $this->talk->recent($message->channel, $message->chatId, $thread, self::RECENT, self::RECENT_SECONDS);
-        $this->remember($message->channel, $message->chatId, $thread, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
+        $this->remember($message->channel, $message->chatId, $thread, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(MessageMeta::content($message), 0, 500)));
         if ($group->status !== Group::APPROVED) {
             return null;
         }
@@ -135,6 +135,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if ($text === '' && !$addressed) {
             return null;
         }
+        // a sticker or a voice reply to the agent: it is told what came instead of an empty message
+        $text = $text === '' ? MessageMeta::content($message) : $text;
         $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId, $this->runOfReply($message))]);
         // ref: references/hermes-agent/gateway/session.py@e96221fa:L296-L307 (neutralize_untrusted_inline_text) — a name or a
         //      title is one short line: a line break could pose as a new section of the prompt

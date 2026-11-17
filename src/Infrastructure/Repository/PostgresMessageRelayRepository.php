@@ -13,6 +13,11 @@ final class PostgresMessageRelayRepository implements MessageRelayRepository {
     public function __construct(private readonly PostgresLink $db) {}
 
     public function create(string $channel, string $recipientChatId, int $recipientPrincipalId, int $originConversationId, int $originPrincipalId, ?int $originRunId, string $question): int {
+        // the same person asked again from the same conversation: the new question replaces the old one
+        $this->db->execute(
+            'UPDATE message_relays SET answered_at = now() WHERE channel = ? AND recipient_chat_id = ? AND origin_conversation_id = ? AND answered_at IS NULL',
+            [$channel, $recipientChatId, $originConversationId],
+        );
         /** @var array<string, mixed>|null $row */
         $row = $this->db->execute(
             'INSERT INTO message_relays (channel, recipient_chat_id, recipient_principal_id, origin_conversation_id, origin_principal_id, origin_run_id, question)

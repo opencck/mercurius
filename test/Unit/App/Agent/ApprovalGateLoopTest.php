@@ -226,6 +226,25 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertSame(0, $keyed->runs);
     }
 
+    public function testTheNextRunSeesWhatThisOneDid(): void {
+        $this->registry = new ToolRegistry();
+        $this->registry->register(new FakeTool('save', DangerClass::Write, handler: static fn(): \OpenCCK\App\Agent\Tool\ToolResult => \OpenCCK\App\Agent\Tool\ToolResult::ok('Отправлено в личный чат: Roman.')));
+        $this->registry->register(new FakeTool('look'));
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'look', '{}'), new ToolCall('c2', 'save', '{"to":"Roman"}')), ScriptedLlm::text('Спросил.')]);
+
+        $run = $this->execute($this->loop($llm), $this->start());
+
+        $history = $this->transcript->historyEntries(1, $run->id + 1, 10);
+        $answer = array_pop($history);
+        $noted = array_pop($history);
+        self::assertNotNull($answer);
+        self::assertNotNull($noted);
+        self::assertSame('Спросил.', $answer->message->content, 'the answer stays as written');
+        $note = $noted->message->content;
+        self::assertStringContainsString('save {"to":"Roman"} → Отправлено в личный чат: Roman.', $note, 'tool rounds are not in the history of earlier runs: what was done is kept next to the answer');
+        self::assertStringNotContainsString('look', $note, 'reads are not actions');
+    }
+
     public function testNoOneToAskDenies(): void {
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('не смог')]);
 

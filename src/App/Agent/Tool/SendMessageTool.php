@@ -94,7 +94,8 @@ final class SendMessageTool implements Tool, GrantKeyed {
         if (!$sent->success) {
             return ToolResult::error(sprintf(t('tool.send_message.not_sent'), $recipient->displayName ?? '#' . $recipient->id));
         }
-        $waits = ($args['expect_reply'] ?? false) === true && $recipient->id !== $context->principal->id;
+        // an answer of someone else comes back by default; the owner's private chat is their own conversation
+        $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && $recipient->role !== Role::Owner;
         if ($waits) {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }

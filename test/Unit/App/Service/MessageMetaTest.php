@@ -69,4 +69,14 @@ final class MessageMetaTest extends TestCase {
         self::assertStringStartsWith('оно отвечает на сообщение #40, которое написал Анна: «ключ ', $reply);
         self::assertStringNotContainsString(str_repeat('a', 40), $reply);
     }
+    public function testAMessageWithoutTextSaysWhatItWas(): void {
+        $bare = static fn(array $raw): IncomingMessage => new IncomingMessage('telegram', '-100', '7', null, 'User', '', '55', null, false, new DateTimeImmutable(), '1', raw: $raw);
+
+        self::assertSame('и что это?', MessageMeta::content(self::message(['sticker' => ['emoji' => '👍']])), 'text wins');
+        self::assertSame('[стикер 👍]', MessageMeta::content($bare(['sticker' => ['emoji' => '👍']])));
+        self::assertSame('[голосовое сообщение, 12 с]', MessageMeta::content($bare(['voice' => ['duration' => 12]])));
+        self::assertSame('[фото]', MessageMeta::content($bare(['photo' => [['file_id' => 'x']]])));
+        self::assertSame('[файл report.pdf]', MessageMeta::content($bare(['document' => ['file_name' => 'report.pdf']])));
+        self::assertSame('[сообщение без текста]', MessageMeta::content($bare([])));
+    }
 }

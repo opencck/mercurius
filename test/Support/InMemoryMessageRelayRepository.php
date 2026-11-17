@@ -14,6 +14,11 @@ final class InMemoryMessageRelayRepository implements MessageRelayRepository {
     private int $next = 1;
 
     public function create(string $channel, string $recipientChatId, int $recipientPrincipalId, int $originConversationId, int $originPrincipalId, ?int $originRunId, string $question): int {
+        foreach ($this->relays as $old => $relay) {
+            if ($relay->channel === $channel && $relay->recipientChatId === $recipientChatId && $relay->originConversationId === $originConversationId) {
+                unset($this->relays[$old]);
+            }
+        }
         $id = $this->next++;
         $this->relays[$id] = new MessageRelay($id, $channel, $recipientChatId, $recipientPrincipalId, $originConversationId, $originPrincipalId, $originRunId, $question);
         return $id;
