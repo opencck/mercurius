@@ -21,13 +21,13 @@ final class MessageMeta {
     private const QUOTE = 4096;
 
     /** A header line, or '' when there is nothing beyond the text (a plain private message). */
-    public static function header(IncomingMessage $message, string $botId, bool $always = false): string {
+    public static function header(IncomingMessage $message, string $botId, bool $always = false, ?int $run = null): string {
         $parts = [];
         $topic = self::topic($message);
         if ($topic !== null) {
             $parts[] = $topic;
         }
-        $reply = self::reply($message, $botId);
+        $reply = self::reply($message, $botId, $run);
         if ($reply !== null) {
             $parts[] = $reply;
         }
@@ -71,7 +71,7 @@ final class MessageMeta {
      * "оно отвечает на сообщение #id, которое написал ты (агент): «text»"; the root message of a topic is the topic,
      * not a reply. A weak model mixed up "#292; ответ на #291" and named the number of the message itself.
      */
-    public static function reply(IncomingMessage $message, string $botId): ?string {
+    public static function reply(IncomingMessage $message, string $botId, ?int $run = null): ?string {
         $reply = self::reply_($message);
         if ($reply === [] || isset($reply['forum_topic_created'])) {
             return null;
@@ -86,7 +86,9 @@ final class MessageMeta {
             $fromId = $from['id'] ?? null;
             /** @var mixed $first */
             $first = $from['first_name'] ?? null;
-            $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId ? 'ты (агент)' : (is_string($first) ? $first : 'участник');
+            $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId
+                ? 'ты (агент)' . ($run === null ? '' : ' в запуске #' . $run)
+                : (is_string($first) ? $first : 'участник');
         }
         /** @var mixed $text */
         $text = $reply['text'] ?? ($reply['caption'] ?? null);
@@ -97,6 +99,18 @@ final class MessageMeta {
             $author,
             $piece === '' ? '' : ': «' . SecretMasker::mask($piece) . '»',
         );
+    }
+
+    /** The id of the message this one answers, when it is the agent's own; null otherwise. */
+    public static function repliedToAgent(IncomingMessage $message, string $botId): ?string {
+        $reply = self::reply_($message);
+        /** @var mixed $from */
+        $from = $reply['from'] ?? null;
+        /** @var mixed $fromId */
+        $fromId = is_array($from) ? ($from['id'] ?? null) : null;
+        /** @var mixed $id */
+        $id = $reply['message_id'] ?? null;
+        return (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId && (is_int($id) || is_string($id)) ? (string) $id : null;
     }
 
     /** @return array<array-key, mixed> */

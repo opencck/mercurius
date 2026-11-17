@@ -95,6 +95,18 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         self::assertContains('Итог', $channel->texts('edit'));
     }
 
+    public function testEveryDeliveredMessageRemembersItsRun(): void {
+        $channel = new FakeChannel(maxLength: 20);
+        $messages = new \OpenCCK\Test\Support\InMemoryRunMessageRepository();
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now, messages: $messages);
+        $observer->start();
+
+        $observer->commentary(self::finishedRun(), 'Сначала проверю.');
+        $observer->finished(self::finishedRun(), str_repeat('итог ', 6), StopReason::Answered);
+
+        self::assertSame(['telegram:42:100' => 1, 'telegram:42:101' => 1, 'telegram:42:102' => 1], $messages->runs, 'the commentary, the answer and its continuation');
+    }
+
     public function testAnswerOfALongRunComesAsANewMessage(): void {
         $channel = new FakeChannel();
         $observer = $this->observer($channel);

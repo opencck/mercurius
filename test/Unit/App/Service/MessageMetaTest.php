@@ -33,6 +33,15 @@ final class MessageMetaTest extends TestCase {
         self::assertStringContainsString('конец»]', $header, 'the whole text, not a preview');
     }
 
+    public function testAReplyToTheAgentNamesTheRunThatWroteIt(): void {
+        $raw = ['reply_to_message' => ['message_id' => 50, 'from' => ['id' => 999], 'text' => 'сводка']];
+
+        self::assertSame(
+            'оно отвечает на сообщение #50, которое написал ты (агент) в запуске #105: «сводка»',
+            MessageMeta::reply(self::message($raw), '999', 105),
+        );
+    }
+
     public function testATopicRootIsTheTopicNotAReply(): void {
         $raw = ['reply_to_message' => ['message_id' => 12, 'forum_topic_created' => ['name' => 'Дом']]];
 

@@ -292,6 +292,7 @@ $channel = new TelegramChannel($telegramApi, logger: $logger);
 // Agent: runs, tools, scheduler.
 $conversations = new PostgresConversationRepository($db);
 $runs = new PostgresRunRepository($db);
+$runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
@@ -386,6 +387,7 @@ $scheduler = new RunScheduler(
     router: $modelRouter,
     events: $tracer,
     providers: $llmSettings->providers(),
+    runMessages: $runMessages,
 );
 $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
@@ -581,6 +583,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     $botUsername,
     $logger,
     $forumTopics,
+    $runMessages,
 );
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
@@ -602,8 +605,9 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,
     explode(':', $telegram->token(), 2)[0],
+    $runMessages,
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs));
+$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 

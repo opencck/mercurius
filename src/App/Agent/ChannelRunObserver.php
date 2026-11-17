@@ -53,6 +53,8 @@ final class ChannelRunObserver implements RunObserver {
         private readonly LoggerInterface $logger = new NullLogger(),
         /** the forum topic the conversation goes on in; every message of the run stays in it */
         private readonly ?string $threadId = null,
+        /** remembers which run wrote each delivered message; null — not remembered */
+        private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $messages = null,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -80,11 +82,13 @@ final class ChannelRunObserver implements RunObserver {
         $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split(trim($text));
         $first = array_shift($parts) ?? trim($text);
         $kept = $messageId !== null && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, ParseMode::Markdown));
-        if (!$kept) {
+        if ($kept) {
+            $this->remember($run, $messageId);
+        } else {
             array_unshift($parts, $first);
         }
         foreach ($parts as $part) {
-            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: ParseMode::Markdown, threadId: $this->threadId)));
+            $this->sendPart($run, $part, ParseMode::Markdown);
         }
         $result = $this->channel->send(new OutgoingMessage($this->chatId, self::PLACEHOLDER, threadId: $this->threadId));
         $this->messageId = $result->success ? $result->messageId : null;
@@ -134,9 +138,10 @@ final class ChannelRunObserver implements RunObserver {
         $delivered = $messageId !== null && !$fresh
             && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
         if ($delivered) {
+            $this->remember($run, $messageId);
             $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'edit', 'message' => $messageId]);
         } else {
-            $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode, threadId: $this->threadId)));
+            $sent = $this->sendPart($run, $first, $mode, $this->replyTo);
             if ($sent) {
                 $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'send']);
             }
@@ -150,7 +155,32 @@ final class ChannelRunObserver implements RunObserver {
             }
         }
         foreach ($parts as $part) {
-            $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $part, parseMode: $mode, threadId: $this->threadId)));
+            $this->sendPart($run, $part, $mode);
+        }
+    }
+
+    /** Sends one message of the run and remembers that the run wrote it. */
+    private function sendPart(Run $run, string $text, ParseMode $mode, ?string $replyTo = null): bool {
+        $id = null;
+        $sent = $this->delivered(function () use ($text, $mode, $replyTo, &$id): SendResult {
+            $result = $this->channel->send(new OutgoingMessage($this->chatId, $text, $replyTo, $mode, threadId: $this->threadId));
+            $id = $result->messageId;
+            return $result;
+        });
+        if ($sent && is_string($id)) {
+            $this->remember($run, $id);
+        }
+        return $sent;
+    }
+
+    private function remember(Run $run, ?string $messageId): void {
+        if ($messageId === null || $this->messages === null) {
+            return;
+        }
+        try {
+            $this->messages->record($run->id, $this->channel->name(), $this->chatId, $messageId);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Run message was not remembered', ['run' => $run->id, 'error' => $e::class]);
         }
     }
 

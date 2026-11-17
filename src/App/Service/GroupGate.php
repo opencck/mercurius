@@ -52,6 +52,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly LoggerInterface $logger,
         /** forum topics as projects; null — topics are just threads */
         private readonly ?ForumTopics $forum = null,
+        private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
     ) {}
 
     /**
@@ -107,7 +108,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if ($text === '' && !$addressed) {
             return null;
         }
-        $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId)]);
+        $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId, $this->runOfReply($message))]);
         $prefix = sprintf('[Группа «%s», пишет %s; это сообщение #%s%s.', $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
         $prefix .= $group->mode === Group::FREE && !$addressed
             ? ' Тебя не звали: ответь, только если от тебя тут правда есть польза; иначе ответь ровно ' . self::SILENT . '.]'
@@ -207,6 +208,11 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         /** @var mixed $name */
         $name = $opened['name'] ?? '';
         $this->forum->opened($message->channel, $message->chatId, $thread, is_string($name) ? $name : '', \OpenCCK\Domain\Project\Project::scopeOf($principal));
+    }
+
+    private function runOfReply(IncomingMessage $message): ?int {
+        $replied = MessageMeta::repliedToAgent($message, $this->botId);
+        return $replied === null ? null : $this->runMessages?->runOf($message->channel, $message->chatId, $replied);
     }
 
     /** A mention of the bot, a reply to its message, or a command addressed to it. */

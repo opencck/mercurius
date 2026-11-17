@@ -21,6 +21,29 @@ use OpenCCK\Test\Support\InMemoryTraceRepository;
  * The agent answers "how many tokens did this take" from the run's own records, not a guess.
  */
 final class SpendingToolTest extends AsyncTestCase {
+    public function testARunIsFoundByTheMessageItWrote(): void {
+        $principals = new InMemoryPrincipalRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Owner');
+        $runs = new InMemoryRunRepository();
+        $limits = new RunLimits(30, 100_000, 900, 120);
+        $old = $runs->start(1, $owner->id, 'm', $limits);
+        self::assertNotNull($old);
+        $runs->settle($old->id, 0, 10_071, 0);
+        $runs->finish($old->id, \OpenCCK\Domain\Agent\RunStatus::Done, \OpenCCK\Domain\Agent\StopReason::Answered);
+        $now = $runs->start(1, $owner->id, 'm', $limits);
+        self::assertNotNull($now);
+        $conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
+        $conversation = $conversations->openConversation($owner->id, 'telegram', '42');
+        $messages = new \OpenCCK\Test\Support\InMemoryRunMessageRepository();
+        $messages->record($old->id, 'telegram', '42', '295');
+        $tool = new SpendingTool(new TraceReports(new FakeTraceReports(), new InMemoryTraceRepository()), $runs, $messages, $conversations);
+        $context = new ToolContext($now->id, $conversation, $owner, new NullCancellation());
+
+        $found = $tool->execute(['message_id' => 295], $context);
+        self::assertStringContainsString('Сообщение #295 написал запуск #' . $old->id, $found->content);
+        self::assertTrue($tool->execute(['message_id' => 296], $context)->isError, 'an unknown message is not guessed');
+    }
+
     public function testTheCurrentRunReportsWhatItHasSpentSoFar(): void {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');

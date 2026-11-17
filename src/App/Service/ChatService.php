@@ -60,7 +60,15 @@ final class ChatService implements MessageHandler {
         private readonly ?GroupGate $groups = null,
         /** the bot's id: a reply to its own message is named so */
         private readonly string $botId = '',
+        /** names the run that wrote the message a reply answers */
+        private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
     ) {}
+
+    /** The run that wrote the agent's message this one answers; null when it is not known. */
+    private function runOfReply(IncomingMessage $message): ?int {
+        $replied = MessageMeta::repliedToAgent($message, $this->botId);
+        return $replied === null ? null : $this->runMessages?->runOf($message->channel, $message->chatId, $replied);
+    }
 
     public function handle(IncomingMessage $message): void {
         if (!$message->isPrivateChat && $this->groups !== null) {
@@ -229,7 +237,7 @@ final class ChatService implements MessageHandler {
         $message = $this->withoutSecrets($principal, $message);
         if ($message->isPrivateChat) {
             // spec: BRIEF.md#telegram-группы-каналы-и-темы — the agent sees what a message answers
-            $header = MessageMeta::header($message, $this->botId);
+            $header = MessageMeta::header($message, $this->botId, run: $this->runOfReply($message));
             if ($header !== '') {
                 $message = new IncomingMessage(
                     $message->channel,
