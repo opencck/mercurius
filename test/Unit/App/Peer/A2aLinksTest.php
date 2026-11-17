@@ -109,4 +109,16 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame([], $a['links']->all());
         self::assertSame([], $this->agents['b']['links']->all(), 'the other side sees it closed');
     }
+
+    public function testAParticipantTheOwnerGaveTheToolOpensAConnectionToo(): void {
+        $a = $this->agents['a'];
+        $guest = $a['stack']->principals->createAgent('rekryt', Role::Admin);
+        $tool = new \OpenCCK\App\Agent\Tool\PeerLinksTool($a['network']);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $guest, new \Amp\NullCancellation());
+
+        $result = $tool->execute(['action' => 'open', 'peer' => 'b'], $context);
+
+        self::assertFalse($result->isError, 'the policy decides who has the tool, not the tool itself: ' . $result->content);
+        self::assertCount(1, $a['links']->all());
+    }
 }

@@ -14,8 +14,10 @@ use function Mercurius\I18n\t;
 /**
  * The agent's connections with other agents: which are open both ways, opening one to a neighbour, closing one. The
  * agent decides which connections it needs; a task to an agent goes over a live connection with it, whichever side
- * opened it. Only for the owner's runs.
+ * opened it. Whoever has the tool by their policy may use it: the owner, or a participant the owner gave it to
+ * (request_tool).
  *
+ * spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17
  * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
  */
 final class PeerLinksTool implements Tool {
@@ -49,9 +51,6 @@ final class PeerLinksTool implements Tool {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
-        if (!$context->principal->isOwner()) {
-            return ToolResult::error(t('tool.peer_links.owner_only'));
-        }
         try {
             return ToolResult::ok(match (Args::string($args, 'action')) {
                 'open' => $this->network->open(Args::string($args, 'peer') ?? ''),
