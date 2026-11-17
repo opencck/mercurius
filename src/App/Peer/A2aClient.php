@@ -38,7 +38,7 @@ final class A2aClient {
         private readonly ?\Closure $connect = null,
         /** live connections with other agents, in both directions */
         private readonly ?A2aLinks $links = null,
-        /** @var (\Closure(string): ((\Closure(array<array-key, mixed>): array<string, mixed>)|null))|null who answers the neighbour's requests by its key */
+        /** @var (\Closure(string, string, string): ((\Closure(array<array-key, mixed>): array<string, mixed>)|null))|null who answers the neighbour's requests: by its key, name and address */
         private readonly ?\Closure $serveFor = null,
         /** the public address of this agent: a neighbour that does not know it yet shows it and its name to its owner */
         private readonly string $self = '',
@@ -215,7 +215,7 @@ final class A2aClient {
         } catch (Throwable $e) {
             throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . (new \ReflectionClass($e))->getShortName() . ').');
         }
-        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint), $this->about());
+        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint, $peer->name, $peer->url), $this->about());
         $this->links?->add(A2aLinks::OUT, $peer->name, $peerFingerprint, $socket);
         return $this->sockets[$slot] = $socket;
     }

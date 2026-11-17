@@ -31,7 +31,7 @@ use function Amp\delay;
  * task over its own connection, and a live connection is used instead of opening another.
  */
 final class A2aLinksTest extends AsyncTestCase {
-    /** @var array<string, array{stack: AgentStack, server: A2aServer, network: PeerNetwork, links: A2aLinks, key: AgentIdentity, owner: Principal, peers: InMemoryPeerRepository}> */
+    /** @var array<string, array{stack: AgentStack, server: A2aServer, network: PeerNetwork, links: A2aLinks, key: AgentIdentity, owner: Principal, peers: InMemoryPeerRepository, requests: \OpenCCK\App\Peer\AgentRequests}> */
     private array $agents = [];
     public int $connects = 0;
 
@@ -44,7 +44,8 @@ final class A2aLinksTest extends AsyncTestCase {
         $peers = new InMemoryPeerRepository();
         $links = new A2aLinks();
         $url = 'https://' . $name . '.example';
-        $server = new A2aServer($peers, $stack->principals, $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->policies, 'test/model', $url, $name, 'test', new NullLogger(), $key, 'entrance', transport: 'ws', links: $links);
+        $requests = new \OpenCCK\App\Peer\AgentRequests($peers, $stack->principals, $stack->channel, $name, retryDelays: []);
+        $server = new A2aServer($peers, $stack->principals, $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->policies, 'test/model', $url, $name, 'test', new NullLogger(), $key, 'entrance', transport: 'ws', links: $links, requests: $requests);
         $stack->scheduler->useJobRuns($server);
         $test = $this;
         $connect = function (string $wsUrl, string $token) use ($test): InProcessA2aChannel {
@@ -59,7 +60,7 @@ final class A2aLinksTest extends AsyncTestCase {
         };
         $client = new A2aClient(new HttpClient(new A2aWire($server), []), $key, null, $connect, $links, $server->handlerFor(...));
         $network = new PeerNetwork($peers, $stack->principals, $vault, $client, $stack->conversations, $stack->transcript, $stack->channel, $url, new NullLogger(), $key, static fn(): Principal => $owner, null, $links);
-        $this->agents[$name] = ['stack' => $stack, 'server' => $server, 'network' => $network, 'links' => $links, 'key' => $key, 'owner' => $owner, 'peers' => $peers];
+        $this->agents[$name] = ['stack' => $stack, 'server' => $server, 'network' => $network, 'links' => $links, 'key' => $key, 'owner' => $owner, 'peers' => $peers, 'requests' => $requests];
     }
 
     /** Read anew each time: a connection is counted inside the event loop. */
@@ -173,5 +174,29 @@ final class A2aLinksTest extends AsyncTestCase {
 
         self::assertSame(1, $this->connects, 'one try, the next after a pause');
         self::assertTrue($a['peers']->peer('c')?->keep, 'still kept: it may come back');
+    }
+
+    public function testANeighbourNotLetInKnocksOverMyConnectionAndIsLetInWithoutReconnecting(): void {
+        $a = $this->agents['a'];
+        $b = $this->agents['b'];
+        // a connects to b, but a's owner never let b give tasks
+        $a['peers']->revokeKey('agent-b');
+        $a['network']->open('b');
+
+        try {
+            $b['network']->delegate($b['owner'], 'agent-a', 'Как дела?', 'telegram', 'b', 0, []);
+            self::fail('a took a task from b without its owner');
+        } catch (\DomainException $e) {
+            self::assertStringContainsString('waits for the decision', $e->getMessage());
+        }
+        $cards = array_values(array_filter($a['stack']->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'хочет ставить мне задачи')));
+        self::assertCount(1, $cards, 'the owner of a is asked');
+        self::assertStringContainsString('b', $cards[0]);
+
+        $a['requests']->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'cb', 'a', 'a', 'Owner', null, 'pa:1:u', 'u1'));
+        $out = $b['network']->delegate($b['owner'], 'agent-a', 'Как дела?', 'telegram', 'b', 0, []);
+
+        self::assertNotSame('', $out->remoteId, 'the same connection carries the task now');
+        self::assertSame(1, $this->connects());
     }
 }

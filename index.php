@@ -589,8 +589,8 @@ $a2aConnect = static function (string $url, string $token) use ($a2aConnector): 
 $a2aLinks = new \OpenCCK\App\Peer\A2aLinks();
 /** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below; the client asks it who answers a neighbour */
 $a2aServer = null;
-$a2aServeFor = static function (string $fingerprint) use (&$a2aServer): ?\Closure {
-    return $a2aServer?->handlerFor($fingerprint);
+$a2aServeFor = static function (string $fingerprint, string $name, string $url) use (&$a2aServer): ?\Closure {
+    return $a2aServer?->handlerFor($fingerprint, $name, $url);
 };
 $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,

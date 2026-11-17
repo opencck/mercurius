@@ -112,18 +112,27 @@ final class A2aServer implements JobRuns {
     }
 
     /**
-     * Who answers requests a neighbour sends back on a connection this agent opened: the agent of that key, if this
-     * agent's owner let it in; null — its requests are refused.
+     * Who answers requests a neighbour sends back on a connection this agent opened. Checked on every request: the
+     * agent of that key, if this agent's owner let it in; otherwise the neighbour knocks (the owner gets a card) and is
+     * refused — once the owner lets it in, the same connection carries its tasks, no reconnecting.
      *
-     * @return (\Closure(array<array-key, mixed>): array<string, mixed>)|null
+     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — a neighbour on my connection knocks too
+     * ref: references/hermes-agent/plugins/platforms/a2a/security.py@e96221fa:L121-L129 — hermes keeps whom it calls and
+     *      whom it serves apart (trusted_peers); here too, and the owner adds to the second list with a card
+     *
+     * @return \Closure(array<array-key, mixed>): array<string, mixed>
      */
-    public function handlerFor(string $fingerprint): ?\Closure {
-        $id = $this->peers->principalByFingerprint($fingerprint);
-        $agent = $id === null ? null : $this->principals->find($id);
-        if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
-            return null;
-        }
-        return fn(array $request): array => $this->handle($agent, $request, 'out')[1];
+    public function handlerFor(string $fingerprint, string $name = '', string $url = ''): \Closure {
+        return function (array $request) use ($fingerprint, $name, $url): array {
+            $id = $this->peers->principalByFingerprint($fingerprint);
+            $agent = $id === null ? null : $this->principals->find($id);
+            if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
+                /** @var mixed $requestId */
+                $requestId = $request['id'] ?? null;
+                return self::error($requestId, self::ERR_UNAUTHORIZED, $this->unknown($fingerprint, $name, $url, 'out'));
+            }
+            return $this->handle($agent, $request, 'out')[1];
+        };
     }
 
     /** The entrance token of this instance, as the Authorization header carries it. */

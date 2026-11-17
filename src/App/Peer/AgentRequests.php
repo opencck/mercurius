@@ -70,7 +70,7 @@ final class AgentRequests implements CallbackHandler {
      * @return string why the agent is turned away, for the agent
      */
     public function knock(string $fingerprint, string $claimedName, string $claimedUrl, string $transport): string {
-        $request = $this->peers->requestAccess($fingerprint, self::nameFrom($claimedName, $fingerprint), self::url($claimedUrl), $transport === 'ws' ? 'ws' : 'http', $this->maxPending);
+        $request = $this->peers->requestAccess($fingerprint, self::nameFrom($claimedName, $fingerprint), self::url($claimedUrl), in_array($transport, ['ws', 'http', 'out'], true) ? $transport : 'http', $this->maxPending);
         if ($request === null) {
             $this->logger->warning('Too many agents wait for the owner', ['fingerprint' => $fingerprint]);
             return 'unknown agent ' . $fingerprint . ': too many agents wait for the decision of this agent\'s owner, come later';
@@ -122,7 +122,8 @@ final class AgentRequests implements CallbackHandler {
 
     private function show(AgentRequest $request): void {
         $card = sprintf(
-            t('peer.agent_requests.card'),
+            // a neighbour on my own connection asks to give tasks; anyone else connected to me
+            t($request->transport === 'out' ? 'peer.agent_requests.card_out' : 'peer.agent_requests.card'),
             t('peer.agent_requests.' . $request->transport),
             $request->name,
             $request->url === '' ? t('peer.agent_requests.no_url') : $request->url,
