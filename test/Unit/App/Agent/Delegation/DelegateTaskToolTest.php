@@ -21,6 +21,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeKeyedTool;
 use OpenCCK\Test\Support\FakeTool;
+use OpenCCK\Test\Support\InMemoryExperienceRepository;
 use OpenCCK\Test\Support\InMemoryModelStores;
 use OpenCCK\Test\Support\ScriptedLlm;
 use Psr\Log\NullLogger;
@@ -34,6 +35,7 @@ use function Amp\delay;
 final class DelegateTaskToolTest extends AsyncTestCase {
     private ModelRoles $roles;
     private InMemoryModelStores $stores;
+    private InMemoryExperienceRepository $experience;
 
     private function stack(ScriptedLlm $llm, RunLimits $limits = new RunLimits(30, 1_000_000, 900, 120)): AgentStack {
         $stores = $this->stores = new InMemoryModelStores();
@@ -47,10 +49,12 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack = new AgentStack($llm, $limits);
         $stack->registry->register(new FakeTool('read', delay: 0.2));
         $stack->registry->register(new FakeTool('push', DangerClass::Irreversible));
-        $stack->registry->register(new DelegateTaskTool(new WorkerRunner(
+        $runner = new WorkerRunner(
             $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->registry, $this->roles, 15, 100_000, new NullLogger(),
             new ModelSelector($stores, $this->roles, $stores, new NullLogger()),
-        )));
+        );
+        $runner->useExperience($this->experience = new InMemoryExperienceRepository());
+        $stack->registry->register(new DelegateTaskTool($runner));
         return $stack;
     }
 
@@ -306,6 +310,39 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertSame($strong, $llm->requests[2]->model, 'the retry');
         self::assertSame($strong, $llm->requests[3]->model, 'no model stronger than strong');
         self::assertStringContainsString('та же модель, другой нет', self::report($llm));
+    }
+
+    public function testEachPartThatRanIsRecordedAsExperience(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true, 'profile' => ['text' => 6]]]),
+            new LlmException(ErrorKind::Server, 'down'),
+            ScriptedLlm::text('ответ со второй попытки'),
+            ScriptedLlm::text('ВЕРДИКТ: принято'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertCount(1, $this->experience->records);
+        $record = array_values($this->experience->records)[0];
+        self::assertSame('раз', $record->goal);
+        self::assertSame('cheap', $record->role);
+        self::assertSame(6, $record->profile['text'] ?? null);
+        self::assertSame($llm->requests[2]->model, $record->model, 'the retry finished the part');
+        self::assertSame($llm->requests[1]->model, $record->firstModel);
+        self::assertNotSame($record->model, $record->firstModel);
+        self::assertSame('done', $record->status);
+        self::assertSame('принято', $record->verdict);
+        self::assertSame(1, $record->conversationId);
+        self::assertGreaterThan(0, $record->tokens);
+    }
+
+    public function testCascadeLineGivesBothModels(): void {
+        self::assertSame(['b/x', 'a/y'], WorkerRunner::models('каскад: a/y, запуск #5 (ошибка (сервер)) → b/x'));
+        self::assertSame(['b/x', 'openai:gpt-1'], WorkerRunner::models('каскад: openai:gpt-1 (failed) → b/x'));
+        self::assertSame(['a/y', null], WorkerRunner::models('a/y'));
     }
 
     public function testVerifierWithoutAVerdictLeavesThePartUnchecked(): void {

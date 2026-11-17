@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent;
 
+use OpenCCK\Domain\Agent\HistoryScope;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Memory\App\Audience;
@@ -35,5 +36,17 @@ final class ConversationAudience {
             return [];
         }
         return Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->isPrivate($conversationId));
+    }
+
+    /**
+     * Past conversations this one may search: the owner in a private chat — all of them, anyone else and any group —
+     * this chat's only. Null when the conversation is gone.
+     */
+    public function history(Principal $principal, int $conversationId): ?HistoryScope {
+        $meta = $this->conversations->meta($conversationId);
+        if ($meta === null) {
+            return null;
+        }
+        return $principal->isOwner() && $this->isPrivate($conversationId) ? HistoryScope::all() : HistoryScope::chat($meta->channel, $meta->chatId);
     }
 }

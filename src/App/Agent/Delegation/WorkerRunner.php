@@ -16,6 +16,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Agent\Tool\UntrustedWrapper;
 use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Agent\Experience;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
@@ -23,6 +24,7 @@ use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Repository\ConversationRepository;
+use OpenCCK\Domain\Repository\ExperienceRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Psr\Log\LoggerInterface;
@@ -43,9 +45,12 @@ use function Amp\async;
  * ref: references/hermes-agent/tools/delegate_tool_toolsets.py@e96221fa:L13-L22 — tools a child never gets
  */
 final class WorkerRunner {
-    /** Tools a worker never gets: no further delegation, no changes to roles and rights. */
-    /** memory_*: a worker has no audience of its own; what it learns goes back in its report */
-    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy', 'memory_search', 'memory_propose'];
+    private const CASCADE_PREFIX = 'каскад: ';
+    /**
+     * Tools a worker never gets: no further delegation, no changes to roles and rights; no memory, history or
+     * experience — a worker has no audience of its own, and what it learns goes back in its report.
+     */
+    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy', 'memory_search', 'memory_propose', 'history_search', 'experience_search'];
     /** Workers running side by side at most, when all of them only read. */
     private const PARALLEL = 3;
     /** Below this a worker cannot make even one call (answer cap 4096 plus its prompt): refuse instead of starting it. */
@@ -106,6 +111,13 @@ final class WorkerRunner {
         /** worker runs one run may start, retries and verifiers included */
         private readonly int $maxWorkersPerRun = 10,
     ) {}
+
+    private ?ExperienceRepository $experience = null;
+
+    /** Each part that ran is recorded as experience: what was asked, which model did it, how it went. */
+    public function useExperience(ExperienceRepository $experience): void {
+        $this->experience = $experience;
+    }
 
     /**
      * Reserves the workers' tokens from the orchestrator's budget, leaving it room to read the reports and answer.
@@ -180,11 +192,15 @@ final class WorkerRunner {
             $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport, $tag, $minSeconds): WorkerReport {
                 $runs = $existing[$position] ?? [null, null, null];
                 $started = $runs[0] !== null || $runs[1] !== null || $runs[2] !== null;
-                $report = match (true) {
-                    !$started && $parent->cancellation->isRequested() => new WorkerReport($position, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена', StopReason::Stopped),
-                    !$started && $seconds < $minSeconds => new WorkerReport($position, null, 'limit', '', 0, 0, '', 'не начат: истёк срок делегирования', StopReason::Deadline),
-                    default => $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $runs, $onRun, $tag),
-                };
+                if (!$started && $parent->cancellation->isRequested()) {
+                    $report = new WorkerReport($position, null, 'stopped', '', 0, 0, '', 'не начат: задача остановлена', StopReason::Stopped);
+                } elseif (!$started && $seconds < $minSeconds) {
+                    $report = new WorkerReport($position, null, 'limit', '', 0, 0, '', 'не начат: истёк срок делегирования', StopReason::Deadline);
+                } else {
+                    $begun = hrtime(true);
+                    $report = $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $runs, $onRun, $tag);
+                    $this->remember($parent, $task, $report, intdiv(hrtime(true) - $begun, 1_000_000));
+                }
                 if ($onReport !== null) {
                     $onReport($report);
                 }
@@ -217,6 +233,51 @@ final class WorkerRunner {
         // Every job returns a WorkerReport; the futures lose the type on the way.
         /** @var array<int, WorkerReport> $reports */
         return $reports;
+    }
+
+    /**
+     * spec: BRIEF.md#память-слои — layer 7: a part's outcome with its profile and model. A failure to record is logged;
+     * the report goes on.
+     */
+    private function remember(ToolContext $parent, WorkerTask $task, WorkerReport $report, int $ms): void {
+        if ($this->experience === null) {
+            return;
+        }
+        [$model, $first] = self::models($report->model);
+        try {
+            $this->experience->add(new Experience(
+                $parent->conversationId,
+                $parent->principal->id,
+                $report->runId,
+                $task->goal,
+                $task->role,
+                $task->profile?->nonTrivial() ?? [],
+                $model,
+                $first,
+                $report->status,
+                $report->verdict,
+                $report->reason,
+                $report->turns,
+                $report->tokens,
+                $ms,
+            ));
+        } catch (Throwable $e) {
+            $this->logger->warning('Worker outcome was not recorded', ['parent' => $parent->runId, 'task' => $report->index, 'error' => $e::class]);
+        }
+    }
+
+    /**
+     * The model that finished a part and, after a cascade, the one that tried first: the report names both in one line.
+     *
+     * @return array{string, ?string}
+     */
+    public static function models(string $model): array {
+        if (!str_starts_with($model, self::CASCADE_PREFIX)) {
+            return [$model, null];
+        }
+        $arrow = mb_strrpos($model, '→ ');
+        preg_match('/^' . self::CASCADE_PREFIX . '([^\s,]+)/u', $model, $first);
+        return [$arrow === false ? $model : trim(mb_substr($model, $arrow + 2)), $first[1] ?? null];
     }
 
     /** @return list<string> the tools a part gets: asked for, allowed to the orchestrator, existing, not forbidden */
@@ -314,7 +375,7 @@ final class WorkerRunner {
             $second->runId,
             $second->status,
             sprintf(
-                'каскад: %s%s (%s) → %s',
+                self::CASCADE_PREFIX . '%s%s (%s) → %s',
                 $model,
                 $first->runId === null ? '' : ', запуск #' . $first->runId,
                 $first->reason ?? $first->status,

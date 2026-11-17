@@ -76,6 +76,8 @@ use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\App\Agent\ConversationAudience;
 use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\App\Agent\Tool\MemoryProposeTool;
+use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
+use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Infrastructure\Config\MemorySettings;
@@ -101,6 +103,8 @@ use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
+use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
+use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 use Revolt\EventLoop;
 
@@ -273,11 +277,16 @@ $proposals = new Proposals(
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
-$proposals->onForget(static function (Fact $fact) use ($transcript): void {
+$experience = new PostgresExperienceRepository($db);
+$workers->useExperience($experience);
+$proposals->onForget(static function (Fact $fact) use ($transcript, $experience): void {
     $transcript->redact(sprintf('[#%d] %s', $fact->id, $fact->text), sprintf('[#%d] (забыто)', $fact->id));
+    $experience->redact($fact->text, '(забыто)');
 });
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
+$tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
+$tools->register(new ExperienceSearchTool($experience, $audience));
 $background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
 $visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
