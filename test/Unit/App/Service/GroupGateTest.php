@@ -331,4 +331,21 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertStringContainsString('photo-9.jpg', $prompt, 'the file came with the message');
         self::assertStringContainsString('MEDIA_VISION_MODELS', $prompt);
     }
+
+    public function testInAFreeGroupTheAgentTakesEveryPhoto(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('[SILENT]')]));
+        $intake = new \OpenCCK\App\Agent\Media\AttachmentIntake($this->stack->channel, new \OpenCCK\Test\Support\FakeSandbox(), \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv([]), new \DateTimeZone('+03:00'));
+        $this->stack->chat = new \OpenCCK\App\Service\ChatService(new \OpenCCK\App\Service\AccessService($this->stack->principals, 'telegram', '42', $this->stack->visitors), $this->stack->conversations, $this->stack->scheduler, $this->stack->channel, $this->stack->approvalService, groups: $this->gate, intake: $intake, policies: $this->stack->policies);
+        $this->say('первое сообщение');
+        $this->press('gr:' . self::GROUP . ':f');
+        $this->stack->channel->downloads['ph'] = 'JPEG';
+        $photo = [new \Mercurius\Messenger\Attachment(\Mercurius\Messenger\AttachmentKind::Photo, 'ph', 'photo-9.jpg', 'image/jpeg', 4, null, 800, 600)];
+
+        $id = (string) ++$this->id;
+        $this->stack->chat->handle(new IncomingMessage('telegram', self::GROUP, '42', 'u42', 'User 42', '', $id, null, false, new DateTimeImmutable(), $id, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']], attachments: $photo));
+        $this->stack->scheduler->awaitIdle();
+
+        $prompt = array_slice($this->stack->llm->requests[0]->messages ?? [], -1)[0]->content ?? '';
+        self::assertStringContainsString('photo-9.jpg', $prompt, 'in the free mode the agent is a full participant: it sees the photo');
+    }
 }

@@ -67,14 +67,26 @@ final class AttachmentIntake {
     }
 
     public function intake(Principal $principal, ParticipantPolicy $policy, IncomingMessage $message, Cancellation $cancellation): IntakeResult {
-        if ($message->attachments === []) {
+        // the files of the message, then those of the message it replies to (a question to a photo sent earlier), once each
+        $files = [];
+        $replied = [];
+        foreach ($message->attachments as $attachment) {
+            $files[$attachment->fileId] = $attachment;
+        }
+        foreach ($message->repliedAttachments as $attachment) {
+            if (!isset($files[$attachment->fileId])) {
+                $files[$attachment->fileId] = $attachment;
+                $replied[$attachment->fileId] = true;
+            }
+        }
+        if ($files === []) {
             return new IntakeResult('', false);
         }
         $limits = $this->sandbox === null ? null : $policy->sandbox;
         $folder = 'inbox/' . ($this->now)()->setTimezone($this->zone)->format('Y-m-d');
         $blocks = [];
         $total = 0;
-        foreach ($message->attachments as $i => $attachment) {
+        foreach (array_values($files) as $i => $attachment) {
             $name = MediaNames::clean($attachment->fileName);
             if ($i >= self::MAX_FILES) {
                 $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), sprintf(t('media.intake.too_many'), self::MAX_FILES));
@@ -93,7 +105,8 @@ final class AttachmentIntake {
             }
             $total += strlen($bytes);
             $path = $limits === null ? null : $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
-            $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation);
+            $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . (isset($replied[$attachment->fileId]) ? t('media.intake.replied') : '')
+                . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation);
         }
         return new IntakeResult(implode("\n\n", $blocks), true);
     }

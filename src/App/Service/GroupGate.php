@@ -132,7 +132,9 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $text = $this->strip(trim($message->text));
-        if ($text === '' && !$addressed) {
+        // a file without words still reaches a free group's agent: it takes part in everything there
+        // (a message not addressed to the agent is here only in the free mode)
+        if ($text === '' && !$addressed && $message->attachments === []) {
             return null;
         }
         // a sticker or a voice reply to the agent: it is told what came instead of an empty message
@@ -162,8 +164,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $message->threadId,
             $message->isEdited,
             $message->raw,
-            // spec: BRIEF.md#входящие-вложения — in a group files are taken only when the message is addressed to the agent
-            $addressed ? $message->attachments : [],
+            // spec: BRIEF.md#входящие-вложения — in a group files come when the message is addressed to the agent, and always in
+            //      the free mode, where the agent takes part in everything (only such messages reach this point)
+            $message->attachments,
+            $message->repliedAttachments,
         ), $group->mode === Group::FREE && !$addressed];
     }
 

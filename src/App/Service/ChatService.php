@@ -110,7 +110,7 @@ final class ChatService implements MessageHandler {
         // spec: BRIEF.md#входящие-вложения — a message with files is not empty: a photo without a caption reaches the agent
         $intake = $this->intake;
         $policies = $this->policies;
-        $attached = $message->attachments !== [] && $intake !== null && $policies !== null;
+        $attached = ($message->attachments !== [] || $message->repliedAttachments !== []) && $intake !== null && $policies !== null;
         if ($text === '' && !$attached) {
             $this->reply($message, t(self::NOT_TEXT));
             return;
@@ -258,7 +258,7 @@ final class ChatService implements MessageHandler {
             }
         }
         $outside = false;
-        if ($original->attachments !== [] && $intake !== null && $policies !== null) {
+        if (($original->attachments !== [] || $original->repliedAttachments !== []) && $intake !== null && $policies !== null) {
             $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180));
             $outside = $taken->outside;
             $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
@@ -307,6 +307,7 @@ final class ChatService implements MessageHandler {
             $message->isEdited,
             $message->raw,
             $message->attachments,
+            $message->repliedAttachments,
         );
     }
 

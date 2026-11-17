@@ -178,4 +178,17 @@ final class AttachmentIntakeTest extends AsyncTestCase {
 
         self::assertSame(['', false], [$result->text, $result->outside]);
     }
+
+    public function testTheFileOfTheMessageRepliedToComesToo(): void {
+        $this->channel->downloads['old'] = 'JPEG';
+        $photo = new Attachment(AttachmentKind::Photo, 'old', 'photo-5.jpg', 'image/jpeg', 4, null, 640, 480);
+        $message = new IncomingMessage('telegram', '42', '42', 'owner', 'Сергей', 'что тут?', '7', '5', true, new DateTimeImmutable(), 'u7', attachments: [$photo], repliedAttachments: [$photo]);
+
+        $result = $this->intake()->intake($this->owner, self::policy(), new IncomingMessage('telegram', '42', '42', 'owner', 'Сергей', 'что тут?', '8', '5', true, new DateTimeImmutable(), 'u8', repliedAttachments: [$photo]), new NullCancellation());
+        self::assertStringContainsString('photo-5.jpg', $result->text);
+        self::assertStringContainsString('ответ', $result->text, 'the agent knows it is the file of the message replied to');
+
+        $twice = $this->intake()->intake($this->owner, self::policy(), $message, new NullCancellation());
+        self::assertSame(1, substr_count($twice->text, '📎'), 'the same file once');
+    }
 }

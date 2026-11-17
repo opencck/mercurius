@@ -96,4 +96,14 @@ final class ChatAttachmentsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->llm->requests);
         self::assertSame([], $this->sandbox->calls, 'the file of a command is not taken');
     }
+
+    public function testAQuestionToAPhotoSentEarlierBringsThePhoto(): void {
+        $id = (string) ++$this->id;
+        $this->stack->channel->downloads['old'] = 'JPEG';
+        $photo = new Attachment(AttachmentKind::Photo, 'old', 'photo-5.jpg', 'image/jpeg', 4, null, 640, 480);
+        $this->stack->chat->handle(new IncomingMessage('telegram', '42', '42', 'owner', 'Owner', 'видишь фото?', $id, '5', true, new DateTimeImmutable(), 'u' . $id, repliedAttachments: [$photo]));
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('photo-5.jpg', $this->asked());
+    }
 }
