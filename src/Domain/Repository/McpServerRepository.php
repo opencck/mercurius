@@ -23,4 +23,7 @@ interface McpServerRepository {
     public function update(string $name, string $status, ?string $toolsHash, string $note = ''): ?McpServer;
 
     public function remove(string $name): bool;
+
+    /** @param string|null $include null — every tool; '' — none */
+    public function setFilter(string $name, ?string $include, string $exclude): ?McpServer;
 }

@@ -32,7 +32,15 @@ final class InMemoryMcpServerRepository implements McpServerRepository {
         if ($s === null) {
             return null;
         }
-        return $this->servers[$name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $status, $toolsHash ?? $s->toolsHash, $note);
+        return $this->servers[$name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $status, $toolsHash ?? $s->toolsHash, $note, include: $s->include, exclude: $s->exclude);
+    }
+
+    public function setFilter(string $name, ?string $include, string $exclude): ?McpServer {
+        $s = $this->servers[$name] ?? null;
+        if ($s === null) {
+            return null;
+        }
+        return $this->servers[$name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $include, exclude: $exclude);
     }
 
     public function remove(string $name): bool {

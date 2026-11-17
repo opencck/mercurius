@@ -32,11 +32,36 @@ final class McpCommands {
                 'on' => $this->manager->approve($name, new TimeoutCancellation(60)),
                 'off' => $this->manager->disable($name) ? sprintf('MCP-сервер «%s» выключен.', $name) : sprintf('MCP-сервера «%s» нет.', $name),
                 'remove' => $this->manager->remove($name) ? sprintf('MCP-сервер «%s» удалён.', $name) : sprintf('MCP-сервера «%s» нет.', $name),
-                default => '/mcp — список; /mcp add <имя> <url> [секрет с токеном]; /mcp on <имя> — одобрить; /mcp off <имя>; /mcp remove <имя>',
+                'tools' => $this->tools($name, $parts[2] ?? '', $parts[3] ?? ''),
+                default => '/mcp — список; /mcp add <имя> <url> [секрет с токеном]; /mcp on <имя> — одобрить; /mcp off <имя>; /mcp remove <имя>; '
+                    . '/mcp tools <имя> include|exclude <имена или маски через запятую> | all — какие инструменты подключать',
             };
         } catch (DomainException $e) {
             return $e->getMessage();
         }
+    }
+
+    /** /mcp tools <name> include a,b* | exclude c* | all */
+    private function tools(string $name, string $mode, string $masks): string {
+        $server = match ($mode) {
+            'include' => $this->manager->filter($name, $masks, '', new TimeoutCancellation(60)),
+            'exclude' => $this->manager->filter($name, null, $masks, new TimeoutCancellation(60)),
+            'all' => $this->manager->filter($name, null, '', new TimeoutCancellation(60)),
+            default => null,
+        };
+        if ($server === null) {
+            return '/mcp tools <имя> include <имена или маски через запятую> — только они; exclude <…> — все, кроме них; all — все';
+        }
+        return sprintf('Инструменты MCP-сервера «%s»: %s.', $server->name, self::filterText($server));
+    }
+
+    private static function filterText(McpServer $server): string {
+        return match (true) {
+            $server->include === '' => 'ни одного',
+            $server->include !== null => 'только ' . $server->include,
+            $server->exclude !== '' => 'все, кроме: ' . $server->exclude,
+            default => 'все',
+        };
     }
 
     private function add(string $name, string $url, ?string $secret): string {

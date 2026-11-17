@@ -36,6 +36,7 @@ final class McpTool implements Tool {
         private readonly array $annotations,
         private readonly McpClient $client,
         private readonly Closure $token,
+        private readonly McpBreaker $breaker = new McpBreaker(),
     ) {}
 
     public function definition(): ToolDefinition {
@@ -61,10 +62,20 @@ final class McpTool implements Tool {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
+        $refusal = $this->breaker->refusal($this->server->name);
+        if ($refusal !== null) {
+            return ToolResult::error($refusal);
+        }
         try {
             [$text, $error] = $this->client->call($this->server, ($this->token)(), $this->remoteName, $args, $context->cancellation);
         } catch (RuntimeException $e) {
+            $this->breaker->failed($this->server->name, false);
             return ToolResult::error($e->getMessage());
+        }
+        if ($error) {
+            $this->breaker->failed($this->server->name, true);
+        } else {
+            $this->breaker->succeeded($this->server->name);
         }
         $text = SecretMasker::mask(McpManager::clean($text));
         return $error ? ToolResult::error($text === '' ? 'Инструмент MCP сообщил об ошибке.' : $text) : ToolResult::ok($text === '' ? '(пусто)' : $text);

@@ -45,6 +45,7 @@ final class McpManager {
         private readonly Closure $owner,
         private readonly Closure $tell,
         private readonly LoggerInterface $logger,
+        private readonly McpBreaker $breaker = new McpBreaker(),
     ) {}
 
     /** At start: the tools of every active server; a changed one is turned off. */
@@ -106,6 +107,20 @@ final class McpManager {
         return $this->servers->update($name, McpServer::DISABLED, null, $note) !== null;
     }
 
+    /**
+     * Which tools of the server go into the registry; an active server is synced at once. The approved set (its hash)
+     * covers every tool of the server, so filtering is not a change the owner has to approve again.
+     *
+     * @param string|null $include null — every tool; '' — none
+     */
+    public function filter(string $name, ?string $include, string $exclude, Cancellation $cancellation): McpServer {
+        $server = $this->servers->setFilter($name, $include, $exclude) ?? throw new DomainException(sprintf('MCP-сервера «%s» нет.', $name));
+        if ($server->status === McpServer::ACTIVE) {
+            $this->sync($server, false, $cancellation);
+        }
+        return $server;
+    }
+
     public function remove(string $name): bool {
         $this->unregister($name);
         return $this->servers->remove($name);
@@ -151,10 +166,10 @@ final class McpManager {
         $names = [];
         foreach ($cleaned as $tool) {
             $name = self::toolName($server->name, $tool['name']);
-            if ($this->registry->get($name) !== null) {
+            if ($this->registry->get($name) !== null || !$server->registers($tool['name'])) {
                 continue;
             }
-            $this->registry->register(new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server)));
+            $this->registry->register(new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker));
             $names[] = $name;
         }
         $this->registered[$server->name] = $names;

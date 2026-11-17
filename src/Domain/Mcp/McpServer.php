@@ -30,5 +30,32 @@ final class McpServer {
          * @var array<non-empty-string, string>
          */
         public readonly array $headers = [],
+        /** names or masks of the tools to register, comma-separated; null — all; '' — none */
+        public readonly ?string $include = null,
+        /** names or masks of the tools not to register; the whitelist wins */
+        public readonly string $exclude = '',
     ) {}
+
+    /**
+     * Whether a tool of this server goes into the registry.
+     *
+     * ref: references/hermes-agent/tools/mcp_tool_registration.py@e96221fa:L251-L264 (_make_tool_filter) — include is
+     *      a whitelist (empty registers nothing), exclude a blacklist, exact names or globs, include wins
+     */
+    public function registers(string $tool): bool {
+        if ($this->include !== null) {
+            return self::matches($tool, $this->include);
+        }
+        return !self::matches($tool, $this->exclude);
+    }
+
+    private static function matches(string $tool, string $masks): bool {
+        foreach (explode(',', $masks) as $mask) {
+            $mask = trim($mask);
+            if ($mask !== '' && fnmatch($mask, $tool)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

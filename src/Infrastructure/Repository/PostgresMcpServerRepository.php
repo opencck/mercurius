@@ -12,7 +12,7 @@ use OpenCCK\Domain\Repository\McpServerRepository;
 use UnexpectedValueException;
 
 final class PostgresMcpServerRepository implements McpServerRepository {
-    private const COLUMNS = 'id, name, url, secret, status, tools_hash, note';
+    private const COLUMNS = 'id, name, url, secret, status, tools_hash, note, tools_include, tools_exclude';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -46,6 +46,11 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         return $row === null ? null : self::server($row);
     }
 
+    public function setFilter(string $name, ?string $include, string $exclude): ?McpServer {
+        $row = $this->db->execute('UPDATE mcp_servers SET tools_include = ?, tools_exclude = ? WHERE name = ? RETURNING ' . self::COLUMNS, [$include, $exclude, $name])->fetchRow();
+        return $row === null ? null : self::server($row);
+    }
+
     public function remove(string $name): bool {
         return $this->db->execute('DELETE FROM mcp_servers WHERE name = ? RETURNING id', [$name])->fetchRow() !== null;
     }
@@ -57,6 +62,6 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         if (!is_int($id) || $str('name') === null || $str('url') === null || $str('status') === null) {
             throw new UnexpectedValueException('Malformed MCP server row');
         }
-        return new McpServer($id, (string) $str('name'), (string) $str('url'), $str('secret'), (string) $str('status'), $str('tools_hash'), $str('note') ?? '');
+        return new McpServer($id, (string) $str('name'), (string) $str('url'), $str('secret'), (string) $str('status'), $str('tools_hash'), $str('note') ?? '', include: $str('tools_include'), exclude: $str('tools_exclude') ?? '');
     }
 }
