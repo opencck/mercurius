@@ -24,9 +24,11 @@ final class MediaSettings {
      * @param array<string, list<string>> $models kind => references, cheapest first is chosen among them
      * @param array<string, string> $endpoints name => base URL of an OpenAI-compatible API
      * @param list<string> $auto kinds processed at once
+     * @param array<string, string> $rules kind => the owner's principles of choosing among its models
      */
     private function __construct(
         private readonly array $models,
+        private readonly array $rules,
         public readonly array $endpoints,
         public readonly array $auto,
         public readonly int $audioAutoMinutes,
@@ -48,7 +50,14 @@ final class MediaSettings {
             $endpoints[$name] = rtrim($url, '/');
         }
         $models = [];
+        $rules = [];
         foreach (self::KINDS as $kind) {
+            // spec: BRIEF.md#входящие-вложения — the owner's principles of choosing a model for this kind, in words
+            $rule = trim(Env::raw($env, 'MEDIA_' . strtoupper($kind) . '_RULES') ?? '');
+            if (mb_strlen($rule) > 1000) {
+                throw ConfigException::invalid('MEDIA_' . strtoupper($kind) . '_RULES', 'up to 1000 characters');
+            }
+            $rules[$kind] = $rule;
             $key = 'MEDIA_' . strtoupper($kind) . '_MODELS';
             $models[$kind] = [];
             foreach (self::list(Env::raw($env, $key)) as $ref) {
@@ -73,6 +82,7 @@ final class MediaSettings {
         }
         return new self(
             $models,
+            $rules,
             $endpoints,
             array_values(array_unique($auto)),
             Env::positiveInt($env, 'MEDIA_AUDIO_AUTO_MINUTES', 10, 240),
@@ -87,6 +97,11 @@ final class MediaSettings {
      */
     public function models(string $kind): array {
         return $this->models[$kind] ?? [];
+    }
+
+    /** The owner's principles for the kind, '' — none. */
+    public function rules(string $kind): string {
+        return $this->rules[$kind] ?? '';
     }
 
     /** @return list<string> */

@@ -351,6 +351,10 @@ if ($webSearch !== null) {
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
 // spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — a participant without a tool asks the owner for it
 $tools->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($tools, $policies));
+// spec: BRIEF.md#входящие-вложения — the owner's media models and principles, each participant's own way with files
+$mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
+$mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
+$tools->register(new \OpenCCK\App\Agent\Tool\MediaPrefsTool($mediaPrefs));
 $tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies));
 $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.

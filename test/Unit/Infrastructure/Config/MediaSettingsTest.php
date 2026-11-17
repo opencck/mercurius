@@ -55,4 +55,14 @@ final class MediaSettingsTest extends TestCase {
         $this->expectException(ConfigException::class);
         MediaSettings::fromEnv(['MEDIA_TEXT_LIMIT' => '5']);
     }
+
+    public function testThePrinciplesOfTheOwnerPerKind(): void {
+        $media = MediaSettings::fromEnv(['MEDIA_VISION_RULES' => 'обычные фото — glm; чеки — haiku']);
+
+        self::assertSame('обычные фото — glm; чеки — haiku', $media->rules('vision'));
+        self::assertSame('', $media->rules('speech'));
+
+        $this->expectException(ConfigException::class);
+        MediaSettings::fromEnv(['MEDIA_SPEECH_RULES' => str_repeat('а', 1001)]);
+    }
 }
