@@ -407,6 +407,14 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
 );
 if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs));
+    // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go
+    $inboxCleaner = new \OpenCCK\App\Agent\Media\InboxCleaner($principals, $policies, $sandbox, $mediaSettings, $logger);
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(600, static function () use ($inboxCleaner): void {
+        $inboxCleaner->run();
+        \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(86400, static function (string $id) use ($inboxCleaner): void {
+            $inboxCleaner->run();
+        }));
+    }));
 }
 $loop = new AgentLoop(
     $llm,
