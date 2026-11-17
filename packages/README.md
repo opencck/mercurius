@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `0907de0` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `f0380d8` | 2026-11-17 | Канал связи и адаптер Telegram |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `7ecab10` | 2026-11-17 | Канал связи и адаптер Telegram |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) подключаются в своих фазах.
 
@@ -25,6 +25,11 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — messenger: удаление сообщения
+
+- `mercurius-messenger` `7ecab10`: `Channel::delete()` и `TelegramApi::deleteMessage()` — бот удаляет сообщение, в
+  котором владелец прислал секрет (`/secret`); сбой пишется в журнал, а не бросается.
 
 ### 2026-11-17 — messenger: тест правок после склеенных
 
