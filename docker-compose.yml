@@ -208,11 +208,12 @@ networks:
   internal:
   # The app and the browser only.
   browser:
-  # A fixed subnet, so the host firewall (DOCKER-USER) can keep the sandbox away from the host and the LAN.
+  # A fixed subnet. The sandbox may reach the host and the LAN (owner's decision): no firewall rule is set for it.
+  # spec: BRIEF.md#песочница
   sandbox:
     ipam:
       config:
-        # Another instance on the same host needs its own subnet (and its own firewall rule).
+        # Another instance on the same host needs its own subnet.
         - subnet: ${SANDBOX_SUBNET:-172.31.250.0/24}
   web:
     external: true
