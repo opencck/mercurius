@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "33b913ff8b1ef18c7ed71f8c75b769fc",
+    "content-hash": "5c4896dd6ed04f1f1433d9aaeb1f3ea8",
     "packages": [
         {
             "name": "amphp/amp",
@@ -3017,77 +3017,6 @@
                 "async",
                 "llm",
                 "openrouter"
-            ],
-            "transport-options": {
-                "symlink": false,
-                "relative": true
-            }
-        },
-        {
-            "name": "opencck/mercurius-mail-mcp",
-            "version": "dev-master",
-            "dist": {
-                "type": "path",
-                "url": "packages/mail-mcp",
-                "reference": "71caa2a07afeb749fc88fcbfb47b4b4703b0cfee"
-            },
-            "require": {
-                "amphp/amp": "^3",
-                "amphp/byte-stream": "^2",
-                "amphp/http-server": "^3",
-                "amphp/socket": "^2",
-                "ext-mbstring": "*",
-                "php": ">=8.2",
-                "psr/log": "^3"
-            },
-            "require-dev": {
-                "amphp/phpunit-util": "^3",
-                "phpstan/phpstan": "^2",
-                "phpunit/phpunit": "^9.6",
-                "psalm/plugin-phpunit": "^0.22.2",
-                "vimeo/psalm": "^6"
-            },
-            "bin": [
-                "bin/mail-mcp"
-            ],
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Mercurius\\MailMcp\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Mercurius\\MailMcp\\Test\\": "test/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit"
-                ],
-                "phpstan": [
-                    "phpstan analyse --no-progress --memory-limit=1G"
-                ],
-                "psalm": [
-                    "psalm --no-progress --show-info=false"
-                ],
-                "check": [
-                    "@test",
-                    "@phpstan",
-                    "@psalm"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "description": "An MCP server with a built-in async IMAP and SMTP client for AMPHP: list, read and send mail, sender authentication by Authentication-Results",
-            "keywords": [
-                "agent",
-                "amphp",
-                "imap",
-                "mail",
-                "mcp",
-                "smtp"
             ],
             "transport-options": {
                 "symlink": false,
@@ -7923,7 +7852,6 @@
         "opencck/mercurius-connectors": 20,
         "opencck/mercurius-i18n": 20,
         "opencck/mercurius-llm": 20,
-        "opencck/mercurius-mail-mcp": 20,
         "opencck/mercurius-messenger": 20,
         "opencck/mercurius-search": 20
     },

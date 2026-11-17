@@ -87,7 +87,7 @@
 | `opencck/mercurius-mcp-client` | `packages/mcp-client/` | 9 |
 | `opencck/mercurius-peer` | `packages/peer/` | 13 |
 | `opencck/mercurius-search` | `packages/search/` | 8 |
-| `opencck/mercurius-mail-mcp` | `packages/mail-mcp/` | 8 |
+| `opencck/mercurius-mail-mcp` | `mcp/mail/` (модуль, профиль `mail`) | 8 |
 | `opencck/mercurius-i18n` | `packages/i18n/` | вне фаз |
 
 Подключены: `llm`, `connectors`, `messenger`, `search`, `mail-mcp`, `i18n`. `command-policy`, `memory`,

@@ -18,7 +18,6 @@
         "opencck/mercurius-connectors": "dev-master",
         "opencck/mercurius-i18n": "dev-master",
         "opencck/mercurius-llm": "dev-master",
-        "opencck/mercurius-mail-mcp": "dev-master",
         "opencck/mercurius-messenger": "dev-master",
         "opencck/mercurius-search": "dev-master",
         "opencck/server": "^1.1.1",
@@ -111,16 +110,6 @@
                 "symlink": false,
                 "versions": {
                     "opencck/mercurius-search": "dev-master"
-                }
-            }
-        },
-        {
-            "type": "path",
-            "url": "packages/mail-mcp",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "opencck/mercurius-mail-mcp": "dev-master"
                 }
             }
         },

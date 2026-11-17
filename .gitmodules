@@ -48,8 +48,8 @@
 	path = packages/search
 	url = https://github.com/opencck/mercurius-search.git
 	branch = master
-[submodule "packages/mail-mcp"]
-	path = packages/mail-mcp
+[submodule "mcp/mail"]
+	path = mcp/mail
 	url = https://github.com/opencck/mercurius-mail-mcp.git
 	branch = master
 [submodule "packages/i18n"]

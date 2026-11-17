@@ -67,21 +67,26 @@ services:
     networks:
       - internal
 
-  # The built-in mail server (MCP, mercurius-mail-mcp): IMAP and SMTP of the mailbox in the agent's settings. It keeps
-  # no credentials: the app sends the mailbox in headers of each request. Without MAIL_MCP_TOKEN it only waits.
-  # spec: BRIEF.md#скиллы-и-mcp
+  # The built-in mail server (MCP, module mercurius-mail-mcp in mcp/mail, COMPOSE_PROFILES=mail, MAIL_MCP_TOKEN): IMAP and
+  # SMTP of the mailbox in the agent's settings. It keeps no credentials: the app sends the mailbox in headers.
+  # spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
   mail-mcp:
-    image: mercurius-app:${APP_VERSION:-dev}
+    profiles: ["mail"]
+    build:
+      context: mcp/mail
+    image: mercurius-mail-mcp:${APP_VERSION:-dev}
     restart: unless-stopped
-    command: ["sh", "-c", "if [ -n \"$$MAIL_MCP_TOKEN\" ]; then exec php vendor/opencck/mercurius-mail-mcp/bin/mail-mcp; else exec sleep infinity; fi"]
     environment:
       MAIL_MCP_TOKEN: ${MAIL_MCP_TOKEN:-}
-    healthcheck:
-      test: ["CMD", "sh", "-c", "[ -z \"$$MAIL_MCP_TOKEN\" ] || php -r 'exit(@file_get_contents(\"http://127.0.0.1:8090/health\") === false ? 1 : 0);'"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
-      retries: 3
+    mem_limit: 256m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - internal
 

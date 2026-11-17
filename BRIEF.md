@@ -1317,7 +1317,7 @@ MCP sampling выключен; внешние источники — тольк�
 - **Учётные данные сервер не хранит:** приложение шлёт ящик из настроек агента (`MAIL_HOST`, `MAIL_IMAP_PORT`,
   `MAIL_SMTP_PORT`, `MAIL_USER`, секретный `MAIL_PASSWORD`, `MAIL_FROM`) в заголовках `X-Mail-*` каждого запроса;
   модель их не видит. Вход в сервер — `MAIL_MCP_TOKEN` из `.env`.
-- В compose — сервис `mail-mcp` на образе приложения, во внутренней сети; без токена ждёт. В приложении — встроенный
+- В compose — сервис `mail-mcp` модуля `mcp/mail` (свой образ с 2026-11-18, профиль `mail`), во внутренней сети. В приложении — встроенный
   сервер `mail`: инструменты наши, поэтому регистрируются без одобрения; `mail_send` помечен разрушающим — значит,
   необратимый, отправка идёт через карточку владельца.
 
@@ -1459,7 +1459,7 @@ MCP sampling выключен; внешние источники — тольк�
 | `mercurius-media-docs` | `services/media-docs` | `media-docs` | документы: текст из docx/pptx/xlsx/odt/PDF/RTF и сборка pptx/docx/xlsx по просьбе агента |
 | `mercurius-browser` | `services/browser` | `browser` | Chromium — инструмент `browser`; со скриншотом агент смотрит страницу моделью зрения (`question`) |
 | `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API |
-| `mercurius-mail-mcp` | `mcp/mail` (переезд из `packages/mail-mcp`) | `mail` | почта по MCP |
+| `mercurius-mail-mcp` | `mcp/mail` | `mail` | почта по MCP |
 
 - **Песочница становится лёгкой:** PHP, Python, Node, Go без библиотек документов и ffmpeg (решение владельца: всё про
   документы — в `media-docs`); нужное агент ставит в песочницу сам.
@@ -1480,7 +1480,9 @@ MCP sampling выключен; внешние источники — тольк�
   документов и `media extract` читает модуль (без него файл только сохраняется, агент говорит, как включить), новый
   инструмент `documents` (`path` с расширением docx/xlsx/pptx и `description`) кладёт файл в песочницу; python-docx,
   openpyxl, python-pptx, poppler и `bin/extract_text.py` из песочницы убраны. `browser` и `telegram-bot-api` (2026-11-18)
-  вынесены с историей (`git subtree split`); браузер — в профиле `browser`, инструмент — пока сервис отвечает.
+  вынесены с историей (`git subtree split`); браузер — в профиле `browser`, инструмент — пока сервис отвечает. Почта
+  (`mercurius-mail-mcp`) переехала из `packages/mail-mcp` в `mcp/mail`, собирается своим образом, а не из образа
+  приложения, и больше не зависимость Composer приложения.
 - **Скриншот глазами агента** (2026-11-18): `browser screenshot` с `question` отдаёт снимок модели зрения (выбор
   участника или список владельца, как для фото) и возвращает агенту её ответ; `send: false` — в чат не отправлять. Без
   модели зрения снимок только уходит в чат.
