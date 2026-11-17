@@ -44,6 +44,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     private readonly \OpenCCK\Domain\Repository\GroupTalkRepository $talk;
     /** @var array<string, true> groups left in this process */
     private array $left = [];
+    /** @var array<string, string> chat id => the day its owner was warned about the daily limit */
+    private array $limitWarned = [];
 
     public function __construct(
         private readonly GroupRepository $groups,
@@ -120,11 +122,12 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if (!$addressed && $group->mode !== Group::FREE) {
             return null;
         }
-        // spec: BRIEF.md#группа — over its daily tokens a free group gets answers only when it asks
-        if (!$addressed && $this->overDailyTokens($message)) {
+        $principal = $this->principals->findByIdentity($message->channel, $message->userId);
+        // spec: BRIEF.md#группа — over its daily tokens a free group gets answers only when it asks; the owner pays for the
+        //      agent, so their words are answered past the limit
+        if (!$addressed && $principal?->role !== \OpenCCK\Domain\Entity\Role::Owner && $this->overDailyTokens($message, $group)) {
             return null;
         }
-        $principal = $this->principals->findByIdentity($message->channel, $message->userId);
         if ($principal === null || $principal->status !== PrincipalStatus::Active) {
             return null;
         }
@@ -196,8 +199,12 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if ($callback->chatId !== $this->ownerChatId || preg_match('/^gr:(-?\d+):([mfr])$/', $callback->data, $m) !== 1) {
+        if ($callback->chatId !== $this->ownerChatId || preg_match('/^gr:(-?\d+):([mfrn]|u[1-9]\d{0,9})$/', $callback->data, $m) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
+            return;
+        }
+        if ($m[2] === 'n' || $m[2][0] === 'u') {
+            $this->setLimit($callback, $m[1], $m[2]);
             return;
         }
         [$status, $mode, $outcome] = match ($m[2]) {
@@ -242,16 +249,54 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         return $replied === null ? null : $this->runMessages?->runOf($message->channel, $message->chatId, $replied);
     }
 
-    private function overDailyTokens(IncomingMessage $message): bool {
-        if ($this->freeDailyTokens <= 0 || $this->spentToday === null) {
+    private function overDailyTokens(IncomingMessage $message, Group $group): bool {
+        $limit = $group->dailyTokens ?? $this->freeDailyTokens;
+        if ($limit <= 0 || $this->spentToday === null) {
             return false;
         }
         try {
-            return ($this->spentToday)($message->channel, $message->chatId) >= $this->freeDailyTokens;
+            $spent = ($this->spentToday)($message->channel, $message->chatId);
         } catch (\Throwable $e) {
             $this->logger->warning('Group spend was not read', ['chat' => $message->chatId, 'error' => $e::class]);
             return false;
         }
+        if ($spent < $limit) {
+            return false;
+        }
+        $this->warnLimit($group, $spent, $limit);
+        return true;
+    }
+
+    /**
+     * Tells the owner once a day that the group reached its limit, with buttons to raise it or lift it for good.
+     *
+     * spec: BRIEF.md#группа — the owner decides the limit of a group
+     */
+    private function warnLimit(Group $group, int $spent, int $limit): void {
+        $today = (new \DateTimeImmutable())->format('Y-m-d');
+        if (($this->limitWarned[$group->chatId] ?? null) === $today) {
+            return;
+        }
+        $this->limitWarned[$group->chatId] = $today;
+        $raised = max($limit * 2, $spent + $limit);
+        $sent = $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.limit_reached'), MessageMeta::inline($group->title), $spent, $limit), buttons: [[
+            new Button(sprintf(t('service.group_gate.limit_raise'), $raised), sprintf('gr:%s:u%d', $group->chatId, $raised)),
+            new Button(t('service.group_gate.limit_lift'), sprintf('gr:%s:n', $group->chatId)),
+        ]]));
+        if (!$sent->success) {
+            $this->logger->warning('Group limit card was not delivered', ['chat' => $group->chatId]);
+        }
+    }
+
+    private function setLimit(IncomingCallback $callback, string $chatId, string $action): void {
+        $tokens = $action === 'n' ? 0 : (int) substr($action, 1);
+        $group = $this->groups->setDailyTokens($callback->channel, $chatId, $tokens);
+        $outcome = $tokens === 0 ? t('service.group_gate.limit_lifted') : sprintf(t('service.group_gate.limit_raised'), $tokens);
+        $this->channel->answerCallback($callback->callbackId, $outcome);
+        if ($group !== null && $callback->messageId !== null) {
+            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.group_gate.gruppa'), $group->title, $outcome));
+        }
+        $this->logger->notice('Group daily limit set', ['chat' => $chatId, 'tokens' => $tokens]);
     }
 
     /** A mention of the bot, a reply to its message, or a command addressed to it. */

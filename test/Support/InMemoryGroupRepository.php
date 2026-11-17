@@ -18,7 +18,7 @@ final class InMemoryGroupRepository implements GroupRepository {
     public function setForum(string $channel, string $chatId, bool $forum): void {
         $g = $this->groups[$channel . ':' . $chatId] ?? null;
         if ($g !== null) {
-            $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $g->status, $g->mode, $forum);
+            $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $g->status, $g->mode, $forum, $g->dailyTokens);
         }
     }
 
@@ -35,7 +35,15 @@ final class InMemoryGroupRepository implements GroupRepository {
         if ($g === null) {
             return null;
         }
-        return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $status, $mode, $g->forum);
+        return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $status, $mode, $g->forum, $g->dailyTokens);
+    }
+
+    public function setDailyTokens(string $channel, string $chatId, ?int $tokens): ?Group {
+        $g = $this->groups[$channel . ':' . $chatId] ?? null;
+        if ($g === null) {
+            return null;
+        }
+        return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $g->status, $g->mode, $g->forum, $tokens);
     }
 
     public function all(): array {

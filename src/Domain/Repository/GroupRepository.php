@@ -22,4 +22,7 @@ interface GroupRepository {
 
     /** Records whether the group is a forum (Telegram says so with every message). */
     public function setForum(string $channel, string $chatId, bool $forum): void;
+
+    /** @param ?int $tokens tokens a day of the free mode; null — the default, 0 — no limit */
+    public function setDailyTokens(string $channel, string $chatId, ?int $tokens): ?Group;
 }

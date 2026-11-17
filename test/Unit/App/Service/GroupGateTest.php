@@ -184,10 +184,52 @@ final class GroupGateTest extends AsyncTestCase {
         $this->say('первое');
         $this->press('gr:' . self::GROUP . ':f');
 
-        $this->say('просто болтаем');
+        $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+
+        $this->say('просто болтаем', '77');
         self::assertCount(0, $this->stack->llm->requests, 'over the limit the agent does not join in by itself');
-        $this->say('@mrcuribot а сколько времени?');
+        $this->say('@mrcuribot а сколько времени?', '77');
         self::assertCount(1, $this->stack->llm->requests, 'but answers when asked');
+    }
+
+    public function testTheOwnerIsWarnedOnceAndMayRaiseOrLiftTheLimit(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('ок'), ScriptedLlm::text('ок')]));
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), spentToday: static fn(string $channel, string $chatId): int => 250_000, freeDailyTokens: 200_000);
+        $this->stack->useGroups($this->gate);
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+        $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+
+        $this->say('болтаем', '77');
+        $this->say('и ещё', '77');
+        $warnings = array_values(array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'дневного лимита')));
+        self::assertCount(1, $warnings, 'one warning a day');
+        self::assertStringContainsString('250000', $warnings[0]);
+        self::assertStringContainsString('200000', $warnings[0]);
+
+        $this->press('gr:' . self::GROUP . ':u400000');
+        self::assertSame(400_000, $this->groups->find('telegram', self::GROUP)?->dailyTokens);
+        $this->say('а теперь?', '77');
+        delay(9);
+        self::assertCount(1, $this->stack->llm->requests, 'the raised limit lets the agent join in again');
+
+        $this->press('gr:' . self::GROUP . ':n');
+        self::assertSame(0, $this->groups->find('telegram', self::GROUP)?->dailyTokens, '0 — no limit for this group');
+    }
+
+    public function testTheDailyLimitDoesNotSilenceTheOwner(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), spentToday: static fn(string $channel, string $chatId): int => 250_000, freeDailyTokens: 200_000);
+        $this->stack->useGroups($this->gate);
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+
+        $this->say('спроси у ребят, как дела');
+        delay(9);
+
+        self::assertCount(1, $this->stack->llm->requests, 'the owner pays for the agent: their words are answered past the limit');
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {

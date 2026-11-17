@@ -24,5 +24,7 @@ final class Group {
         public readonly string $mode,
         /** a forum with topics: projects get topics of their own */
         public readonly bool $forum = false,
+        /** tokens a day the free mode may spend; null — the default from GROUP_FREE_DAILY_TOKENS, 0 — no limit */
+        public readonly ?int $dailyTokens = null,
     ) {}
 }
