@@ -461,6 +461,8 @@ $chat = new ChatService(
     new SkillCommands($skillRepository),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
+    // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
+    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create()),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 

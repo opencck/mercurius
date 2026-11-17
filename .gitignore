@@ -48,3 +48,6 @@ Thumbs.db
 
 # Зависимости сервиса браузера ставятся при сборке образа
 /browser/node_modules/
+
+# Резервные копии bin/backup.sh: база, данные, .env
+/backups/
