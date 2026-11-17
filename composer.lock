@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "89bfd4d7024378071a1cf4928ed62a6a",
+    "content-hash": "101838352f1d49da54e8fe8aabb70419",
     "packages": [
         {
             "name": "amphp/amp",
@@ -2942,6 +2942,71 @@
                 "chat",
                 "messenger",
                 "telegram"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "opencck/mercurius-search",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "packages/search",
+                "reference": "052585fd5911e72db7bc81e985823b93fc026e2e"
+            },
+            "require": {
+                "amphp/amp": "^3",
+                "amphp/http-client": "^5",
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "amphp/phpunit-util": "^3",
+                "phpstan/phpstan": "^2",
+                "phpunit/phpunit": "^9.6",
+                "psalm/plugin-phpunit": "^0.22.2",
+                "vimeo/psalm": "^6"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mercurius\\Search\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Mercurius\\Search\\Test\\": "test/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit"
+                ],
+                "phpstan": [
+                    "phpstan analyse --no-progress --memory-limit=1G"
+                ],
+                "psalm": [
+                    "psalm --no-progress --show-info=false"
+                ],
+                "check": [
+                    "@test",
+                    "@phpstan",
+                    "@psalm"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Web search for AMPHP agents behind one interface: SearXNG, Brave, Tavily and OpenRouter web search, with fallback and a cache",
+            "keywords": [
+                "agent",
+                "amphp",
+                "brave",
+                "openrouter",
+                "search",
+                "searxng",
+                "tavily"
             ],
             "transport-options": {
                 "symlink": false,
@@ -7638,7 +7703,8 @@
         "amphp/ssh": 20,
         "opencck/mercurius-connectors": 20,
         "opencck/mercurius-llm": 20,
-        "opencck/mercurius-messenger": 20
+        "opencck/mercurius-messenger": 20,
+        "opencck/mercurius-search": 20
     },
     "prefer-stable": false,
     "prefer-lowest": false,

@@ -17,6 +17,7 @@
         "opencck/mercurius-connectors": "dev-master",
         "opencck/mercurius-llm": "dev-master",
         "opencck/mercurius-messenger": "dev-master",
+        "opencck/mercurius-search": "dev-master",
         "opencck/server": "^1.1.1",
         "psr/log": "^3",
         "revolt/event-loop": "^1",
@@ -87,6 +88,16 @@
                 "symlink": false,
                 "versions": {
                     "opencck/mercurius-messenger": "dev-master"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/search",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-search": "dev-master"
                 }
             }
         },

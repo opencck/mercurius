@@ -251,8 +251,13 @@ if ($browserToken !== null) {
 }
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor()));
-if ($llmSettings->openRouterKey() !== null) {
-    $tools->register(new WebSearchTool($modelHttp, $llmSettings->openRouterKey(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WEB_SEARCH_MODEL') ?? 'openai/gpt-5.6-luna'));
+// spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
+[$webSearch, $searchSkipped] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
+if ($searchSkipped !== []) {
+    $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
+}
+if ($webSearch !== null) {
+    $tools->register(new WebSearchTool($webSearch));
 }
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
 $tools->register(new SetModelRoleTool($modelRoles));

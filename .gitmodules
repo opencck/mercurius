@@ -44,3 +44,7 @@
 	path = packages/messenger
 	url = https://github.com/opencck/mercurius-messenger.git
 	branch = master
+[submodule "packages/search"]
+	path = packages/search
+	url = https://github.com/opencck/mercurius-search.git
+	branch = master
