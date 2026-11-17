@@ -84,6 +84,10 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\App\Agent\Tool\OpenRouterByokTool;
+use OpenCCK\App\Agent\Tool\TcpProbeTool;
+use OpenCCK\App\Agent\Tool\FileWriteTool;
+use OpenCCK\App\Agent\Tool\SqlQueryTool;
 use OpenCCK\App\Agent\Tool\ServerAddTool;
 use OpenCCK\App\Agent\Tool\ServersTool;
 use OpenCCK\App\Agent\Tool\ProjectEditTool;
@@ -349,6 +353,10 @@ $serverConsole = new ServerConsole(
 $tools->register(new ServersTool($serverRepository));
 $tools->register(new ServerAddTool($serverRepository, $vault));
 $tools->register(new SshRunTool($serverConsole));
+$tools->register(new SqlQueryTool($serverConsole, $vault));
+$tools->register(new FileWriteTool($serverConsole, new CommandClassifier()));
+$tools->register(new TcpProbeTool($addressGuard));
+$tools->register(new OpenRouterByokTool($modelHttp, $vault));
 
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);

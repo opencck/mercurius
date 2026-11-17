@@ -10,6 +10,8 @@ use Mercurius\Messenger\MessageHandler;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\RunScheduler;
+use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\ConversationRepository;
@@ -152,8 +154,45 @@ final class ChatService implements MessageHandler {
             return;
         }
 
+        $message = $this->withoutSecrets($principal, $message);
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId);
         $this->scheduler->submit($principal, $message, $conversationId);
+    }
+
+    /**
+     * A secret pasted into an ordinary message: the message leaves the chat, its text is kept in the vault (in a private
+     * chat), and the agent gets the text with the secret masked and the name it is kept under.
+     *
+     * spec: BRIEF.md#фаза-7-по-частям — a secret that appeared in Telegram is deleted by the bot and kept in the vault
+     */
+    private function withoutSecrets(Principal $principal, IncomingMessage $message): IncomingMessage {
+        $masked = SecretMasker::mask($message->text);
+        if ($masked === $message->text || $this->servers === null) {
+            return $message;
+        }
+        $name = $message->isPrivateChat && $principal->role !== Role::Visitor ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
+        $deleted = $this->channel->delete($message->chatId, $message->messageId);
+        $this->reply($message, sprintf(
+            'В сообщении был секрет: %s%s',
+            $deleted ? 'я удалил сообщение из чата' : 'удалить сообщение не удалось — удалите его сами',
+            $name === null ? '; сохранить секрет можно только в личном чате командой /secret.' : sprintf('; текст сохранён в хранилище как «%s».', $name),
+        ));
+        $note = $name === null ? '' : sprintf("\n\n[Сообщение содержало секрет: оно удалено из чата, полный текст — в хранилище секретов как «%s».]", $name);
+        return new IncomingMessage(
+            $message->channel,
+            $message->chatId,
+            $message->userId,
+            $message->userName,
+            $message->displayName,
+            $masked . $note,
+            $message->messageId,
+            $message->replyToMessageId,
+            $message->isPrivateChat,
+            $message->receivedAt,
+            $message->updateId,
+            $message->threadId,
+            $message->isEdited,
+        );
     }
 
     /** spec: BRIEF.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */

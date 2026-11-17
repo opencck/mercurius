@@ -121,6 +121,18 @@ final class SshTest extends AsyncTestCase {
 ", $result->stdout);
     }
 
+    public function testAFileIsWrittenThroughCat(): void {
+        $connection = new Connection($this->trusted(), self::PASSWORD, 'password');
+        $content = "line 1
+строка 2
+" . str_repeat('x', 100_000);
+
+        (new AmpSshShell())->run($connection, "cat > '/tmp/written.txt'", 10, 100, new NullCancellation(), $content);
+        $back = (new AmpSshShell())->run($connection, 'cat /tmp/written.txt', 10, 200_000, new NullCancellation());
+
+        self::assertSame($content, $back->stdout);
+    }
+
     public function testAChangedKeyAndAWrongPasswordAreRefused(): void {
         try {
             (new AmpSshShell())->run(new Connection($this->server('SHA256:somethingelse'), self::PASSWORD, 'password'), 'id', 5, 100, new NullCancellation());

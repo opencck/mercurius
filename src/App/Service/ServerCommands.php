@@ -49,6 +49,19 @@ final class ServerCommands {
         return sprintf('Секрет «%s» сохранён (%s). Сообщение с ним удаляю из чата.', $name, $kind === 'private_key' ? 'закрытый ключ' : 'пароль');
     }
 
+    /**
+     * Keeps the text of a message that carried a secret; returns the name it is kept under, null when it could not be.
+     */
+    public function stash(Principal $principal, #[SensitiveParameter] string $text, string $messageId): ?string {
+        $name = 'msg-' . (preg_replace('~[^A-Za-z0-9]~', '', $messageId) ?? '');
+        try {
+            $this->vault->put($name, 'token', $text, $principal);
+            return $name;
+        } catch (DomainException) {
+            return null;
+        }
+    }
+
     public function secrets(Principal $principal): string {
         if (!$this->vault->enabled()) {
             return 'Хранилище секретов выключено: в .env нет SECRETS_KEY.';

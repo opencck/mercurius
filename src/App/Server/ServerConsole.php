@@ -119,6 +119,47 @@ final class ServerConsole {
     }
 
     /**
+     * A command built by a tool (SQL, a file write) rather than typed by the model: its class is the tool's, the journal
+     * keeps what it means instead of how it is spelled, stdin may carry data or a password.
+     *
+     * @return array{bool, string}
+     */
+    public function runPrepared(Principal $principal, ?int $runId, string $serverName, string $journalled, string $class, string $command, #[SensitiveParameter] ?string $stdin, int $timeout, Cancellation $cancellation): array {
+        $server = $this->servers->byName($serverName);
+        if ($server === null) {
+            return [false, sprintf('Сервера «%s» нет в реестре.', $serverName)];
+        }
+        $record = ['principal' => $principal->id, 'run' => $runId, 'server' => $server->name, 'command' => SecretMasker::mask($journalled), 'class' => $class, 'exit' => null, 'ms' => null, 'error' => null];
+        $connection = $this->connection($server, $principal, true);
+        if (is_string($connection)) {
+            return [false, $connection];
+        }
+        try {
+            $this->audit->append($record + ['event' => 'start']);
+        } catch (Throwable $e) {
+            $this->logger->error('Command journal is down; the command did not run', ['server' => $server->name, 'error' => $e::class]);
+            return [false, 'Журнал команд недоступен — команда не выполнена.'];
+        }
+        $timeout = max(1, min(self::TIMEOUT_MAX, $timeout));
+        try {
+            $result = $this->shell->run($connection, $command, $timeout, self::OUTPUT_MAX, $cancellation, $stdin);
+        } catch (UnknownHostKey $e) {
+            $this->journal($record + ['event' => 'refused', 'error' => 'host key']);
+            $at = $this->servers->byName($e->server ?? $server->name) ?? $server;
+            if (!$e->changed) {
+                $this->servers->setPendingHostKey($at->id, $e->fingerprint);
+            }
+            ($this->askHostKey)($at, $e->fingerprint, $e->changed);
+            return [false, sprintf('Ключ хоста «%s» не подтверждён: владельцу отправлен отпечаток (%s).', $at->name, $e->fingerprint)];
+        } catch (RemoteFailure $e) {
+            $this->journal($record + ['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())]);
+            return [false, SecretMasker::mask($e->getMessage())];
+        }
+        $journalled = $this->journal($record + ['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs]);
+        return [$result->exitCode === 0, $this->report($result, $timeout, $journalled)];
+    }
+
+    /**
      * The login and the route of a server; a text when one of them is missing. A jump goes one server deep.
      */
     private function connection(Server $server, Principal $principal, bool $mayJump): Connection|string {
