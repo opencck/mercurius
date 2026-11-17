@@ -573,11 +573,19 @@ $a2aConnect = static function (string $url, string $token): \OpenCCK\App\Peer\A2
     $handshake = (new \Amp\Websocket\Client\WebsocketHandshake($url, ['authorization' => 'Bearer ' . $token]))->withTcpConnectTimeout(10)->withTlsHandshakeTimeout(10);
     return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel(\Amp\Websocket\Client\connect($handshake, new \Amp\TimeoutCancellation(20)));
 };
+// spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — live connections both ways, shared by the client and
+// the server; requests a neighbour sends back on a connection this agent opened are answered by the server
+$a2aLinks = new \OpenCCK\App\Peer\A2aLinks();
+/** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below; the client asks it who answers a neighbour */
+$a2aServer = null;
+$a2aServeFor = static function (string $fingerprint) use (&$a2aServer): ?\Closure {
+    return $a2aServer?->handlerFor($fingerprint);
+};
 $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,
     $principals,
     $vault,
-    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect),
+    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor),
     $conversations,
     $transcript,
     $channel,
@@ -586,8 +594,14 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $agentIdentity,
     static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
     $agentKeys,
+    $a2aLinks,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
+$tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
+// a connection nobody used for an hour closes; the agent opens it again when it needs it
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(300, static function (string $id) use ($a2aLinks): void {
+    $a2aLinks->closeIdle(3600.0);
+}));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
 // ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
 $a2aTransport = (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TRANSPORT') ?? 'ws') === 'http' ? 'http' : 'ws';
@@ -607,6 +621,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     $agentIdentity,
     $a2aToken,
     transport: $a2aTransport,
+    links: $a2aLinks,
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);

@@ -20,7 +20,10 @@ use function Mercurius\I18n\t;
  * The leader's end of a connection to a neighbour: the handshake (the leader's key and number, the neighbour's number
  * signed by the neighbour and checked against its pinned key, the neighbour's number signed by the leader), then
  * JSON-RPC requests matched by id. Frames are read all the time in a fiber of their own, so the neighbour never stalls
- * on a full connection; a closed connection fails what waits.
+ * on a full connection; a closed connection fails what waits. The connection goes both ways: a frame with a method is a
+ * request of the other side, answered by the given handler (the other side's tasks for this agent); none — refused.
+ *
+ * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
  *
  * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
  */
@@ -29,13 +32,35 @@ final class A2aSocket {
     /** @var array<int, DeferredFuture<array<array-key, mixed>>> */
     private array $pending = [];
     private bool $closed = false;
+    /** @var \Amp\Future<void> the reading of frames: it ends when the connection closes */
+    private readonly \Amp\Future $reading;
+    public float $lastUsed;
+    public int $requests = 0;
 
-    private function __construct(private readonly A2aChannel $channel) {
-        async($this->read(...))->ignore();
+    /** @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers a request of the other side */
+    private function __construct(private readonly A2aChannel $channel, private readonly ?\Closure $serve = null) {
+        $this->lastUsed = microtime(true);
+        $this->reading = async($this->read(...));
+        $this->reading->ignore();
+    }
+
+    /**
+     * The follower's end once the leader proved its key: requests of the leader go to $serve.
+     *
+     * @param \Closure(array<array-key, mixed>): array<string, mixed> $serve
+     */
+    public static function accepted(A2aChannel $channel, \Closure $serve): self {
+        return new self($channel, $serve);
+    }
+
+    /** Waits until the connection closes. */
+    public function join(): void {
+        $this->reading->await();
     }
 
     /** @throws RuntimeException the neighbour refused, or it is not who its pinned key says */
-    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0): self {
+    /** @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers requests of the neighbour */
+    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0, ?\Closure $serve = null): self {
         $deadline = new TimeoutCancellation($timeout);
         $nonce = bin2hex(random_bytes(16));
         try {
@@ -63,7 +88,7 @@ final class A2aSocket {
             $channel->close();
             throw $e;
         }
-        return new self($channel);
+        return new self($channel, $serve);
     }
 
     /**
@@ -76,6 +101,8 @@ final class A2aSocket {
             throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . 'closed).');
         }
         $id = $this->nextId++;
+        $this->lastUsed = microtime(true);
+        $this->requests++;
         /** @var DeferredFuture<array<array-key, mixed>> $deferred */
         $deferred = new DeferredFuture();
         $this->pending[$id] = $deferred;
@@ -111,6 +138,12 @@ final class A2aSocket {
         try {
             while (($frame = $this->channel->receive()) !== null) {
                 $message = self::frame($frame);
+                if (isset($message['method'])) {
+                    // a request of the other side: answered in its own fiber, reading goes on
+                    $this->lastUsed = microtime(true);
+                    async(fn() => $this->answer($message))->ignore();
+                    continue;
+                }
                 /** @var mixed $id */
                 $id = $message['id'] ?? null;
                 if (!is_int($id)) {
@@ -126,6 +159,20 @@ final class A2aSocket {
             // the connection broke: what waits fails below
         }
         $this->fail();
+    }
+
+    /** @param array<array-key, mixed> $request */
+    private function answer(array $request): void {
+        /** @var mixed $id */
+        $id = $request['id'] ?? null;
+        $answer = $this->serve === null
+            ? A2aServer::error($id, A2aServer::ERR_UNAUTHORIZED, 'this agent takes no requests on this connection')
+            : ($this->serve)($request);
+        try {
+            $this->channel->send(json_encode($answer, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        } catch (Throwable) {
+            // the connection is gone
+        }
     }
 
     private function fail(): void {

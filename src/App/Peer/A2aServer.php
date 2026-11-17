@@ -101,8 +101,25 @@ final class A2aServer implements JobRuns {
         ?Closure $now = null,
         /** ws — neighbours connect by WebSocket (/a2a/ws) and prove their keys once; http — POST /a2a, every request signed */
         public readonly string $transport = 'http',
+        /** the live connections: an incoming one is listed here once the agent proved its key */
+        private readonly ?A2aLinks $links = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
+    }
+
+    /**
+     * Who answers requests a neighbour sends back on a connection this agent opened: the agent of that key, if this
+     * agent's owner let it in; null — its requests are refused.
+     *
+     * @return (\Closure(array<array-key, mixed>): array<string, mixed>)|null
+     */
+    public function handlerFor(string $fingerprint): ?\Closure {
+        $id = $this->peers->principalByFingerprint($fingerprint);
+        $agent = $id === null ? null : $this->principals->find($id);
+        if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
+            return null;
+        }
+        return fn(array $request): array => $this->handle($agent, $request)[1];
     }
 
     /** The entrance token of this instance, as the Authorization header carries it. */
@@ -157,22 +174,15 @@ final class A2aServer implements JobRuns {
      */
     public function serveSocket(A2aChannel $channel, float $timeout = 10.0): void {
         try {
-            $agent = $this->handshake($channel, $timeout);
-            if ($agent === null) {
+            $known = $this->handshake($channel, $timeout);
+            if ($known === null) {
                 return;
             }
-            while (($frame = $channel->receive()) !== null) {
-                try {
-                    /** @var mixed $request */
-                    $request = json_decode($frame, true, 32, JSON_THROW_ON_ERROR);
-                } catch (\JsonException) {
-                    $request = null;
-                }
-                [, $answer] = is_array($request)
-                    ? $this->handle($agent, $request)
-                    : [400, self::error(null, self::ERR_PARSE, 'parse error')];
-                $channel->send(json_encode($answer, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            }
+            [$agent, $fingerprint] = $known;
+            // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — the connection goes both ways and is listed
+            $socket = A2aSocket::accepted($channel, fn(array $request): array => $this->handle($agent, $request)[1]);
+            $this->links?->add(A2aLinks::IN, $agent->displayName ?? ('#' . $agent->id), $fingerprint, $socket);
+            $socket->join();
         } catch (Throwable $e) {
             $this->logger->notice('A2A connection ended', ['error' => $e::class]);
         } finally {
@@ -180,8 +190,13 @@ final class A2aServer implements JobRuns {
         }
     }
 
-    /** The agent that proved its key on this connection; null — refused (the connection is told why). */
-    private function handshake(A2aChannel $channel, float $timeout): ?Principal {
+    /**
+     * The agent that proved its key on this connection and the key's fingerprint; null — refused (the connection is
+     * told why).
+     *
+     * @return array{Principal, string}|null
+     */
+    private function handshake(A2aChannel $channel, float $timeout): ?array {
         $deadline = new \Amp\TimeoutCancellation($timeout);
         $hello = self::frame($channel->receive($deadline));
         $key = isset($hello['key']) && is_string($hello['key']) ? $hello['key'] : '';
@@ -212,7 +227,7 @@ final class A2aServer implements JobRuns {
             return null;
         }
         $channel->send(json_encode(['type' => 'ready', 'agent' => $agent->displayName], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-        return $agent;
+        return [$agent, $fingerprint];
     }
 
     private function deny(A2aChannel $channel, string $why): void {

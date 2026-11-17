@@ -52,7 +52,53 @@ final class PeerNetwork {
         private readonly Closure $owner,
         /** the keys this agent may present to neighbours; null — the main key only */
         private readonly ?AgentKeys $keys = null,
+        /** live connections with other agents, both ways */
+        private readonly ?A2aLinks $links = null,
     ) {}
+
+    /**
+     * Opens a connection to the neighbour now (or finds a live one): tasks then go over it both ways.
+     *
+     * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
+     */
+    public function open(string $peerName): string {
+        $peer = $this->peers->peer($peerName) ?? throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
+        if (A2aClient::transport($peer) !== 'ws') {
+            throw new DomainException(sprintf(t('peer.peer_network.no_socket'), $peerName));
+        }
+        $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
+        $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
+        try {
+            $this->client->connect($peer, $token);
+        } catch (\RuntimeException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        return sprintf(t('peer.peer_network.link_open'), $peerName);
+    }
+
+    public function closeLink(int $id): bool {
+        return $this->links?->close($id) ?? false;
+    }
+
+    /** The connections in both directions, as the owner and the agent see them. */
+    public function linksText(): string {
+        $all = $this->links?->all() ?? [];
+        if ($all === []) {
+            return t('peer.peer_network.no_links');
+        }
+        $lines = [];
+        foreach ($all as $link) {
+            $lines[] = sprintf(
+                t($link['direction'] === A2aLinks::OUT ? 'peer.peer_network.link_out' : 'peer.peer_network.link_in'),
+                $link['id'],
+                $link['name'],
+                $link['fingerprint'],
+                (int) round((microtime(true) - $link['opened']) / 60.0),
+                $link['requests'],
+            );
+        }
+        return implode("\n", $lines);
+    }
 
     /** Lets an agent in by the fingerprint of its key; it becomes a participant with the role. */
     public function allow(string $name, string $fingerprint, Role $role): string {
@@ -140,14 +186,26 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      */
     public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path): OutgoingTask {
-        $peer = $this->peers->peer($peerName) ?? throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
+        $peer = $this->peers->peer($peerName);
+        // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
+        $link = $peer === null ? $this->links?->named($peerName) : null;
         if (!$who->isOwner() && $who->kind !== PrincipalKind::Agent) {
             throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
         }
-        $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
-        $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
         $messageId = 'msg-' . bin2hex(random_bytes(8));
-        $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self]));
+        if ($link !== null) {
+            try {
+                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self])));
+            } catch (\RuntimeException $e) {
+                throw new DomainException($e->getMessage());
+            }
+        } elseif ($peer === null) {
+            throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
+        } else {
+            $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
+            $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
+            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self]));
+        }
         $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state);
@@ -161,6 +219,20 @@ final class PeerNetwork {
     public function poll(): void {
         foreach ($this->peers->openOutgoing(self::POLL_BATCH) as $out) {
             $peer = $this->peers->peer($out->peer);
+            $link = $peer === null ? $this->links?->named($out->peer) : null;
+            if ($link !== null) {
+                try {
+                    $task = A2aClient::over($link, 'GetTask', ['id' => $out->remoteId]);
+                } catch (Throwable $e) {
+                    $this->logger->notice('A2A poll failed', ['task' => $out->id, 'error' => $e->getMessage()]);
+                    continue;
+                }
+                $state = A2aClient::state($task);
+                if (in_array($state, A2aTask::TERMINAL, true)) {
+                    $this->finish($out, $state, A2aClient::answer($task));
+                }
+                continue;
+            }
             $owner = ($this->owner)();
             $token = $peer === null || $owner === null ? null : $this->vault->reveal($peer->secret, $owner);
             if ($peer === null || $token === null) {
@@ -230,6 +302,11 @@ final class PeerNetwork {
         if (count($lines) === 3) {
             $lines[] = t('peer.peer_network.net_peer_add_imya_https');
         }
+        if ($this->links !== null) {
+            $lines[] = '';
+            $lines[] = t('peer.peer_network.links');
+            $lines[] = $this->linksText();
+        }
         if ($this->keys !== null) {
             $lines[] = '';
             $lines[] = t('peer.peer_network.my_keys');
@@ -251,6 +328,12 @@ final class PeerNetwork {
 
     /** @return list<string> */
     public function names(): array {
-        return array_map(static fn($p): string => $p->name, $this->peers->peers());
+        $names = array_map(static fn($p): string => $p->name, $this->peers->peers());
+        foreach ($this->links?->all() ?? [] as $link) {
+            if ($link['direction'] === A2aLinks::IN && !in_array($link['name'], $names, true)) {
+                $names[] = $link['name'];
+            }
+        }
+        return $names;
     }
 }
