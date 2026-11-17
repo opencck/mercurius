@@ -59,6 +59,8 @@ final class ChannelRunObserver implements RunObserver {
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $messages = null,
         /** nobody waits for an answer (an unaddressed message of a free group): [SILENT] may end the run quietly */
         private readonly bool $silenceAllowed = false,
+        /** obligations to deliver the final answer, sent again after a restart; null — not kept */
+        private readonly ?\OpenCCK\Domain\Repository\DeliveryRepository $deliveries = null,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -143,6 +145,9 @@ final class ChannelRunObserver implements RunObserver {
         $mode = $reason === StopReason::Answered ? ParseMode::Markdown : ParseMode::Plain;
         $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split($finalText);
         $first = array_shift($parts) ?? $finalText;
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
+        $obligation = $this->obligation($run, $finalText, $mode);
+        $sentParts = 0;
         $messageId = $this->messageId;
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)
         //      — the answer of a long run goes as a new message, so the owner is notified
@@ -150,11 +155,13 @@ final class ChannelRunObserver implements RunObserver {
         $delivered = $messageId !== null && !$fresh
             && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
         if ($delivered) {
+            $sentParts = 1;
             $this->remember($run, $messageId);
             $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'edit', 'message' => $messageId]);
         } else {
             $sent = $this->sendPart($run, $first, $mode, $this->replyTo);
             if ($sent) {
+                $sentParts = 1;
                 $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'send']);
             }
             if (!$sent) {
@@ -166,8 +173,42 @@ final class ChannelRunObserver implements RunObserver {
                 $this->channel->edit($this->chatId, $preview, \Mercurius\I18n\t(self::ANSWER_BELOW), ParseMode::Plain);
             }
         }
+        $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, $sentParts));
         foreach ($parts as $part) {
-            $this->sendPart($run, $part, $mode);
+            // parts go in order: after a lost part the rest waits for the redelivery, which goes on from it
+            if ($sentParts === 0 || !$this->sendPart($run, $part, $mode)) {
+                break;
+            }
+            $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, ++$sentParts));
+        }
+        $complete = $sentParts === count($parts) + 1;
+        $this->note($obligation, fn(int $id) => $complete ? $this->deliveries?->delivered($id) : $this->deliveries?->failed($id, 'not delivered'));
+    }
+
+    /** The obligation of this answer; null when none is kept or it could not be written. */
+    private function obligation(Run $run, string $text, ParseMode $mode): ?int {
+        if ($this->deliveries === null) {
+            return null;
+        }
+        try {
+            $id = $this->deliveries->open($run->id, $this->channel->name(), $this->chatId, $this->threadId, $this->replyTo, $text, $mode->value);
+            $this->deliveries->attempting($id);
+            return $id;
+        } catch (\Throwable $e) {
+            $this->logger->warning('Delivery obligation was not recorded', ['run' => $run->id, 'error' => $e::class]);
+            return null;
+        }
+    }
+
+    /** @param \Closure(int): mixed $write a ledger write: best effort, never blocks the answer */
+    private function note(?int $obligation, \Closure $write): void {
+        if ($obligation === null) {
+            return;
+        }
+        try {
+            $write($obligation);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Delivery obligation was not updated', ['error' => $e::class]);
         }
     }
 

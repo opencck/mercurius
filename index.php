@@ -300,6 +300,7 @@ $channel = new TelegramChannel($telegramApi, logger: $logger);
 $conversations = new PostgresConversationRepository($db);
 $runs = new PostgresRunRepository($db);
 $runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
+$deliveryRepository = new \OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
@@ -395,6 +396,7 @@ $scheduler = new RunScheduler(
     events: $tracer,
     providers: $llmSettings->providers(),
     runMessages: $runMessages,
+    answers: $deliveryRepository,
 );
 $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
@@ -656,7 +658,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
 (new App($logger))
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
-    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background))
+    ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background, deliveries: new \OpenCCK\App\Agent\DeliveryRecovery($deliveryRepository, $channel, $app->getLogger())))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))

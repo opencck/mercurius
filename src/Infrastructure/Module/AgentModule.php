@@ -30,11 +30,15 @@ final class AgentModule implements AppModuleInterface {
         private readonly ?ApprovalService $approvals = null,
         private readonly float $expiryInterval = 30.0,
         private readonly ?BackgroundDelegations $background = null,
+        /** sends again the final answers a failure or a restart kept from their chats */
+        private readonly ?\OpenCCK\App\Agent\DeliveryRecovery $deliveries = null,
     ) {}
 
     public function start(): void {
         // Runs first, so a delivered report joins a resumed run instead of racing it; background workers are left
         // to their delegations.
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — answers that did not reach their chat go out before new ones
+        $this->deliveries?->recover();
         $this->scheduler->resumeAll();
         $this->background?->resumeAll();
         $this->logger->info('Agent runs resumed');
