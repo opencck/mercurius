@@ -63,10 +63,11 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertFalse($this->edit(['action' => 'task_status', 'task_id' => 2, 'status' => 'done', 'text' => 'замер записан'])->isError);
 
         $project = $this->projects->byName('меркурий');
-        self::assertSame('PHP 8.2, AMPHP, PostgreSQL', $project?->card);
+        self::assertNotNull($project);
+        self::assertSame('PHP 8.2, AMPHP, PostgreSQL', $project->card);
         self::assertSame(['reasoning' => 6], $this->projects->task(1)?->profile);
         self::assertSame(ProjectTask::DONE, $this->projects->task(2)?->status);
-        self::assertSame(['Память'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks((int) $project?->id, 10)));
+        self::assertSame(['Память'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks($project->id, 10)));
     }
 
     public function testSecretsAndForeignTasksAreRefused(): void {
