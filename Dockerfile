@@ -53,13 +53,14 @@ USER mercurius
 CMD ["composer", "test-integration"]
 
 # Sandbox: where the agent runs commands and keeps files. Runtimes the agent can build tools on (owner decision):
-# PHP 8.2 with Composer, Python 3, Node.js with npm, Go. The executor runs as root with a minimal capability set
+# PHP 8.2 with Composer, Python 3 (with python-pptx, python-docx, openpyxl: presentations, documents, tables without a download), Node.js with npm, Go. The executor runs as root with a minimal capability set
 # (compose) and does every participant operation as that participant's Unix user.
 # spec: BRIEF.md#песочница
 FROM php:8.2-cli-bookworm AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
+        python3-pptx python3-docx python3-openpyxl \
     && docker-php-ext-install pcntl sockets \
     && rm -rf /var/lib/apt/lists/* \
     && echo 'zend.assertions=-1' > /usr/local/etc/php/conf.d/mercurius.ini
