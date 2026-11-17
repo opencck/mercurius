@@ -154,4 +154,23 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertContains('Роман ответил: пока тихо.', $this->stack->channel->texts('edit') + $this->sentTo('42'));
         self::assertNull($this->relays->takeOpen('telegram', '77', new \DateTimeImmutable('-1 day')), 'one answer per question');
     }
+    public function testFilesGoToThePersonAfterTheText(): void {
+        $this->stack(new ScriptedLlm([]));
+        $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        $owner = $this->stack->principals->findByIdentity('telegram', '42');
+        self::assertNotNull($owner);
+        $sandbox->files[$owner->id]['screenshots/qr.png'] = 'QRPNG';
+        $tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram', $sandbox);
+        $conversation = $this->stack->conversations->openConversation(1, 'telegram', '42', '');
+        $policy = new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true);
+        $context = new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy, approved: true);
+
+        $result = $tool->execute(['to' => 'Roman', 'text' => 'Отсканируй QR', 'files' => ['screenshots/qr.png'], 'expect_reply' => false], $context);
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertCount(1, $this->sentTo('77'));
+        self::assertSame([['77', 'qr.png', 'QRPNG']], $this->stack->channel->files);
+        self::assertTrue($tool->execute(['to' => 'Roman', 'text' => 'x', 'files' => ['none.png']], $context)->isError, 'a missing file stops the message before anything goes');
+        self::assertCount(1, $this->sentTo('77'));
+    }
 }

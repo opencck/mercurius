@@ -37,7 +37,15 @@ final class SendMessageTool implements Tool, GrantKeyed {
         private readonly Channel $channel,
         private readonly MessageRelayRepository $relays,
         private readonly string $channelName = 'telegram',
+        /** files to attach come from the sender's sandbox home; null — text only */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
+        /** another agent — a neighbour or one connected here — is written to over A2A; null — people only */
+        private readonly ?\OpenCCK\App\Peer\PeerNetwork $network = null,
     ) {}
+
+    /** Files at most per message, and their size in all. */
+    public const FILES_MAX = 5;
+    public const BYTES_MAX = 20_000_000;
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.send_message.about'), [
@@ -46,6 +54,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
                 'to' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100, 'description' => t('tool.send_message.to')],
                 'text' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::TEXT_MAX],
                 'expect_reply' => ['type' => 'boolean', 'description' => t('tool.send_message.expect_reply')],
+                'files' => ['type' => 'array', 'maxItems' => self::FILES_MAX, 'items' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 1024], 'description' => t('tool.send_message.files')],
             ],
             'required' => ['to', 'text'],
             'additionalProperties' => false,
@@ -53,6 +62,10 @@ final class SendMessageTool implements Tool, GrantKeyed {
     }
 
     public function danger(array $args): DangerClass {
+        if ($this->agent($args) !== null) {
+            // a task for another agent, as peer_delegate gives it
+            return DangerClass::Write;
+        }
         $recipient = $this->recipient($args);
         return $recipient instanceof Principal && $recipient->role === Role::Owner ? DangerClass::Write : DangerClass::Irreversible;
     }
@@ -77,6 +90,21 @@ final class SendMessageTool implements Tool, GrantKeyed {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
+        // spec: BRIEF.md#личные-сообщения-участникам — not only text and not only people: files, and other agents
+        try {
+            $files = $this->files($args, $context);
+        } catch (\RuntimeException $e) {
+            return ToolResult::error($e->getMessage());
+        }
+        $agent = $this->agent($args);
+        if ($agent !== null && $this->network !== null) {
+            try {
+                $task = $this->network->delegate($context->principal, $agent, Args::string($args, 'text') ?? '', $this->channelName, $this->principals->externalId($context->principal->id, $this->channelName) ?? '', 0, [], $files);
+            } catch (\DomainException $e) {
+                return ToolResult::error($e->getMessage());
+            }
+            return ToolResult::ok(sprintf(t('tool.send_message.to_agent'), $agent, $task->id, count($files)));
+        }
         $recipient = $this->recipient($args);
         if (is_string($recipient)) {
             return ToolResult::error($recipient);
@@ -94,12 +122,70 @@ final class SendMessageTool implements Tool, GrantKeyed {
         if (!$sent->success) {
             return ToolResult::error(sprintf(t('tool.send_message.not_sent'), $recipient->displayName ?? '#' . $recipient->id));
         }
+        foreach ($files as $file) {
+            $attached = $this->channel->sendFile($chatId, $file['name'], $file['bytes']);
+            if (!$attached->success) {
+                return ToolResult::error(sprintf(t('tool.send_file.not_sent'), $file['name'], $attached->error ?? ''));
+            }
+        }
         // an answer of someone else comes back by default; the owner's private chat is their own conversation
         $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && $recipient->role !== Role::Owner;
         if ($waits) {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }
         return ToolResult::ok(sprintf(t($waits ? 'tool.send_message.sent_waiting' : 'tool.send_message.sent'), $recipient->displayName ?? '#' . $recipient->id));
+    }
+
+    /**
+     * The files to attach, read whole from the sender's sandbox before anything is sent: a missing one stops the
+     * message.
+     *
+     * @param array<string, mixed> $args
+     * @return list<array{name: string, bytes: string}>
+     * @throws \RuntimeException
+     */
+    private function files(array $args, ToolContext $context): array {
+        /** @var mixed $paths */
+        $paths = $args['files'] ?? [];
+        if (!is_array($paths) || $paths === []) {
+            return [];
+        }
+        $limits = $context->policy?->sandbox;
+        if ($this->sandbox === null || $limits === null) {
+            throw new \RuntimeException(t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
+        }
+        $files = [];
+        $total = 0;
+        foreach (array_slice($paths, 0, self::FILES_MAX) as $path) {
+            if (!is_string($path)) {
+                continue;
+            }
+            try {
+                $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, SendFileTool::MAX_BYTES, $context->cancellation);
+            } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure $e) {
+                throw new \RuntimeException($e->getMessage());
+            }
+            $total += strlen($bytes);
+            if ($total > self::BYTES_MAX) {
+                throw new \RuntimeException(sprintf(t('tool.send_message.too_much'), self::BYTES_MAX));
+            }
+            $name = basename(str_replace('\\', '/', $path));
+            $files[] = ['name' => $name === '' ? 'file' : $name, 'bytes' => $bytes];
+        }
+        return $files;
+    }
+
+    /**
+     * The agent the call names, when it is not a person here: a neighbour or an agent connected to this one.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function agent(array $args): ?string {
+        $to = trim(Args::string($args, 'to') ?? '');
+        if ($this->network === null || $to === '' || !in_array($to, $this->network->names(), true)) {
+            return null;
+        }
+        return is_string($this->recipient($args)) ? $to : null;
     }
 
     /**

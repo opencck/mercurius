@@ -85,19 +85,29 @@ final class A2aClient {
 
     /**
      * @param list<string> $path
+     * @param list<array{name: string, bytes: string}> $files
      * @return array<array-key, mixed> the task
      */
-    public function send(Peer $peer, #[SensitiveParameter] string $token, string $messageId, string $text, int $depth, array $path, ?Cancellation $cancellation = null): array {
-        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path), $cancellation));
+    public function send(Peer $peer, #[SensitiveParameter] string $token, string $messageId, string $text, int $depth, array $path, ?Cancellation $cancellation = null, array $files = []): array {
+        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path, $files), $cancellation));
     }
 
     /**
+     * The parameters of SendMessage: the text and the files as parts of A2A v1 (raw bytes in base64, a file name).
+     *
+     * spec: BRIEF.md#личные-сообщения-участникам — not only text: files to other agents
+     *
      * @param list<string> $path
-     * @return array<string, mixed> the parameters of SendMessage
+     * @param list<array{name: string, bytes: string}> $files
+     * @return array<string, mixed>
      */
-    public static function message(string $messageId, string $text, int $depth, array $path): array {
+    public static function message(string $messageId, string $text, int $depth, array $path, array $files = []): array {
+        $parts = $text === '' ? [] : [['text' => $text, 'mediaType' => 'text/plain']];
+        foreach ($files as $file) {
+            $parts[] = ['raw' => base64_encode($file['bytes']), 'filename' => $file['name'], 'mediaType' => 'application/octet-stream'];
+        }
         return [
-            'message' => ['role' => 'ROLE_USER', 'messageId' => $messageId, 'parts' => [['text' => $text, 'mediaType' => 'text/plain']]],
+            'message' => ['role' => 'ROLE_USER', 'messageId' => $messageId, 'parts' => $parts],
             'metadata' => ['mercurius' => ['depth' => $depth, 'path' => $path]],
         ];
     }

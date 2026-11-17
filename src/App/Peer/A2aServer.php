@@ -103,6 +103,8 @@ final class A2aServer implements JobRuns {
         public readonly string $transport = 'http',
         /** the live connections: an incoming one is listed here once the agent proved its key */
         private readonly ?A2aLinks $links = null,
+        /** files a neighbour sends go into the sandbox home of its agent; null — they are not kept */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -353,7 +355,11 @@ final class A2aServer implements JobRuns {
         $message = isset($params['message']) && is_array($params['message']) ? $params['message'] : [];
         $messageId = isset($message['messageId']) && is_string($message['messageId']) ? trim($message['messageId']) : '';
         $text = self::text($message);
-        if ($messageId === '' || strlen($messageId) > 200 || $text === '' || mb_strlen($text) > self::TEXT_MAX) {
+        $files = self::files($message);
+        if ($text === '' && $files !== []) {
+            $text = t('peer.a2a_server.files_only');
+        }
+        if ($messageId === '' || strlen($messageId) > 200 || $text === '' || mb_strlen($text) > self::TEXT_MAX || count($files) > 5) {
             return self::error($id, self::ERR_INVALID_PARAMS, 'message needs messageId and text parts up to ' . self::TEXT_MAX . ' characters');
         }
         $existing = $this->peers->taskByMessage($agent->id, $messageId);
@@ -379,7 +385,7 @@ final class A2aServer implements JobRuns {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, $refusal);
             $this->logger->notice('A2A task refused', ['agent' => $agent->id, 'reason' => $refusal]);
         } else {
-            $this->start($agent, $taskId, $contextId, $text);
+            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files));
         }
         $task = $this->peers->task($taskId);
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : self::result($id, $this->view($task), $v1);
@@ -502,6 +508,62 @@ final class A2aServer implements JobRuns {
         $recent[] = $now;
         $this->hits[$agentId] = $recent;
         return true;
+    }
+
+    /**
+     * Keeps the files of a task in the sandbox home of the agent that sent them (inbox/<task>/) and says where; without
+     * a sandbox it says what came and that it was not kept.
+     *
+     * spec: BRIEF.md#личные-сообщения-участникам — not only text: files from other agents
+     *
+     * @param list<array{name: string, bytes: string}> $files
+     */
+    private function keep(Principal $agent, string $taskId, array $files): string {
+        if ($files === []) {
+            return '';
+        }
+        $limits = $this->policies->forPrincipal($agent)->sandbox;
+        $lines = [];
+        foreach ($files as $file) {
+            $path = 'inbox/' . $taskId . '/' . $file['name'];
+            $kept = false;
+            if ($this->sandbox !== null && $limits !== null) {
+                try {
+                    $this->sandbox->put($agent->id, $limits, $path, $file['bytes'], new \Amp\NullCancellation());
+                    $kept = true;
+                } catch (Throwable $e) {
+                    $this->logger->notice('A2A file was not kept', ['task' => $taskId, 'error' => $e::class]);
+                }
+            }
+            $lines[] = sprintf(t($kept ? 'peer.a2a_server.file_kept' : 'peer.a2a_server.file_not_kept'), $kept ? $path : $file['name'], strlen($file['bytes']));
+        }
+        return "\n\n" . t('peer.a2a_server.files') . "\n" . implode("\n", $lines);
+    }
+
+    /**
+     * The files of a message: parts with raw bytes (base64) and a name, each up to 5 MB.
+     *
+     * @param array<array-key, mixed> $message
+     * @return list<array{name: string, bytes: string}>
+     */
+    public static function files(array $message): array {
+        $files = [];
+        /** @var mixed $part */
+        foreach (isset($message['parts']) && is_array($message['parts']) ? $message['parts'] : [] as $part) {
+            if (!is_array($part) || !isset($part['raw']) || !is_string($part['raw'])) {
+                continue;
+            }
+            $bytes = base64_decode($part['raw'], true);
+            if ($bytes === false || strlen($bytes) > 5_000_000) {
+                continue;
+            }
+            /** @var mixed $name */
+            $name = $part['filename'] ?? 'file';
+            $clean = preg_replace('~[\x00-\x1F\x7F/\\\\]+~u', '_', is_string($name) ? $name : 'file') ?? 'file';
+            $clean = trim(mb_substr($clean, 0, 100), ". \t");
+            $files[] = ['name' => $clean === '' ? 'file' : $clean, 'bytes' => $bytes];
+        }
+        return $files;
     }
 
     /** @param array<array-key, mixed> $message */

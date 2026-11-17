@@ -26,6 +26,11 @@ final class FakeSandbox implements Sandbox {
         return $this->outcome ?? new CommandOutcome(0, 'ok', '', false, false, 1);
     }
 
+    public function put(int $principalId, SandboxLimits $limits, string $path, string $bytes, Cancellation $cancellation): void {
+        $this->record(sprintf('put %d %s %d', $principalId, $path, strlen($bytes)));
+        $this->files[$principalId][$path] = $bytes;
+    }
+
     public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes, Cancellation $cancellation): string {
         $this->record(sprintf('fetch %d %s', $principalId, $path));
         $content = $this->files[$principalId][$path] ?? throw new SandboxFailure('Не удалось прочитать ' . $path . ': нет файла');

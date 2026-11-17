@@ -133,7 +133,13 @@ final class ExecutorServer implements RequestHandler {
 
     /** @return array<string, mixed> */
     private function write(Request $request): array {
-        $this->files->write($request->principalId, $request->limits, $request->string('path'), $request->string('content'));
+        // a binary file (a screenshot, a file from another agent) comes in base64: JSON carries text only
+        $encoded = $request->string('content_base64', '');
+        $content = $encoded === '' ? $request->string('content') : base64_decode($encoded, true);
+        if ($content === false) {
+            throw new SandboxError(sprintf(t('sandbox.request.ne_ukazano_pole'), 'content_base64'));
+        }
+        $this->files->write($request->principalId, $request->limits, $request->string('path'), $content);
         return [];
     }
 

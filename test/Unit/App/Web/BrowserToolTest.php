@@ -79,7 +79,26 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringContainsString('внутренний адрес', $refused->content);
 
         $shot = $tool->execute(['action' => 'screenshot'], self::context());
-        self::assertSame('Снимок страницы https://example.com/ отправлен владельцу.', $shot->content);
-        self::assertSame(['42', 'screenshot.png', 'PNGDATA'], $this->channel->files[0]);
+        self::assertSame('Снимок страницы https://example.com/ отправлен в чат.', $shot->content);
+        self::assertSame(['42', 'screenshot.png', 'PNGDATA'], $this->channel->files[0], 'without a conversation — to the owner');
+    }
+
+    public function testAScreenshotGoesToTheTopicItWasAskedInAndIsKeptForSending(): void {
+        $http = new FakeHttpClient(['http://browser:3000/screenshot' => [200, [], json_encode(['url' => 'https://web.telegram.org/', 'png' => base64_encode('QRPNG')], JSON_THROW_ON_ERROR)]]);
+        $conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
+        $topic = $conversations->openConversation(1, 'telegram', '-100500', '119');
+        $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        $this->channel = new FakeChannel();
+        $tool = new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', null, $conversations, $sandbox);
+        $context = new ToolContext(1, $topic, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true));
+
+        $shot = $tool->execute(['action' => 'screenshot'], $context);
+
+        self::assertSame(['-100500', 'screenshot.png', 'QRPNG'], $this->channel->files[0]);
+        self::assertSame('119', $this->channel->fileThreads[0] ?? null);
+        $kept = array_keys($sandbox->files[1] ?? []);
+        self::assertCount(1, $kept);
+        self::assertStringStartsWith('screenshots/shot-', $kept[0]);
+        self::assertStringContainsString($kept[0], $shot->content, 'the agent learns where to send it on from');
     }
 }

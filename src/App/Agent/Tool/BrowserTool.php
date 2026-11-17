@@ -31,6 +31,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
         private readonly string $ownerChatId,
         /** tells internal addresses apart; null — the browser service alone refuses them */
         private readonly ?AddressGuard $guard = null,
+        /** the chat a screenshot goes to is the one it was asked in; null — the owner's chat */
+        private readonly ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null,
+        /** a screenshot is kept in the participant's sandbox too, to be sent on; null — not kept */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -122,13 +126,40 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
             if ($png === false || $png === '') {
                 return ToolResult::error(t('tool.browser.snimok_ne_poluchen'));
             }
-            $sent = $this->channel->sendFile($this->ownerChatId, 'screenshot.png', $png, mb_substr(t('tool.browser.snimok') . $url, 0, 900));
-            return $sent->success ? ToolResult::ok(t('tool.browser.snimok_stranitsy') . $url . t('tool.browser.otpravlen_vladeltsu')) : ToolResult::error(t('tool.browser.snimok_ne_otpravlen'));
+            return $this->screenshot($png, $url, $context);
         }
         if ($action === 'close') {
             return ToolResult::ok(t('tool.browser.profil_zakryt'));
         }
         return ToolResult::ok(self::page($data));
+    }
+
+    /**
+     * The screenshot goes to the chat (and topic) it was asked in and is kept in the participant's sandbox, so the
+     * agent can send it on to anyone (send_message with files).
+     *
+     * spec: BRIEF.md#личные-сообщения-участникам — not only text: files to people and agents
+     */
+    private function screenshot(string $png, string $url, ToolContext $context): ToolResult {
+        $meta = $this->conversations?->meta($context->conversationId);
+        $chat = $meta === null ? $this->ownerChatId : $meta->chatId;
+        $thread = $meta === null || $meta->threadId === '' ? null : $meta->threadId;
+        $kept = null;
+        $limits = $context->policy?->sandbox;
+        if ($this->sandbox !== null && $limits !== null) {
+            $path = 'screenshots/shot-' . date('Ymd-His') . '-' . substr(bin2hex(random_bytes(2)), 0, 4) . '.png';
+            try {
+                $this->sandbox->put($context->principal->id, $limits, $path, $png, $context->cancellation);
+                $kept = $path;
+            } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+                // the chat still gets it
+            }
+        }
+        $sent = $this->channel->sendFile($chat, 'screenshot.png', $png, mb_substr(t('tool.browser.snimok') . $url, 0, 900), $thread);
+        if (!$sent->success) {
+            return ToolResult::error(t('tool.browser.snimok_ne_otpravlen') . ($kept === null ? '' : sprintf(t('tool.browser.kept'), $kept)));
+        }
+        return ToolResult::ok(sprintf(t('tool.browser.shot_sent'), $url) . ($kept === null ? '' : sprintf(t('tool.browser.kept'), $kept)));
     }
 
     /** @param array<array-key, mixed> $data */

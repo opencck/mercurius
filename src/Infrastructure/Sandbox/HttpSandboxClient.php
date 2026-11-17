@@ -88,6 +88,10 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
         return $entries;
     }
 
+    public function put(int $principalId, SandboxLimits $limits, string $path, string $bytes, Cancellation $cancellation): void {
+        $this->call('write', $principalId, $limits, ['path' => $path, 'content_base64' => base64_encode($bytes)], self::FILE_TIMEOUT, $cancellation);
+    }
+
     public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes, Cancellation $cancellation): string {
         $body = $this->call('fetch', $principalId, $limits, ['path' => $path, 'max_bytes' => $maxBytes], self::FILE_TIMEOUT, $cancellation);
         $bytes = base64_decode(self::string($body, 'content'), true);

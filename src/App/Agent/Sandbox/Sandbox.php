@@ -29,6 +29,13 @@ interface Sandbox {
     /** @throws SandboxFailure */
     public function write(int $principalId, SandboxLimits $limits, string $path, string $content, Cancellation $cancellation): void;
 
+    /**
+     * Writes bytes as they are (a binary file).
+     *
+     * @throws SandboxFailure
+     */
+    public function put(int $principalId, SandboxLimits $limits, string $path, string $bytes, Cancellation $cancellation): void;
+
     /** @throws SandboxFailure */
     public function replace(int $principalId, SandboxLimits $limits, string $path, string $old, string $new, Cancellation $cancellation): void;
 

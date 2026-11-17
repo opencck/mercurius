@@ -32,6 +32,7 @@ final class A2aSocketTest extends AsyncTestCase {
     private A2aServer $server;
     private AgentIdentity $leaderKey;
     private AgentIdentity $followerKey;
+    private \OpenCCK\Test\Support\FakeSandbox $sandbox;
 
     protected function setUp(): void {
         parent::setUp();
@@ -40,7 +41,10 @@ final class A2aSocketTest extends AsyncTestCase {
         $follower = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Париж.')]));
         $follower->principals->ensureOwner('telegram', '42', 'Owner');
         $peers = new InMemoryPeerRepository();
-        $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $follower->policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance');
+        $this->sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        // agents of this follower get a sandbox: files from a neighbour are kept there
+        $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new \OpenCCK\Domain\Agent\RunLimits(30, 100_000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4));
+        $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox);
         $follower->scheduler->useJobRuns($this->server);
         $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \OpenCCK\App\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
         $network->allow('leader', $this->leaderKey->fingerprint(), Role::User);
@@ -72,6 +76,21 @@ final class A2aSocketTest extends AsyncTestCase {
         $socket->close();
     }
 
+    public function testFilesOfANeighbourAreKeptInItsAgentsSandbox(): void {
+        [$end] = $this->connection();
+        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey);
+
+        $sent = $socket->request('SendMessage', \OpenCCK\App\Peer\A2aClient::message('m-files', 'Посмотри QR', 0, [], [['name' => 'qr.png', 'bytes' => 'QRPNG'], ['name' => '../../etc/passwd', 'bytes' => 'x']]));
+
+        $task = self::field($sent, 'task', 'id');
+        self::assertNotSame('', $task);
+        $kept = [];
+        foreach ($this->sandbox->files as $files) {
+            $kept = [...$kept, ...array_keys($files)];
+        }
+        self::assertSame(['inbox/' . $task . '/qr.png', 'inbox/' . $task . '/_.._etc_passwd'], $kept, 'a name is a name, not a path');
+        $socket->close();
+    }
     public function testAnUnknownKeyIsDeniedWithItsFingerprint(): void {
         [$end, $follower] = $this->connection();
         $stranger = AgentIdentity::generate();

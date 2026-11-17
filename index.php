@@ -308,16 +308,6 @@ $tools = new ToolRegistry();
 // spec: BRIEF.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
 $guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient));
-// spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
-$browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
-if ($browserToken !== null) {
-    $tools->register(new BrowserTool(
-        new BrowserClient(HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000', $browserToken),
-        $channel,
-        $telegram->ownerId,
-        $addressGuard,
-    ));
-}
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
@@ -341,6 +331,19 @@ if ($sandbox !== null) {
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
     $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations));
+}
+// spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
+$browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
+if ($browserToken !== null) {
+    $tools->register(new BrowserTool(
+        new BrowserClient(HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000', $browserToken),
+        $channel,
+        $telegram->ownerId,
+        $addressGuard,
+        // a screenshot goes to the chat it was asked in and is kept in the sandbox, to be sent on
+        $conversations,
+        $sandbox,
+    ));
 }
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.
@@ -624,6 +627,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     $a2aToken,
     transport: $a2aTransport,
     links: $a2aLinks,
+    sandbox: $sandbox,
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
@@ -670,7 +674,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
 );
 // spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
-$tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME));
+$tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
     $conversations,
