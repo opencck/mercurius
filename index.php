@@ -205,6 +205,7 @@ $validateSettings = static function (array $env): ?string {
         TraceSettings::fromEnv($env);
         MemorySettings::fromEnv($env);
         VaultSettings::fromEnv($env);
+        \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($env);
         \OpenCCK\Infrastructure\Config\SearchSettings::build($env, HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($env, 'OPENROUTER_API_KEY'));
         try {
             new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($env, 'OWNER_TIMEZONE') ?? '+03:00');

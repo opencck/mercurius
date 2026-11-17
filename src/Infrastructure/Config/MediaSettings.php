@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Infrastructure\Config;
+
+/**
+ * Models and rules for what comes with messages: vision, video and speech models per kind (unset by default — the
+ * owner's decision: until one is named, the agent does not look), endpoints of the owner's own models (OpenAI-
+ * compatible), which kinds are processed at once, and the thresholds.
+ *
+ * spec: BRIEF.md#входящие-вложения — models are not set by default; a reference like a text model's, plus custom:
+ */
+final class MediaSettings {
+    public const KINDS = ['vision', 'video', 'speech'];
+    /** What is processed at once by default; the rest on request. */
+    public const AUTO = ['voice', 'audio', 'image', 'text', 'office'];
+    public const AUTO_KINDS = ['voice', 'audio', 'image', 'video', 'text', 'office'];
+    /** openrouter:author/slug, a bare author/slug (OpenRouter), openai:model; a colon before the slash only in a prefix */
+    private const REF = '~^(?:(?:openrouter|openai):)?[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9._:-]+)?$~';
+    private const NAME = '~^[a-z0-9][a-z0-9_-]{0,31}$~';
+
+    /**
+     * @param array<string, list<string>> $models kind => references, cheapest first is chosen among them
+     * @param array<string, string> $endpoints name => base URL of an OpenAI-compatible API
+     * @param list<string> $auto kinds processed at once
+     */
+    private function __construct(
+        private readonly array $models,
+        public readonly array $endpoints,
+        public readonly array $auto,
+        public readonly int $audioAutoMinutes,
+        public readonly int $textLimit,
+        public readonly int $inboxDays,
+    ) {}
+
+    /**
+     * @param array<array-key, mixed> $env
+     * @throws ConfigException
+     */
+    public static function fromEnv(array $env): self {
+        $endpoints = [];
+        foreach (self::list(Env::raw($env, 'MEDIA_ENDPOINTS')) as $pair) {
+            [$name, $url] = array_map('trim', explode('=', $pair, 2)) + [1 => ''];
+            if (preg_match(self::NAME, $name) !== 1 || preg_match('~^https?://[^\s/]+(/\S*)?$~', $url) !== 1) {
+                throw ConfigException::invalid('MEDIA_ENDPOINTS', 'name=http(s)://address, separated by commas');
+            }
+            $endpoints[$name] = rtrim($url, '/');
+        }
+        $models = [];
+        foreach (self::KINDS as $kind) {
+            $key = 'MEDIA_' . strtoupper($kind) . '_MODELS';
+            $models[$kind] = [];
+            foreach (self::list(Env::raw($env, $key)) as $ref) {
+                $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
+                $valid = $custom === null
+                    ? preg_match(self::REF, $ref) === 1 && !str_ends_with($ref, ':')
+                    : preg_match('~^([a-z0-9][a-z0-9_-]{0,31})/(\S+)$~', $custom, $match) === 1 && isset($endpoints[$match[1]]);
+                if (!$valid) {
+                    throw ConfigException::invalid($key, 'models: openrouter:author/slug, openai:model or custom:<endpoint from MEDIA_ENDPOINTS>/model');
+                }
+                $models[$kind][] = $ref;
+            }
+        }
+        $auto = Env::raw($env, 'MEDIA_AUTO');
+        $auto = $auto === null ? self::AUTO : (strtolower(trim($auto)) === 'none' ? [] : self::list(strtolower($auto)));
+        if (array_diff($auto, self::AUTO_KINDS) !== []) {
+            throw ConfigException::invalid('MEDIA_AUTO', 'none or a list of ' . implode(', ', self::AUTO_KINDS));
+        }
+        $text = Env::positiveInt($env, 'MEDIA_TEXT_LIMIT', 20_000, 200_000);
+        if ($text < 1000) {
+            throw ConfigException::invalid('MEDIA_TEXT_LIMIT', 'at least 1000 characters');
+        }
+        return new self(
+            $models,
+            $endpoints,
+            array_values(array_unique($auto)),
+            Env::positiveInt($env, 'MEDIA_AUDIO_AUTO_MINUTES', 10, 240),
+            $text,
+            Env::positiveInt($env, 'MEDIA_INBOX_DAYS', 30, 3650),
+        );
+    }
+
+    /**
+     * @param 'vision'|'video'|'speech'|string $kind
+     * @return list<string>
+     */
+    public function models(string $kind): array {
+        return $this->models[$kind] ?? [];
+    }
+
+    /** @return list<string> */
+    private static function list(?string $raw): array {
+        return array_values(array_filter(array_map('trim', explode(',', $raw ?? '')), static fn(string $item): bool => $item !== ''));
+    }
+}
