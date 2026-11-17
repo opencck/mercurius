@@ -22,9 +22,12 @@ final class SkillViewTool implements Tool {
     public function __construct(private readonly SkillCatalog $catalog) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, t('tool.skill_view.zagruzhaet_tekst_skilla_iz_kataloga'), [
+        return new ToolDefinition(self::NAME, t('tool.skill_view.zagruzhaet_tekst_skilla_iz_kataloga') . t('tool.skill_view.file_path_about'), [
             'type' => 'object',
-            'properties' => ['name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64]],
+            'properties' => [
+                'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
+                'file_path' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 300],
+            ],
             'required' => ['name'],
             'additionalProperties' => false,
         ]);
@@ -45,6 +48,21 @@ final class SkillViewTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $name = Args::string($args, 'name') ?? '';
         $body = $this->catalog->body($name);
-        return $body === null ? ToolResult::error(sprintf(t('tool.skill_view.aktivnogo_skilla_net'), $name)) : ToolResult::ok($body);
+        if ($body === null) {
+            return ToolResult::error(sprintf(t('tool.skill_view.aktivnogo_skilla_net'), $name));
+        }
+        // ref: references/hermes-agent/tools/skills_tool.py@e96221fa:L634 (skill_view) — name plus file_path reads a file of the skill;
+        //      here files live with the version in the base, not in a directory
+        $files = $this->catalog->files($name);
+        $path = Args::string($args, 'file_path');
+        if ($path !== null) {
+            $path = ltrim(trim($path), './');
+            return isset($files[$path]) ? ToolResult::ok($files[$path]) : ToolResult::error(sprintf(t('tool.skill_view.no_file'), $name, $path));
+        }
+        return ToolResult::ok($files === [] ? $body : $body . sprintf(t('tool.skill_view.files_list'), implode("\n", array_map(
+            static fn(string $p, string $text): string => sprintf('- %s (%d)', $p, mb_strlen($text)),
+            array_keys($files),
+            $files,
+        ))));
     }
 }

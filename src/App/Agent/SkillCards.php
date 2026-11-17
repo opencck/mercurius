@@ -21,6 +21,7 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — a draft skill is not used before the owner approves it
  */
 final class SkillCards implements CallbackHandler {
+    private const CARD_MAX = 4000;
     public const PREFIX = 'sk';
     private const PREVIEW = 2500;
 
@@ -30,7 +31,8 @@ final class SkillCards implements CallbackHandler {
         private readonly string $ownerChatId,
     ) {}
 
-    public function show(SkillVersion $version): bool {
+    /** @param string $extra what else the owner should see: the source, the files, the findings of the check */
+    public function show(SkillVersion $version, string $extra = ''): bool {
         $body = mb_strlen($version->body) > self::PREVIEW ? mb_substr($version->body, 0, self::PREVIEW) . sprintf(t('agent.skill_cards.full_after'), $version->name) : $version->body;
         $text = sprintf(
             t('agent.skill_cards.skill_versiya_opisanie_prichina_slova'),
@@ -41,6 +43,10 @@ final class SkillCards implements CallbackHandler {
             $body,
             $version->reason,
         );
+        if ($extra !== '') {
+            // a card is one Telegram message
+            $text = mb_substr($text . "\n\n" . $extra, 0, self::CARD_MAX);
+        }
         return $this->channel->send(new OutgoingMessage($this->ownerChatId, $text, buttons: [[
             new Button(t('agent.skill_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $version->id)),
             new Button(t('agent.skill_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $version->id)),

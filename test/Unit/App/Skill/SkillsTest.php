@@ -77,6 +77,28 @@ final class SkillsTest extends AsyncTestCase {
         self::assertStringNotContainsString('nginx', $stack->llm->requests[2]->messages[0]->content, 'the prompt stays as it was');
     }
 
+    public function testFilesOfAnAcceptedVersionAreReadWithSkillView(): void {
+        $first = $this->catalog->propose('pdf', 'Работа с PDF', 'Смотри references/forms.md', 'импорт', null, 'external');
+        $this->repo->attachFiles($first->id, ['references/forms.md' => "# Формы\nЗаполняй поля.", 'scripts/fill.py' => 'print(1)']);
+        $view = new \OpenCCK\App\Agent\Tool\SkillViewTool($this->catalog);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, null), new \Amp\NullCancellation());
+
+        self::assertTrue($view->execute(['name' => 'pdf', 'file_path' => 'scripts/fill.py'], $context)->isError, 'a draft shows nothing');
+        $this->repo->accept($first->id);
+
+        $body = $view->execute(['name' => 'pdf'], $context)->content;
+        self::assertStringContainsString('Смотри references/forms.md', $body);
+        self::assertStringContainsString('scripts/fill.py', $body, 'the body lists the files');
+        self::assertSame('print(1)', $view->execute(['name' => 'pdf', 'file_path' => 'scripts/fill.py'], $context)->content);
+        self::assertTrue($view->execute(['name' => 'pdf', 'file_path' => '../../etc/passwd'], $context)->isError);
+
+        $second = $this->catalog->propose('pdf', 'Работа с PDF', 'Без файлов', 'обновление', null, 'external');
+        $this->repo->accept($second->id);
+        self::assertTrue($view->execute(['name' => 'pdf', 'file_path' => 'scripts/fill.py'], $context)->isError, 'files belong to their version');
+        $this->repo->rollback('pdf', 1);
+        self::assertSame('print(1)', $view->execute(['name' => 'pdf', 'file_path' => 'scripts/fill.py'], $context)->content, 'a rollback brings its files back');
+    }
+
     public function testTextsAreChecked(): void {
         foreach ([
             ['Bad Name', 'описание', 'тело'],

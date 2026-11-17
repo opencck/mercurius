@@ -36,4 +36,17 @@ interface SkillRepository {
 
     /** Makes an accepted version current again. */
     public function rollback(string $name, int $version): ?Skill;
+
+    /**
+     * Files of a version (references/, scripts/…), stored with it: a rollback brings its files back.
+     *
+     * @param array<string, string> $files relative path => text
+     */
+    public function attachFiles(int $versionId, array $files): void;
+
+    /** @return array<string, string> relative path => text, by path */
+    public function versionFiles(int $versionId): array;
+
+    /** @return array<string, string> files of the active version of an active skill */
+    public function files(string $name): array;
 }

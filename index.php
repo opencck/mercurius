@@ -476,6 +476,15 @@ $skillCards = new SkillCards($skillRepository, $channel, $telegram->ownerId);
 $scheduler->useSkills($skillCatalog);
 $tools->register(new SkillViewTool($skillCatalog));
 $tools->register(new SkillProposeTool($skillCatalog, $skillCards));
+// spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
+$skillHttp = HttpClients::guarded($addressGuard);
+$skillImporter = new \OpenCCK\App\Skill\SkillImporter(
+    [new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)],
+    $skillCatalog,
+    $skillRepository,
+    $skillCards,
+);
+$tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter));
 
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
@@ -604,7 +613,7 @@ $chat = new ChatService(
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
-    new SkillCommands($skillRepository),
+    new SkillCommands($skillRepository, $skillImporter),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation

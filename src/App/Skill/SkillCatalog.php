@@ -84,6 +84,11 @@ final class SkillCatalog {
         return $skill === null || $skill->status !== Skill::ACTIVE ? null : $skill->body;
     }
 
+    /** @return array<string, string> files of an active skill: relative path => text */
+    public function files(string $name): array {
+        return $this->skills->files($name);
+    }
+
     /** @throws InvalidArgumentException when the text cannot be a skill */
     public function propose(string $name, string $description, string $body, string $reason, ?int $principalId, string $origin): SkillVersion {
         $description = trim($description);

@@ -41,6 +41,31 @@ final class InMemorySkillRepository implements SkillRepository {
         return $this->versions[$id] ?? null;
     }
 
+    /** @var array<int, array<string, string>> version id => files */
+    private array $files = [];
+
+    public function attachFiles(int $versionId, array $files): void {
+        $this->files[$versionId] = $files + ($this->files[$versionId] ?? []);
+        ksort($this->files[$versionId]);
+    }
+
+    public function versionFiles(int $versionId): array {
+        return $this->files[$versionId] ?? [];
+    }
+
+    public function files(string $name): array {
+        $skill = $this->skills[$name] ?? null;
+        if ($skill === null || $skill->status !== Skill::ACTIVE) {
+            return [];
+        }
+        foreach ($this->versions as $v) {
+            if ($v->skillId === $skill->id && $v->version === $skill->version) {
+                return $this->files[$v->id] ?? [];
+            }
+        }
+        return [];
+    }
+
     public function accept(int $versionId): ?Skill {
         $v = $this->versions[$versionId] ?? null;
         if ($v === null || $v->status !== SkillVersion::PROPOSED) {

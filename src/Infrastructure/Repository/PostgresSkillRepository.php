@@ -56,6 +56,47 @@ final class PostgresSkillRepository implements SkillRepository {
         return $row === null ? null : self::skillVersion($row);
     }
 
+    public function attachFiles(int $versionId, array $files): void {
+        foreach ($files as $path => $content) {
+            $this->db->execute(
+                'INSERT INTO skill_files (version_id, path, content) VALUES (?, ?, ?) ON CONFLICT (version_id, path) DO UPDATE SET content = excluded.content',
+                [$versionId, $path, $content],
+            );
+        }
+    }
+
+    public function versionFiles(int $versionId): array {
+        return $this->fileRows($this->db->execute('SELECT path, content FROM skill_files WHERE version_id = ? ORDER BY path', [$versionId]));
+    }
+
+    public function files(string $name): array {
+        return $this->fileRows($this->db->execute(
+            "SELECT f.path, f.content FROM skill_files f
+             JOIN skill_versions v ON v.id = f.version_id
+             JOIN skills s ON s.id = v.skill_id AND s.version = v.version
+             WHERE s.name = ? AND s.status = 'active' ORDER BY f.path",
+            [$name],
+        ));
+    }
+
+    /**
+     * @param iterable<array<string, mixed>> $rows
+     * @return array<string, string>
+     */
+    private function fileRows(iterable $rows): array {
+        $files = [];
+        foreach ($rows as $row) {
+            /** @var mixed $path */
+            $path = $row['path'] ?? null;
+            /** @var mixed $content */
+            $content = $row['content'] ?? null;
+            if (is_string($path) && is_string($content)) {
+                $files[$path] = $content;
+            }
+        }
+        return $files;
+    }
+
     public function accept(int $versionId): ?Skill {
         $row = $this->db->execute(
             "WITH chosen AS (

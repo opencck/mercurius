@@ -17,7 +17,10 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — list, enable, disable from the channel, the owner only
  */
 final class SkillCommands {
-    public function __construct(private readonly SkillRepository $skills) {}
+    public function __construct(
+        private readonly SkillRepository $skills,
+        private readonly ?\OpenCCK\App\Skill\SkillImporter $importer = null,
+    ) {}
 
     public function list(): string {
         $all = $this->skills->all();
@@ -41,6 +44,15 @@ final class SkillCommands {
         $parts = preg_split('~\s+~', trim($argument)) ?: [];
         $name = $parts[0] ?? '';
         $action = $parts[1] ?? 'show';
+        if ($name === 'import' && $this->importer !== null) {
+            // spec: BRIEF.md#скиллы-и-mcp — /skill import <url> [reason]: an ordinary SKILL.md of another agent
+            try {
+                $version = $this->importer->import($parts[1] ?? '', implode(' ', array_slice($parts, 2)), null, new \Amp\TimeoutCancellation(60));
+                return sprintf(t('skill.import.proposed'), $version->name, $version->version);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+        }
         $skill = $this->skills->find($name);
         if ($skill === null) {
             return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
