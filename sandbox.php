@@ -13,6 +13,7 @@ use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use OpenCCK\Sandbox\CommandRunner;
 use OpenCCK\Sandbox\ExecutorServer;
 use OpenCCK\Sandbox\Files;
+use OpenCCK\Sandbox\Streams;
 use OpenCCK\Sandbox\Users;
 use OpenCCK\Sandbox\Workspace;
 
@@ -36,12 +37,21 @@ $users = new Users($workspace);
 $files = new Files($workspace, $users);
 $runner = new CommandRunner($workspace, $users, $files);
 $files->attach($runner);
+$streams = new Streams($runner, $users, $workspace);
+// spec: BRIEF.md#песочница — a long-lived process nobody touched for half an hour is killed
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($streams, $logger): void {
+    $reaped = $streams->reap();
+    if ($reaped > 0) {
+        $logger->info('Idle streams killed', ['count' => $reaped]);
+    }
+}));
 
 // A few connections per address: participants cannot crowd out the core.
 $server = SocketHttpServer::createForDirectAccess($logger, connectionLimit: 256, connectionLimitPerIp: 16);
 $server->expose(new InternetAddress('0.0.0.0', 9000));
-$server->start(new ExecutorServer($token, $workspace, $runner, $files, $logger), new DefaultErrorHandler());
+$server->start(new ExecutorServer($token, $workspace, $runner, $files, $logger, $streams), new DefaultErrorHandler());
 $logger->info('Sandbox executor listening', ['port' => 9000]);
 
 trapSignal([2, 15]); // SIGINT, SIGTERM
+$streams->stopAll();
 $server->stop();

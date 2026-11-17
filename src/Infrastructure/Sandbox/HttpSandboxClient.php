@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#песочница — executor behind a token
  */
-final class HttpSandboxClient implements Sandbox {
+final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams {
     private const FILE_TIMEOUT = 60;
     private const EXTRA_SECONDS = 10;
 
@@ -88,6 +88,39 @@ final class HttpSandboxClient implements Sandbox {
         return $entries;
     }
 
+    public function spawn(int $principalId, SandboxLimits $limits, string $command, #[SensitiveParameter] array $env, Cancellation $cancellation): string {
+        $body = $this->call('spawn', $principalId, $limits, ['command' => $command, 'env' => (object) $env], self::FILE_TIMEOUT, $cancellation);
+        $session = self::string($body, 'session');
+        if ($session === '') {
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_vernula_neponyatnyy_otvet'));
+        }
+        return $session;
+    }
+
+    public function send(int $principalId, SandboxLimits $limits, string $session, string $data, Cancellation $cancellation): void {
+        $this->call('send', $principalId, $limits, ['session' => $session, 'data' => $data], self::FILE_TIMEOUT, $cancellation);
+    }
+
+    public function receive(int $principalId, SandboxLimits $limits, string $session, int $wait, Cancellation $cancellation): array {
+        $wait = max(0, min(25, $wait));
+        $body = $this->call('receive', $principalId, $limits, ['session' => $session, 'wait' => $wait], $wait + self::EXTRA_SECONDS, $cancellation);
+        /** @var mixed $exit */
+        $exit = $body['exit_code'] ?? null;
+        return [
+            'stdout' => self::string($body, 'stdout'),
+            'exited' => ($body['exited'] ?? false) === true,
+            'exitCode' => is_int($exit) ? $exit : null,
+            'stderr' => self::string($body, 'stderr'),
+        ];
+    }
+
+    public function close(int $principalId, SandboxLimits $limits, string $session): void {
+        try {
+            $this->call('close', $principalId, $limits, ['session' => $session], self::EXTRA_SECONDS, new NullCancellation());
+        } catch (SandboxFailure) {
+            // already gone
+        }
+    }
     /**
      * @param array<string, mixed> $fields
      * @return array<string, mixed>

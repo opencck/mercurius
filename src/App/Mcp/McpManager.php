@@ -50,6 +50,8 @@ final class McpManager {
         private readonly McpBreaker $breaker = new McpBreaker(),
         /** @var (Closure(): float)|null seconds now; null — the system clock */
         private readonly ?Closure $clock = null,
+        /** stdio servers (`stdio:<command>`) run in the sandbox: off when there is no sandbox */
+        private readonly bool $stdio = false,
     ) {}
 
     /** Pause before the first retry of a server that did not answer, doubled each time up to RETRY_MAX. */
@@ -106,7 +108,16 @@ final class McpManager {
         if (preg_match(McpServer::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.imya_mcp_servera_strochnye_latinskie'));
         }
-        if (preg_match('~^https?://\S+$~', $url) !== 1) {
+        if (str_starts_with($url, 'stdio:')) {
+            // spec: BRIEF.md#скиллы-и-mcp — a stdio server is a command run in the sandbox
+            if (!$this->stdio) {
+                throw new DomainException(t('mcp.mcp_manager.stdio_off'));
+            }
+            $command = trim(substr($url, 6));
+            if ($command === '' || mb_strlen($command) > 1000 || preg_match('~[\x00-\x1F]~', $command) === 1) {
+                throw new DomainException(t('mcp.mcp_manager.stdio_command'));
+            }
+        } elseif (preg_match('~^https?://\S+$~', $url) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.adres_mcp_servera_http_s'));
         }
         return $this->servers->add($name, $url, $secret);
@@ -126,6 +137,7 @@ final class McpManager {
     public function disable(string $name, string $note = ''): bool {
         $note = $note === '' ? t('mcp.mcp_manager.disabled_by_owner') : $note;
         $this->unregister($name);
+        $this->forget($name);
         return $this->servers->update($name, McpServer::DISABLED, null, $note) !== null;
     }
 
@@ -145,6 +157,7 @@ final class McpManager {
 
     public function remove(string $name): bool {
         $this->unregister($name);
+        $this->forget($name);
         return $this->servers->remove($name);
     }
 
@@ -237,6 +250,31 @@ final class McpManager {
             throw new DomainException($e->getMessage());
         }
         return mb_substr(self::clean($text), 0, self::RESOURCE_MAX);
+    }
+
+    /**
+     * The server said its tools changed (a stdio server can, over its open pipe): they are listed again at once, and
+     * a changed set turns the server off as at start.
+     */
+    public function toolsChanged(string $name): void {
+        \Amp\async(function () use ($name): void {
+            foreach ($this->connected() as $server) {
+                if ($server->name !== $name) {
+                    continue;
+                }
+                try {
+                    $this->sync($server, false, new NullCancellation());
+                } catch (Throwable $e) {
+                    $this->logger->warning('MCP tools were not listed again', ['server' => $name, 'error' => $e::class]);
+                }
+            }
+        })->ignore();
+    }
+
+    private function forget(string $name): void {
+        if ($this->client instanceof McpSessions) {
+            $this->client->forget($name);
+        }
     }
 
     /** @return list<McpServer> servers whose tools are in the registry now */
@@ -337,7 +375,9 @@ final class McpManager {
             return null;
         }
         $owner = ($this->owner)();
-        $token = $owner === null ? null : $this->vault->reveal($server->secret, $owner);
+        // `secret:VARIABLE` of a stdio server names the variable after the secret
+        $secret = explode(':', $server->secret, 2)[0];
+        $token = $owner === null ? null : $this->vault->reveal($secret, $owner);
         return $token === null ? null : trim($token);
     }
 

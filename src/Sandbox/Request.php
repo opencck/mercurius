@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
  * the core is trusted (it holds the token), so limits come from the request.
  */
 final class Request {
-    public const OPERATIONS = ['exec', 'read', 'write', 'replace', 'list', 'usage', 'cancel'];
+    public const OPERATIONS = ['exec', 'read', 'write', 'replace', 'list', 'usage', 'cancel', 'spawn', 'send', 'receive', 'close'];
 
     /** @param array<string, mixed> $body */
     private function __construct(
@@ -51,6 +51,27 @@ final class Request {
             throw new SandboxError(sprintf(t('sandbox.request.ne_ukazano_pole'), $key));
         }
         return $value;
+    }
+
+    /**
+     * Extra environment of a spawned process: names to string values.
+     *
+     * @return array<string, string>
+     * @throws SandboxError
+     */
+    public function env(): array {
+        $value = $this->body['env'] ?? [];
+        if (!is_array($value)) {
+            throw new SandboxError(sprintf(t('sandbox.request.ne_ukazano_pole'), 'env'));
+        }
+        $env = [];
+        foreach ($value as $name => $text) {
+            if (!is_string($name) || !is_string($text)) {
+                throw new SandboxError(sprintf(t('sandbox.request.ne_ukazano_pole'), 'env'));
+            }
+            $env[$name] = $text;
+        }
+        return $env;
     }
 
     /** @throws SandboxError */

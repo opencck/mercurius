@@ -7,7 +7,7 @@ namespace OpenCCK\Infrastructure\Mcp;
 use Amp\Cancellation;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
-use OpenCCK\App\Mcp\McpClient;
+use OpenCCK\App\Mcp\McpRpcClient;
 use OpenCCK\Domain\Mcp\McpServer;
 use RuntimeException;
 use SensitiveParameter;
@@ -21,117 +21,16 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#скиллы-и-mcp — the MCP client for HTTP servers
  */
-final class HttpMcpClient implements McpClient {
-    private const PROTOCOL = '2025-06-18';
-    private const PAGES = 10;
+final class HttpMcpClient extends McpRpcClient {
 
     public function __construct(private readonly HttpClient $http) {}
 
-    public function tools(McpServer $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): array {
-        $session = $this->initialize($server, $token, $cancellation);
-        $tools = [];
-        $cursor = null;
-        for ($page = 0; $page < self::PAGES; $page++) {
-            $result = $this->rpc($server, $token, $session, 'tools/list', $cursor === null ? [] : ['cursor' => $cursor], $cancellation);
-            $list = isset($result['tools']) && is_array($result['tools']) ? $result['tools'] : [];
-            foreach (array_keys($list) as $k) {
-                $tool = $list[$k] ?? null;
-                if (!is_array($tool) || !isset($tool['name']) || !is_string($tool['name'])) {
-                    continue;
-                }
-                $tools[] = [
-                    'name' => $tool['name'],
-                    'description' => isset($tool['description']) && is_string($tool['description']) ? $tool['description'] : '',
-                    'schema' => isset($tool['inputSchema']) && is_array($tool['inputSchema']) ? $tool['inputSchema'] : ['type' => 'object'],
-                    'annotations' => isset($tool['annotations']) && is_array($tool['annotations']) ? $tool['annotations'] : [],
-                ];
-            }
-            $cursor = isset($result['nextCursor']) && is_string($result['nextCursor']) ? $result['nextCursor'] : null;
-            if ($cursor === null) {
-                break;
-            }
-        }
-        return $tools;
-    }
-
-    public function call(McpServer $server, #[SensitiveParameter] ?string $token, string $tool, array $arguments, Cancellation $cancellation): array {
-        $session = $this->initialize($server, $token, $cancellation);
-        $result = $this->rpc($server, $token, $session, 'tools/call', ['name' => $tool, 'arguments' => (object) $arguments], $cancellation);
-        $texts = [];
-        $content = isset($result['content']) && is_array($result['content']) ? $result['content'] : [];
-        foreach (array_keys($content) as $k) {
-            $part = $content[$k] ?? null;
-            if (!is_array($part)) {
-                continue;
-            }
-            $type = isset($part['type']) && is_string($part['type']) ? $part['type'] : '';
-            $texts[] = $type === 'text' && isset($part['text']) && is_string($part['text'])
-                ? $part['text']
-                : sprintf('(%s)', $type === '' ? t('mcp.http_mcp_client.neizvestnoe_soderzhimoe') : $type);
-        }
-        if (isset($result['structuredContent']) && $texts === []) {
-            $json = json_encode($result['structuredContent'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $texts[] = $json === false ? '' : $json;
-        }
-        return [implode("\n", $texts), ($result['isError'] ?? false) === true];
-    }
-
-    /**
-     * ref: references/hermes-agent/tools/mcp_tool_handlers.py@e96221fa:L970-L996 (_render_resource_list,
-     *      _render_read_resource) — uri, name, description, mimeType of each resource; text parts joined, binary ones named
-     */
-    public function resources(McpServer $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): array {
-        $session = $this->initialize($server, $token, $cancellation);
-        $resources = [];
-        $cursor = null;
-        for ($page = 0; $page < self::PAGES; $page++) {
-            $result = $this->rpc($server, $token, $session, 'resources/list', $cursor === null ? [] : ['cursor' => $cursor], $cancellation);
-            $list = isset($result['resources']) && is_array($result['resources']) ? $result['resources'] : [];
-            foreach (array_keys($list) as $k) {
-                $item = $list[$k] ?? null;
-                if (!is_array($item) || !isset($item['uri']) || !is_string($item['uri'])) {
-                    continue;
-                }
-                $resources[] = [
-                    'uri' => $item['uri'],
-                    'name' => isset($item['name']) && is_string($item['name']) ? $item['name'] : '',
-                    'description' => isset($item['description']) && is_string($item['description']) ? $item['description'] : '',
-                    'mimeType' => isset($item['mimeType']) && is_string($item['mimeType']) ? $item['mimeType'] : '',
-                ];
-            }
-            $cursor = isset($result['nextCursor']) && is_string($result['nextCursor']) ? $result['nextCursor'] : null;
-            if ($cursor === null) {
-                break;
-            }
-        }
-        return $resources;
-    }
-
-    public function readResource(McpServer $server, #[SensitiveParameter] ?string $token, string $uri, Cancellation $cancellation): string {
-        $session = $this->initialize($server, $token, $cancellation);
-        $result = $this->rpc($server, $token, $session, 'resources/read', ['uri' => $uri], $cancellation);
-        $parts = [];
-        $contents = isset($result['contents']) && is_array($result['contents']) ? $result['contents'] : [];
-        foreach (array_keys($contents) as $k) {
-            $part = $contents[$k] ?? null;
-            if (!is_array($part)) {
-                continue;
-            }
-            if (isset($part['text']) && is_string($part['text'])) {
-                $parts[] = $part['text'];
-            } elseif (isset($part['blob']) && is_string($part['blob'])) {
-                $parts[] = sprintf(t('mcp.http_mcp_client.binary'), (int) (strlen($part['blob']) * 3 / 4));
-            }
-        }
-        return implode("\n", $parts);
-    }
-
-    private function initialize(McpServer $server, ?string $token, Cancellation $cancellation): ?string {
+    protected function session(McpServer $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): ?string {
         [, $session] = $this->send($server, $token, null, [
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => 'initialize',
-            'params' => ['protocolVersion' => self::PROTOCOL, 'capabilities' => (object) [], 'clientInfo' => ['name' => 'mercurius', 'version' => '1']],
+            'params' => self::initializeParams(),
         ], $cancellation);
         $this->send($server, $token, $session, ['jsonrpc' => '2.0', 'method' => 'notifications/initialized'], $cancellation);
         return $session;
@@ -141,8 +40,8 @@ final class HttpMcpClient implements McpClient {
      * @param array<string, mixed> $params
      * @return array<array-key, mixed>
      */
-    private function rpc(McpServer $server, ?string $token, ?string $session, string $method, array $params, Cancellation $cancellation): array {
-        [$message] = $this->send($server, $token, $session, ['jsonrpc' => '2.0', 'id' => 2, 'method' => $method, 'params' => (object) $params], $cancellation);
+    protected function rpc(McpServer $server, #[SensitiveParameter] ?string $token, object|string|null $session, string $method, array $params, Cancellation $cancellation): array {
+        [$message] = $this->send($server, $token, is_string($session) ? $session : null, ['jsonrpc' => '2.0', 'id' => 2, 'method' => $method, 'params' => (object) $params], $cancellation);
         if (isset($message['error']) && is_array($message['error'])) {
             $text = isset($message['error']['message']) && is_string($message['error']['message']) ? $message['error']['message'] : t('mcp.http_mcp_client.oshibka');
             throw new RuntimeException(t('mcp.http_mcp_client.mcp_server_otvetil_oshibkoy') . mb_substr($text, 0, 300));

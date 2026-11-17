@@ -34,6 +34,8 @@ final class ExecutorServer implements RequestHandler {
         private readonly Runner $runner,
         private readonly FileStore $files,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** long-lived processes; null — the streaming API is off */
+        private readonly ?Streams $streams = null,
     ) {}
 
     public function handleRequest(HttpRequest $request): Response {
@@ -80,6 +82,11 @@ final class ExecutorServer implements RequestHandler {
             'list' => ['entries' => $this->files->list($id, $limits, $request->string('path', '.'), $request->int('depth', 1, 1, 3))],
             'usage' => ['bytes' => $this->files->usage($id)],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
+            // spec: BRIEF.md#песочница — the streaming API: a process lives between the calls
+            'spawn' => ['session' => $this->streams()->spawn($id, $limits, $request->string('command'), $this->workspace->resolve($id, $request->string('cwd', '.')), $request->env())],
+            'send' => $this->send($request),
+            'receive' => $this->streams()->receive($id, $request->string('session'), max(1, $request->int('max_bytes', Streams::RECEIVE_MAX, 1, Streams::RECEIVE_MAX)), (float) $request->int('wait', 20, 0, Streams::WAIT_MAX)),
+            'close' => ['closed' => $this->streams()->close($id, $request->string('session'))],
             default => throw new SandboxError(t('sandbox.executor_server.net_takoy_operatsii'), 404),
         };
     }
@@ -104,6 +111,17 @@ final class ExecutorServer implements RequestHandler {
         } finally {
             unset($this->running[$request->callId]);
         }
+    }
+
+    /** @throws SandboxError */
+    private function streams(): Streams {
+        return $this->streams ?? throw new SandboxError(t('sandbox.executor_server.net_takoy_operatsii'), 404);
+    }
+
+    /** @return array<string, mixed> */
+    private function send(Request $request): array {
+        $this->streams()->send($request->principalId, $request->string('session'), $request->string('data'));
+        return [];
     }
 
     private function cancel(string $callId): bool {

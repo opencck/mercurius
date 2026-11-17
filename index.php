@@ -491,11 +491,22 @@ $skillImporter = new \OpenCCK\App\Skill\SkillImporter(
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter));
 
-// spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, added and approved by the owner
+// spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
+/** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
+$mcpManager = null;
+$stdioMcp = $sandbox === null ? null : new \OpenCCK\Infrastructure\Mcp\StdioMcpClient(
+    $sandbox,
+    // a server lives for days: its CPU time is capped by a day, not by the limit of one command
+    new \OpenCCK\Domain\Agent\SandboxLimits($sandboxSettings->ownerLimits()->diskBytes, $sandboxSettings->ownerLimits()->processes, 86_400, $sandboxSettings->ownerLimits()->memoryBytes, $sandboxSettings->ownerLimits()->concurrentCommands),
+    static function (string $server) use (&$mcpManager): void {
+        $mcpManager?->toolsChanged($server);
+    },
+    $logger,
+);
 $mcpManager = new McpManager(
     $mcpServers,
-    new HttpMcpClient(HttpClients::create()),
+    new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create()), $stdioMcp),
     $vault,
     $tools,
     static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
@@ -503,6 +514,7 @@ $mcpManager = new McpManager(
         $channel->send(new OutgoingMessage($telegram->ownerId, $text));
     },
     $logger,
+    stdio: $stdioMcp !== null,
 );
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
 // spec: BRIEF.md#скиллы-и-mcp — servers down at start are tried again, connected ones are listed again for changes

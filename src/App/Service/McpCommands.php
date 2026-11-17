@@ -24,13 +24,16 @@ final class McpCommands {
     ) {}
 
     public function handle(string $argument): string {
-        $parts = preg_split('~\s+~', trim($argument)) ?: [];
+        // the command of a stdio server has spaces of its own: everything after ' -- ' is it
+        [$head, $command] = array_pad(explode(' -- ', trim($argument), 2), 2, null);
+        $parts = preg_split('~\s+~', trim((string) $head)) ?: [];
         $action = $parts[0] ?? '';
         $name = $parts[1] ?? '';
         try {
             return match ($action) {
                 '' => $this->list(),
                 'add' => $this->add($name, $parts[2] ?? '', $parts[3] ?? null),
+                'stdio' => $command === null || trim($command) === '' || $name === '' ? t('service.mcp_commands.stdio_usage') : $this->add($name, 'stdio:' . trim($command), $parts[2] ?? null),
                 'on' => $this->manager->approve($name, new TimeoutCancellation(60)),
                 'off' => $this->manager->disable($name) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
                 'remove' => $this->manager->remove($name) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),

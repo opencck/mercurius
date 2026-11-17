@@ -57,6 +57,22 @@ final class CommandRunner implements Runner {
     }
 
     /**
+     * The same wrapper for a long-lived process, without `env -i`: its environment is given to the process itself
+     * (a token must not show up in the arguments, which other users can read in /proc).
+     *
+     * @return list<string>
+     */
+    public function streamArgv(int $principalId, SandboxLimits $limits, string $command, string $cwd): array {
+        $argv = $this->argv($principalId, $limits, $command, $cwd);
+        $env = array_search('env', $argv, true);
+        $setsid = array_search('setsid', $argv, true);
+        if (!is_int($env) || !is_int($setsid)) {
+            return $argv;
+        }
+        return [...array_slice($argv, 0, $env), ...array_slice($argv, $setsid)];
+    }
+
+    /**
      * @param string $cwd directory the participant's shell enters before the command (umask 077: new files are private)
      * @return list<string>
      */
