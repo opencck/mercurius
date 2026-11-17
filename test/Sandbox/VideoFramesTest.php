@@ -12,7 +12,7 @@ namespace OpenCCK\Test\Sandbox;
  */
 final class VideoFramesTest extends SandboxTestCase {
     public function testFramesEvenlyAndTheSound(): void {
-        $made = $this->sh(7, 'ffmpeg -nostdin -v error -f lavfi -i testsrc=duration=6:size=320x240:rate=10 -f lavfi -i sine=duration=6 -shortest -y clip.mp4', 30);
+        $made = $this->sh(7, 'ffmpeg -nostdin -v error -f lavfi -i testsrc=duration=6:size=320x240:rate=10 -f lavfi -i sine=duration=6 -shortest -pix_fmt yuv420p -y clip.mp4', 30);
         self::assertSame(0, $made->exitCode, $made->stderr);
 
         $result = $this->sh(7, 'sh /opt/mercurius/video_frames.sh clip.mp4 frames 4', 30);
@@ -26,7 +26,7 @@ final class VideoFramesTest extends SandboxTestCase {
     }
 
     public function testASilentVideoHasNoSound(): void {
-        $this->sh(7, 'ffmpeg -nostdin -v error -f lavfi -i testsrc=duration=2:size=160x120:rate=5 -y quiet.mp4', 30);
+        $this->sh(7, 'ffmpeg -nostdin -v error -f lavfi -i testsrc=duration=2:size=160x120:rate=5 -pix_fmt yuv420p -y quiet.mp4', 30);
 
         $result = $this->sh(7, 'sh /opt/mercurius/video_frames.sh quiet.mp4 quiet 8', 30);
 
