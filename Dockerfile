@@ -28,6 +28,7 @@ RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-
 COPY index.php ./
 COPY src ./src
 COPY migrations ./migrations
+COPY bin/doctor.php ./bin/doctor.php
 
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION}
