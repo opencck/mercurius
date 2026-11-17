@@ -50,7 +50,7 @@ services:
   telegram-api:
     profiles: ["telegram-api"]
     build:
-      context: docker/telegram-bot-api
+      context: services/telegram-bot-api
     image: mercurius-telegram-api:7232881
     restart: unless-stopped
     environment:
@@ -139,10 +139,11 @@ services:
 
   # The browser of the agent: Chromium under puppeteer-core with a small API. Its own network: it sees the internet
   # and the app's requests, not the database, the sandbox or the executor; every page request is checked against
-  # internal addresses (browser/guard.js). Profiles with logins live in storage/browser.
+  # internal addresses (services/browser/guard.js). Module mercurius-browser: COMPOSE_PROFILES=browser. Profiles with logins live in storage/browser.
   browser:
+    profiles: ["browser"]
     build:
-      context: browser
+      context: services/browser
     image: mercurius-browser:${APP_VERSION:-dev}
     restart: unless-stopped
     environment:

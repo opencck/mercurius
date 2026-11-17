@@ -383,19 +383,6 @@ if ($sandbox !== null) {
 }
 // spec: BRIEF.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
 $tools->register(new \OpenCCK\App\Agent\Tool\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
-// spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
-$browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
-if ($browserToken !== null) {
-    $tools->register(new BrowserTool(
-        new BrowserClient(HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000', $browserToken),
-        $channel,
-        $telegram->ownerId,
-        $addressGuard,
-        // a screenshot goes to the chat it was asked in and is kept in the sandbox, to be sent on
-        $conversations,
-        $sandbox,
-    ));
-}
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.
 $traces = new PostgresTraceRepository($db);
@@ -418,6 +405,23 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $llmCalls,
     $logger,
 );
+// spec: BRIEF.md#интернет-и-браузер — the browser module (profile browser), offered while its service answers
+$browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
+$browserUrl = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000';
+if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $browserToken !== null) {
+    $tools->register(new BrowserTool(
+        new BrowserClient(HttpClients::create(), $browserUrl, $browserToken),
+        $channel,
+        $telegram->ownerId,
+        $addressGuard,
+        // a screenshot goes to the chat it was asked in and is kept in the sandbox, to be sent on
+        $conversations,
+        $sandbox,
+        // and the agent looks at it with a vision model of the owner's settings or the participant's choice
+        $mediaModels,
+        $mediaPrefs,
+    ));
+}
 if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
     // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs

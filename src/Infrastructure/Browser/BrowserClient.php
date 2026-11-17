@@ -14,7 +14,7 @@ use Throwable;
 use function Mercurius\I18n\t;
 
 /**
- * The agent's side of the browser service (browser/): navigate, read, click, type, screenshot, each in a named profile
+ * The agent's side of the browser module (services/browser): navigate, read, click, type, screenshot, each in a named profile
  * whose logins survive restarts.
  *
  * spec: BRIEF.md#интернет-и-браузер

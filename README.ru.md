@@ -61,7 +61,7 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`CLAUDE.md`](CLAUDE.md) | Правила работы над проектом с Claude Code |
 | `index.php`, `src/`, `migrations/`, `test/` | Агент: точка входа, код по слоям opencck, миграции базы, тесты |
 | `sandbox.php`, `src/Sandbox/` | Исполнитель песочницы |
-| `browser/` | Сервис браузера (Chrome за HTTP API) |
+| `services/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, telegram-bot-api |
 | `bin/` | Резервная копия, восстановление и проверка установки |
 | `docs/`, `notes/` | База знаний о построении автономных агентов: статьи и конспекты |
 | `references/` | Референсные репозитории — git-сабмодули |

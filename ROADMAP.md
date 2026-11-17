@@ -90,8 +90,8 @@
 | `opencck/mercurius-mail-mcp` | `packages/mail-mcp/` | 8 |
 | `opencck/mercurius-i18n` | `packages/i18n/` | вне фаз |
 
-Подключены: `llm`, `connectors`, `messenger`, `search`, `mail-mcp`, `i18n`. `command-policy`, `memory`, `browser-service`,
-`mcp-client` и `peer` пока живут в основном репозитории (политика команд, память, `browser/`, клиент MCP, A2A) и
+Подключены: `llm`, `connectors`, `messenger`, `search`, `mail-mcp`, `i18n`. `command-policy`, `memory`,
+`mcp-client` и `peer` пока живут в основном репозитории (политика команд, память, клиент MCP, A2A) и
 выносятся, когда их интерфейс устоится.
 
 ### Что остаётся в основном репозитории

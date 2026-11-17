@@ -61,3 +61,9 @@
 [submodule "services/media-docs"]
 	path = services/media-docs
 	url = https://github.com/opencck/mercurius-media-docs.git
+[submodule "services/browser"]
+	path = services/browser
+	url = https://github.com/opencck/mercurius-browser.git
+[submodule "services/telegram-bot-api"]
+	path = services/telegram-bot-api
+	url = https://github.com/opencck/mercurius-telegram-bot-api.git

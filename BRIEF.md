@@ -994,11 +994,11 @@ dreaming и claude-cookbooks; владелец утвердил общий по�
 - **`web_read`** — страница по адресу как текст со ссылками, без скриптов, стилей, меню и подвалов; каждый переход по
   перенаправлению заново проверяется на внутренние адреса (`AddressGuard`); DOCX и XLSX читаются как текст (в образ
   добавлено расширение `zip`), PDF — пока нет.
-- **Браузер** — отдельный контейнер `browser/`: Chromium из Debian под puppeteer-core и маленький API на Fastify
+- **Браузер** — модуль `mercurius-browser` (`services/browser/`, профиль `browser`, до 2026-11-18 — каталог `browser/`): Chromium из Debian под puppeteer-core и маленький API на Fastify
   (`navigate`, `read`, `click`, `type`, `screenshot`, `close`, `evaluate`), токен `BROWSER_TOKEN`; один браузер на профиль,
   профили со входами — в `storage/browser` и переживают перезапуск. Каждый запрос страницы (сама страница, скрипты,
   картинки, перенаправления) проверяется: только http(s) и только публичные адреса, все адреса имени
-  (`browser/guard.js`). Контейнер — в своей сети `browser`, где только приложение: базы, песочницы и исполнителя он
+  (`guard.js` модуля). Контейнер — в своей сети `browser`, где только приложение: базы, песочницы и исполнителя он
   не видит.
 - **Инструмент `browser`:** открыть и прочитать — сразу (страница — недоверенные данные, элементы пронумерованы для
   действий); ввод текста — запись; нажатие и отправка формы — карточка владельца (публикация, отправка, покупка
@@ -1457,8 +1457,8 @@ MCP sampling выключен; внешние источники — тольк�
 |---|---|---|---|
 | `mercurius-media-video` | `services/media-video` | `media-video` | ffmpeg: кадры и звук видео, конвертация аудио — `media video` без модели видео |
 | `mercurius-media-docs` | `services/media-docs` | `media-docs` | документы: текст из docx/pptx/xlsx/odt/PDF/RTF и сборка pptx/docx/xlsx по просьбе агента |
-| `mercurius-browser` | `services/browser` | `browser` | Chromium — инструмент `browser` (переезд из `browser/`) |
-| `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API (переезд из `docker/telegram-bot-api/`) |
+| `mercurius-browser` | `services/browser` | `browser` | Chromium — инструмент `browser`; со скриншотом агент смотрит страницу моделью зрения (`question`) |
+| `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API |
 | `mercurius-mail-mcp` | `mcp/mail` (переезд из `packages/mail-mcp`) | `mail` | почта по MCP |
 
 - **Песочница становится лёгкой:** PHP, Python, Node, Go без библиотек документов и ffmpeg (решение владельца: всё про
@@ -1479,7 +1479,11 @@ MCP sampling выключен; внешние источники — тольк�
 - **Сделано:** `media-video` — ffmpeg и `bin/video_frames.sh` из песочницы убраны. `media-docs` — текст присланных
   документов и `media extract` читает модуль (без него файл только сохраняется, агент говорит, как включить), новый
   инструмент `documents` (`path` с расширением docx/xlsx/pptx и `description`) кладёт файл в песочницу; python-docx,
-  openpyxl, python-pptx, poppler и `bin/extract_text.py` из песочницы убраны.
+  openpyxl, python-pptx, poppler и `bin/extract_text.py` из песочницы убраны. `browser` и `telegram-bot-api` (2026-11-18)
+  вынесены с историей (`git subtree split`); браузер — в профиле `browser`, инструмент — пока сервис отвечает.
+- **Скриншот глазами агента** (2026-11-18): `browser screenshot` с `question` отдаёт снимок модели зрения (выбор
+  участника или список владельца, как для фото) и возвращает агенту её ответ; `send: false` — в чат не отправлять. Без
+  модели зрения снимок только уходит в чат.
 
 ## Поставка и обслуживание
 
@@ -2108,7 +2112,7 @@ hermes-agent ([конспект](notes/hermes-agent.md#4-агентский-ци
 - **Локальный сервер Bot API** — по желанию, по умолчанию выключен: профиль compose `telegram-api`
   (`COMPOSE_PROFILES=telegram-api`) и `TELEGRAM_API_URL=http://telegram-api:8081`; `TELEGRAM_API_ID` и
   `TELEGRAM_API_HASH` — с my.telegram.org. Образ собирается из официальных исходников `tdlib/telegram-bot-api` на
-  закреплённом коммите (`docker/telegram-bot-api/`), без чужих образов. Режим `--local`: файлы до 2000 МБ, наш
+  закреплённом коммите (модуль `mercurius-telegram-bot-api`, `services/telegram-bot-api/`), без чужих образов. Режим `--local`: файлы до 2000 МБ, наш
   предел — `TELEGRAM_FILE_LIMIT_MB` (200; у облака всегда 20). Файлы сервер держит в `storage/telegram-api`;
   приложение читает их с того же тома (только внутри этого каталога), а не скачивает по сети.
 - **Переход:** при первом старте с `TELEGRAM_API_URL` приложение один раз «выписывает» бота из облака (`logOut`) и

@@ -21,9 +21,10 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#интернет-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
  *       card; profiles keep logins
  */
-final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall {
+final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService {
     public const NAME = 'browser';
     public const ACTIONS = ['open', 'read', 'click', 'type', 'screenshot', 'close', 'script'];
+    public const MODULE = 'browser';
     /** A script of the agent: browser-scripts/read/… reads a frozen copy of the page, browser-scripts/act/… acts on it. */
     public const SCRIPT_PATH = '~^browser-scripts/(read|act)/(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\.js$~';
     public const SCRIPT_MAX = 200_000;
@@ -39,6 +40,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall 
         private readonly ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null,
         /** a screenshot is kept in the participant's sandbox too, to be sent on; null — not kept */
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
+        /** the vision models: the agent looks at a screenshot itself; null — it only sends it */
+        private readonly ?\OpenCCK\Infrastructure\Media\MediaModels $models = null,
+        /** the participant's choice of a vision model over the owner's list */
+        private readonly ?\OpenCCK\App\Agent\Media\MediaPrefs $prefs = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -59,6 +64,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall 
                 'path' => ['type' => 'string', 'maxLength' => 300, 'description' => t('tool.browser.script_path')],
                 'site' => ['type' => 'string', 'maxLength' => 253, 'description' => t('tool.browser.script_site')],
                 'args' => ['type' => 'object', 'description' => t('tool.browser.script_args')],
+                'question' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.browser.shot_question')],
+                'send' => ['type' => 'boolean', 'description' => t('tool.browser.shot_send')],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -154,6 +161,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall 
         return $this->guard->internal($host) ? $host : null;
     }
 
+    public function service(): string {
+        return self::MODULE;
+    }
+
     public function untrusted(): bool {
         return true;
     }
@@ -196,7 +207,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall 
             if ($png === false || $png === '') {
                 return ToolResult::error(t('tool.browser.snimok_ne_poluchen'));
             }
-            return $this->screenshot($png, $url, $context);
+            return $this->screenshot($png, $url, $context, Args::string($args, 'question'), ($args['send'] ?? true) !== false);
         }
         if ($action === 'script') {
             return ToolResult::ok(sprintf(t('tool.browser.script_result'), Args::string($args, 'path') ?? '', self::str($data, 'url'), SecretMasker::mask(self::str($data, 'result')))
@@ -214,7 +225,42 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall 
      *
      * spec: BRIEF.md#личные-сообщения-участникам — not only text: files to people and agents
      */
-    private function screenshot(string $png, string $url, ToolContext $context): ToolResult {
+    private function screenshot(string $png, string $url, ToolContext $context, ?string $question, bool $send): ToolResult {
+        $seen = $question === null || trim($question) === '' ? null : $this->look($png, trim($question), $context);
+        if ($seen !== null && !$send) {
+            return $seen->isError ? $seen : ToolResult::ok(sprintf(t('tool.browser.shot_seen'), $url) . "\n" . $seen->content);
+        }
+        $result = $this->deliver($png, $url, $context);
+        return $seen === null || $result->isError ? $result : ToolResult::ok($result->content . "\n" . $seen->content);
+    }
+
+    /**
+     * The agent looks at the screenshot itself with a vision model: the participant's choice or the owner's list, as for
+     * a photo. What the model says about the page is data from outside.
+     *
+     * spec: BRIEF.md#интернет-и-браузер — the agent sees what is on the screen
+     * ref: references/hermes-agent/tools/browser_use_cli.py@e96221fa:L309-L328 (_native_screenshot_result) — hermes
+     *      attaches the screenshot to the tool result when the main model sees images; here a vision model of the
+     *      owner's media settings looks and answers in text, so any main model gets it and the history stays small
+     */
+    private function look(string $png, string $question, ToolContext $context): ToolResult {
+        if ($this->models === null || $this->prefs === null) {
+            return ToolResult::error(t('tool.browser.shot_no_vision'));
+        }
+        $refs = \OpenCCK\App\Agent\Media\MediaPrefs::candidates($this->prefs->settings, 'vision', $this->prefs->of($context->principal->id, 'image')->model);
+        if ($refs === []) {
+            return ToolResult::error(t('tool.browser.shot_no_vision'));
+        }
+        $models = $this->models;
+        $call = new \OpenCCK\Infrastructure\Media\MediaCall($context->conversationId, $context->runId, $context->cancellation);
+        $answer = $models->first($refs, static fn(string $ref): \OpenCCK\Infrastructure\Media\MediaAnswer => $models->look($ref, [['bytes' => $png, 'mime' => 'image/png']], $question, $call));
+        if ($answer->text === null) {
+            return ToolResult::error(sprintf(t('media.intake.failed_models'), $answer->error ?? ''));
+        }
+        return ToolResult::ok(sprintf(t('tool.media.frames'), $answer->model, SecretMasker::mask($answer->text)));
+    }
+
+    private function deliver(string $png, string $url, ToolContext $context): ToolResult {
         $meta = $this->conversations?->meta($context->conversationId);
         $chat = $meta === null ? $this->ownerChatId : $meta->chatId;
         $thread = $meta === null || $meta->threadId === '' ? null : $meta->threadId;

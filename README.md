@@ -61,7 +61,7 @@ Components that may move to their own packages later: command policy, memory, th
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `sandbox.php`, `src/Sandbox/` | The sandbox executor |
-| `browser/` | The browser service (Chrome behind an HTTP API) |
+| `services/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api |
 | `bin/` | Backup, restore and the installation check |
 | `docs/`, `notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |

@@ -102,6 +102,45 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringContainsString($kept[0], $shot->content, 'the agent learns where to send it on from');
     }
 
+    public function testTheAgentLooksAtAScreenshotWithTheVisionModel(): void {
+        $http = new FakeHttpClient([
+            'http://browser:3000/screenshot' => [200, [], json_encode(['url' => 'https://example.com/form', 'png' => base64_encode('PNGDATA')], JSON_THROW_ON_ERROR)],
+            'https://openrouter.ai/api/v1/chat/completions' => [200, [], json_encode(['choices' => [['message' => ['content' => 'Форма входа, под кнопкой ошибка «неверный пароль».']]]], JSON_THROW_ON_ERROR)],
+        ]);
+        $tool = $this->seeing($http, ['MEDIA_VISION_MODELS' => 'openrouter:z-ai/glm-5.3-flash']);
+
+        $result = $tool->execute(['action' => 'screenshot', 'question' => 'Что на экране?', 'send' => false], self::context());
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertStringContainsString('неверный пароль', $result->content);
+        self::assertStringContainsString('z-ai/glm-5.3-flash', $result->content);
+        self::assertSame([], $this->channel->files, 'send: false — not to the chat');
+        $toModel = array_search('POST https://openrouter.ai/api/v1/chat/completions', $http->requested, true);
+        self::assertIsInt($toModel);
+        self::assertStringContainsString(base64_encode('PNGDATA'), $http->bodies[$toModel]);
+        self::assertStringContainsString('Что на экране?', $http->bodies[$toModel]);
+    }
+
+    public function testWithoutAVisionModelTheScreenshotIsOnlySent(): void {
+        $http = new FakeHttpClient(['http://browser:3000/screenshot' => [200, [], json_encode(['url' => 'https://example.com/', 'png' => base64_encode('PNGDATA')], JSON_THROW_ON_ERROR)]]);
+        $tool = $this->seeing($http, []);
+
+        $result = $tool->execute(['action' => 'screenshot', 'question' => 'Что на экране?'], self::context());
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertCount(1, $this->channel->files);
+        self::assertStringContainsString('MEDIA_VISION_MODELS', $result->content);
+    }
+
+    /** @param array<string, string> $env */
+    private function seeing(FakeHttpClient $http, array $env): BrowserTool {
+        $this->channel = new FakeChannel();
+        $client = new HttpClient($http, []);
+        $settings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($env);
+        $models = new \OpenCCK\Infrastructure\Media\MediaModels($client, 'or-key', null, $settings, static fn(string $n): ?string => null, new \OpenCCK\Test\Support\InMemoryLlmCallRepository());
+        return new BrowserTool(new BrowserClient($client, 'http://browser:3000', 'token-token-token'), $this->channel, '42', models: $models, prefs: new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Test\Support\InMemoryMediaPrefRepository(), $settings));
+    }
+
     private function scripted(FakeHttpClient $http, \OpenCCK\Test\Support\FakeSandbox $sandbox): BrowserTool {
         $this->channel = new FakeChannel();
         return new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', null, null, $sandbox);
