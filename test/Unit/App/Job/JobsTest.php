@@ -125,6 +125,31 @@ final class JobsTest extends AsyncTestCase {
         self::assertSame([], $this->jobs->pendingReports());
     }
 
+    public function testAnIrreversibleStepOfAJobAsksTheOwnerAndTheRunGoesOnAfterTheDecision(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'deploy', '{"q":"prod"}')),
+            ScriptedLlm::text('Выкатил в прод.'),
+        ]));
+        $deploy = new FakeTool('deploy', \OpenCCK\Domain\Agent\DangerClass::Irreversible);
+        $this->stack->registry->register($deploy);
+        $this->stack->scheduler->useJobRuns($scheduler);
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Выкатка', 'Выкати прод', 'every:600', $this->now);
+
+        $scheduler->tick(true);
+
+        self::assertCount(0, $deploy->calls, 'nothing runs before the decision');
+        $sent = implode("\n", $this->stack->channel->texts('send'));
+        self::assertStringContainsString('⏸ Задание #1 «Выкатка», запуск 1 ждёт вашего подтверждения.', $sent);
+        self::assertNotNull($this->stack->approvals->pendingForRun(1), 'the owner got a card');
+
+        $this->stack->press('ap:1:a');
+        \Amp\delay(0.05);
+
+        self::assertSame([['q' => 'prod']], $deploy->calls);
+        self::assertStringContainsString("⏰ Задание #1 «Выкатка», запуск 1:\n\nВыкатил в прод.", implode("\n", $this->stack->channel->texts('send')));
+        self::assertSame('Выкатил в прод.', $this->jobs->find(1)?->lastResult);
+    }
+
     public function testAJobTextIsScreenedAndJobsCanBeCancelled(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([]));
         $this->stack->say('привет');

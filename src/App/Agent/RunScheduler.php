@@ -65,6 +65,7 @@ final class RunScheduler {
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
+    private ?JobRuns $jobRuns = null;
     private ?BackgroundDelegations $background = null;
     private ?MemoryContext $memory = null;
     private ?ProjectContext $projects = null;
@@ -100,6 +101,11 @@ final class RunScheduler {
 
     public function useApprovals(ApprovalService $approvals): void {
         $this->approvals = $approvals;
+    }
+
+    /** Runs of scheduled jobs go on through the job scheduler. */
+    public function useJobRuns(JobRuns $jobs): void {
+        $this->jobRuns = $jobs;
     }
 
     public function useBackground(BackgroundDelegations $background): void {
@@ -207,6 +213,10 @@ final class RunScheduler {
         if ($run === null || $run->status !== RunStatus::WaitingApproval) {
             return;
         }
+        if ($this->jobRuns?->owns($run) === true) {
+            $this->jobRuns->continueRun($run, true);
+            return;
+        }
         // The fiber that paused the run may still be finishing its last step.
         while (isset($this->active[$run->conversationId])) {
             $this->active[$run->conversationId]['future']->await();
@@ -267,6 +277,10 @@ final class RunScheduler {
                     // restart interrupted; its orchestrator learns that from the call, the worker does not go on alone.
                     $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
                     $this->events->runFinished($run->id, 'failed', 'interrupted by a restart', $run->activeMs);
+                    continue;
+                }
+                if ($this->jobRuns?->owns($run) === true) {
+                    $this->jobRuns->continueRun($run, false);
                     continue;
                 }
                 $this->resume($run);

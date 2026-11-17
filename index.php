@@ -422,7 +422,7 @@ $mcpManager = new McpManager(
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
 
 // spec: BRIEF.md#планировщик-и-проекты — jobs by a schedule, run without the owner, reported by the scheduler
-$ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? 'UTC');
+$ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');
 $quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23-8';
 $quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
 $jobRepository = new PostgresJobRepository($db);
@@ -438,6 +438,7 @@ $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone));
+$scheduler->useJobRuns($jobScheduler);
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
