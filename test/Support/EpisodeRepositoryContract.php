@@ -56,6 +56,15 @@ abstract class EpisodeRepositoryContract extends AsyncTestCase {
         self::assertCount(1, $this->episodes->search(['бэкап'], HistoryScope::all(), 1, 2));
     }
 
+    public function testTheReadersOwnConversationIsSkipped(): void {
+        $old = $this->conversation('telegram', '10');
+        $current = $this->conversation('telegram', '10');
+        $hit = $this->message($old, 'user', 'кофе без сахара');
+        $this->message($current, 'user', 'что я говорил про кофе?');
+
+        self::assertSame([$hit], self::ids($this->episodes->search(['кофе'], HistoryScope::all(), 8, 2, $current)));
+    }
+
     public function testQueryOfPunctuationFindsNothing(): void {
         $chat = $this->conversation('telegram', '10');
         $this->message($chat, 'user', 'что-то');

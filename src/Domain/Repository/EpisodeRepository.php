@@ -15,12 +15,13 @@ use OpenCCK\Domain\Agent\HistoryScope;
  */
 interface EpisodeRepository {
     /**
-     * Messages matching any of the words, best first, at most $perConversation from one conversation.
+     * Messages matching any of the words, best first, at most $perConversation from one conversation. The
+     * conversation $except is skipped: the reader has it in its context, and its own question would match first.
      *
      * @param list<string> $words
      * @return list<EpisodeMessage>
      */
-    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation): array;
+    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation, int $except = 0): array;
 
     /**
      * The message and up to $window messages before and after it in its conversation; [] when the reader may not see it.

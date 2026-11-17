@@ -38,7 +38,7 @@ final class HistorySearchTool implements Tool {
         return new ToolDefinition(self::NAME, 'Ищет в прошлых разговорах. Если пользователь ссылается на прошлый разговор («как мы '
             . 'решили…», «что я говорил про…», «на чём остановились») — сначала поищи здесь, не проси повторить. query — слова '
             . 'для поиска; найденное приходит отрывками с номерами беседы и сообщения. conversation_id и message_id — прочитать '
-            . 'сообщения вокруг найденного. Это только история переписки: если есть прямой источник (сервер, файл, сайт), '
+            . 'сообщения вокруг найденного. Текущая беседа не ищется — она и так перед тобой. Это только история переписки: если есть прямой источник (сервер, файл, сайт), '
             . 'смотри его; «в истории не нашлось» не значит «не было».', [
             'type' => 'object',
             'properties' => [
@@ -83,7 +83,7 @@ final class HistorySearchTool implements Tool {
         if (trim($query) === '') {
             return ToolResult::error('Нужен query или conversation_id вместе с message_id.');
         }
-        $found = $this->episodes->search([$query], $scope, self::LIMIT, self::PER_CONVERSATION);
+        $found = $this->episodes->search([$query], $scope, self::LIMIT, self::PER_CONVERSATION, $context->conversationId);
         if ($found === []) {
             return ToolResult::ok('В истории ничего не нашлось.');
         }

@@ -32,13 +32,16 @@ final class InMemoryEpisodeRepository implements EpisodeRepository {
         return $id;
     }
 
-    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation): array {
+    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation, int $except = 0): array {
         $terms = SearchWords::terms($words);
         if ($terms === [] || $limit < 1) {
             return [];
         }
         $ranked = [];
         foreach ($this->visible($scope) as $message) {
+            if ($message->conversationId === $except) {
+                continue;
+            }
             $text = explode(self::MEMORY_BLOCK, $message->content, 2)[0];
             $tokens = SearchWords::split(mb_strtolower($text));
             $rank = count(array_intersect($terms, $tokens));

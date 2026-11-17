@@ -25,7 +25,7 @@ final class PostgresEpisodeRepository implements EpisodeRepository {
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation): array {
+    public function search(array $words, HistoryScope $scope, int $limit, int $perConversation, int $except = 0): array {
         $query = self::tsquery($words);
         if ($query === '' || $limit < 1) {
             return [];
@@ -36,9 +36,9 @@ final class PostgresEpisodeRepository implements EpisodeRepository {
         foreach ($this->db->execute(
             'SELECT ' . self::COLUMNS . ", ts_rank_cd(m.search, q) AS rank
              FROM messages m JOIN conversations c ON c.id = m.conversation_id, to_tsquery('russian'::regconfig, ?) q
-             WHERE m.search @@ q AND c.channel <> 'worker'" . $where . '
+             WHERE m.search @@ q AND c.channel <> 'worker' AND m.conversation_id <> ?" . $where . '
              ORDER BY rank DESC, m.id DESC LIMIT ' . self::SCAN,
-            [$query, ...$params],
+            [$query, $except, ...$params],
         ) as $row) {
             $message = self::message($row);
             $taken[$message->conversationId] = ($taken[$message->conversationId] ?? 0) + 1;
