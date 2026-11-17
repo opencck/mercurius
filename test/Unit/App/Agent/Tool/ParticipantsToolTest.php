@@ -16,6 +16,25 @@ use OpenCCK\Test\Support\InMemoryPolicyRepository;
 use OpenCCK\Test\Support\InMemoryPrincipalRepository;
 
 final class ParticipantsToolTest extends AsyncTestCase {
+    public function testTheOwnerDecidesTheRoleOfAParticipantWithoutACard(): void {
+        $principals = new InMemoryPrincipalRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
+        $roman = $principals->createVisitor('telegram', '529769761', 'Roman');
+        $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
+        $tool = new ParticipantsTool($principals, $policies);
+        $context = new ToolContext(1, 1, $owner, new NullCancellation());
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Read, $tool->danger([]));
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $tool->danger(['action' => 'decide']));
+        self::assertFalse($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError);
+        self::assertSame([Role::User, PrincipalStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
+
+        $tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'rejected'], $context);
+        self::assertSame(PrincipalStatus::Rejected, $principals->find($roman->id)?->status, 'a decision can be changed');
+        self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'user'], $context)->isError, 'the owner stays the owner');
+        self::assertTrue($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'admin'], new ToolContext(1, 2, $roman, new NullCancellation()))->isError, 'only the owner decides');
+    }
+
     public function testTheOwnerFindsAParticipantByNameWithHisRights(): void {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей Крупкин');

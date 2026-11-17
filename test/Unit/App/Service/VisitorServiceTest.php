@@ -62,6 +62,15 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find(2)?->status);
     }
 
+    public function testACardTheMessengerDidNotTakeIsSentAgain(): void {
+        $this->stack->channel->sendResults = [\Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'Allowed transfer timeout exceeded')];
+
+        $this->stack->say('привет, я Роман', '99');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertCount(1, $this->cards(), 'a timeout of Telegram does not lose the card');
+    }
+
     public function testSecondMessageBeforeTheDecisionSendsNoSecondCard(): void {
         $this->stack->say('привет', '99');
         $this->stack->say('ау?', '99');

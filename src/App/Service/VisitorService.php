@@ -10,6 +10,8 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
+use Mercurius\Messenger\SendResult;
+use Mercurius\Messenger\SendErrorKind;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
@@ -43,19 +45,22 @@ final class VisitorService implements CallbackHandler {
         private readonly Channel $channel,
         private readonly string $ownerChatId,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** @var list<float> pauses before the next tries of a card the messenger did not take */
+        private readonly array $retryDelays = [2.0, 4.0],
     ) {}
 
     /** Creates a pending visitor for a stranger and shows them to the owner once. */
-    public function admit(IncomingMessage $message): Principal {
+    /** @param string|null $group the title of the group the stranger wrote in; null — a private chat */
+    public function admit(IncomingMessage $message, ?string $group = null): Principal {
         $visitor = $this->principals->createVisitor($message->channel, $message->userId, $message->displayName ?? $message->userName);
         $text = trim($message->text);
         $preview = mb_strlen($text) > self::PREVIEW ? mb_substr($text, 0, self::PREVIEW) . '…' : $text;
-        $card = sprintf(
-            t('service.visitor.novyy_sobesednik_napisal_chto_emu'),
-            self::who($visitor, $message->userName, $message->userId),
-            SecretMasker::mask($preview === '' ? t('service.visitor.ne_tekst') : $preview),
-        );
-        $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, $card, buttons: [[
+        $who = self::who($visitor, $message->userName, $message->userId);
+        $said = SecretMasker::mask($preview === '' ? t('service.visitor.ne_tekst') : $preview);
+        $card = $group === null
+            ? sprintf(t('service.visitor.novyy_sobesednik_napisal_chto_emu'), $who, $said)
+            : sprintf(t('service.visitor.in_group'), $group, $who, $said);
+        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, buttons: [[
             new Button(t('service.visitor.razgovor'), sprintf('pv:%d:t', $visitor->id)),
             new Button(t('service.visitor.polzovatel'), sprintf('pv:%d:u', $visitor->id)),
             new Button(t('service.visitor.admin'), sprintf('pv:%d:a', $visitor->id)),
@@ -96,6 +101,27 @@ final class VisitorService implements CallbackHandler {
             });
         }
         $this->logger->info('Visitor decided', ['visitor' => $decided->id, 'role' => $role->value, 'status' => $status->value]);
+    }
+
+    /**
+     * The card must reach the owner: a person whose card is lost waits for good. A failure that may pass (a timeout, a
+     * network error, a short flood) is tried again; a timeout may have been delivered after all, and a second card is
+     * harmless — its buttons answer "already decided".
+     *
+     * ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L3496-L3560 (_send_with_retry) — two more tries
+     *      after 2 and 4 seconds, retry_after of a flood honoured; hermes does not retry a timeout, a card is worth it
+     */
+    private function send(OutgoingMessage $message): SendResult {
+        $result = $this->channel->send($message);
+        foreach ($this->retryDelays as $attempt => $pause) {
+            if ($result->success || !in_array($result->errorKind, [SendErrorKind::Transient, SendErrorKind::RateLimited, SendErrorKind::Unknown], true)) {
+                break;
+            }
+            $this->logger->notice('Visitor card is sent again', ['attempt' => $attempt + 2, 'kind' => $result->errorKind->value]);
+            \Amp\delay($result->retryAfter !== null && $result->retryAfter <= 60 ? (float) $result->retryAfter : $pause);
+            $result = $this->channel->send($message);
+        }
+        return $result;
     }
 
     /** A private chat with a person has the id of their account (Telegram), so the message goes there. */

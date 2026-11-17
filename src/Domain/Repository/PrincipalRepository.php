@@ -34,4 +34,7 @@ interface PrincipalRepository {
 
     /** The owner's decision on a pending visitor, taken atomically; null when it was already decided. */
     public function decideVisitor(int $id, Role $role, PrincipalStatus $status): ?Principal;
+
+    /** Sets the role and status of a participant whatever they were; the owner is never changed (null). */
+    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal;
 }

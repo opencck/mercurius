@@ -60,6 +60,14 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return $this->principals[$current->id] = new Principal($current->id, $current->kind, $role, $current->displayName, $status);
     }
 
+    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal {
+        $current = $this->principals[$id] ?? null;
+        if ($current === null || $current->isOwner()) {
+            return null;
+        }
+        return $this->principals[$current->id] = new Principal($current->id, $current->kind, $role, $current->displayName, $status);
+    }
+
     /** Puts a ready participant in the store, bound to a channel identity. */
     public function put(Principal $principal, string $channel, string $externalId): void {
         $this->principals[$principal->id] = $principal;

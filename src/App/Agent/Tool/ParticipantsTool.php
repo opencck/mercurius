@@ -8,6 +8,8 @@ use Mercurius\Llm\ToolDefinition;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 
@@ -20,6 +22,14 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#участники-люди-и-агенты — the owner manages participants in the dialog
  */
 final class ParticipantsTool implements Tool {
+    /** role argument => [role, status] */
+    private const DECISIONS = [
+        'talk' => [Role::Visitor, PrincipalStatus::Active],
+        'user' => [Role::User, PrincipalStatus::Active],
+        'admin' => [Role::Admin, PrincipalStatus::Active],
+        'rejected' => [Role::Visitor, PrincipalStatus::Rejected],
+    ];
+
     public const NAME = 'participants';
 
     public function __construct(
@@ -29,15 +39,20 @@ final class ParticipantsTool implements Tool {
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.participants.uchastniki_lyudi_i_agenty_kotorye')
-            . t('tool.participants.instrumenty_i_limity_query_chast'), [
+            . t('tool.participants.instrumenty_i_limity_query_chast') . t('tool.participants.decide_about'), [
             'type' => 'object',
-            'properties' => ['query' => ['type' => 'string', 'maxLength' => 100]],
+            'properties' => [
+                'action' => ['type' => 'string', 'enum' => ['list', 'decide']],
+                'query' => ['type' => 'string', 'maxLength' => 100],
+                'id' => ['type' => 'integer', 'minimum' => 1],
+                'role' => ['type' => 'string', 'enum' => array_keys(self::DECISIONS)],
+            ],
             'additionalProperties' => false,
         ]);
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Read;
+        return Args::string($args, 'action') === 'decide' ? DangerClass::Write : DangerClass::Read;
     }
 
     public function untrusted(): bool {
@@ -53,6 +68,9 @@ final class ParticipantsTool implements Tool {
             return ToolResult::error(t('tool.participants.spisok_uchastnikov_vidit_tolko_vladelets'));
         }
         $query = mb_strtolower(trim(Args::string($args, 'query') ?? ''));
+        if (Args::string($args, 'action') === 'decide') {
+            return $this->decide(Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
+        }
         $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $query === ''
             || (string) $p->id === $query
             || str_contains(mb_strtolower($p->displayName ?? ''), $query)));
@@ -60,6 +78,33 @@ final class ParticipantsTool implements Tool {
             return ToolResult::ok($query === '' ? t('tool.participants.uchastnikov_net') : sprintf(t('tool.participants.uchastnika_net'), $query));
         }
         return ToolResult::ok(implode("\n", array_map(fn(Principal $p): string => $this->line($p), $found)));
+    }
+
+    /**
+     * What a participant may do, decided by the owner in the dialog — also without the card: someone seen in a group
+     * gets rights before they write to the bot, and a lost card does not leave them waiting.
+     *
+     * spec: BRIEF.md#участники-люди-и-агенты — roles are the owner's decision
+     */
+    private function decide(?int $id, string $query, string $role): ToolResult {
+        $decision = self::DECISIONS[$role] ?? null;
+        if ($decision === null) {
+            return ToolResult::error(t('tool.participants.bad_role'));
+        }
+        $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $id !== null
+            ? $p->id === $id
+            : $query !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $query)));
+        if (count($found) !== 1) {
+            return ToolResult::error(t('tool.participants.not_found'));
+        }
+        if ($found[0]->isOwner()) {
+            return ToolResult::error(t('tool.participants.owner_stays'));
+        }
+        $decided = $this->principals->setRole($found[0]->id, $decision[0], $decision[1]);
+        if ($decided === null) {
+            return ToolResult::error(t('tool.participants.owner_stays'));
+        }
+        return ToolResult::ok(sprintf(t('tool.participants.decided'), $decided->id, $decided->displayName ?? '', $decided->role->value, $decided->status->value));
     }
 
     private function line(Principal $p): string {

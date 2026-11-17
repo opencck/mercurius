@@ -591,6 +591,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     $logger,
     $forumTopics,
     $runMessages,
+    $visitors,
 );
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),

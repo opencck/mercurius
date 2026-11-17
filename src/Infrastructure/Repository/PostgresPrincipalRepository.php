@@ -147,6 +147,16 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return $row === null ? null : self::hydrate($row);
     }
 
+    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal {
+        $row = $this->db->execute(
+            "UPDATE principals SET role = ?, status = ? WHERE id = ? AND role <> 'owner'
+             RETURNING id, kind, role, display_name, status",
+            [$role->value, $status->value, $id],
+        )->fetchRow();
+
+        return $row === null ? null : self::hydrate($row);
+    }
+
     public function all(): array {
         $found = [];
         foreach ($this->db->query('SELECT id, kind, role, display_name, status FROM principals ORDER BY id') as $row) {

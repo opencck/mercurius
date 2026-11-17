@@ -55,6 +55,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         /** forum topics as projects; null — topics are just threads */
         private readonly ?ForumTopics $forum = null,
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
+        /** records strangers of approved groups as visitors and shows them to the owner */
+        private readonly ?VisitorService $visitors = null,
     ) {}
 
     /**
@@ -96,6 +98,11 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $context = $this->recent[$message->chatId] ?? [];
         $this->remember($message->chatId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
         if ($group->status !== Group::APPROVED) {
+            return null;
+        }
+        if ($this->visitors !== null && $this->principals->findByIdentity($message->channel, $message->userId) === null) {
+            // spec: BRIEF.md#группа — the owner can give a group member rights before they write to the bot
+            $this->visitors->admit($message, $group->title);
             return null;
         }
         $addressed = $this->addressed($message);

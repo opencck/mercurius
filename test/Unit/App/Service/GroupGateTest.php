@@ -31,7 +31,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->stack = new AgentStack($llm);
         $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
         $this->groups = new InMemoryGroupRepository();
-        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger());
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), visitors: $this->stack->visitors);
         $this->stack->useGroups($this->gate);
     }
 
@@ -119,6 +119,22 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(0, $this->stack->llm->requests, 'opening a topic is not a question to the agent');
     }
 
+    public function testAStrangerInTheGroupBecomesAVisitorTheOwnerCanDecideAbout(): void {
+        $this->stack(new ScriptedLlm([]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+
+        $this->say('Всем привет, я Роман', '77');
+        $this->say('@mrcuribot а мне ответишь?', '77');
+
+        $cards = array_values(array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_starts_with($t, 'Новый собеседник')));
+        self::assertCount(1, $cards, 'one card, at the first message');
+        self::assertStringContainsString('«Дом»', $cards[0]);
+        self::assertStringContainsString('Всем привет, я Роман', $cards[0]);
+        self::assertSame(\OpenCCK\Domain\Entity\PrincipalStatus::Pending, $this->stack->principals->findByIdentity('telegram', '77')?->status);
+        self::assertCount(0, $this->stack->llm->requests, 'a stranger is still not answered');
+    }
+
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {
         $this->stack(new ScriptedLlm([]));
 
@@ -175,7 +191,7 @@ final class GroupGateTest extends AsyncTestCase {
 
         $this->say('@mrcuribot помоги', '99');
         self::assertCount(0, $this->stack->llm->requests, 'a stranger in a group is not answered');
-        self::assertSame([], array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'Новый собеседник')), 'and makes no card');
+        self::assertCount(1, array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'Новый собеседник')), 'but the owner gets a card to decide about them');
 
         $this->say('а точно?', '42', ['reply_to_message' => ['message_id' => 5, 'from' => ['id' => (int) self::BOT, 'is_bot' => true]]]);
         self::assertCount(1, $this->stack->llm->requests);
