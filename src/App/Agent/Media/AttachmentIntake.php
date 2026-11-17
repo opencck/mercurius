@@ -38,6 +38,11 @@ use function Mercurius\I18n\t;
 final class AttachmentIntake {
     public const MAX_FILES = 10;
     public const MAX_FILE = 20_000_000;
+    /**
+     * What goes through the application into the sandbox and to the models: a file is held in memory three times (bytes,
+     * base64, JSON) and the application has 512 MB. A local Bot API server gives larger files — they need streaming.
+     */
+    public const SANDBOX_MAX = 25_000_000;
     public const MAX_TOTAL = 50_000_000;
     public const EXTRACT_SECONDS = 30;
     public const EXTRACTOR = '/opt/mercurius/extract_text.py';
@@ -51,6 +56,7 @@ final class AttachmentIntake {
 
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
+    private readonly int $maxFile;
 
     /** @param (Closure(): DateTimeImmutable)|null $now */
     public function __construct(
@@ -60,14 +66,15 @@ final class AttachmentIntake {
         private readonly DateTimeZone $zone,
         ?Closure $now = null,
         private readonly LoggerInterface $logger = new NullLogger(),
-        /** the largest file the channel gives: 20 MB from the cloud Bot API, more from a local server */
-        private readonly int $maxFile = self::MAX_FILE,
+        /** the largest file the channel gives: 20 MB from the cloud Bot API, more from a local server (taken up to 25 MB) */
+        int $maxFile = self::MAX_FILE,
         /** vision, speech and video models; null — files are only kept and named */
         private readonly ?\OpenCCK\Infrastructure\Media\MediaModels $models = null,
         /** the participant's way with files over the owner's defaults */
         private readonly ?MediaPrefs $prefs = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
+        $this->maxFile = min($maxFile, self::SANDBOX_MAX);
     }
 
     /** @param int|null $conversationId where the spend of the models is counted */

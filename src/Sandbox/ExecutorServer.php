@@ -23,7 +23,8 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#песочница — executor behind a token, only the sandbox network
  */
 final class ExecutorServer implements RequestHandler {
-    private const MAX_BODY = 8 * 1024 * 1024;
+    /** a file of 25 MB in base64 with its JSON: files the agent receives and sends go through here */
+    private const MAX_BODY = 40 * 1024 * 1024;
 
     /** @var array<string, DeferredCancellation> running exec calls by call id */
     private array $running = [];
@@ -81,7 +82,7 @@ final class ExecutorServer implements RequestHandler {
             'replace' => $this->replace($request),
             'list' => ['entries' => $this->files->list($id, $limits, $request->string('path', '.'), $request->int('depth', 1, 1, 3))],
             'usage' => ['bytes' => $this->files->usage($id)],
-            'fetch' => ['content' => base64_encode($this->files->fetch($id, $limits, $request->string('path'), $request->int('max_bytes', 5_000_000, 1, 5_000_000)))],
+            'fetch' => ['content' => base64_encode($this->files->fetch($id, $limits, $request->string('path'), $request->int('max_bytes', 5_000_000, 1, 25_000_000)))],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
             // spec: BRIEF.md#песочница — the streaming API: a process lives between the calls
             'spawn' => ['session' => $this->streams()->spawn($id, $limits, $request->string('command'), $this->workspace->resolve($id, $request->string('cwd', '.')), $request->env())],

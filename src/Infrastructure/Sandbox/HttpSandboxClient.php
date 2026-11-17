@@ -153,7 +153,8 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
         $request->setHeader('content-type', 'application/json');
         $request->setTransferTimeout($timeoutSeconds);
         $request->setInactivityTimeout($timeoutSeconds);
-        $request->setBodySizeLimit(16 * 1024 * 1024);
+        // a fetched file of 25 MB in base64 with its JSON
+        $request->setBodySizeLimit(40 * 1024 * 1024);
 
         try {
             $response = $this->http->request($request, new CompositeCancellation($cancellation, new TimeoutCancellation($timeoutSeconds + 1)));

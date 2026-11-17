@@ -191,4 +191,12 @@ final class AttachmentIntakeTest extends AsyncTestCase {
         $twice = $this->intake()->intake($this->owner, self::policy(), $message, new NullCancellation());
         self::assertSame(1, substr_count($twice->text, '📎'), 'the same file once');
     }
+
+    public function testALocalServerStillGivesTheAgentFilesUpTo25Mb(): void {
+        $intake = new AttachmentIntake($this->channel, $this->sandbox, MediaSettings::fromEnv([]), new DateTimeZone('+03:00'), maxFile: 200_000_000);
+
+        $result = $intake->intake($this->owner, self::policy(), self::message([self::document('film.mp4', 'big', 30_000_000)]), new NullCancellation());
+
+        self::assertStringContainsString('25 МБ', $result->text, 'the application holds a file in memory: larger ones need streaming');
+    }
 }
