@@ -84,6 +84,12 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\Infrastructure\Repository\PostgresSkillRepository;
+use OpenCCK\App\Service\SkillCommands;
+use OpenCCK\App\Skill\SkillCatalog;
+use OpenCCK\App\Agent\Tool\SkillProposeTool;
+use OpenCCK\App\Agent\Tool\SkillViewTool;
+use OpenCCK\App\Agent\SkillCards;
 use OpenCCK\Infrastructure\Browser\BrowserClient;
 use OpenCCK\App\Agent\Tool\BrowserTool;
 use OpenCCK\App\Web\TextExtractor;
@@ -377,6 +383,14 @@ $tools->register(new FileWriteTool($serverConsole, new CommandClassifier()));
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
 
+// spec: BRIEF.md#скиллы-и-mcp — the catalog of skills: index in the prompt, bodies on demand, changes by the owner
+$skillRepository = new PostgresSkillRepository($db);
+$skillCatalog = new SkillCatalog($skillRepository);
+$skillCards = new SkillCards($skillRepository, $channel, $telegram->ownerId);
+$scheduler->useSkills($skillCatalog);
+$tools->register(new SkillViewTool($skillCatalog));
+$tools->register(new SkillProposeTool($skillCatalog, $skillCards));
+
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
@@ -400,8 +414,9 @@ $chat = new ChatService(
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
+    new SkillCommands($skillRepository),
 );
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

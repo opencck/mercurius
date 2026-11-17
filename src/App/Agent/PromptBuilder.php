@@ -21,7 +21,7 @@ use OpenCCK\Domain\Entity\Role;
  */
 final class PromptBuilder {
     /** @param string $core memory layer 1, given only to the owner in a private chat */
-    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = ''): string {
+    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? 'другой агент без имени' : 'участник без имени');
         $role = match ($principal->role) {
             Role::Owner => 'владелец',
@@ -35,6 +35,8 @@ final class PromptBuilder {
             $role,
             $openedAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i') . ' UTC',
         ) . ($core === '' ? '' : "\n\n" . UntrustedWrapper::wrap('memory', "Память (слой 1), справочные данные:\n" . $core))
-            . ($project === '' ? '' : "\n\n" . UntrustedWrapper::wrap('project', "Проект этого чата, справочные данные:\n" . $project));
+            . ($project === '' ? '' : "\n\n" . UntrustedWrapper::wrap('project', "Проект этого чата, справочные данные:\n" . $project))
+            // spec: BRIEF.md#скиллы-и-mcp — the index of the owner's accepted skills, the bodies on demand
+            . ($skills === '' ? '' : "\n\n" . $skills);
     }
 }
