@@ -73,7 +73,7 @@ final class GroupGate implements CallbackHandler {
         }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
         $context = $this->recent[$message->chatId] ?? [];
-        $this->remember($message->chatId, sprintf('%s: %s', $speaker, mb_substr(trim($message->text), 0, 500)));
+        $this->remember($message->chatId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : ' (тема #' . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
         if ($group->status !== Group::APPROVED) {
             return null;
         }
@@ -89,7 +89,8 @@ final class GroupGate implements CallbackHandler {
         if ($text === '' && !$addressed) {
             return null;
         }
-        $prefix = sprintf("[Группа «%s», пишет %s.", $group->title, $speaker);
+        $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId)]);
+        $prefix = sprintf('[Группа «%s», пишет %s; сообщение #%s%s.', $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
         $prefix .= $group->mode === Group::FREE && !$addressed
             ? ' Тебя не звали: ответь, только если от тебя тут правда есть польза; иначе ответь ровно ' . self::SILENT . '.]'
             : ']';

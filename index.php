@@ -594,7 +594,9 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,
+    explode(':', $telegram->token(), 2)[0],
 );
+$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 

@@ -74,7 +74,8 @@ final class GroupGateTest extends AsyncTestCase {
 
         self::assertCount(1, $this->stack->llm->requests);
         $prompt = array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '';
-        self::assertStringContainsString('[Группа «Дом», пишет User 42.]', $prompt);
+        self::assertMatchesRegularExpression('~\[Группа «Дом», пишет User 42; сообщение #\d+\.\]~u', $prompt, 'the agent sees the message number');
+        self::assertMatchesRegularExpression('~#\d+ User 99: сколько за свет\?~u', $prompt, 'remembered lines carry their numbers');
         self::assertStringContainsString('кто оплатит свет? там 1200', $prompt, 'the talk of the group comes as data');
         self::assertStringContainsString('<untrusted-data source="group-chat">', $prompt);
         self::assertStringEndsWith("\n\nсколько за свет?", $prompt, 'the mention is dropped');

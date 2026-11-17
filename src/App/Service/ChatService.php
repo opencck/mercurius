@@ -58,6 +58,8 @@ final class ChatService implements MessageHandler {
         private readonly ?SettingsCommands $settings = null,
         private readonly ?PeerCommands $peers = null,
         private readonly ?GroupGate $groups = null,
+        /** the bot's id: a reply to its own message is named so */
+        private readonly string $botId = '',
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -225,6 +227,28 @@ final class ChatService implements MessageHandler {
         }
 
         $message = $this->withoutSecrets($principal, $message);
+        if ($message->isPrivateChat) {
+            // spec: BRIEF.md#telegram-группы-каналы-и-темы — the agent sees what a message answers
+            $header = MessageMeta::header($message, $this->botId);
+            if ($header !== '') {
+                $message = new IncomingMessage(
+                    $message->channel,
+                    $message->chatId,
+                    $message->userId,
+                    $message->userName,
+                    $message->displayName,
+                    $header . "\n" . $message->text,
+                    $message->messageId,
+                    $message->replyToMessageId,
+                    $message->isPrivateChat,
+                    $message->receivedAt,
+                    $message->updateId,
+                    $message->threadId,
+                    $message->isEdited,
+                    $message->raw,
+                );
+            }
+        }
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId);
         $this->scheduler->submit($principal, $message, $conversationId);
     }
