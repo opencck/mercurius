@@ -111,8 +111,9 @@ final class SshTest extends AsyncTestCase {
 
     public function testAJumpGoesThroughTheServerInBetween(): void {
         $server = $this->trusted();
-        // The test server is its own server in between: the tunnel from it leads back to its port 22.
-        $target = new Connection($server, self::PASSWORD, 'password', null, new Connection($server, self::PASSWORD, 'password'));
+        // The test server is its own server in between: the tunnel from it leads back to its own port 22.
+        $self = new Server(2, 'inner', '127.0.0.1', 22, 'tester', 1, 'test', $server->hostKey, null, 'via:test');
+        $target = new Connection($self, self::PASSWORD, 'password', null, new Connection($server, self::PASSWORD, 'password'));
 
         $result = (new AmpSshShell())->run($target, 'echo through', 10, 1000, new NullCancellation());
 
