@@ -195,32 +195,6 @@ final class SendMessageTool implements Tool, GrantKeyed {
      * @return Principal|string the recipient, or why there is none
      */
     private function recipient(array $args): Principal|string {
-        $to = trim(Args::string($args, 'to') ?? '');
-        $people = array_values(array_filter(
-            $this->principals->all(),
-            static fn(Principal $p): bool => $p->kind === PrincipalKind::Human && $p->status === PrincipalStatus::Active,
-        ));
-        $key = mb_strtolower(ltrim($to, '@#'));
-        if (in_array($key, ['owner', 'владелец', 'владельцу'], true)) {
-            $owner = array_values(array_filter($people, static fn(Principal $p): bool => $p->role === Role::Owner));
-            return $owner[0] ?? t('tool.send_message.no_owner');
-        }
-        if (ctype_digit($key)) {
-            foreach ($people as $p) {
-                if ($p->id === (int) $key) {
-                    return $p;
-                }
-            }
-        }
-        $exact = array_values(array_filter($people, static fn(Principal $p): bool => mb_strtolower($p->displayName ?? '') === $key));
-        $found = $exact !== [] ? $exact : array_values(array_filter(
-            $people,
-            static fn(Principal $p): bool => $key !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $key),
-        ));
-        if (count($found) === 1) {
-            return $found[0];
-        }
-        $names = implode(', ', array_map(static fn(Principal $p): string => sprintf('%s (#%d)', $p->displayName ?? '—', $p->id), $found === [] ? $people : $found));
-        return sprintf(t($found === [] ? 'tool.send_message.unknown' : 'tool.send_message.ambiguous'), $to, $names);
+        return (new Recipients($this->principals, $this->channelName))->find(Args::string($args, 'to') ?? '');
     }
 }

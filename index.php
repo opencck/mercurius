@@ -330,8 +330,10 @@ if ($sandbox !== null) {
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
-    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations));
+    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
 }
+// spec: BRIEF.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
+$tools->register(new \OpenCCK\App\Agent\Tool\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
 // spec: BRIEF.md#интернет-и-браузер — the browser service, when its token is set
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 if ($browserToken !== null) {

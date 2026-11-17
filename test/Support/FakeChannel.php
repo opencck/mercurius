@@ -149,6 +149,32 @@ final class FakeChannel implements Channel {
         $this->answers[] = [$callbackId, $text, $alert];
     }
 
+    /** @var list<array{string, string, array<string, mixed>, ?string}> sent content: chat, kind, details, topic */
+    public array $content = [];
+
+    public function sendMedia(string $chatId, \Mercurius\Messenger\MediaKind $kind, string $fileName, string $content, ?string $caption = null, ?string $threadId = null): SendResult {
+        if ($kind === \Mercurius\Messenger\MediaKind::Document) {
+            return $this->sendFile($chatId, $fileName, $content, $caption, $threadId);
+        }
+        $this->content[] = [$chatId, $kind->value, ['name' => $fileName, 'bytes' => $content, 'caption' => $caption], $threadId];
+        return SendResult::ok((string) $this->nextId++);
+    }
+
+    public function sendLocation(string $chatId, float $latitude, float $longitude, ?string $threadId = null): SendResult {
+        $this->content[] = [$chatId, 'location', ['latitude' => $latitude, 'longitude' => $longitude], $threadId];
+        return SendResult::ok((string) $this->nextId++);
+    }
+
+    public function sendContact(string $chatId, string $phone, string $firstName, ?string $lastName = null, ?string $threadId = null): SendResult {
+        $this->content[] = [$chatId, 'contact', ['phone' => $phone, 'first_name' => $firstName, 'last_name' => $lastName], $threadId];
+        return SendResult::ok((string) $this->nextId++);
+    }
+
+    public function sendPoll(string $chatId, string $question, array $options, bool $anonymous = true, bool $multiple = false, ?string $threadId = null): SendResult {
+        $this->content[] = [$chatId, 'poll', ['question' => $question, 'options' => $options, 'anonymous' => $anonymous, 'multiple' => $multiple], $threadId];
+        return SendResult::ok((string) $this->nextId++);
+    }
+
     public function sendFile(string $chatId, string $fileName, string $content, ?string $caption = null, ?string $threadId = null): SendResult {
         if ($this->sendFileFails) {
             return SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down');
