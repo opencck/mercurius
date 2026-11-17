@@ -30,6 +30,14 @@ final class ParticipantPolicy {
         public readonly bool $irreversible = true,
     ) {}
 
+    /** The same policy with one more tool; every tool already — the same. */
+    public function withTool(string $name): self {
+        if ($this->tools === null || in_array($name, $this->tools, true) || $name === '') {
+            return $this;
+        }
+        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible);
+    }
+
     public function allowsTool(string $name): bool {
         return $this->tools === null || in_array($name, $this->tools, true);
     }

@@ -125,6 +125,27 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertCount(1, $this->push->calls);
     }
 
+    public function testAParticipantWithoutTheRightToAskStillAsksForATool(): void {
+        $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
+        $this->registry->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($this->registry, $policies));
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'request_tool', '{"tool":"read","reason":"нужно прочитать"}')), ScriptedLlm::text('выдали')]);
+        $loop = $this->loop($llm);
+        $agent = new Principal(7, PrincipalKind::Agent, Role::Admin, 'rekryt');
+        $none = static fn(Run $run): ParticipantPolicy => new ParticipantPolicy([], $run->limits, null, false);
+
+        $first = $this->start();
+        $run = $loop->run($first, $none($first), $agent, $this->observer, new NullCancellation());
+        self::assertSame(['c1'], $this->asked, 'the card goes to the owner even without the right to ask');
+        $this->approvals->decide(1, ApprovalStatus::Approved, null, 1);
+        $this->runs->setStatus($run->id, RunStatus::Running);
+        $loop->run($this->runs->find($run->id) ?? $run, $none($run), $agent, $this->observer, new NullCancellation());
+
+        self::assertTrue($policies->forPrincipal($agent)->allowsTool('read'), 'kept for good');
+        $offered = array_map(static fn($d) => $d->name, $llm->requests[1]->tools);
+        self::assertContains('read', $offered, 'and offered in this run at once');
+        self::assertNotContains('push', $offered);
+    }
+
     public function testDeniedCallGetsTheReason(): void {
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('понял')]);
         $loop = $this->loop($llm);

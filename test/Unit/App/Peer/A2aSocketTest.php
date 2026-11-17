@@ -35,6 +35,7 @@ final class A2aSocketTest extends AsyncTestCase {
     private \OpenCCK\Test\Support\FakeSandbox $sandbox;
     private \OpenCCK\Test\Support\FakeChannel $ownerChat;
     private \OpenCCK\App\Peer\AgentRequests $requests;
+    private AgentStack $follower;
 
     protected function setUp(): void {
         parent::setUp();
@@ -47,6 +48,7 @@ final class A2aSocketTest extends AsyncTestCase {
         // agents of this follower get a sandbox: files from a neighbour are kept there
         $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new \OpenCCK\Domain\Agent\RunLimits(30, 100_000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4));
         $this->ownerChat = $follower->channel;
+        $this->follower = $follower;
         $this->requests = new \OpenCCK\App\Peer\AgentRequests($peers, $follower->principals, $follower->channel, '42', retryDelays: []);
         $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox, requests: $this->requests);
         $follower->scheduler->useJobRuns($this->server);
@@ -76,6 +78,9 @@ final class A2aSocketTest extends AsyncTestCase {
         }
 
         self::assertSame(A2aTask::COMPLETED, $state);
+        $asked = array_values(array_filter($this->follower->transcript->messages, static fn(array $m): bool => str_contains($m['message']->content, 'Столица Франции?')));
+        self::assertStringContainsString('сам подключился ко мне по WebSocket', $asked[0]['message']->content ?? '', 'the agent knows who gave the task and how');
+        self::assertStringContainsString('«leader»', $asked[0]['message']->content ?? '');
         self::assertSame(['hello', 'auth'], array_slice(array_map(static fn(string $f): string => self::field(self::decoded($f), 'type'), $end->sent), 0, 2));
         $socket->close();
     }

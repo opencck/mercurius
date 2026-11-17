@@ -123,7 +123,7 @@ final class A2aServer implements JobRuns {
         if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
             return null;
         }
-        return fn(array $request): array => $this->handle($agent, $request)[1];
+        return fn(array $request): array => $this->handle($agent, $request, 'out')[1];
     }
 
     /** The entrance token of this instance, as the Authorization header carries it. */
@@ -184,7 +184,7 @@ final class A2aServer implements JobRuns {
             }
             [$agent, $fingerprint] = $known;
             // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — the connection goes both ways and is listed
-            $socket = A2aSocket::accepted($channel, fn(array $request): array => $this->handle($agent, $request)[1]);
+            $socket = A2aSocket::accepted($channel, fn(array $request): array => $this->handle($agent, $request, 'ws')[1]);
             $this->links?->add(A2aLinks::IN, $agent->displayName ?? ('#' . $agent->id), $fingerprint, $socket);
             $socket->join();
         } catch (Throwable $e) {
@@ -310,7 +310,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $request
      * @return array{int, array<string, mixed>} HTTP status and the JSON-RPC answer
      */
-    public function handle(Principal $agent, array $request): array {
+    public function handle(Principal $agent, array $request, string $via = 'http'): array {
         /** @var mixed $id */
         $id = $request['id'] ?? null;
         $method = isset($request['method']) && is_string($request['method']) ? $request['method'] : '';
@@ -323,7 +323,7 @@ final class A2aServer implements JobRuns {
         }
         [$handler, $v1] = self::METHODS[$method] ?? ['', false];
         return match ($handler) {
-            'send' => [200, $this->send($agent, $id, $params, $v1)],
+            'send' => [200, $this->send($agent, $id, $params, $v1, $via)],
             'get' => [200, $this->get($agent, $id, $params)],
             'cancel' => [200, $this->cancel($agent, $id, $params)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
@@ -361,9 +361,10 @@ final class A2aServer implements JobRuns {
 
     /**
      * @param array<array-key, mixed> $params
+     * @param string $via how the task came: ws (it connected to me), http, out (over my connection to it)
      * @return array<string, mixed>
      */
-    private function send(Principal $agent, mixed $id, array $params, bool $v1): array {
+    private function send(Principal $agent, mixed $id, array $params, bool $v1, string $via = 'http'): array {
         $message = isset($params['message']) && is_array($params['message']) ? $params['message'] : [];
         $messageId = isset($message['messageId']) && is_string($message['messageId']) ? trim($message['messageId']) : '';
         $text = self::text($message);
@@ -397,13 +398,13 @@ final class A2aServer implements JobRuns {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, $refusal);
             $this->logger->notice('A2A task refused', ['agent' => $agent->id, 'reason' => $refusal]);
         } else {
-            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files));
+            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files), $via);
         }
         $task = $this->peers->task($taskId);
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : self::result($id, $this->view($task), $v1);
     }
 
-    private function start(Principal $agent, string $taskId, string $contextId, string $text): void {
+    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http'): void {
         $policy = $this->policies->forPrincipal($agent);
         $conversation = $this->conversations->openConversation($agent->id, self::CHANNEL, 'a2a-' . $agent->id . '-' . $contextId);
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
@@ -412,9 +413,12 @@ final class A2aServer implements JobRuns {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, t('peer.a2a_server.v_etom_kontekste_uzhe_idet'));
             return;
         }
+        // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — who gave the task and how it came: the agent
+        //      must not take the neighbour for someone it should connect to
         $this->transcript->appendUser($conversation, $run->id, sprintf(
             t('peer.a2a_server.zadacha_ot_agenta_po_seti'),
             $agent->displayName ?? t('peer.a2a_server.bez_imeni'),
+            t('peer.a2a_server.via_' . (in_array($via, ['ws', 'http', 'out'], true) ? $via : 'http')),
             self::INPUT_REQUIRED_MARKER,
             $text,
         ));

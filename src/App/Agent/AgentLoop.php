@@ -35,6 +35,7 @@ use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Agent\Tool\PreparesCall;
+use OpenCCK\App\Agent\Tool\RequestsAccess;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\ApprovalStatus;
@@ -284,7 +285,7 @@ final class AgentLoop {
         }
         $calls = array_map(function (StoredToolCall $stored) use ($state): ValidatedCall {
             $call = new ToolCall($stored->callId, $stored->name, $stored->argumentsJson);
-            $tool = $state->policy->allowsTool($stored->name) ? $this->registry->get($stored->name) : null;
+            $tool = $this->registry->allows($state->policy, $stored->name) ? $this->registry->get($stored->name) : null;
             $error = $tool === null || $stored->args === null ? t('agent.agent_loop.instrument_nedostupen_posle_perezapuska') : null;
             return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger);
         }, $pending);
@@ -586,7 +587,8 @@ final class AgentLoop {
             $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
             return 'granted';
         }
-        if ($this->gate === null || $this->approvals === null || !$state->policy->mayRequestApproval) {
+        // spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — asking for a tool reaches the owner always
+        if ($this->gate === null || $this->approvals === null || (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess)) {
             return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
         }
         // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
@@ -626,6 +628,10 @@ final class AgentLoop {
         $started = ($this->clock)();
         $result = $this->executor->run($call, $context, $timeout);
         $this->events->toolFinished($state->run->id, $call->call->name, $call->args, $result, ($this->clock)() - $started);
+        if ($call->tool instanceof RequestsAccess && !$result->isError) {
+            // the owner gave the tool: it is offered from the next turn of this very run
+            $state->policy = $state->policy->withTool($call->tool->grantedTool($call->args ?? []));
+        }
         return $result;
     }
 

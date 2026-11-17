@@ -36,7 +36,26 @@ final class ToolRegistry {
 
     /** @return list<string> tools the participant may use, in registration order */
     public function names(ParticipantPolicy $policy): array {
-        return array_values(array_filter(array_keys($this->tools), $policy->allowsTool(...)));
+        return array_values(array_filter(array_keys($this->tools), fn(string $name): bool => $this->allows($policy, $name)));
+    }
+
+    /**
+     * Whether the participant may call the tool: by the policy, and a tool that asks the owner for access to anyone
+     * but the owner (the owner has every tool already).
+     *
+     * spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17
+     */
+    public function allows(ParticipantPolicy $policy, string $name): bool {
+        $tool = $this->tools[$name] ?? null;
+        if ($tool instanceof RequestsAccess) {
+            return $policy->tools !== null;
+        }
+        return $tool !== null && $policy->allowsTool($name);
+    }
+
+    /** @return list<string> every registered tool */
+    public function all(): array {
+        return array_keys($this->tools);
     }
 
     /** @return list<ToolDefinition> */

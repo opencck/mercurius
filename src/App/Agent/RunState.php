@@ -50,7 +50,8 @@ final class RunState {
      */
     public function __construct(
         public Run $run,
-        public readonly ParticipantPolicy $policy,
+        /** a tool the owner grants during the run joins it (request_tool) */
+        public ParticipantPolicy $policy,
         public readonly Principal $principal,
         public readonly RunObserver $observer,
         public readonly Cancellation $cancellation,

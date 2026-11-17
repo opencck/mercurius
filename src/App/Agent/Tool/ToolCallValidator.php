@@ -40,7 +40,7 @@ final class ToolCallValidator {
             $json = trim($call->argumentsJson) === '' ? '{}' : $call->argumentsJson;
             $call = new ToolCall($id, $call->name, $json);
 
-            $tool = $policy->allowsTool($call->name) ? $this->registry->get($call->name) : null;
+            $tool = $this->registry->allows($policy, $call->name) ? $this->registry->get($call->name) : null;
             if ($tool === null) {
                 $result[] = $this->invalid($call, null, null, $this->unknown($call->name, $policy));
                 continue;
