@@ -30,6 +30,10 @@ final class SecretMasker {
             '/(Bearer|Basic|Token)\s+[A-Za-z0-9._~+\/=-]{6,}/i' => '$1 ***',
             // key=value, key: value, ?access_key=…
             '/(\b' . $name . '\s*[=:]\s*)("[^"]*"|\'[^\']*\'|[^\s&"\']+)/i' => '$1***',
+            // In Russian: «пароль от роутера: …», «токен …»: the value after a colon, or a word of letters and digits
+            // within a few words — the eval caught a password said in Russian landing in a memory fact.
+            '/((?:парол|токен|ключ\s+api|секретн\S*\s+ключ|pin|пин-?код)\S*[^\n:=]{0,40}?[:=]\s*)("[^"]*"|\S+)/iu' => '$1***',
+            '/((?:парол|токен|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
             '/\b(sk|pk|rk)-[A-Za-z0-9_-]{16,}/' => '$1-***',
             '/\b(ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/' => '$1_***',
             '/\bxox[abprs]-[A-Za-z0-9-]{10,}/' => 'xox***',

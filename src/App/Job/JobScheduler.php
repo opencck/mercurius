@@ -50,7 +50,9 @@ use function Amp\async;
  *      scheduler; here missed runs during a downtime catch up once and a job run has no irreversible steps
  */
 final class JobScheduler implements JobRuns {
-    public const JOB_TOOLS = ['job_create', 'job_cancel'];
+    public const JOB_TOOLS = ['job_create', 'job_manage'];
+    /** The answer of a run when there is nothing to tell: the result is kept, nothing is delivered. */
+    public const SILENT = '[SILENT]';
     public const CHANNEL = 'job';
     private const BATCH = 5;
     private const REPORT_MAX = 3500;
@@ -193,6 +195,11 @@ final class JobScheduler implements JobRuns {
             $this->deliver($job, sprintf('⏸ Задание #%d «%s», %s %d ждёт вашего подтверждения.', $job->id, $job->title, $byEvent ? 'событие' : 'запуск', $number));
             return;
         }
+        if (str_starts_with(ltrim($text), self::SILENT)) {
+            // ref: references/hermes-agent/cron/scheduler.py@e96221fa:L543-L575 — [SILENT] is not delivered
+            $this->jobs->finish($job->id, mb_substr($text, 0, 2000), null);
+            return;
+        }
         $report = sprintf("%s Задание #%d «%s», %s %d:\n\n%s", $byEvent ? '⚡' : '⏰', $job->id, $job->title, $byEvent ? 'событие' : 'запуск', $number, mb_substr($text, 0, self::REPORT_MAX));
         $held = $this->isQuiet(($this->now)());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
@@ -216,7 +223,7 @@ final class JobScheduler implements JobRuns {
         $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)()), $this->model);
         $run = $this->runs->start($conversation, $principal->id, $this->model, $policy->run) ?? throw new \RuntimeException('run did not start');
         $this->transcript->appendUser($conversation, $run->id, sprintf(
-            "Задание %s «%s», запуск №%d (%s).%s\n\nЗадание:\n%s%s\n\nСделай его и закончи коротким итогом для владельца. Новые задания ставить нельзя. Необратимое действие пришлёт владельцу карточку подтверждения — делай его, только если оно нужно для задания.",
+            "Задание %s «%s», запуск №%d (%s).%s\n\nЗадание:\n%s%s\n\nСделай его и закончи коротким итогом для владельца. Если сообщать нечего (например, ничего не изменилось с прошлого запуска), ответь ровно [SILENT] — тогда владелец ничего не получит. Новые задания ставить нельзя. Необратимое действие пришлёт владельцу карточку подтверждения — делай его, только если оно нужно для задания.",
             $event === null ? 'по расписанию' : 'по событию',
             $job->title,
             $number,

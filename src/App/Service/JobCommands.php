@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use DateTimeImmutable;
-use OpenCCK\App\Agent\Tool\JobCancelTool;
+use OpenCCK\App\Agent\Tool\JobManageTool;
 use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\JobScheduler;
@@ -34,7 +34,7 @@ final class JobCommands {
             return 'Заданий нет. Агент ставит их сам: «напомни…», «проверяй каждый день…».';
         }
         return "Задания:\n" . implode("\n", array_map(
-            fn(Job $j): string => JobCancelTool::line($j, $this->scheduler) . ($j->byEvent() ? ($j->hookSecret === null ? '; webhook не подключён' : '; webhook: секрет ' . $j->hookSecret) : ''),
+            fn(Job $j): string => JobManageTool::line($j, $this->scheduler) . ($j->byEvent() ? ($j->hookSecret === null ? '; webhook не подключён' : '; webhook: секрет ' . $j->hookSecret) : ''),
             $list,
         ));
     }

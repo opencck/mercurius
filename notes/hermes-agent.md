@@ -1112,3 +1112,47 @@ ShareGPT; в `state.db` не пишут. `trajectory_compressor.py` не чит�
 `tools/tool_search.py`, `tools/osv_check.py` (фаза 9); `tools/checkpoint_manager.py`, Kanban (`hermes_cli/kanban_*.py`,
 `tools/kanban_tools.py`), `gateway/platforms/webhook.py`, `cron/missed_runs.py` (фаза 10); `hermes_cli/backup*.py`,
 `config_migrations.py`, `doctor*.py`, `gateway/platforms/api_server.py` (фаза 12).
+
+## Сверка 2026-11-17: модули, которых не было в конспекте
+
+Строки проверены по `e96221fa`.
+
+- **Задания (`cron/`).** Расписание: выражения cron, «каждый понедельник в 9», «по будням», «через 30m» —
+  `cron/jobs.py@e96221fa:L681-L866` (`parse_schedule`). Лимит повторов — `L649-L676`, `L2399-L2449`. Пауза, возобновление и
+  «запустить сейчас» — `L2141-L2217`, инструмент — `tools/cronjob_tools.py@e96221fa:L1034-L1040`. Ответ `[SILENT]` не
+  доставляется, `[CRON_FAILURE]` помечает сбой — `cron/scheduler.py@e96221fa:L543-L575`, `gateway/response_filters.py@e96221fa:L19-L22, L151-L170`.
+  Режим наблюдения: сначала дешёвый скрипт или URL, по хешу вывода без изменений модель не зовётся —
+  `cron/monitor.py@e96221fa:L1-L16, L155-L199`. Повтор запуска, не дошедшего до модели, через 5/15/30 мин —
+  `cron/unreachable_retry.py@e96221fa:L1-L40`; правило пропусков — `cron/missed_runs.py@e96221fa:L1-L41`.
+- **Webhook.** Фильтры событий и полей (`all/any/not`, exists, equals, contains, in, regex) —
+  `gateway/platforms/webhook_filters.py@e96221fa:L95-L104, L134-L167`; шаблон промпта `{pull_request.title}`, `{__raw__}` —
+  `webhook.py@e96221fa:L940-L960`; `deliver_only` — шаблон уходит сообщением без агента, `L584-L606`; слияние всплеска
+  событий по ключу (тишина 30 с, не позже 300 с) — `webhook_coalesce.py@e96221fa:L1-L26, L49-L90`.
+- **Поиск.** Интерфейс `WebSearchProvider` (`is_available`, `search`, `extract`) — `agent/web_search_provider.py@e96221fa:L64-L101`,
+  общий формат результата — `plugins/web/_common.py@e96221fa:L39-L48, L238-L243`; порядок выбора поставщика —
+  `tools/web_tools.py@e96221fa:L118-L139`; SearXNG — `plugins/web/searxng/provider.py@e96221fa:L24-L39`; кеш результатов —
+  `tools/web_result_cache.py@e96221fa:L80`; запрет сайтов — `tools/website_policy.py@e96221fa:L1-L10`.
+- **Скиллы.** Каталог скилла: `SKILL.md` + `references/`, `templates/`, `assets/`, `scripts/`; `skill_view(name, file_path)` —
+  `tools/skills_tool.py@e96221fa:L471-L484, L634-L700`; терпимый разбор frontmatter — `agent/skill_utils.py@e96221fa:L71-L91`;
+  `metadata.hermes.*` и ключи верхнего уровня (совместимость со скиллами Claude и agentskills.io) — `skills_tool.py@e96221fa:L672-L676`;
+  требования к окружению и секретам — `L485-L546`; проверка безопасности перед установкой — `tools/skills_guard.py@e96221fa:L910-L1003`;
+  внешние каталоги скиллов — `skill_utils.py@e96221fa:L340-L369`; источники из git и `/.well-known/skills/index.json` —
+  `tools/skills_hub_sources.py@e96221fa:L21-L40`.
+- **MCP.** Обновление списка инструментов по `notifications/tools/list_changed` — `tools/mcp_tool_health.py@e96221fa:L99-L120`;
+  ресурсы и промпты как инструменты — `mcp_tool_registration.py@e96221fa:L188-L218`; фильтр include/exclude —
+  `L250-L267`; размыкатель после серии сбоев — `mcp_tool_handlers.py@e96221fa:L310-L330`; sampling —
+  `mcp_tool_sampling.py@e96221fa:L95-L230`.
+- **Память.** Оценка факта по использованию (`fact_feedback`: полезно +0.05, нет −0.10) —
+  `references/hermes-plugin-holographic/store.py@4a794f8:L694-L706`; фоновый разбор каждые 10 ходов —
+  `agent/background_review.py@e96221fa:L1-L6`, `agent/turn_context.py@e96221fa:L820-L830`; переписывание запроса перед
+  поиском — `plugins/memory/query_rewrite.py@e96221fa:L1-L20`.
+- **Подтверждения.** Отказ после трёх отказов подряд — `tools/approval.py@e96221fa:L66-L111`; «умные» подтверждения
+  вспомогательной моделью — `tools/approval_smart.py@e96221fa:L1-L35, L148-L170`.
+- **A2A.** Карточка агента — `plugins/platforms/a2a/protocol.py@e96221fa:L60-L91`; состояния задачи — `L23-L40`; проверка
+  запроса по порядку — `adapter.py@e96221fa:L229-L270`; 60 запросов в минуту — `protocol.py@e96221fa:L258-L276`; потолок ходов в
+  одном контексте — `L50-L53, L235-L256`; идемпотентность — `adapter.py@e96221fa:L577-L588`; сторож осиротевших задач —
+  `L379-L396`; рамка входящих и очистка исходящих — `security.py@e96221fa:L194-L207`; токены соседей — `L101-L130`.
+- **Резервная копия и проверка установки.** Снимки перед обновлением и миграциями — `hermes_cli/backup.py@e96221fa:L1195-L1234`;
+  профили браузера не копируются — `L106`; проверки `doctor` — `hermes_cli/doctor.py@e96221fa:L114-L134`.
+- **Несколько пользователей.** hermes разделяет агентов профилями (`hermes_scope.py@e96221fa:L1-L20`); лимитов, проектов
+  и прав на пользователя у него нет — у нас разделение по участнику шире.

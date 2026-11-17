@@ -37,6 +37,9 @@ interface JobRepository {
 
     public function setStatus(int $id, string $status): bool;
 
+    /** Moves the next run: resuming counts it from now, a run now puts it at now. */
+    public function setNext(int $id, ?DateTimeImmutable $next): bool;
+
     /** After a restart nothing runs. */
     public function resetRunning(): int;
 

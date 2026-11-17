@@ -34,13 +34,13 @@ final class JobCreateTool implements Tool {
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, 'Ставит задание по расписанию: напоминание, проверку, сводку. Оно выполнится без владельца в новой '
             . 'беседе, итог придёт в этот чат. schedule: once:<время ISO 8601> — однажды; every:<минут, от 5> — периодически; '
-            . 'daily:<ЧЧ:ММ> — каждый день по часовому поясу владельца; event — по событию: запускается webhook, который владелец подключает '
+            . 'daily:<ЧЧ:ММ> — каждый день по часовому поясу владельца; weekly:<mon,wed,fri | weekdays | weekends>@<ЧЧ:ММ> — по дням недели; event — по событию: запускается webhook, который владелец подключает '
             . 'командой /hook. prompt — что сделать, полностью, без ссылок на «этот разговор».', [
             'type' => 'object',
             'properties' => [
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
-                'schedule' => ['type' => 'string', 'minLength' => 7, 'maxLength' => 60],
+                'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
             ],
             'required' => ['title', 'prompt', 'schedule'],
             'additionalProperties' => false,

@@ -81,6 +81,10 @@ final class PostgresJobRepository implements JobRepository {
         return $this->db->execute('UPDATE jobs SET status = ? WHERE id = ? RETURNING id', [$status, $id])->fetchRow() !== null;
     }
 
+    public function setNext(int $id, ?DateTimeImmutable $next): bool {
+        return $this->db->execute('UPDATE jobs SET next_run_at = to_timestamp(?) WHERE id = ? RETURNING id', [$next?->getTimestamp(), $id])->fetchRow() !== null;
+    }
+
     public function resetRunning(): int {
         $count = 0;
         foreach ($this->db->query('UPDATE jobs SET running = false WHERE running RETURNING id') as $row) {

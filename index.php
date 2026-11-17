@@ -91,7 +91,7 @@ use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\Infrastructure\Module\SchedulerModule;
 use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
-use OpenCCK\App\Agent\Tool\JobCancelTool;
+use OpenCCK\App\Agent\Tool\JobManageTool;
 use OpenCCK\App\Agent\Tool\JobCreateTool;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Entity\Principal;
@@ -431,7 +431,7 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));
-$tools->register(new JobCancelTool($jobRepository, $jobScheduler));
+$tools->register(new JobManageTool($jobRepository, $jobScheduler));
 
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);

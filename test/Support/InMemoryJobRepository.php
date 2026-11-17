@@ -66,6 +66,15 @@ final class InMemoryJobRepository implements JobRepository {
         return true;
     }
 
+    public function setNext(int $id, ?DateTimeImmutable $next): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, nextRunAt: $next);
+        return true;
+    }
+
     public function resetRunning(): int {
         $count = count(array_filter($this->running));
         $this->running = [];

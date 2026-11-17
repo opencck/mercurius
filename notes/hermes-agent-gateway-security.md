@@ -882,3 +882,19 @@ reviewed: 2026-11-16
   (`gateway/platforms/base.py@e96221fa:L2744-L2763`); не отправилась — вызов сразу блокируется
   (`tools/approval.py@e96221fa:L950`).
 - Группы и темы форума: `telegram_group_observe.py`, `telegram_topic_routing.py` (фаза 10).
+
+## Сверка 2026-11-17: группы и почта
+
+- **Когда бот отвечает в группе** — `plugins/platforms/telegram/adapter.py@e96221fa:L5760-L5800` (`_should_process_message`).
+  Настройки `require_mention`, `free_response_chats`, `free_response_topics`, `mention_patterns`, `ignored_threads` —
+  `L5179-L5275`. Молчаливое наблюдение без запуска агента, только в разрешённых чатах —
+  `L5183-L5187, L5550-L5570`, `telegram_group_observe.py@e96221fa:L1-L20`. «Отвечать, когда сочтёт нужным» — свободный
+  ответ в чате и маркер молчания, разрешённый только на успешном ходе — `gateway/response_filters.py@e96221fa:L79, L242-L256`.
+- **Защита от петель между ботами** — ответ боту только по упоминанию, цепочка не длиннее 4 —
+  `adapter.py@e96221fa:L5540-L5548`, `gateway/bot_loop_guard.py@e96221fa:L1-L34, L104`. Нужна сейчас: на сервере три Меркурия.
+- **Почта** в hermes — канал общения, а не ящик агента (`plugins/platforms/email/adapter.py@e96221fa:L1-L2`). Для нашего
+  MCP-сервера IMAP/SMTP годятся: выборка UNSEEN по UID с проверкой заголовков до загрузки письма и изоляцией
+  «ядовитых» писем — `L691-L743`; подлинность отправителя по первому `Authentication-Results` своего сервера
+  (DMARC/SPF/DKIM) — `L379-L427`, `L327-L366`; пропуск автоматических отправителей — `L212-L216`; декодирование,
+  HTML в текст, вложения — `L237-L292, L428-L462`; ответ в ветку (In-Reply-To, References) — `L877-L893`; TLS и
+  STARTTLS — `L111-L126, L172-L185`.

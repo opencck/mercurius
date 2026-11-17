@@ -10,7 +10,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 use Mercurius\Llm\ToolCall;
-use OpenCCK\App\Agent\Tool\JobCancelTool;
+use OpenCCK\App\Agent\Tool\JobManageTool;
 use OpenCCK\App\Agent\Tool\JobCreateTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
@@ -161,9 +161,65 @@ final class JobsTest extends AsyncTestCase {
         $ok = $create->execute(['title' => 'Бэкап', 'prompt' => 'Проверь, что бэкап за ночь есть', 'schedule' => 'daily:09:00'], $context);
         self::assertStringContainsString('Задание #1 «Бэкап» поставлено: каждый день в 09:00', $ok->content);
 
-        $cancel = new JobCancelTool($this->jobs, $scheduler);
+        $cancel = new JobManageTool($this->jobs, $scheduler);
         self::assertStringContainsString('#1 «Бэкап» — каждый день в 09:00', $cancel->execute([], $context)->content);
         self::assertSame('Задание #1 «Бэкап» отменено.', $cancel->execute(['id' => 1], $context)->content);
         self::assertSame('Заданий нет.', $cancel->execute([], $context)->content);
+    }
+
+    public function testWeeklySchedulesFallOnTheirDays(): void {
+        $zone = new DateTimeZone('Asia/Bangkok');
+        // 2026-11-17 10:00 UTC is Tuesday 17:00 in Bangkok.
+        self::assertEquals(new DateTimeImmutable('2026-11-18 02:00 UTC'), Schedule::parse('weekly:weekdays@09:00')->next($this->now, $zone), 'Wednesday 09:00');
+        self::assertEquals(new DateTimeImmutable('2026-11-17 11:00 UTC'), Schedule::parse('weekly:tue@18:00')->next($this->now, $zone), 'later today');
+        self::assertEquals(new DateTimeImmutable('2026-11-24 09:00 UTC'), Schedule::parse('weekly:tue@16:00')->next($this->now, $zone), 'a week later');
+        self::assertEquals(new DateTimeImmutable('2026-11-21 02:00 UTC'), Schedule::parse('weekly:sat,sun@09:00')->next($this->now, $zone));
+        self::assertSame('по будням в 09:00', Schedule::parse('weekly:weekdays@09:00')->describe());
+        self::assertSame('по пн, пт в 08:30', Schedule::parse('weekly:fri,mon@08:30')->describe());
+        self::assertSame('event', (string) Schedule::parse('event'));
+        foreach (['weekly:funday@09:00', 'weekly:mon', 'weekly:mon@25:00'] as $bad) {
+            try {
+                Schedule::parse($bad);
+                self::fail($bad);
+            } catch (InvalidArgumentException) {
+            }
+        }
+    }
+
+    public function testASilentRunKeepsItsResultAndDeliversNothing(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('[SILENT]')]));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Курс', 'Скажи, только если курс изменился', 'every:60', $this->now);
+
+        $scheduler->tick(true);
+
+        self::assertSame([], array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'Курс')));
+        self::assertSame('[SILENT]', $this->jobs->find(1)?->lastResult);
+        self::assertSame([], $this->jobs->pendingReports());
+        self::assertStringContainsString('ответь ровно [SILENT]', array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '');
+    }
+
+    public function testAJobIsPausedResumedAndRunNow(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $this->stack->say('привет');
+        $context = new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation());
+        $manage = new JobManageTool($this->jobs, $scheduler);
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Диск', 'Проверь диск', 'every:60', $this->now->modify('+50 minutes'));
+
+        self::assertSame('Задание #1 «Диск» приостановлено.', $manage->execute(['action' => 'pause', 'id' => 1], $context)->content);
+        self::assertTrue($manage->execute(['action' => 'run_now', 'id' => 1], $context)->isError, 'a paused job does not run');
+        self::assertSame('Задание #1 «Диск» возобновлено.', $manage->execute(['action' => 'resume', 'id' => 1], $context)->content);
+        self::assertSame(Job::ACTIVE, $this->jobs->find(1)?->status);
+        self::assertFalse($manage->execute(['action' => 'run_now', 'id' => 1], $context)->isError);
+        $due = $this->jobs->find(1)?->nextRunAt;
+        self::assertNotNull($due);
+        self::assertLessThanOrEqual(new DateTimeImmutable(), $due, 'due now');
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Read, $manage->danger([]));
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $manage->danger(['action' => 'pause', 'id' => 1]));
+    }
+
+    public function testAJobByEventPassesTheSchemaOfJobCreate(): void {
+        $this->scheduler(new ScriptedLlm([]));
+        $schema = json_encode((new JobCreateTool($this->jobs, $this->stack->conversations, $this->scheduler(new ScriptedLlm([])), new ContentScreen()))->definition()->parameters, JSON_THROW_ON_ERROR);
+        self::assertStringContainsString('"schedule":{"type":"string","minLength":5', $schema, '"event" is five letters');
     }
 }
