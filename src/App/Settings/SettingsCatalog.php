@@ -43,6 +43,7 @@ final class SettingsCatalog {
         'BRAVE_SEARCH_API_KEY' => ['поиск', self::SECRET, 'ключ Brave Search'],
         'TAVILY_API_KEY' => ['поиск', self::SECRET, 'ключ Tavily'],
         'WEB_SEARCH_MODEL' => ['поиск', self::TEXT, 'модель OpenRouter для поиска'],
+        'AGENT_LANGUAGE' => ['агент', self::TEXT, 'язык агента: ru или en'],
         'OWNER_TIMEZONE' => ['время', self::TEXT, 'часовой пояс владельца (Europe/Moscow или +03:00)'],
         'QUIET_HOURS' => ['время', self::TEXT, 'тихие часы «с-до», например 23-8'],
         'DIGEST_TIME' => ['время', self::TEXT, 'время ежедневной сводки ЧЧ:ММ (пусто — выключена)'],
@@ -79,6 +80,8 @@ final class SettingsCatalog {
             $kind === self::INT && !ctype_digit($value) => $key . ' — целое число.',
             $kind === self::FLOAT && !is_numeric($value) => $key . ' — число.',
             $kind !== self::SECRET && preg_match('~[\x00-\x1F]~', $value) === 1 => 'Значение в одну строку.',
+            $key === 'AGENT_LANGUAGE' && !in_array($value, \Mercurius\I18n\Catalogs::LANGUAGES, true)
+                => 'AGENT_LANGUAGE — один из: ' . implode(', ', \Mercurius\I18n\Catalogs::LANGUAGES) . '.',
             default => null,
         };
     }

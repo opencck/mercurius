@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d065ed3d4c602a11263205307fa3fd1b",
+    "content-hash": "9ecf25ca55ebcea44f190d0760a2af02",
     "packages": [
         {
             "name": "amphp/amp",
@@ -2800,6 +2800,70 @@
                 "socket",
                 "socks5",
                 "vless"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "opencck/mercurius-i18n",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "packages/i18n",
+                "reference": "1ceb9bd395bbee3dfd7ddeef8f5952a3e31c1c1a"
+            },
+            "require": {
+                "ext-mbstring": "*",
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2",
+                "phpunit/phpunit": "^9.6",
+                "psalm/plugin-phpunit": "^0.22.2",
+                "vimeo/psalm": "^6"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mercurius\\I18n\\": "src/"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Mercurius\\I18n\\Test\\": "test/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit"
+                ],
+                "phpstan": [
+                    "phpstan analyse --no-progress --memory-limit=1G"
+                ],
+                "psalm": [
+                    "psalm --no-progress --show-info=false"
+                ],
+                "check": [
+                    "@test",
+                    "@phpstan",
+                    "@psalm"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Texts of an agent in several languages: a Translator interface, flat PHP catalogs with named placeholders, plural forms and a parity check",
+            "keywords": [
+                "agent",
+                "i18n",
+                "localization",
+                "plural",
+                "translation"
             ],
             "transport-options": {
                 "symlink": false,
@@ -7773,6 +7837,7 @@
     "stability-flags": {
         "amphp/ssh": 20,
         "opencck/mercurius-connectors": 20,
+        "opencck/mercurius-i18n": 20,
         "opencck/mercurius-llm": 20,
         "opencck/mercurius-mail-mcp": 20,
         "opencck/mercurius-messenger": 20,

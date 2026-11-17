@@ -118,7 +118,7 @@ final class TraceReportsTest extends AsyncTestCase {
     public function testReportsAreNotShownInAGroup(): void {
         $this->stack->sayInGroup('/usage');
 
-        self::assertSame(ChatService::PRIVATE_ONLY, $this->lastText());
+        self::assertSame(\Mercurius\I18n\t(ChatService::PRIVATE_ONLY), $this->lastText());
         self::assertNull($this->figures->since);
     }
 
@@ -127,7 +127,7 @@ final class TraceReportsTest extends AsyncTestCase {
         $this->stack->press('pv:2:u');
         foreach (['/usage', '/runs', '/trace 42'] as $command) {
             $this->stack->say($command, '99');
-            self::assertSame(ChatService::OWNER_ONLY, $this->lastText(), $command);
+            self::assertSame(\Mercurius\I18n\t(ChatService::OWNER_ONLY), $this->lastText(), $command);
         }
     }
 }

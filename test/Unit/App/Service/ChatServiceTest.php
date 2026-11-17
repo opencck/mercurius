@@ -28,14 +28,14 @@ final class ChatServiceTest extends AsyncTestCase {
         $stack = new AgentStack();
         $stack->say('  ');
 
-        self::assertSame([ChatService::NOT_TEXT], $stack->channel->texts('send'));
+        self::assertSame([\Mercurius\I18n\t(ChatService::NOT_TEXT)], $stack->channel->texts('send'));
     }
 
     public function testStartGreets(): void {
         $stack = new AgentStack();
         $stack->say('/start');
 
-        self::assertSame([ChatService::GREETING], $stack->channel->texts('send'));
+        self::assertSame([\Mercurius\I18n\t(ChatService::GREETING)], $stack->channel->texts('send'));
         self::assertSame([], $stack->llm->requests);
     }
 
@@ -47,7 +47,7 @@ final class ChatServiceTest extends AsyncTestCase {
         $stack->say('второй');
         $stack->scheduler->awaitIdle();
 
-        self::assertContains(ChatService::NEW_CONVERSATION, $stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(ChatService::NEW_CONVERSATION), $stack->channel->texts('send'));
         $messages = $stack->llm->requests[1]->messages;
         self::assertCount(2, $messages);
         self::assertSame('второй', $messages[1]->content);
@@ -63,11 +63,28 @@ final class ChatServiceTest extends AsyncTestCase {
         self::assertSame(['вопрос 1', 'ответ 1', 'вопрос 2'], array_map(static fn($m) => $m->content, array_slice($stack->llm->requests[1]->messages, 1)));
     }
 
+    public function testAnEnglishAgentAnswersInEnglish(): void {
+        \Mercurius\I18n\Lang::use(new \Mercurius\I18n\CatalogTranslator('en', \Mercurius\I18n\Catalogs::bundled()));
+        try {
+            $stack = new AgentStack();
+            $stack->say('/stop');
+
+            self::assertSame(['Nothing is running right now.'], $stack->channel->texts('send'));
+        } finally {
+            \Mercurius\I18n\Lang::reset();
+        }
+    }
+
+    public function testTheLanguageSettingTakesOnlyKnownLanguages(): void {
+        self::assertNull(\OpenCCK\App\Settings\SettingsCatalog::problem('AGENT_LANGUAGE', 'en'));
+        self::assertNotNull(\OpenCCK\App\Settings\SettingsCatalog::problem('AGENT_LANGUAGE', 'de'));
+    }
+
     public function testStopWhenIdle(): void {
         $stack = new AgentStack();
         $stack->say('/stop');
 
-        self::assertSame([ChatService::NOTHING_TO_STOP], $stack->channel->texts('send'));
+        self::assertSame([\Mercurius\I18n\t(ChatService::NOTHING_TO_STOP)], $stack->channel->texts('send'));
     }
 
     public function testModelFailureIsReported(): void {
@@ -86,7 +103,7 @@ final class ChatServiceTest extends AsyncTestCase {
         $stack->say('привет');
         $stack->scheduler->awaitIdle();
 
-        self::assertContains(['send', ChatService::GREETING, ParseMode::Plain], $stack->channel->modes);
+        self::assertContains(['send', \Mercurius\I18n\t(ChatService::GREETING), ParseMode::Plain], $stack->channel->modes);
         self::assertContains(['edit', '**жирный**', ParseMode::Markdown], $stack->channel->modes);
     }
 }

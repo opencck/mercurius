@@ -238,6 +238,11 @@ if ($settingsProblem === null) {
 } else {
     $logger->error('Stored settings ignored: the agent starts on .env', ['problem' => $settingsProblem]);
 }
+// spec: BRIEF.md#язык-агента — the language of everything the agent writes itself; Russian by default
+/** @var mixed $agentLanguage */
+$agentLanguage = $_ENV['AGENT_LANGUAGE'] ?? 'ru';
+\Mercurius\I18n\Lang::use(new \Mercurius\I18n\CatalogTranslator(is_string($agentLanguage) ? $agentLanguage : 'ru', \Mercurius\I18n\Catalogs::bundled()));
+$logger->info('Agent language', ['language' => \Mercurius\I18n\Lang::current()->language()]);
 try {
     $llmSettings = LlmSettings::fromEnv($_ENV);
     $agentSettings = AgentSettings::fromEnv($_ENV);

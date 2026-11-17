@@ -101,7 +101,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->scheduler->awaitIdle();
 
         self::assertSame(PrincipalStatus::Rejected, $this->stack->principals->find(2)?->status);
-        self::assertContains(ChatService::REFUSAL, $this->stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(ChatService::REFUSAL), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
     }
 
@@ -130,7 +130,7 @@ final class VisitorServiceTest extends AsyncTestCase {
     public function testPermissionsWithNoGrantsSaysSo(): void {
         $this->stack->say('/permissions');
 
-        self::assertSame([ChatService::NO_GRANTS], $this->stack->channel->texts('send'));
+        self::assertSame([\Mercurius\I18n\t(ChatService::NO_GRANTS)], $this->stack->channel->texts('send'));
     }
 
     public function testPermissionsIsForTheOwnerOnly(): void {
@@ -138,7 +138,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->press('pv:2:u');
         $this->stack->say('/permissions', '99');
 
-        self::assertContains(ChatService::OWNER_ONLY, $this->stack->channel->texts('send'));
+        self::assertContains(\Mercurius\I18n\t(ChatService::OWNER_ONLY), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
     }
 

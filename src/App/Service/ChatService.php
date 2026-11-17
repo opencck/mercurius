@@ -18,6 +18,8 @@ use OpenCCK\Domain\Repository\ConversationRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
+use function Mercurius\I18n\t;
+
 /**
  * Handles one incoming message: checks who writes, answers commands, and hands everything else to the run scheduler.
  * It returns at once, so the chat queue is never held by a running task and /stop always gets through.
@@ -26,18 +28,17 @@ use Psr\Log\NullLogger;
  * spec: BRIEF.md#подтверждения-и-запреты — control commands bypass a busy conversation
  */
 final class ChatService implements MessageHandler {
-    public const REFUSAL = 'Это персональный агент. Доступа у вас нет.';
-    public const NOT_TEXT = 'Пока я понимаю только текстовые сообщения.';
-    public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
-    public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
-
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы, /jobs — задания, /hook — webhook задания, /digest — сводка дел, /doctor — проверка установки, /settings — настройки, /set — изменить, /restart — перезапуск, /peers — сеть агентов.";
-    public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
-    public const NO_GRANTS = 'Сохранённых разрешений нет.';
-    public const OWNER_ONLY = 'Эта команда только для владельца.';
-    public const PRIVATE_ONLY = 'Отчёты показываю только в личном чате.';
-    public const MEMORY_PRIVATE = 'Память показываю только в личном чате.';
-    public const SECRET_PRIVATE = 'Секреты — только в личном чате; сообщение с секретом я удалю.';
+    // spec: BRIEF.md#язык-агента — the texts live in the mercurius-i18n catalogs; these are their keys
+    public const REFUSAL = 'chat.refusal';
+    public const NOT_TEXT = 'chat.not_text';
+    public const NEW_CONVERSATION = 'chat.new_conversation';
+    public const GREETING = 'chat.greeting';
+    public const NOTHING_TO_STOP = 'chat.nothing_to_stop';
+    public const NO_GRANTS = 'chat.no_grants';
+    public const OWNER_ONLY = 'chat.owner_only';
+    public const PRIVATE_ONLY = 'chat.private_only';
+    public const MEMORY_PRIVATE = 'chat.memory_private';
+    public const SECRET_PRIVATE = 'chat.secret_private';
     private const REPORT_LIMIT = 3500;
 
     public function __construct(
@@ -84,7 +85,7 @@ final class ChatService implements MessageHandler {
         $principal = $this->access->resolveMessage($message);
         if ($principal === null || $principal->status === PrincipalStatus::Rejected) {
             $this->logger->notice('Message from an unknown participant refused', ['channel' => $message->channel, 'user_id' => $message->userId]);
-            $this->reply($message, self::REFUSAL);
+            $this->reply($message, t(self::REFUSAL));
             return;
         }
         if ($principal->status === PrincipalStatus::Pending) {
@@ -98,26 +99,26 @@ final class ChatService implements MessageHandler {
 
         $text = trim($message->text);
         if ($text === '') {
-            $this->reply($message, self::NOT_TEXT);
+            $this->reply($message, t(self::NOT_TEXT));
             return;
         }
         $command = strtolower(explode(' ', $text, 2)[0]);
         if ($command === '/start') {
-            $this->reply($message, self::GREETING);
+            $this->reply($message, t(self::GREETING));
             return;
         }
         if ($command === '/stop') {
             // The run's status message says "Остановлено." itself.
             if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)))) {
-                $this->reply($message, self::NOTHING_TO_STOP);
+                $this->reply($message, t(self::NOTHING_TO_STOP));
             }
             return;
         }
         if ($command === '/permissions') {
             if (!$principal->isOwner()) {
-                $this->reply($message, self::OWNER_ONLY);
+                $this->reply($message, t(self::OWNER_ONLY));
             } elseif ($this->approvals?->showGrants($message->chatId, $message->messageId) !== true) {
-                $this->reply($message, self::NO_GRANTS);
+                $this->reply($message, t(self::NO_GRANTS));
             }
             return;
         }
@@ -128,9 +129,9 @@ final class ChatService implements MessageHandler {
         if (in_array($command, ['/memory', '/forget', '/consolidate'], true) && $this->memory !== null) {
             // spec: BRIEF.md#контекст-по-месту-и-аудитории — memory is the owner's and is shown only in a private chat
             if (!$principal->isOwner()) {
-                $this->reply($message, self::OWNER_ONLY);
+                $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
-                $this->reply($message, self::MEMORY_PRIVATE);
+                $this->reply($message, t(self::MEMORY_PRIVATE));
             } else {
                 $this->reply($message, match ($command) {
                     '/memory' => $this->memory->overview($message->channel, $message->chatId),
@@ -145,9 +146,9 @@ final class ChatService implements MessageHandler {
             $argument = substr($text, strlen($command));
             $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
             if ($principal->role === Role::Visitor) {
-                $this->reply($message, self::OWNER_ONLY);
+                $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
-                $this->reply($message, self::SECRET_PRIVATE);
+                $this->reply($message, t(self::SECRET_PRIVATE));
             } else {
                 $this->reply($message, $this->servers->secret($principal, $argument));
             }
@@ -160,9 +161,9 @@ final class ChatService implements MessageHandler {
             // spec: BRIEF.md#настройки-агента — settings by commands, without a model; a secret value leaves the chat
             $argument = substr($text, strlen($command));
             if (!$principal->isOwner()) {
-                $this->reply($message, self::OWNER_ONLY);
+                $this->reply($message, t(self::OWNER_ONLY));
             } elseif ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$message->isPrivateChat) {
-                $this->reply($message, self::SECRET_PRIVATE);
+                $this->reply($message, t(self::SECRET_PRIVATE));
             } else {
                 $this->reply($message, match ($command) {
                     '/settings' => $this->settings->show($argument),
@@ -178,19 +179,19 @@ final class ChatService implements MessageHandler {
         if (in_array($command, ['/peer', '/peers'], true) && $this->peers !== null) {
             // spec: BRIEF.md#сеть-агентов — tokens are shown once, so only in the private chat
             $this->reply($message, match (true) {
-                !$principal->isOwner() => self::OWNER_ONLY,
-                !$message->isPrivateChat => self::SECRET_PRIVATE,
+                !$principal->isOwner() => t(self::OWNER_ONLY),
+                !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
             });
             return;
         }
         if ($command === '/doctor' && $this->doctor !== null) {
-            $this->reply($message, $principal->isOwner() ? Doctor::render($this->doctor->run()) : self::OWNER_ONLY);
+            $this->reply($message, $principal->isOwner() ? Doctor::render($this->doctor->run()) : t(self::OWNER_ONLY));
             return;
         }
         if (in_array($command, ['/jobs', '/hook', '/digest'], true) && $this->jobs !== null) {
             $this->reply($message, match (true) {
-                !$principal->isOwner() => self::OWNER_ONLY,
+                !$principal->isOwner() => t(self::OWNER_ONLY),
                 $command === '/jobs' => $this->jobs->jobs(),
                 $command === '/hook' => $this->jobs->hook(substr($text, strlen($command))),
                 default => $this->jobs->digest(),
@@ -198,20 +199,20 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/mcp' && $this->mcp !== null) {
-            $this->reply($message, $principal->isOwner() ? $this->mcp->handle(substr($text, strlen($command))) : self::OWNER_ONLY);
+            $this->reply($message, $principal->isOwner() ? $this->mcp->handle(substr($text, strlen($command))) : t(self::OWNER_ONLY));
             return;
         }
         if (in_array($command, ['/skills', '/skill'], true) && $this->skills !== null) {
-            $this->reply($message, !$principal->isOwner() ? self::OWNER_ONLY : ($command === '/skills' ? $this->skills->list() : $this->skills->skill(substr($text, strlen($command)))));
+            $this->reply($message, !$principal->isOwner() ? t(self::OWNER_ONLY) : ($command === '/skills' ? $this->skills->list() : $this->skills->skill(substr($text, strlen($command)))));
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {
-            $this->reply($message, $principal->role !== Role::Visitor && $message->isPrivateChat ? $this->servers->secrets($principal) : self::SECRET_PRIVATE);
+            $this->reply($message, $principal->role !== Role::Visitor && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
             return;
         }
         if (in_array($command, ['/servers', '/audit'], true) && $this->servers !== null) {
             $this->reply($message, match (true) {
-                !$principal->isOwner() => self::OWNER_ONLY,
+                !$principal->isOwner() => t(self::OWNER_ONLY),
                 $command === '/servers' => $this->servers->servers(),
                 default => $this->servers->audit(),
             });
@@ -219,7 +220,7 @@ final class ChatService implements MessageHandler {
         }
         if (in_array($command, ['/project', '/projects'], true) && $this->projects !== null) {
             if (!$principal->isOwner()) {
-                $this->reply($message, self::OWNER_ONLY);
+                $this->reply($message, t(self::OWNER_ONLY));
             } else {
                 $this->reply($message, $command === '/projects'
                     ? $this->projects->list($message->channel, $message->chatId, MessageMeta::topicKey($message))
@@ -230,7 +231,7 @@ final class ChatService implements MessageHandler {
         if ($command === '/new') {
             $this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)));
             $this->conversations->close($message->channel, $message->chatId, MessageMeta::topicKey($message));
-            $this->reply($message, self::NEW_CONVERSATION);
+            $this->reply($message, t(self::NEW_CONVERSATION));
             return;
         }
 
@@ -300,12 +301,12 @@ final class ChatService implements MessageHandler {
     /** spec: BRIEF.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */
     private function report(bool $owner, string $command, string $argument, IncomingMessage $message): void {
         if (!$owner || $this->reports === null) {
-            $this->reply($message, self::OWNER_ONLY);
+            $this->reply($message, t(self::OWNER_ONLY));
             return;
         }
         // spec: BRIEF.md#контекст-по-месту-и-аудитории — a group hears what is said; reports are for the owner alone
         if (!$message->isPrivateChat) {
-            $this->reply($message, self::PRIVATE_ONLY);
+            $this->reply($message, t(self::PRIVATE_ONLY));
             return;
         }
         $text = match ($command) {

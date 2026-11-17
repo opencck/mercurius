@@ -52,3 +52,6 @@
 	path = packages/mail-mcp
 	url = https://github.com/opencck/mercurius-mail-mcp.git
 	branch = master
+[submodule "packages/i18n"]
+	path = packages/i18n
+	url = https://github.com/opencck/mercurius-i18n.git

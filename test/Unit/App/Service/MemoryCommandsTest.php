@@ -66,6 +66,6 @@ final class MemoryCommandsTest extends AsyncTestCase {
 
     public function testOnlyTheOwnerAndOnlyInPrivate(): void {
         $this->chat->handle($this->stack->message('/memory', '42', false));
-        self::assertSame(ChatService::MEMORY_PRIVATE, $this->lastReply());
+        self::assertSame(\Mercurius\I18n\t(ChatService::MEMORY_PRIVATE), $this->lastReply());
     }
 }
