@@ -56,6 +56,7 @@ final class VisitorServiceTest extends AsyncTestCase {
 
         self::assertCount(1, $this->cards());
         self::assertStringContainsString('привет, я Вася', $this->cards()[0]);
+        self::assertTrue($this->stack->channel->previewOff('привет, я Вася'), 'a link of a stranger is not opened by Telegram in the card');
         self::assertSame(['pv:2:t', 'pv:2:u', 'pv:2:a', 'pv:2:r'], $this->lastButtons());
         self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);

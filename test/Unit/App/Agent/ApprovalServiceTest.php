@@ -56,6 +56,7 @@ final class ApprovalServiceTest extends AsyncTestCase {
         $card = $this->card();
         self::assertStringContainsString('push действие', $card);
         self::assertStringContainsString('"remote": "origin"', $card);
+        self::assertTrue($this->stack->channel->previewOff('push действие'), 'an address in the arguments is not opened by Telegram');
         $buttons = array_values(array_filter($this->stack->channel->buttons, static fn(array $rows) => $rows !== []));
         self::assertSame(['ap:1:a', 'ap:1:g', 'ap:1:d'], array_map(static fn($b) => $b->data, $buttons[0][0]));
         self::assertContains('Жду подтверждения владельца…', $this->stack->channel->texts('edit'));

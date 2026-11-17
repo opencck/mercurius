@@ -60,7 +60,8 @@ final class VisitorService implements CallbackHandler {
         $card = $group === null
             ? sprintf(t('service.visitor.novyy_sobesednik_napisal_chto_emu'), $who, $said)
             : sprintf(t('service.visitor.in_group'), $group, $who, $said);
-        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, buttons: [[
+        // the stranger's words may carry a link: no preview of it in the owner's card
+        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [[
             new Button(t('service.visitor.razgovor'), sprintf('pv:%d:t', $visitor->id)),
             new Button(t('service.visitor.polzovatel'), sprintf('pv:%d:u', $visitor->id)),
             new Button(t('service.visitor.admin'), sprintf('pv:%d:a', $visitor->id)),

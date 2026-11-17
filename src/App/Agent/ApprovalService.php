@@ -120,7 +120,8 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             }
         }
         $row[] = new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id));
-        $card = new OutgoingMessage($this->ownerChatId, $text, buttons: [$row]);
+        // arguments may carry an address from outside data: no preview of it in the card
+        $card = new OutgoingMessage($this->ownerChatId, $text, disableLinkPreview: true, buttons: [$row]);
         $sent = $this->channel->send($card);
         // The run streams into the same chat: a short flood is waited out before the action is refused.
         if (!$sent->success && $sent->errorKind === \Mercurius\Messenger\SendErrorKind::RateLimited && $sent->retryAfter !== null && $sent->retryAfter <= self::FLOOD_WAIT) {

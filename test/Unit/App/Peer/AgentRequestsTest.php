@@ -24,6 +24,8 @@ final class AgentRequestsTest extends AsyncTestCase {
     private InMemoryPrincipalRepository $principals;
     private AgentRequests $requests;
     private string $fingerprint;
+    private \OpenCCK\Test\Support\InMemoryConversationRepository $conversations;
+    private \OpenCCK\Test\Support\InMemoryTranscriptRepository $transcript;
 
     protected function setUp(): void {
         parent::setUp();
@@ -31,7 +33,9 @@ final class AgentRequestsTest extends AsyncTestCase {
         $this->peers = new InMemoryPeerRepository();
         $this->principals = new InMemoryPrincipalRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
-        $this->requests = new AgentRequests($this->peers, $this->principals, $this->channel, '42', maxPending: 2, retryDelays: []);
+        $this->conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
+        $this->transcript = new \OpenCCK\Test\Support\InMemoryTranscriptRepository();
+        $this->requests = new AgentRequests($this->peers, $this->principals, $this->channel, '42', maxPending: 2, retryDelays: [], conversations: $this->conversations, transcript: $this->transcript);
         $this->fingerprint = AgentIdentity::generate()->fingerprint();
     }
 
@@ -111,6 +115,26 @@ final class AgentRequestsTest extends AsyncTestCase {
         $this->requests->knock($this->fingerprint, 'tester', '', 'ws');
 
         self::assertCount(1, $this->channel->texts('send'));
+    }
+
+    public function testTheCardSaysWhoConnectsToWhomAndShowsNoPreviewOfTheClaimedAddress(): void {
+        $this->requests->knock($this->fingerprint, 'mercurius-rekryt', 'https://mercurius-rekryt.example', 'ws');
+
+        self::assertStringContainsString('Ко мне подключается агент', $this->channel->texts('send')[0] ?? '');
+        self::assertTrue($this->channel->previewsOff[0] ?? false, 'the address is the agent\'s own words: Telegram must not open it');
+    }
+
+    public function testTheAgentKnowsAboutTheCardAndTheDecision(): void {
+        $this->requests->knock($this->fingerprint, 'mercurius-rekryt', 'https://mercurius-rekryt.example', 'ws');
+        $this->press('pa:1:u');
+
+        $said = array_map(static fn(array $m): string => $m['message']->content, $this->transcript->messages);
+        self::assertCount(2, $said, 'the card and the decision are in the owner\'s conversation');
+        self::assertStringContainsString('mercurius-rekryt', $said[0]);
+        self::assertStringContainsString('untrusted', $said[0], 'the name and the address are the agent\'s words');
+        self::assertStringContainsString('user', $said[1]);
+        $owner = $this->principals->findByIdentity('telegram', '42');
+        self::assertSame($this->conversations->openConversation((int) $owner?->id, 'telegram', '42'), $this->transcript->messages[0]['conversation']);
     }
 
     public function testAClaimedNameAndAddressAreCleaned(): void {

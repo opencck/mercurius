@@ -611,7 +611,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
 // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — an unknown agent knocks, the owner decides
-$agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $telegram->ownerId, $logger);
+$agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $telegram->ownerId, $logger, conversations: $conversations, transcript: $transcript);
 // ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
 $a2aTransport = (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TRANSPORT') ?? 'ws') === 'http' ? 'http' : 'ws';
 $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? null : new \OpenCCK\App\Peer\A2aServer(

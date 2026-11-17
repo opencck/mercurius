@@ -42,9 +42,12 @@ final class FakeChannel implements Channel {
 
     /** @var list<?string> the forum topic of every sent message */
     public array $threads = [];
+    /** @var list<bool> whether the link preview was off, for every sent message */
+    public array $previewsOff = [];
 
     public function send(OutgoingMessage $message): SendResult {
         $this->threads[] = $message->threadId;
+        $this->previewsOff[] = $message->disableLinkPreview;
         if ($this->sendDelay > 0) {
             \Amp\delay($this->sendDelay);
         }
@@ -80,6 +83,17 @@ final class FakeChannel implements Channel {
 
     public function capabilities(): Capabilities {
         return new Capabilities(true, $this->maxLength, false);
+    }
+
+    /** Whether the link preview was off for the first sent message that contains $needle. */
+    public function previewOff(string $needle): ?bool {
+        $sends = array_values(array_filter($this->log, static fn(array $entry): bool => $entry[0] === 'send' || $entry[0] === 'send-failed'));
+        foreach ($sends as $i => $entry) {
+            if (str_contains($entry[2], $needle)) {
+                return $this->previewsOff[$i] ?? null;
+            }
+        }
+        return null;
     }
 
     /** @return list<string> texts of the given action */

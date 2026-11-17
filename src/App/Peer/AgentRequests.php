@@ -46,6 +46,9 @@ final class AgentRequests implements CallbackHandler {
         private readonly int $maxPending = 20,
         /** @var list<float> pauses before the next tries of a card the messenger did not take */
         private readonly array $retryDelays = [2.0, 4.0],
+        /** the card and the decision go into the owner's conversation, so the agent knows what the owner asks about */
+        private readonly ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null,
+        private readonly ?\OpenCCK\Domain\Repository\TranscriptRepository $transcript = null,
     ) {}
 
     /** A name an agent goes by here: latin letters, digits, - and _, up to 40; agent-<key> when nothing is left. */
@@ -113,6 +116,7 @@ final class AgentRequests implements CallbackHandler {
         if ($callback->messageId !== null) {
             $this->channel->edit($callback->chatId, $callback->messageId, $outcome);
         }
+        $this->note(sprintf(t('peer.agent_requests.note_decided'), $outcome));
         $this->logger->info('Agent request decided', ['request' => $decided->id, 'role' => $role === null ? 'refused' : $role->value]);
     }
 
@@ -124,7 +128,8 @@ final class AgentRequests implements CallbackHandler {
             $request->url === '' ? t('peer.agent_requests.no_url') : $request->url,
             $request->fingerprint,
         );
-        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, buttons: [[
+        // the address is the agent's own words: no preview, or Telegram would put its page into the owner's card
+        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [[
             new Button(t('peer.agent_requests.user'), sprintf('%s:%d:u', self::PREFIX, $request->id)),
             new Button(t('peer.agent_requests.admin'), sprintf('%s:%d:a', self::PREFIX, $request->id)),
             new Button(t('peer.agent_requests.reject'), sprintf('%s:%d:r', self::PREFIX, $request->id)),
@@ -136,6 +141,29 @@ final class AgentRequests implements CallbackHandler {
             return;
         }
         $this->logger->notice('Unknown agent waits for the owner', ['request' => $request->id, 'fingerprint' => $request->fingerprint]);
+        // the name and the address in the card are the agent's own words: data, not instructions
+        $this->note(\OpenCCK\App\Agent\Tool\UntrustedWrapper::wrap('agent-request', sprintf(t('peer.agent_requests.note_card'), $card)));
+    }
+
+    /**
+     * The owner's private conversation gets what the cards say: asked about a card, the agent knows it.
+     *
+     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+     */
+    private function note(string $text): void {
+        if ($this->conversations === null || $this->transcript === null) {
+            return;
+        }
+        $owner = $this->principals->findByIdentity($this->channel->name(), $this->ownerChatId);
+        if ($owner === null) {
+            return;
+        }
+        try {
+            $conversation = $this->conversations->openConversation($owner->id, $this->channel->name(), $this->ownerChatId);
+            $this->transcript->appendUser($conversation, null, $text);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Agent request note was not kept', ['error' => $e::class]);
+        }
     }
 
     /**
