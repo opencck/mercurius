@@ -28,10 +28,55 @@ Self-improvement from its own traces; a second channel (REST/WebSocket API); MCP
 
 ## Running it
 
-1. Clone with the package submodules: `git clone git@github.com:opencck/mercurius.git && cd mercurius && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/mail-mcp packages/i18n`.
-2. Copy `.env.example` to `.env` and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Every variable is explained in the file; most settings can later be changed in the dialog.
-3. `docker compose up -d --build`. The app applies database migrations at start.
-4. Write to your bot. Commands: `/new`, `/stop`; for the owner also `/settings`, `/set`, `/restart`, `/permissions`, `/usage`, `/runs`, `/trace <id>`, `/delegation`, `/memory`, `/forget`, `/consolidate`, `/projects`, `/project`, `/secret`, `/secrets`, `/servers`, `/audit`, `/skills`, `/skill`, `/mcp`, `/jobs`, `/hook`, `/digest`, `/doctor`, `/peers`, `/peer`. `/start` lists them.
+You need a server with Docker and Docker Compose v2, about 4 GB of RAM and 10 GB of disk for the core (the optional
+modules add their own), a Telegram bot from [@BotFather](https://t.me/BotFather) and a key of OpenRouter or the OpenAI
+API.
+
+1. Clone the code and the package submodules (reference repositories are not needed to run it):
+   ```sh
+   git clone https://github.com/opencck/mercurius.git && cd mercurius
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n
+   ```
+2. Copy `.env.example` to `.env` (mode `600`) and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your
+   Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
+   (`openssl rand -hex 24`). Every variable is explained in the file; most settings can be changed later in the dialog.
+   Without `APP_URL` the bot uses long polling and needs no public address; with it — a webhook behind your proxy.
+3. `docker compose up -d --build`. The app applies database migrations at start; `docker compose ps` shows `app`,
+   `postgres` and `sandbox` as `healthy`.
+4. Write to your bot. `/start` lists the commands; `/doctor` checks the installation (keys, migrations, sandbox,
+   modules, webhook, disk) and says what to fix.
+
+### Modules
+
+Heavy and optional parts are modules: each lives in its own repository, is a submodule here and runs in its own
+compose profile, off by default. Turn one on with its submodule, a profile in `COMPOSE_PROFILES` and its token in
+`.env`; the agent gets its tool only while the service answers.
+
+| Module | Submodule | Profile | `.env` | What the agent gets |
+|---|---|---|---|---|
+| [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: pages, clicks, scripts, screenshots |
+| [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | frames and sound of a video for models that do not watch video |
+| [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | the text of office documents and PDF; new docx, xlsx, pptx |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | a mailbox over IMAP and SMTP |
+| [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | files up to 2000 MB in Telegram |
+
+For example, the browser and documents:
+
+```sh
+git submodule update --init --depth 1 services/browser services/media-docs
+# .env: COMPOSE_PROFILES=browser,media-docs, BROWSER_TOKEN and MEDIA_DOCS_TOKEN (openssl rand -hex 24)
+docker compose up -d --build
+```
+
+### Updating
+
+```sh
+bin/backup.sh                       # the database, data and .env; the last 7 copies stay in backups/
+git pull --ff-only && git submodule update --init --depth 1 <the submodules you use>
+docker compose up -d --build        # new migrations apply at start; they only add to the schema
+```
+
+New variables appear in `.env.example`; `/doctor` names the ones your `.env` lacks. `bin/restore.sh` brings a copy back.
 
 ## Stack
 
@@ -47,10 +92,9 @@ Components useful outside Mercurius live in their own repositories and are inclu
 | [`mercurius-connectors`](https://github.com/opencck/mercurius-connectors) | Outbound connection routes as an Amp `SocketConnector` factory: direct, HTTP CONNECT proxy, SOCKS5, VLESS (via `amphp/vless`) and chains of them. |
 | [`mercurius-messenger`](https://github.com/opencck/mercurius-messenger) | A unified messaging channel interface with a normalized message model, and a Telegram Bot API adapter (webhook and long polling, groups, forum topics, channel posts). |
 | [`mercurius-search`](https://github.com/opencck/mercurius-search) | Web search behind one interface: SearXNG, Brave, Tavily and a model with web search, with fallback and a cache. |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | An MCP server for mail with its own IMAP and SMTP clients. |
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | The texts of the agent in Russian and English: a translator, catalogs, plural forms and a parity check. |
 
-Components that may move to their own packages later: command policy, memory, the browser service, the MCP client, the agent network.
+Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). Components that may move to their own packages later: command policy, memory, the MCP client, the agent network.
 
 ## Repository layout
 
@@ -61,7 +105,7 @@ Components that may move to their own packages later: command policy, memory, th
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `sandbox.php`, `src/Sandbox/` | The sandbox executor |
-| `services/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api |
+| `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api; mail |
 | `bin/` | Backup, restore and the installation check |
 | `docs/`, `notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |

@@ -28,10 +28,55 @@
 
 ## Запуск
 
-1. Клонировать с сабмодулями пакетов: `git clone git@github.com:opencck/mercurius.git && cd mercurius && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/mail-mcp packages/i18n`.
-2. Скопировать `.env.example` в `.env` и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (хватит одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`. Каждая переменная описана в файле; большинство настроек потом меняются в диалоге.
-3. `docker compose up -d --build`. Миграции базы применяются при старте.
-4. Написать боту. Команды: `/new`, `/stop`; для владельца ещё `/settings`, `/set`, `/restart`, `/permissions`, `/usage`, `/runs`, `/trace <номер>`, `/delegation`, `/memory`, `/forget`, `/consolidate`, `/projects`, `/project`, `/secret`, `/secrets`, `/servers`, `/audit`, `/skills`, `/skill`, `/mcp`, `/jobs`, `/hook`, `/digest`, `/doctor`, `/peers`, `/peer`. `/start` показывает список.
+Нужен сервер с Docker и Docker Compose v2, около 4 ГБ памяти и 10 ГБ диска для ядра (модули — сверх этого), бот
+Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или OpenAI API.
+
+1. Клонировать код и сабмодули пакетов (референсы для запуска не нужны):
+   ```sh
+   git clone https://github.com/opencck/mercurius.git && cd mercurius
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n
+   ```
+2. Скопировать `.env.example` в `.env` (права `600`) и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`
+   (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (хватит одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
+   (`openssl rand -hex 24`). Каждая переменная описана в файле; большинство настроек потом меняются в диалоге. Без
+   `APP_URL` бот работает через long polling и публичный адрес не нужен; с ним — через webhook за вашим прокси.
+3. `docker compose up -d --build`. Миграции базы применяются при старте; `docker compose ps` показывает `app`,
+   `postgres` и `sandbox` в состоянии `healthy`.
+4. Написать боту. `/start` показывает команды; `/doctor` проверяет установку (ключи, миграции, песочницу, модули,
+   webhook, диск) и говорит, что исправить.
+
+### Модули
+
+Тяжёлое и необязательное — модули: у каждого свой репозиторий, здесь он сабмодуль, сервис — в своём профиле compose,
+по умолчанию выключен. Включается сабмодулем, профилем в `COMPOSE_PROFILES` и токеном в `.env`; инструмент у агента
+появляется, только пока сервис отвечает.
+
+| Модуль | Сабмодуль | Профиль | `.env` | Что получает агент |
+|---|---|---|---|---|
+| [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: страницы, нажатия, скрипты, скриншоты |
+| [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | кадры и звук видео для моделей, которые видео не смотрят |
+| [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | текст офисных документов и PDF; новые docx, xlsx, pptx |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовый ящик по IMAP и SMTP |
+| [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | файлы до 2000 МБ в Telegram |
+
+Например, браузер и документы:
+
+```sh
+git submodule update --init --depth 1 services/browser services/media-docs
+# .env: COMPOSE_PROFILES=browser,media-docs, BROWSER_TOKEN и MEDIA_DOCS_TOKEN (openssl rand -hex 24)
+docker compose up -d --build
+```
+
+### Обновление
+
+```sh
+bin/backup.sh                       # база, данные и .env; последние 7 копий — в backups/
+git pull --ff-only && git submodule update --init --depth 1 <ваши сабмодули>
+docker compose up -d --build        # новые миграции применяются при старте; они только добавляют схему
+```
+
+Новые переменные появляются в `.env.example`; `/doctor` называет те, которых нет в вашем `.env`. `bin/restore.sh`
+возвращает копию.
 
 ## Стек
 
@@ -47,10 +92,9 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`mercurius-connectors`](https://github.com/opencck/mercurius-connectors) | Маршруты исходящих соединений как фабрика Amp `SocketConnector`: напрямую, HTTP CONNECT, SOCKS5, VLESS (через `amphp/vless`) и их цепочки. |
 | [`mercurius-messenger`](https://github.com/opencck/mercurius-messenger) | Единый интерфейс канала связи с нормализованной моделью сообщения и адаптер Telegram Bot API (webhook и long polling, группы, темы форума, посты канала). |
 | [`mercurius-search`](https://github.com/opencck/mercurius-search) | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily и модель с веб-поиском, с порядком и кешем. |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | MCP-сервер почты со своими клиентами IMAP и SMTP. |
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | Тексты агента на русском и английском: переводчик, каталоги, формы числа и проверка совпадения. |
 
-Позже могут стать отдельными пакетами: политика команд, память, сервис браузера, клиент MCP, сеть агентов.
+Модули — браузер, медиа, почта и свой сервер Bot API — перечислены в разделе [Модули](#модули). Позже могут стать отдельными пакетами: политика команд, память, клиент MCP, сеть агентов.
 
 ## Устройство репозитория
 
@@ -61,7 +105,7 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`CLAUDE.md`](CLAUDE.md) | Правила работы над проектом с Claude Code |
 | `index.php`, `src/`, `migrations/`, `test/` | Агент: точка входа, код по слоям opencck, миграции базы, тесты |
 | `sandbox.php`, `src/Sandbox/` | Исполнитель песочницы |
-| `services/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, telegram-bot-api |
+| `services/`, `mcp/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, telegram-bot-api; почта |
 | `bin/` | Резервная копия, восстановление и проверка установки |
 | `docs/`, `notes/` | База знаний о построении автономных агентов: статьи и конспекты |
 | `references/` | Референсные репозитории — git-сабмодули |

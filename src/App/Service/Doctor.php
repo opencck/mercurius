@@ -137,6 +137,10 @@ final class Doctor {
         foreach ([
             t('service.doctor.sandbox') => ['SANDBOX_TOKEN', Env::raw($this->env, 'SANDBOX_URL') ?? 'http://sandbox:9000'],
             t('service.doctor.browser') => ['BROWSER_TOKEN', Env::raw($this->env, 'BROWSER_URL') ?? 'http://browser:3000'],
+            // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — modules in their compose profiles
+            'media-video' => ['MEDIA_VIDEO_TOKEN', Env::raw($this->env, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091'],
+            'media-docs' => ['MEDIA_DOCS_TOKEN', Env::raw($this->env, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092'],
+            'mail-mcp' => ['MAIL_MCP_TOKEN', preg_replace('~/mcp$~', '', Env::raw($this->env, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090') ?? 'http://mail-mcp:8090'],
         ] as $name => [$token, $url]) {
             if (Env::raw($this->env, $token) === null) {
                 $out[] = [self::WARN, $name, $token . t('service.doctor.pust_vyklyuchen')];
@@ -150,7 +154,7 @@ final class Doctor {
                 $response->getBody()->buffer();
                 $out[] = $response->getStatus() === 200 ? [self::OK, $name, t('service.doctor.otvechaet')] : [self::FAIL, $name, t('service.doctor.otvet') . $response->getStatus()];
             } catch (Throwable $e) {
-                $out[] = [self::FAIL, $name, t('service.doctor.ne_otvechaet') . $e::class . ') — docker compose ps'];
+                $out[] = [self::FAIL, $name, t('service.doctor.ne_otvechaet') . $e::class . ') — docker compose ps' . ($name === t('service.doctor.sandbox') ? '' : t('service.doctor.profile'))];
             }
         }
         return $out;
