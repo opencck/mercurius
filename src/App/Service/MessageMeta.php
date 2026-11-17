@@ -34,7 +34,7 @@ final class MessageMeta {
         if ($parts === [] && !$always) {
             return '';
         }
-        return sprintf('[Сообщение #%s%s]', $message->messageId, $parts === [] ? '' : '; ' . implode('; ', $parts));
+        return sprintf('[Это сообщение #%s%s]', $message->messageId, $parts === [] ? '' : '; ' . implode('; ', $parts));
     }
 
     /** "тема «Name» (#id)" for a message in a forum topic. */
@@ -53,7 +53,10 @@ final class MessageMeta {
         return $name === null ? sprintf('тема #%s', $message->threadId) : sprintf('тема «%s» (#%s)', $name, $message->threadId);
     }
 
-    /** "ответ на #id (author): «piece»"; the root message of a topic is the topic, not a reply. */
+    /**
+     * "оно отвечает на сообщение #id, которое написал ты (агент): «text»"; the root message of a topic is the topic,
+     * not a reply. A weak model mixed up "#292; ответ на #291" and named the number of the message itself.
+     */
     public static function reply(IncomingMessage $message, string $botId): ?string {
         $reply = self::reply_($message);
         if ($reply === [] || isset($reply['forum_topic_created'])) {
@@ -63,19 +66,19 @@ final class MessageMeta {
         $id = $reply['message_id'] ?? null;
         /** @var mixed $from */
         $from = $reply['from'] ?? null;
-        $author = 'неизвестно';
+        $author = 'неизвестно кто';
         if (is_array($from)) {
             /** @var mixed $fromId */
             $fromId = $from['id'] ?? null;
             /** @var mixed $first */
             $first = $from['first_name'] ?? null;
-            $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId ? 'твоё сообщение' : (is_string($first) ? $first : 'участник');
+            $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId ? 'ты (агент)' : (is_string($first) ? $first : 'участник');
         }
         /** @var mixed $text */
         $text = $reply['text'] ?? ($reply['caption'] ?? null);
         $piece = is_string($text) ? mb_substr(trim($text), 0, self::QUOTE) : '';
         return sprintf(
-            'ответ на #%s (%s)%s',
+            'оно отвечает на сообщение #%s, которое написал %s%s',
             is_int($id) || is_string($id) ? (string) $id : '?',
             $author,
             $piece === '' ? '' : ': «' . SecretMasker::mask($piece) . '»',

@@ -90,7 +90,7 @@ final class GroupGate implements CallbackHandler {
             return null;
         }
         $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId)]);
-        $prefix = sprintf('[Группа «%s», пишет %s; сообщение #%s%s.', $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
+        $prefix = sprintf('[Группа «%s», пишет %s; это сообщение #%s%s.', $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
         $prefix .= $group->mode === Group::FREE && !$addressed
             ? ' Тебя не звали: ответь, только если от тебя тут правда есть польза; иначе ответь ровно ' . self::SILENT . '.]'
             : ']';

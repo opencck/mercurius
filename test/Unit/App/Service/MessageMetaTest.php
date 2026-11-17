@@ -20,7 +20,7 @@ final class MessageMetaTest extends TestCase {
 
     public function testAPlainMessageGetsNoHeader(): void {
         self::assertSame('', MessageMeta::header(self::message([]), '999'));
-        self::assertSame('[Сообщение #55]', MessageMeta::header(self::message([]), '999', true));
+        self::assertSame('[Это сообщение #55]', MessageMeta::header(self::message([]), '999', true));
     }
 
     public function testAReplyToTheAgentQuotesTheWholeText(): void {
@@ -29,14 +29,14 @@ final class MessageMetaTest extends TestCase {
 
         $header = MessageMeta::header(self::message($raw), '999');
 
-        self::assertStringStartsWith('[Сообщение #55; ответ на #50 (твоё сообщение): «слово', $header);
+        self::assertStringStartsWith('[Это сообщение #55; оно отвечает на сообщение #50, которое написал ты (агент): «слово', $header);
         self::assertStringContainsString('конец»]', $header, 'the whole text, not a preview');
     }
 
     public function testATopicRootIsTheTopicNotAReply(): void {
         $raw = ['reply_to_message' => ['message_id' => 12, 'forum_topic_created' => ['name' => 'Дом']]];
 
-        self::assertSame('[Сообщение #55; тема «Дом» (#12)]', MessageMeta::header(self::message($raw, 12), '999'));
+        self::assertSame('[Это сообщение #55; тема «Дом» (#12)]', MessageMeta::header(self::message($raw, 12), '999'));
     }
 
     public function testAReplyToSomeoneElseNamesThemAndHidesSecrets(): void {
@@ -44,7 +44,7 @@ final class MessageMetaTest extends TestCase {
 
         $reply = (string) MessageMeta::reply(self::message($raw), '999');
 
-        self::assertStringStartsWith('ответ на #40 (Анна): «ключ ', $reply);
+        self::assertStringStartsWith('оно отвечает на сообщение #40, которое написал Анна: «ключ ', $reply);
         self::assertStringNotContainsString(str_repeat('a', 40), $reply);
     }
 }
