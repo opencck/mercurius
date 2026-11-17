@@ -22,9 +22,18 @@ use Mercurius\Search\SearchProvider;
 final class SearchSettings {
     public const NAMES = ['searxng', 'brave', 'tavily', 'openrouter'];
 
+    /** What each provider is good for: the agent chooses by it. */
+    public const ABOUT = [
+        'searxng' => 'бесплатный метапоиск, только ссылки',
+        'brave' => 'Brave Search: ссылки с описаниями, недорого',
+        'tavily' => 'поиск для агентов: ссылки и краткий ответ',
+        'openrouter' => 'модель с веб-поиском: связный ответ со ссылками, дороже',
+    ];
+
     /**
      * @param array<array-key, mixed> $env
-     * @return array{SearchProvider|null, list<string>} the search (null — none) and the providers skipped for a missing setting
+     * @return array{SearchProvider|null, list<string>, array<string, SearchProvider>} the search in order (null — none),
+     *         the providers skipped for a missing setting, and each configured provider by name
      */
     public static function build(array $env, HttpClient $http, ?string $openRouterKey): array {
         $order = array_values(array_filter(array_map('trim', explode(',', strtolower(Env::raw($env, 'SEARCH_PROVIDERS') ?? 'openrouter'))), static fn(string $n): bool => $n !== ''));
@@ -44,6 +53,10 @@ final class SearchSettings {
                 $providers[] = $provider;
             }
         }
-        return [$providers === [] ? null : new CachedSearch(new FallbackSearch($providers)), $skipped];
+        $each = [];
+        foreach ($providers as $provider) {
+            $each[$provider->name()] = new CachedSearch($provider);
+        }
+        return [$providers === [] ? null : new CachedSearch(new FallbackSearch($providers)), $skipped, $each];
     }
 }

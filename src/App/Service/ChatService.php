@@ -31,7 +31,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы, /jobs — задания, /hook — webhook задания, /digest — сводка дел, /doctor — проверка установки.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата, /secret <имя> <значение> — сохранить секрет, /servers — серверы, /audit — журнал команд, /skills — скиллы, /mcp — MCP-серверы, /jobs — задания, /hook — webhook задания, /digest — сводка дел, /doctor — проверка установки, /settings — настройки, /set — изменить, /restart — перезапуск.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -55,6 +55,7 @@ final class ChatService implements MessageHandler {
         private readonly ?McpCommands $mcp = null,
         private readonly ?JobCommands $jobs = null,
         private readonly ?Doctor $doctor = null,
+        private readonly ?SettingsCommands $settings = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -126,6 +127,25 @@ final class ChatService implements MessageHandler {
             }
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, 'Не удалось удалить сообщение с секретом — удалите его сами.');
+            }
+            return;
+        }
+        if (in_array($command, ['/settings', '/set', '/restart'], true) && $this->settings !== null) {
+            // spec: BRIEF.md#настройки-агента — settings by commands, without a model; a secret value leaves the chat
+            $argument = substr($text, strlen($command));
+            if (!$principal->isOwner()) {
+                $this->reply($message, self::OWNER_ONLY);
+            } elseif ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$message->isPrivateChat) {
+                $this->reply($message, self::SECRET_PRIVATE);
+            } else {
+                $this->reply($message, match ($command) {
+                    '/settings' => $this->settings->show($argument),
+                    '/set' => $this->settings->set($principal, $argument),
+                    default => $this->settings->restart(),
+                });
+            }
+            if ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$this->channel->delete($message->chatId, $message->messageId)) {
+                $this->reply($message, 'Не удалось удалить сообщение с ключом — удалите его сами.');
             }
             return;
         }

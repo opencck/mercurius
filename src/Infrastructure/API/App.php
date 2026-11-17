@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\API;
 
 use Closure;
+use OpenCCK\App\Settings\Restarter;
 use Psr\Log\LoggerInterface;
 use Revolt\EventLoop;
 use Revolt\EventLoop\UnsupportedFeatureException;
 
+use function Amp\async;
+use function Amp\Future\awaitFirst;
 use function Amp\trapSignal;
 
 /**
@@ -33,16 +36,20 @@ final class App {
     private const SIGINT = 2;
     private const SIGTERM = 15;
 
-    /** Starts all modules and blocks until SIGINT/SIGTERM (on Windows — until the event loop ends). */
-    public function run(): void {
+    /**
+     * Starts all modules and blocks until SIGINT/SIGTERM or a restart asked by the owner (on Windows — until the event
+     * loop ends). After a restart request the process ends and Docker starts it again with the new settings.
+     */
+    public function run(?Restarter $restarter = null): void {
         foreach ($this->modules as $module) {
             $module->start();
         }
         $this->logger->info('Application started', ['modules' => array_map(static fn(AppModuleInterface $m): string => $m::class, $this->modules)]);
 
         try {
-            $signal = trapSignal([self::SIGINT, self::SIGTERM]);
-            $this->logger->info('Stop signal received', ['signal' => $signal]);
+            $signal = async(static fn(): int => trapSignal([self::SIGINT, self::SIGTERM]));
+            $first = awaitFirst($restarter === null ? [$signal] : [$signal, $restarter->requested()]);
+            $this->logger->info($first === null ? 'Restart requested' : 'Stop signal received', ['signal' => $first]);
         } catch (UnsupportedFeatureException) {
             EventLoop::run();
         }

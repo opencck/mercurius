@@ -166,14 +166,11 @@ const PATH_ROOT = __DIR__;
 
 Dotenv::createImmutable(PATH_ROOT)->safeLoad();
 
+// What the start needs before the database: the process, Telegram, the vault key. The rest may come from the
+// settings the owner keeps in the dialog (over .env).
 try {
     $config = Config::fromEnv($_ENV);
     $telegram = TelegramSettings::fromEnv($_ENV, $config->appUrl);
-    $llmSettings = LlmSettings::fromEnv($_ENV);
-    $agentSettings = AgentSettings::fromEnv($_ENV);
-    $sandboxSettings = SandboxSettings::fromEnv($_ENV);
-    $traceSettings = TraceSettings::fromEnv($_ENV);
-    $memorySettings = MemorySettings::fromEnv($_ENV);
     $vaultSettings = VaultSettings::fromEnv($_ENV);
 } catch (ConfigException $e) {
     fwrite(STDERR, json_encode(['level' => 'CRITICAL', 'message' => $e->getMessage()], JSON_THROW_ON_ERROR) . PHP_EOL);
@@ -190,6 +187,55 @@ $version = is_string($version) && $version !== '' ? $version : 'dev';
 $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectory(PATH_ROOT . '/migrations'));
 $logger->info('Migrations checked', ['applied' => $applied]);
+
+// spec: BRIEF.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
+// when it is kept, and once more here: if they fail, the agent starts on .env and says why.
+$principals = new PostgresPrincipalRepository($db);
+$vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key());
+$restarter = new \OpenCCK\App\Settings\Restarter();
+$validateSettings = static function (array $env): ?string {
+    try {
+        $checked = Config::fromEnv($env);
+        TelegramSettings::fromEnv($env, $checked->appUrl);
+        LlmSettings::fromEnv($env);
+        AgentSettings::fromEnv($env);
+        SandboxSettings::fromEnv($env);
+        TraceSettings::fromEnv($env);
+        MemorySettings::fromEnv($env);
+        VaultSettings::fromEnv($env);
+        \OpenCCK\Infrastructure\Config\SearchSettings::build($env, HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($env, 'OPENROUTER_API_KEY'));
+        new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($env, 'OWNER_TIMEZONE') ?? '+03:00');
+    } catch (ConfigException $e) {
+        return $e->getMessage();
+    } catch (Throwable $e) {
+        return $e::class;
+    }
+    return null;
+};
+$settingsService = new \OpenCCK\App\Settings\SettingsService(
+    new \OpenCCK\Infrastructure\Repository\PostgresSettingRepository($db),
+    $vault,
+    $_ENV,
+    $validateSettings,
+    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+);
+$overlay = $settingsService->overlay();
+$settingsProblem = $validateSettings($overlay);
+if ($settingsProblem === null) {
+    $_ENV = $overlay;
+} else {
+    $logger->error('Stored settings ignored: the agent starts on .env', ['problem' => $settingsProblem]);
+}
+try {
+    $llmSettings = LlmSettings::fromEnv($_ENV);
+    $agentSettings = AgentSettings::fromEnv($_ENV);
+    $sandboxSettings = SandboxSettings::fromEnv($_ENV);
+    $traceSettings = TraceSettings::fromEnv($_ENV);
+    $memorySettings = MemorySettings::fromEnv($_ENV);
+} catch (ConfigException $e) {
+    $logger->critical('Configuration error', ['message' => $e->getMessage()]);
+    exit(78); // EX_CONFIG
+}
 
 // Models: one client per provider with a key, chosen by the model's prefix; both go through VLESS when VLESS_URI is set.
 // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
@@ -232,7 +278,6 @@ $telegramApi = new TelegramApi($telegram->token(), HttpClients::create());
 $channel = new TelegramChannel($telegramApi, logger: $logger);
 
 // Agent: runs, tools, scheduler.
-$principals = new PostgresPrincipalRepository($db);
 $conversations = new PostgresConversationRepository($db);
 $runs = new PostgresRunRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
@@ -252,12 +297,12 @@ if ($browserToken !== null) {
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor()));
 // spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
-[$webSearch, $searchSkipped] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
+[$webSearch, $searchSkipped, $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
 if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
 }
 if ($webSearch !== null) {
-    $tools->register(new WebSearchTool($webSearch));
+    $tools->register(new WebSearchTool($webSearch, $searchEach, \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
 }
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
 $tools->register(new SetModelRoleTool($modelRoles));
@@ -377,7 +422,6 @@ $consolidation = new Consolidation(
     },
 );
 // spec: BRIEF.md#фаза-7-по-частям — the vault, the registry of servers, SSH with a command policy and a journal
-$vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key());
 if (!$vault->enabled()) {
     $logger->warning('SECRETS_KEY is not set: the vault and SSH are off');
 }
@@ -468,7 +512,9 @@ $chat = new ChatService(
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create()),
+    new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
 );
+$tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
@@ -504,6 +550,6 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
         new LongPolling($telegramApi, $parser, $dispatcher, $deduplicator, $app->getLogger()),
         $app->getLogger(),
     ))
-    ->run();
+    ->run($restarter);
 
 $db->close();
