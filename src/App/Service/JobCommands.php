@@ -45,7 +45,7 @@ final class JobCommands {
         $secret = $parts[1] ?? '';
         $job = $this->jobs->find($id);
         if ($job === null || $secret === '') {
-            return '/hook <номер задания> <имя секрета> — принимать webhook; /hook <номер> off — перестать. Секрет сначала сохраните: /secret <имя> token <значение>.';
+            return '/hook <номер задания> <имя секрета> — принимать webhook; /hook <номер> off — перестать. Секрет сначала сохраните: /secret <имя> <значение>.';
         }
         if (!$job->byEvent()) {
             return sprintf('Задание #%d идёт по расписанию, а не по событию.', $id);
@@ -55,7 +55,7 @@ final class JobCommands {
             return sprintf('Задание #%d больше не принимает webhook.', $id);
         }
         if (!$this->vault->enabled() || $this->vault->id($secret) === null) {
-            return sprintf('Секрета «%s» нет в хранилище: /secret %s token <значение>.', $secret, $secret);
+            return sprintf('Секрета «%s» нет в хранилище: /secret %s <значение>.', $secret, $secret);
         }
         $this->jobs->bindHook($id, $secret);
         return sprintf(

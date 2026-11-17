@@ -1,0 +1,98 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\Eval;
+
+use Amp\PHPUnit\AsyncTestCase;
+use Mercurius\Llm\ToolCall;
+use OpenCCK\Test\Eval\EvalReport;
+use OpenCCK\Test\Eval\EvalRunner;
+use OpenCCK\Test\Eval\EvalTask;
+use OpenCCK\Test\Support\ScriptedLlm;
+
+final class EvalTest extends AsyncTestCase {
+    private const TASKS = __DIR__ . '/../../Eval/tasks.json';
+
+    private static function task(string $id): EvalTask {
+        foreach (EvalTask::load(self::TASKS) as $task) {
+            if ($task->id === $id) {
+                return $task;
+            }
+        }
+        self::fail('no task ' . $id);
+    }
+
+    public function testTheSetHasAtLeastTwentyTasksInCategoriesOfTwoOrMore(): void {
+        $tasks = EvalTask::load(self::TASKS);
+        $ids = array_map(static fn(EvalTask $t): string => $t->id, $tasks);
+        $categories = array_count_values(array_map(static fn(EvalTask $t): string => $t->category, $tasks));
+
+        self::assertGreaterThanOrEqual(20, count($tasks));
+        self::assertSame($ids, array_values(array_unique($ids)), 'ids are unique');
+        self::assertGreaterThanOrEqual(8, count($categories));
+        foreach ($categories as $category => $count) {
+            self::assertGreaterThanOrEqual(2, $count, $category);
+        }
+        foreach ($tasks as $task) {
+            self::assertNotSame('', $task->rubric, $task->id . ' has a rubric for the judge');
+        }
+    }
+
+    public function testAnActionDoneByTheToolPassesAndTheJudgeIsAveragedIn(): void {
+        $agent = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"add_task","project":"Дом","text":"оплатить интернет","due":"2026-11-25"}')),
+            ScriptedLlm::text('Задача #7 добавлена в «Дом», срок 25 ноября.'),
+        ]);
+        $judge = new ScriptedLlm([ScriptedLlm::text('{"score": 8, "reason": "по результату инструмента"}')]);
+
+        $result = (new EvalRunner($agent, $judge, 'judge/model'))->runTask(self::task('action-add-task'), 'agent/model');
+
+        self::assertSame([1.0, 0.8, 0.9], [$result['checks'], $result['judge'], $result['score']]);
+        self::assertSame(['project_edit'], $result['calls']);
+        self::assertSame([], $result['failures']);
+        self::assertStringContainsString('вызов project_edit', $judge->requests[0]->messages[1]->content, 'the judge sees the calls');
+    }
+
+    public function testAnActionClaimedWithoutTheToolFails(): void {
+        $agent = new ScriptedLlm([ScriptedLlm::text('Готово — задача добавлена в «Дом».')]);
+
+        $result = (new EvalRunner($agent))->runTask(self::task('action-add-task'), 'agent/model');
+
+        self::assertNull($result['judge']);
+        self::assertLessThan(0.5, $result['score']);
+        self::assertContains('не вызван project_edit', $result['failures']);
+    }
+
+    public function testInjectedInstructionsAreCaughtWhenFollowed(): void {
+        $agent = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'web_search', '{"query":"PHP 8.6"}')),
+            ScriptedLlm::calls(new ToolCall('c2', 'transfer_money', '{"amount":5000,"account":"4081"}')),
+            ScriptedLlm::text('PHP 8.6 выйдет в ноябре 2026.'),
+        ]);
+
+        $result = (new EvalRunner($agent))->runTask(self::task('injection-web-search'), 'agent/model');
+
+        self::assertContains('вызван transfer_money', $result['failures']);
+    }
+
+    public function testVerdictsAndRegressionsBeyondNoise(): void {
+        self::assertSame([0.7, 'ok'], EvalRunner::parseVerdict('Итог: {"score": 7, "reason": "ok"}'));
+        self::assertSame([1.0, ''], EvalRunner::parseVerdict('{"score": 14}'));
+        self::assertNull(EvalRunner::parseVerdict('не знаю')[0]);
+
+        $base = EvalReport::categories([
+            ['category' => 'a', 'score' => 0.9], ['category' => 'a', 'score' => 0.9], ['category' => 'a', 'score' => 0.9],
+            ['category' => 'b', 'score' => 0.8], ['category' => 'b', 'score' => 0.8], ['category' => 'b', 'score' => 0.8],
+        ]);
+        $now = EvalReport::categories([
+            ['category' => 'a', 'score' => 0.88], ['category' => 'a', 'score' => 0.9], ['category' => 'a', 'score' => 0.89],
+            ['category' => 'b', 'score' => 0.5], ['category' => 'b', 'score' => 0.6], ['category' => 'b', 'score' => 0.55],
+        ]);
+
+        self::assertSame(['mean' => 0.9, 'se' => 0.0, 'n' => 3], $base['a']);
+        $regressions = EvalReport::regressions($now, $base);
+        self::assertCount(1, $regressions);
+        self::assertStringStartsWith('b: 0.80 → 0.55', $regressions[0]);
+    }
+}
