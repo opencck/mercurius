@@ -584,9 +584,7 @@ final class A2aServer implements JobRuns {
             }
             /** @var mixed $name */
             $name = $part['filename'] ?? 'file';
-            $clean = preg_replace('~[\x00-\x1F\x7F/\\\\]+~u', '_', is_string($name) ? $name : 'file') ?? 'file';
-            $clean = trim(mb_substr($clean, 0, 100), ". \t");
-            $files[] = ['name' => $clean === '' ? 'file' : $clean, 'bytes' => $bytes];
+            $files[] = ['name' => \OpenCCK\App\Agent\Media\MediaNames::clean(is_string($name) ? $name : 'file'), 'bytes' => $bytes];
         }
         return $files;
     }
