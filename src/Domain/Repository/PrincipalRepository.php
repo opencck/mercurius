@@ -11,6 +11,9 @@ use OpenCCK\Domain\Entity\Role;
 interface PrincipalRepository {
     public function find(int $id): ?Principal;
 
+    /** @return list<Principal> every participant, by id */
+    public function all(): array;
+
     public function findByIdentity(string $channel, string $externalId): ?Principal;
 
     /** The participant's account in a channel (in Telegram, the user id), or null when they have none there. */

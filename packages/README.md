@@ -12,6 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `7ecab10` | 2026-11-17 | Канал связи и адаптер Telegram |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
+| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [mail-mcp/](mail-mcp/) | `6a68991` | 2026-11-17 | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) подключаются в своих фазах.
 
@@ -26,6 +27,14 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — подключён mail-mcp
+
+- Новый пакет `mercurius-mail-mcp` (`6a68991`, решение владельца 2026-11-17 — почта встроенным клиентом IMAP/SMTP в
+  виде MCP): `mail_folders`, `mail_list`, `mail_read` (только чтение, письма не помечаются прочитанными), `mail_send`
+  (необратимое — карточка владельца); проверка подлинности отправителя по `Authentication-Results` (образец — почтовый
+  адаптер hermes). Учётные данные сервер не хранит: приложение шлёт ящик из настроек агента в заголовках.
+- В приложении — сервис `mail-mcp` в compose и встроенный MCP-сервер `mail`; ящик — настройки `MAIL_*`.
 
 ### 2026-11-17 — подключён search
 

@@ -317,6 +317,7 @@ if ($webSearch !== null) {
     $tools->register(new WebSearchTool($webSearch, $searchEach, \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
 }
 $tools->register(new SetParticipantPolicyTool($principals, $policies));
+$tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies));
 $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
@@ -481,6 +482,13 @@ $mcpManager = new McpManager(
     $logger,
 );
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
+// spec: BRIEF.md#скиллы-и-mcp — the built-in mail server: the mailbox from the settings goes in headers of each request
+$mailHeaders = \OpenCCK\Infrastructure\Config\MailSettings::headers($_ENV);
+$mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');
+if ($mailHeaders !== null && $mailToken !== null) {
+    $mailServer = new \OpenCCK\Domain\Mcp\McpServer(0, 'mail', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ACTIVE, null, 'встроенный', $mailHeaders);
+    \Revolt\EventLoop::defer(static fn() => $mcpManager->connectBuiltin($mailServer, $mailToken));
+}
 
 // spec: BRIEF.md#планировщик-и-проекты — jobs by a schedule, run without the owner, reported by the scheduler
 $ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');

@@ -27,7 +27,8 @@ final class SetParticipantPolicyTool implements Tool {
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, 'Меняет права участника (не владельца): доступные инструменты и лимиты запуска. '
-            . 'Только по просьбе владельца. Значения больше, чем у владельца, урезаются. Возвращает итоговую политику.', [
+            . 'Только по просьбе владельца. Значения больше, чем у владельца, урезаются. Возвращает итоговую политику. '
+            . 'Номер участника (principal_id) — из инструмента participants.', [
             'type' => 'object',
             'properties' => [
                 'principal_id' => ['type' => 'integer', 'minimum' => 1],

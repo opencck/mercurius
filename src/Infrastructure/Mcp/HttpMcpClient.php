@@ -113,6 +113,9 @@ final class HttpMcpClient implements McpClient {
         if ($session !== null) {
             $request->setHeader('mcp-session-id', $session);
         }
+        foreach ($server->headers as $name => $value) {
+            $request->setHeader($name, $value);
+        }
         $request->setTransferTimeout(60);
         $request->setInactivityTimeout(60);
         $request->setBodySizeLimit(4_194_304);

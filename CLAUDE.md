@@ -203,7 +203,7 @@
 Код на сервер попадает только через git: каталог `/home/rekryt/docker/mercurius/` — клон `opencck/mercurius` (`master`).
 
 1. Закоммитить и отправить изменения (`composer check` зелёный, CI прошёл).
-2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search` (референсы на сервере не нужны).
+2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/mail-mcp` (референсы на сервере не нужны).
 3. Новые переменные окружения — дописать в серверный `.env` через `sftp-upload` (права `600`), не печатая значения.
 4. Копия перед обновлением: `bin/backup.sh` (дамп базы, данные, `.env`; последние 7 — в `backups/`). Затем `docker compose up -d --build` (на сервере с таймаутом ssh-mcp в 60 с — в фоне через `nohup`, затем ждать `EXIT=` в журнале); проверить `docker compose ps` (`app`, `postgres`, `sandbox` — `healthy`) и журнал `docker compose logs --tail=50 app` (строка `Migrations checked` с применёнными миграциями).
 5. Интеграционные тесты: `docker compose --profile test build test && docker compose --profile test run --rm test` (Compose на сервере не знает `run --build`; в фоне через `nohup`).

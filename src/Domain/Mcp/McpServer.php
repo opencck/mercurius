@@ -24,5 +24,11 @@ final class McpServer {
         public readonly string $status,
         public readonly ?string $toolsHash,
         public readonly string $note = '',
+        /**
+         * Headers sent with every request; a built-in server gets its account this way, so the model never sees it.
+         *
+         * @var array<non-empty-string, string>
+         */
+        public readonly array $headers = [],
     ) {}
 }

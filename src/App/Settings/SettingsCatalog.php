@@ -51,6 +51,13 @@ final class SettingsCatalog {
         'TRACE_RETENTION_DAYS' => ['трассы', self::INT, 'дней хранения полных промптов'],
         'SSH_CONFIRM_GROUPS' => ['серверы', self::TEXT, 'группы серверов, где каждая команда — с подтверждением'],
         'METRICS_TOKEN' => ['трассы', self::SECRET, 'токен /metrics для Prometheus (пусто — выключен)'],
+        'MAIL_HOST' => ['почта', self::TEXT, 'сервер почты (IMAP и SMTP), например mail.example.ru'],
+        'MAIL_IMAP_PORT' => ['почта', self::INT, 'порт IMAP с TLS, обычно 993'],
+        'MAIL_SMTP_PORT' => ['почта', self::INT, 'порт SMTP: 465 — TLS, 587 — STARTTLS'],
+        'MAIL_USER' => ['почта', self::TEXT, 'логин ящика'],
+        'MAIL_PASSWORD' => ['почта', self::SECRET, 'пароль ящика'],
+        'MAIL_FROM' => ['почта', self::TEXT, 'адрес отправителя (пусто — логин)'],
+        'MAIL_AUTHSERV_ID' => ['почта', self::TEXT, 'authserv-id своего сервера в Authentication-Results (пусто — MAIL_HOST)'],
         'A2A_NAME' => ['сеть', self::TEXT, 'имя агента в карточке A2A для соседей'],
         'A2A_DESCRIPTION' => ['сеть', self::TEXT, 'чем агент может помочь соседям (карточка A2A)'],
     ];

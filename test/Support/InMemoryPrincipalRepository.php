@@ -66,6 +66,11 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         $this->identities[$channel . ':' . $externalId] = $principal->id;
     }
 
+    public function all(): array {
+        ksort($this->principals);
+        return array_values($this->principals);
+    }
+
     public function createAgent(string $name, Role $role): Principal {
         $existing = $this->findByIdentity('a2a', $name);
         $id = $existing !== null ? $existing->id : ($this->principals === [] ? 1 : max(array_keys($this->principals)) + 1);

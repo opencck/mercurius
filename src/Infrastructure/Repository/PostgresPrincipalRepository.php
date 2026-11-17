@@ -147,6 +147,14 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return $row === null ? null : self::hydrate($row);
     }
 
+    public function all(): array {
+        $found = [];
+        foreach ($this->db->query('SELECT id, kind, role, display_name, status FROM principals ORDER BY id') as $row) {
+            $found[] = self::hydrate($row);
+        }
+        return $found;
+    }
+
     /** @param array<string, mixed> $row */
     private static function hydrate(array $row): Principal {
         $id = $row['id'] ?? null;

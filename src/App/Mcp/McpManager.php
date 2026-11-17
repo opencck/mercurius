@@ -48,6 +48,25 @@ final class McpManager {
     ) {}
 
     /** At start: the tools of every active server; a changed one is turned off. */
+    /** @var array<string, string> bearer tokens of built-in servers by name */
+    private array $builtin = [];
+
+    /**
+     * A server of this installation (the mail server in compose): its tools are ours, so they are registered without
+     * the owner's approval; the token and the headers come from the settings.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — the built-in mail server
+     */
+    public function connectBuiltin(McpServer $server, #[\SensitiveParameter] string $token): void {
+        $this->builtin[$server->name] = $token;
+        try {
+            $count = $this->sync($server, false, new NullCancellation());
+            $this->logger->info('Built-in MCP server connected', ['server' => $server->name, 'tools' => $count]);
+        } catch (Throwable $e) {
+            $this->logger->warning('Built-in MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
+        }
+    }
+
     public function connectAll(): void {
         foreach ($this->servers->all() as $server) {
             if ($server->status === McpServer::ACTIVE) {
@@ -151,6 +170,9 @@ final class McpManager {
     }
 
     private function token(McpServer $server): ?string {
+        if (isset($this->builtin[$server->name])) {
+            return $this->builtin[$server->name];
+        }
         if ($server->secret === null) {
             return null;
         }
