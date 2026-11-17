@@ -53,6 +53,22 @@ final class SendFileToolTest extends AsyncTestCase {
         self::assertSame(DangerClass::Write, $this->tool->danger(['path' => 'x']), 'like an answer in the same chat: no card');
     }
 
+    public function testInATaskOfAnotherAgentTheFileGoesWithTheAnswer(): void {
+        $this->sandbox->files[7]['out/report.pdf'] = 'PDF';
+        $task = $this->conversations->openConversation(7, 'a2a', 'a2a-7-ctx-1');
+        $answered = [];
+        $tool = new SendFileTool($this->sandbox, $this->channel, $this->conversations, answerTask: static function (int $runId, string $name, string $bytes) use (&$answered): bool {
+            $answered[] = [$runId, $name, $bytes];
+            return true;
+        });
+
+        $result = $tool->execute(['path' => 'out/report.pdf'], $this->context($task));
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame([[3, 'report.pdf', 'PDF']], $answered);
+        self::assertSame([], $this->channel->files, 'not to a chat');
+    }
+
     public function testAMissingFileOrNoSandboxIsAnError(): void {
         $chat = $this->conversations->openConversation(7, 'telegram', '42');
 

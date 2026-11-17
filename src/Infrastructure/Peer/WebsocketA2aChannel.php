@@ -18,7 +18,17 @@ use Throwable;
 final class WebsocketA2aChannel implements A2aChannel {
     public const FRAME_MAX = 262_144;
 
-    public function __construct(private readonly WebsocketClient $socket) {}
+    /** bytes in a message after the handshake, when files go as bytes (A2A_FILE_TRANSPORT=ws): base64 and JSON of 20 MB */
+    public const FILES_MAX = 28_000_000;
+    /** the handshake takes two frames each way: until then a frame is small whoever the other side is */
+    private const HANDSHAKE_FRAMES = 2;
+    private int $received = 0;
+
+    public function __construct(
+        private readonly WebsocketClient $socket,
+        /** the largest frame after the handshake */
+        private readonly int $after = self::FRAME_MAX,
+    ) {}
 
     public function send(string $text): void {
         $this->socket->sendText($text);
@@ -27,7 +37,9 @@ final class WebsocketA2aChannel implements A2aChannel {
     public function receive(?Cancellation $cancellation = null): ?string {
         try {
             $message = $this->socket->receive($cancellation);
-            return $message?->buffer($cancellation, self::FRAME_MAX);
+            // spec: BRIEF.md#между-агентами — a large frame only after the keys are proved
+            $limit = $this->received++ < self::HANDSHAKE_FRAMES ? self::FRAME_MAX : $this->after;
+            return $message?->buffer($cancellation, $limit);
         } catch (\Amp\CancelledException $e) {
             throw $e;
         } catch (Throwable) {

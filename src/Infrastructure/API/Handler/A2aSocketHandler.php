@@ -23,6 +23,8 @@ final class A2aSocketHandler implements WebsocketAcceptor, WebsocketClientHandle
     public function __construct(
         private readonly A2aServer $server,
         private readonly Rfc6455Acceptor $upgrade = new Rfc6455Acceptor(),
+        /** the largest frame after the handshake */
+        private readonly int $frameMax = WebsocketA2aChannel::FRAME_MAX,
     ) {}
 
     public function handleHandshake(Request $request): Response {
@@ -33,6 +35,6 @@ final class A2aSocketHandler implements WebsocketAcceptor, WebsocketClientHandle
     }
 
     public function handleClient(WebsocketClient $client, Request $request, Response $response): void {
-        $this->server->serveSocket(new WebsocketA2aChannel($client));
+        $this->server->serveSocket(new WebsocketA2aChannel($client, $this->frameMax));
     }
 }

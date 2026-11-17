@@ -26,7 +26,7 @@ use function Mercurius\I18n\t;
 final class SendFileTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'send_file';
     /** The sandbox gives a file whole up to this; Telegram takes documents up to 50 MB from a bot. */
-    public const MAX_BYTES = 5_000_000;
+    public const MAX_BYTES = 20_000_000;
     private const KINDS = [
         'jpg' => 'photo', 'jpeg' => 'photo', 'png' => 'photo', 'webp' => 'photo',
         'mp3' => 'audio', 'm4a' => 'audio', 'flac' => 'audio', 'wav' => 'audio',
@@ -40,6 +40,8 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         private readonly Channel $channel,
         private readonly ConversationRepository $conversations,
         private readonly ?Recipients $recipients = null,
+        /** @var (\Closure(int, string, string): bool)|null a file sent in a task of another agent goes with the answer */
+        private readonly ?\Closure $answerTask = null,
     ) {
         parent::__construct($sandbox);
     }
@@ -82,6 +84,15 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
 
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
         $to = Args::string($args, 'to');
+        // spec: BRIEF.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
+        if (($to === null || $to === '') && $this->answerTask !== null && $this->conversations->meta($context->conversationId)?->channel === 'a2a') {
+            $path = Args::string($args, 'path') ?? '';
+            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, self::MAX_BYTES, $context->cancellation);
+            $name = basename(str_replace('\\', '/', $path)) ?: 'file';
+            return ($this->answerTask)($context->runId, $name, $bytes)
+                ? ToolResult::ok(sprintf(t('tool.send_file.with_answer'), $name, strlen($bytes)))
+                : ToolResult::error(t('tool.send_file.answer_failed'));
+        }
         if ($this->recipients !== null) {
             $where = $this->recipients->where($to, $context, $this->conversations);
         } else {

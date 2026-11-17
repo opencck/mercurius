@@ -42,6 +42,8 @@ final class A2aClient {
         private readonly ?\Closure $serveFor = null,
         /** the public address of this agent: a neighbour that does not know it yet shows it and its name to its owner */
         private readonly string $self = '',
+        /** http — files go ahead by POST /a2a/files; ws — as bytes in the message over a WebSocket */
+        public readonly string $fileTransport = 'http',
     ) {}
 
     /**
@@ -102,7 +104,117 @@ final class A2aClient {
      * @return array<array-key, mixed> the task
      */
     public function send(Peer $peer, #[SensitiveParameter] string $token, string $messageId, string $text, int $depth, array $path, ?Cancellation $cancellation = null, array $files = []): array {
-        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path, $files), $cancellation));
+        // spec: BRIEF.md#между-агентами — files go ahead by POST /a2a/files (form-data); bytes in the message only by
+        // WebSocket when A2A_FILE_TRANSPORT=ws
+        $refs = [];
+        if ($files !== [] && !($this->fileTransport === 'ws' && self::transport($peer) === 'ws')) {
+            $refs = $this->upload($peer, $token, $files, $cancellation);
+            $files = [];
+        }
+        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path, $files, $refs), $cancellation));
+    }
+
+    /**
+     * Sends files to the neighbour ahead of a message; returns references to them.
+     *
+     * @param list<array{name: string, bytes: string}> $files
+     * @return list<array{id: string, filename: string, mediaType: string}>
+     */
+    public function upload(Peer $peer, #[SensitiveParameter] string $token, array $files, ?Cancellation $cancellation = null): array {
+        [$type, $body] = A2aFiles::multipart($files);
+        $url = rtrim($peer->url, '/') . '/a2a/files';
+        [$request, $nonce] = $this->signed($peer, $token, 'POST', $url, $body);
+        $request->setHeader('content-type', $type);
+        $request->setTransferTimeout(120);
+        $data = $this->request($request, $cancellation, $peer->publicKey, $nonce);
+        $refs = [];
+        /** @var mixed $file */
+        foreach (isset($data['files']) && is_array($data['files']) ? $data['files'] : [] as $file) {
+            if (is_array($file) && isset($file['id'], $file['filename'], $file['mediaType']) && is_string($file['id']) && is_string($file['filename']) && is_string($file['mediaType'])) {
+                $refs[] = ['id' => $file['id'], 'filename' => $file['filename'], 'mediaType' => $file['mediaType']];
+            }
+        }
+        if (count($refs) !== count($files)) {
+            $error = isset($data['error']) && is_string($data['error']) ? $data['error'] : '';
+            throw new RuntimeException(t('peer.a2a_client.files_not_taken') . mb_substr($error, 0, 200));
+        }
+        return $refs;
+    }
+
+    /**
+     * A file of an answer: GET /a2a/files/<number>, the answer signed by the neighbour's key.
+     *
+     * @return array{name: string, bytes: string}
+     */
+    public function download(Peer $peer, #[SensitiveParameter] string $token, string $id, string $name, ?Cancellation $cancellation = null): array {
+        [$request, $nonce] = $this->signed($peer, $token, 'GET', rtrim($peer->url, '/') . '/a2a/files/' . rawurlencode($id), '');
+        $request->setTransferTimeout(120);
+        $request->setInactivityTimeout(60);
+        $request->setBodySizeLimit(A2aFiles::FILE_MAX + 1);
+        try {
+            $response = $this->http->request($request, $cancellation ?? new \Amp\NullCancellation());
+            $bytes = $response->getBody()->buffer($cancellation, A2aFiles::FILE_MAX + 1);
+        } catch (Throwable $e) {
+            throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . (new \ReflectionClass($e))->getShortName() . ').');
+        }
+        if ($response->getStatus() !== 200 || !AgentIdentity::verify($peer->publicKey, AgentIdentity::responseData($nonce, $bytes), $response->getHeader('x-a2a-signature') ?? '')) {
+            throw new RuntimeException(t('peer.a2a_client.file_not_given'));
+        }
+        return ['name' => $name, 'bytes' => $bytes];
+    }
+
+    /**
+     * The files an answer refers to.
+     *
+     * @param array<array-key, mixed> $task
+     * @return list<array{id: string, raw: string, name: string}> a reference (id) or bytes in base64 (raw)
+     */
+    public static function answerFiles(array $task): array {
+        $message = isset($task['status']) && is_array($task['status']) && isset($task['status']['message']) && is_array($task['status']['message']) ? $task['status']['message'] : [];
+        $files = [];
+        /** @var mixed $part */
+        foreach (isset($message['parts']) && is_array($message['parts']) ? $message['parts'] : [] as $part) {
+            if (!is_array($part) || count($files) >= A2aFiles::COUNT_MAX) {
+                continue;
+            }
+            /** @var mixed $named */
+            $named = $part['filename'] ?? null;
+            $name = \OpenCCK\App\Agent\Media\MediaNames::clean(is_string($named) ? $named : 'file');
+            /** @var mixed $url */
+            $url = $part['url'] ?? null;
+            /** @var mixed $raw */
+            $raw = $part['raw'] ?? null;
+            if (is_string($url) && str_starts_with($url, A2aFiles::SCHEME)) {
+                $files[] = ['id' => substr($url, strlen(A2aFiles::SCHEME)), 'raw' => '', 'name' => $name];
+            } elseif (is_string($raw)) {
+                $files[] = ['id' => '', 'raw' => $raw, 'name' => $name];
+            }
+        }
+        return $files;
+    }
+
+    /**
+     * A request signed by the key chosen for the neighbour: the entrance token, the key, a time and a one-time number.
+     *
+     * @param non-empty-string $method
+     * @return array{Request, string} the request and its number
+     */
+    private function signed(Peer $peer, #[SensitiveParameter] string $token, string $method, string $url, string $body): array {
+        $identity = $this->identityFor($peer);
+        $timestamp = (string) time();
+        $nonce = bin2hex(random_bytes(16));
+        $path = parse_url($url, PHP_URL_PATH);
+        $request = new Request($url, $method, $body);
+        $request->setHeader('authorization', 'Bearer ' . $token);
+        $request->setHeader('a2a-version', '1.0');
+        $request->setHeader('x-a2a-key', base64_encode($identity->publicKey));
+        $request->setHeader('x-a2a-timestamp', $timestamp);
+        $request->setHeader('x-a2a-nonce', $nonce);
+        foreach ($this->about() as $claim => $value) {
+            $request->setHeader('x-a2a-' . $claim, $value);
+        }
+        $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData($method, is_string($path) ? $path : '/', $timestamp, $nonce, $body)));
+        return [$request, $nonce];
     }
 
     /**
@@ -111,13 +223,17 @@ final class A2aClient {
      * spec: BRIEF.md#личные-сообщения-участникам — not only text: files to other agents
      *
      * @param list<string> $path
-     * @param list<array{name: string, bytes: string}> $files
+     * @param list<array{name: string, bytes: string}> $files bytes in the message (WebSocket)
+     * @param list<array{id: string, filename: string, mediaType: string}> $refs files sent ahead
      * @return array<string, mixed>
      */
-    public static function message(string $messageId, string $text, int $depth, array $path, array $files = []): array {
+    public static function message(string $messageId, string $text, int $depth, array $path, array $files = [], array $refs = []): array {
         $parts = $text === '' ? [] : [['text' => $text, 'mediaType' => 'text/plain']];
         foreach ($files as $file) {
-            $parts[] = ['raw' => base64_encode($file['bytes']), 'filename' => $file['name'], 'mediaType' => 'application/octet-stream'];
+            $parts[] = ['raw' => base64_encode($file['bytes']), 'filename' => $file['name'], 'mediaType' => A2aFiles::mediaType('', $file['name'])];
+        }
+        foreach ($refs as $ref) {
+            $parts[] = ['url' => A2aFiles::SCHEME . $ref['id'], 'filename' => $ref['filename'], 'mediaType' => $ref['mediaType']];
         }
         return [
             'message' => ['role' => 'ROLE_USER', 'messageId' => $messageId, 'parts' => $parts],

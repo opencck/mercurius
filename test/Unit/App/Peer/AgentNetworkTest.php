@@ -62,6 +62,7 @@ final class AgentNetworkTest extends AsyncTestCase {
             new NullLogger(),
             $this->followerKey,
             self::ENTRANCE,
+            files: new \OpenCCK\App\Peer\A2aFiles(new \OpenCCK\Test\Support\InMemoryA2aFileRepository()),
         );
         $this->follower->scheduler->useJobRuns($this->server);
         $network = $this->network($this->followerPeers, $this->follower, $this->followerKey, self::FOLLOWER, null);
@@ -256,5 +257,31 @@ final class AgentNetworkTest extends AsyncTestCase {
         $impostor = $tool->execute(['peer' => 'follower', 'task' => 'ещё вопрос'], new ToolContext(1, $conversation, $owner, new NullCancellation()));
         self::assertTrue($impostor->isError);
         self::assertStringContainsString('не ключом этого соседа', $impostor->content);
+    }
+
+    public function testFilesGoAheadOfTheTaskAndComeBackWithTheAnswer(): void {
+        $this->follower(new ScriptedLlm([ScriptedLlm::text('Отчёт готов, файл приложен.')]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $network = $this->network(new InMemoryPeerRepository(), $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+
+        $network->delegate($owner, 'follower', 'Сделай отчёт по таблице', 'telegram', '7', 0, [], [['name' => 'data.csv', 'bytes' => "a;b
+1;2"]]);
+        delay(0.05);
+
+        $prompt = array_slice($this->follower->llm->requests[0]->messages, -1)[0]->content ?? '';
+        self::assertStringContainsString('data.csv', $prompt, 'the file came with the task, sent ahead');
+        $task = array_values($this->followerPeers->tasks)[0];
+        self::assertNotNull($task->runId);
+        self::assertTrue($this->server->answerFile($task->runId, 'report.pdf', 'PDF-BYTES'));
+
+        $network->poll();
+
+        self::assertStringContainsString('Отчёт готов', implode("
+", $leader->channel->texts('send')));
+        self::assertSame([['7', 'report.pdf', 'PDF-BYTES']], array_map(static fn(array $f): array => array_slice($f, 0, 3), $leader->channel->files), 'the file of the answer comes to the chat');
     }
 }

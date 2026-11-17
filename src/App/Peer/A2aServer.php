@@ -72,6 +72,8 @@ final class A2aServer implements JobRuns {
         'SendMessage' => ['send', true], 'message/send' => ['send', false],
         'GetTask' => ['get', true], 'tasks/get' => ['get', false],
         'CancelTask' => ['cancel', true], 'tasks/cancel' => ['cancel', false],
+        // spec: BRIEF.md#между-агентами — a file of an answer over a connection, when the neighbour has no address
+        'GetFile' => ['file', true],
     ];
 
     /** @var array<int, list<float>> request times by agent */
@@ -107,6 +109,8 @@ final class A2aServer implements JobRuns {
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
         /** an unknown agent that proved its key is shown to the owner; null — it is only told to ask for /peer allow */
         private readonly ?AgentRequests $requests = null,
+        /** files between agents: uploads, references, answers; null — only bytes in parts, up to 5 MB */
+        private readonly ?A2aFiles $files = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -335,6 +339,7 @@ final class A2aServer implements JobRuns {
             'send' => [200, $this->send($agent, $id, $params, $v1, $via)],
             'get' => [200, $this->get($agent, $id, $params)],
             'cancel' => [200, $this->cancel($agent, $id, $params)],
+            'file' => [200, $this->file($agent, $id, $params)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
         };
     }
@@ -377,11 +382,11 @@ final class A2aServer implements JobRuns {
         $message = isset($params['message']) && is_array($params['message']) ? $params['message'] : [];
         $messageId = isset($message['messageId']) && is_string($message['messageId']) ? trim($message['messageId']) : '';
         $text = self::text($message);
-        $files = self::files($message);
+        $files = $this->files?->ofMessage($agent->id, $message) ?? self::files($message);
         if ($text === '' && $files !== []) {
             $text = t('peer.a2a_server.files_only');
         }
-        if ($messageId === '' || strlen($messageId) > 200 || $text === '' || mb_strlen($text) > self::TEXT_MAX || count($files) > 5) {
+        if ($messageId === '' || strlen($messageId) > 200 || $text === '' || mb_strlen($text) > self::TEXT_MAX || count($files) > A2aFiles::COUNT_MAX) {
             return self::error($id, self::ERR_INVALID_PARAMS, 'message needs messageId and text parts up to ' . self::TEXT_MAX . ' characters');
         }
         $existing = $this->peers->taskByMessage($agent->id, $messageId);
@@ -515,12 +520,69 @@ final class A2aServer implements JobRuns {
         $status = ['state' => $task->state, 'timestamp' => ($this->now)()->format('Y-m-d\TH:i:s.v\Z')];
         $view = ['id' => $task->id, 'contextId' => $task->contextId, 'status' => $status];
         if ($task->result !== null && $task->terminal()) {
-            $view['status']['message'] = ['role' => 'ROLE_AGENT', 'messageId' => $task->id . '-result', 'parts' => [['text' => $task->result, 'mediaType' => 'text/plain']]];
+            // spec: BRIEF.md#между-агентами — the files the agent sent into the task come with the answer, as references
+            $parts = [['text' => $task->result, 'mediaType' => 'text/plain'], ...($this->files?->parts($task->id) ?? [])];
+            $view['status']['message'] = ['role' => 'ROLE_AGENT', 'messageId' => $task->id . '-result', 'parts' => $parts];
             if ($task->state === A2aTask::COMPLETED) {
-                $view['artifacts'] = [['artifactId' => $task->id . '-answer', 'parts' => [['text' => $task->result, 'mediaType' => 'text/plain']]]];
+                $view['artifacts'] = [['artifactId' => $task->id . '-answer', 'parts' => $parts]];
             }
         }
         return $view;
+    }
+
+    /**
+     * A file of an answer as bytes, for a neighbour that reads answers over a connection.
+     *
+     * @param array<array-key, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function file(Principal $agent, mixed $id, array $params): array {
+        $fileId = isset($params['id']) && is_string($params['id']) ? $params['id'] : '';
+        $file = $fileId === '' ? null : $this->files?->download($agent->id, $fileId);
+        if ($file === null) {
+            return self::error($id, self::ERR_TASK_NOT_FOUND, 'file not found');
+        }
+        return ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['filename' => $file['name'], 'mediaType' => $file['mediaType'], 'raw' => base64_encode($file['bytes'])]];
+    }
+
+    /**
+     * Files the agent sends with send_file into the conversation of a task go with its answer to the neighbour who
+     * gave the task.
+     *
+     * spec: BRIEF.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
+     */
+    public function answerFile(int $runId, string $name, string $bytes): bool {
+        $task = $this->peers->taskByRun($runId);
+        if ($task === null || $this->files === null || strlen($bytes) > A2aFiles::FILE_MAX) {
+            return false;
+        }
+        $this->files->answer($task->principalId, $task->id, $name, $bytes);
+        return true;
+    }
+
+    /**
+     * POST /a2a/files: the files of a signed upload, kept for the agent who sent them.
+     *
+     * @return array<string, mixed>
+     */
+    public function upload(Principal $agent, string $contentType, string $body): array {
+        if ($this->files === null) {
+            return ['error' => 'files are not taken here'];
+        }
+        try {
+            return ['files' => $this->files->upload($agent->id, $contentType, $body)];
+        } catch (\DomainException $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * GET /a2a/files/<number>: a file of an answer, only to the agent it is meant for.
+     *
+     * @return array{name: string, mediaType: string, bytes: string}|null
+     */
+    public function download(Principal $agent, string $id): ?array {
+        return $this->files?->download($agent->id, $id);
     }
 
     private function allow(int $agentId): bool {
@@ -541,7 +603,7 @@ final class A2aServer implements JobRuns {
      *
      * spec: BRIEF.md#личные-сообщения-участникам — not only text: files from other agents
      *
-     * @param list<array{name: string, bytes: string}> $files
+     * @param list<array{name: string, bytes: string, mediaType?: string}> $files
      */
     private function keep(Principal $agent, string $taskId, array $files): string {
         if ($files === []) {

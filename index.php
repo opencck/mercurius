@@ -373,13 +373,18 @@ $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);
+/** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below: the client asks it who answers a neighbour, send_file answers a task */
+$a2aServer = null;
 if ($sandbox !== null) {
     $tools->register(new ReadFileTool($sandbox));
     $tools->register(new ListFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
-    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
+    // spec: BRIEF.md#между-агентами — in a task of another agent a file goes with the answer
+    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
+        return $a2aServer instanceof \OpenCCK\App\Peer\A2aServer && $a2aServer->answerFile($runId, $name, $bytes);
+    }));
 }
 // spec: BRIEF.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
 $tools->register(new \OpenCCK\App\Agent\Tool\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
@@ -654,19 +659,26 @@ $agentIdentity = $vault->enabled()
 // transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
 $agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId), $agentIdentity);
 // native WebSocket pings from this side too: every 10 s; three unanswered — the connection is dead and is closed
-$a2aConnector = new \Amp\Websocket\Client\Rfc6455Connector(new \Amp\Websocket\Client\Rfc6455ConnectionFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3)));
-$a2aConnect = static function (string $url, string $token) use ($a2aConnector): \OpenCCK\App\Peer\A2aChannel {
+// spec: BRIEF.md#между-агентами — files go ahead by POST /a2a/files (http, by default) or as bytes over a WebSocket (ws):
+// then a message after the handshake may reach 28 MB
+$a2aFileTransport = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_FILE_TRANSPORT') === 'ws' ? 'ws' : 'http';
+$a2aFrameMax = $a2aFileTransport === 'ws' ? \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel::FILES_MAX : \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel::FRAME_MAX;
+$a2aParser = new \Amp\Websocket\Parser\Rfc6455ParserFactory(messageSizeLimit: max($a2aFrameMax, 10_485_760));
+$a2aFiles = new \OpenCCK\App\Peer\A2aFiles(new \OpenCCK\Infrastructure\Repository\PostgresA2aFileRepository($db));
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(600, static function () use ($a2aFiles): void {
+    $a2aFiles->sweep(new \DateTimeImmutable());
+}));
+$a2aConnector = new \Amp\Websocket\Client\Rfc6455Connector(new \Amp\Websocket\Client\Rfc6455ConnectionFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $a2aParser));
+$a2aConnect = static function (string $url, string $token) use ($a2aConnector, $a2aFrameMax): \OpenCCK\App\Peer\A2aChannel {
     if (preg_match('~^wss?://~', $url) !== 1) {
         throw new \RuntimeException('not a websocket address');
     }
     $handshake = (new \Amp\Websocket\Client\WebsocketHandshake($url, ['authorization' => 'Bearer ' . $token]))->withTcpConnectTimeout(10)->withTlsHandshakeTimeout(10);
-    return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel($a2aConnector->connect($handshake, new \Amp\TimeoutCancellation(20)));
+    return new \OpenCCK\Infrastructure\Peer\WebsocketA2aChannel($a2aConnector->connect($handshake, new \Amp\TimeoutCancellation(20)), $a2aFrameMax);
 };
 // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — live connections both ways, shared by the client and
 // the server; requests a neighbour sends back on a connection this agent opened are answered by the server
 $a2aLinks = new \OpenCCK\App\Peer\A2aLinks();
-/** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below; the client asks it who answers a neighbour */
-$a2aServer = null;
 $a2aServeFor = static function (string $fingerprint, string $name, string $url) use (&$a2aServer): ?\Closure {
     return $a2aServer?->handlerFor($fingerprint, $name, $url);
 };
@@ -674,7 +686,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,
     $principals,
     $vault,
-    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor, $selfUrl ?? ''),
+    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor, $selfUrl ?? '', $a2aFileTransport),
     $conversations,
     $transcript,
     $channel,
@@ -684,6 +696,8 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
     $agentKeys,
     $a2aLinks,
+    $sandbox,
+    static fn(int $principalId): ?\OpenCCK\Domain\Agent\SandboxLimits => ($p = $principals->find($principalId)) === null ? null : $policies->forPrincipal($p)->sandbox,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
@@ -716,6 +730,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     links: $a2aLinks,
     sandbox: $sandbox,
     requests: $agentRequests,
+    files: $a2aFiles,
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
@@ -807,17 +822,20 @@ if ($webhookSecret !== null) {
 
 if ($a2aServer !== null) {
     $routes[] = ['GET', '/.well-known/agent-card.json', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
+    // spec: BRIEF.md#между-агентами — the entrance for files is there with either transport
+    $routes[] = ['POST', '/a2a/files', new \OpenCCK\Infrastructure\API\Handler\A2aFilesHandler($a2aServer)];
+    $routes[] = ['GET', '/a2a/files/{id:f-[0-9a-f]{24}}', new \OpenCCK\Infrastructure\API\Handler\A2aFilesHandler($a2aServer)];
     if ($a2aServer->transport === 'http') {
         $routes[] = ['POST', '/a2a', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
     } else {
-        $a2aSocket = new \OpenCCK\Infrastructure\API\Handler\A2aSocketHandler($a2aServer);
+        $a2aSocket = new \OpenCCK\Infrastructure\API\Handler\A2aSocketHandler($a2aServer, frameMax: $a2aFrameMax);
         // the server pings every client every 10 s (three unanswered — closed): a live connection survives the proxy timeout
         $routes[] = ['GET', '/a2a/ws', static fn(\Amp\Http\Server\HttpServer $http): \Amp\Websocket\Server\Websocket => new \Amp\Websocket\Server\Websocket(
             $http,
             $logger,
             $a2aSocket,
             $a2aSocket,
-            clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3)),
+            clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $a2aParser),
         )];
     }
 }

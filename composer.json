@@ -10,6 +10,7 @@
         "amphp/amp": "^3",
         "amphp/file": "3.2.0 as 4.0.0",
         "amphp/http-client": "^5",
+        "amphp/http-server-form-parser": "^2",
         "amphp/log": "^2",
         "amphp/postgres": "^2.2",
         "amphp/ssh": "dev-master",

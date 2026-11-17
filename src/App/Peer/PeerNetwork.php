@@ -59,6 +59,10 @@ final class PeerNetwork {
         private readonly ?AgentKeys $keys = null,
         /** live connections with other agents, both ways */
         private readonly ?A2aLinks $links = null,
+        /** files of an answer go into the sandbox of the one who gave the task; null — they are only sent to the chat */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
+        /** @var (Closure(int): ?\OpenCCK\Domain\Agent\SandboxLimits)|null the sandbox limits of a participant */
+        private readonly ?Closure $limitsOf = null,
     ) {}
 
     /**
@@ -244,6 +248,7 @@ final class PeerNetwork {
             throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
         }
         $messageId = 'msg-' . bin2hex(random_bytes(8));
+        $token = null;
         if ($link !== null) {
             try {
                 $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self], $files)));
@@ -261,7 +266,7 @@ final class PeerNetwork {
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state);
         if (in_array($state, A2aTask::TERMINAL, true)) {
-            $this->finish($out, $state, A2aClient::answer($remote));
+            $this->finish($out, $state, A2aClient::answer($remote), $this->answerFiles($out, $remote, $link, $peer, $token));
         }
         return $out;
     }
@@ -280,7 +285,7 @@ final class PeerNetwork {
                 }
                 $state = A2aClient::state($task);
                 if (in_array($state, A2aTask::TERMINAL, true)) {
-                    $this->finish($out, $state, A2aClient::answer($task));
+                    $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, $link, null, null));
                 }
                 continue;
             }
@@ -298,9 +303,43 @@ final class PeerNetwork {
             }
             $state = A2aClient::state($task);
             if (in_array($state, A2aTask::TERMINAL, true)) {
-                $this->finish($out, $state, A2aClient::answer($task));
+                $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, null, $peer, $token));
             }
         }
+    }
+
+    /**
+     * The files of the neighbour's answer: taken from it over the connection (GetFile) or by GET /a2a/files, or as bytes
+     * in the answer. A file that does not come is skipped and logged.
+     *
+     * spec: BRIEF.md#между-агентами — the answer of a neighbour with files
+     *
+     * @param array<array-key, mixed> $task
+     * @return list<array{name: string, bytes: string}>
+     */
+    private function answerFiles(OutgoingTask $out, array $task, ?A2aSocket $link, ?\OpenCCK\Domain\Peer\Peer $peer, #[\SensitiveParameter] ?string $token): array {
+        $files = [];
+        foreach (A2aClient::answerFiles($task) as $file) {
+            try {
+                if ($file['raw'] !== '') {
+                    $bytes = base64_decode($file['raw'], true);
+                    if ($bytes !== false && strlen($bytes) <= A2aFiles::FILE_MAX) {
+                        $files[] = ['name' => $file['name'], 'bytes' => $bytes];
+                    }
+                } elseif ($link !== null) {
+                    $got = A2aClient::over($link, 'GetFile', ['id' => $file['id']]);
+                    $bytes = isset($got['raw']) && is_string($got['raw']) ? base64_decode($got['raw'], true) : false;
+                    if ($bytes !== false) {
+                        $files[] = ['name' => $file['name'], 'bytes' => $bytes];
+                    }
+                } elseif ($peer !== null && $token !== null) {
+                    $files[] = $this->client->download($peer, $token, $file['id'], $file['name']);
+                }
+            } catch (Throwable $e) {
+                $this->logger->notice('A2A answer file not taken', ['task' => $out->id, 'error' => $e->getMessage()]);
+            }
+        }
+        return $files;
     }
 
     /**
@@ -325,7 +364,8 @@ final class PeerNetwork {
         }
     }
 
-    private function finish(OutgoingTask $out, string $state, string $answer): void {
+    /** @param list<array{name: string, bytes: string}> $files */
+    private function finish(OutgoingTask $out, string $state, string $answer, array $files = []): void {
         $this->peers->finishOutgoing($out->id, $state, mb_substr($answer, 0, 20_000));
         $label = match ($state) {
             A2aTask::COMPLETED => t('peer.peer_network.otvet'),
@@ -335,9 +375,17 @@ final class PeerNetwork {
             default => t('peer.peer_network.sboy'),
         };
         $text = sprintf(t('peer.peer_network.agent_zadacha'), $out->peer, $out->id, $out->remoteId, $label, $answer === '' ? t('peer.peer_network.bez_teksta') : $answer);
+        $kept = $this->keepFiles($out, $files);
         if ($out->channel !== A2aServer::CHANNEL) {
             // A task given from a task of a neighbour has no chat: its result stays in that conversation.
             $this->channel->send(new OutgoingMessage($out->chatId, SecretMasker::mask(mb_substr($text, 0, 3800))));
+            // spec: BRIEF.md#между-агентами — the files of the answer come to the chat as files of their kind
+            foreach ($files as $file) {
+                $this->channel->sendMedia($out->chatId, \OpenCCK\App\Agent\Tool\SendFileTool::kind($file['name'], null), $file['name'], $file['bytes']);
+            }
+        }
+        if ($kept !== '') {
+            $answer .= "\n\n" . $kept;
         }
         // The next turn of the conversation sees the reply as data, not instructions.
         $conversation = $this->conversations->openConversation($out->principalId, $out->channel, $out->chatId);
@@ -386,5 +434,33 @@ final class PeerNetwork {
             }
         }
         return $names;
+    }
+
+    /**
+     * Keeps the files of an answer in inbox/<task>/ of the sandbox of the one who gave the task; returns the lines for
+     * the conversation ('' — no files).
+     *
+     * @param list<array{name: string, bytes: string}> $files
+     */
+    private function keepFiles(OutgoingTask $out, array $files): string {
+        if ($files === []) {
+            return '';
+        }
+        $limits = $this->limitsOf === null ? null : ($this->limitsOf)($out->principalId);
+        $lines = [];
+        foreach ($files as $file) {
+            $path = 'inbox/' . $out->remoteId . '/' . \OpenCCK\App\Agent\Media\MediaNames::clean($file['name']);
+            $kept = false;
+            if ($this->sandbox !== null && $limits !== null) {
+                try {
+                    $this->sandbox->put($out->principalId, $limits, $path, $file['bytes'], new \Amp\NullCancellation());
+                    $kept = true;
+                } catch (Throwable $e) {
+                    $this->logger->notice('A2A answer file was not kept', ['task' => $out->id, 'error' => $e::class]);
+                }
+            }
+            $lines[] = sprintf(t($kept ? 'peer.a2a_server.file_kept' : 'peer.a2a_server.file_not_kept'), $kept ? $path : $file['name'], strlen($file['bytes']));
+        }
+        return t('peer.a2a_server.files') . "\n" . implode("\n", $lines);
     }
 }
