@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Domain\Project;
+
+/**
+ * A project of the owner: its goal, status and card. Memory keeps no second copy: layer 2 is this entity.
+ *
+ * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
+ */
+final class Project {
+    public const ACTIVE = 'active';
+    public const PAUSED = 'paused';
+    public const DONE = 'done';
+    public const STATUSES = [self::ACTIVE, self::PAUSED, self::DONE];
+    public const NAME_MAX = 100;
+    public const GOAL_MAX = 1000;
+    public const CARD_MAX = 2000;
+
+    public function __construct(
+        public readonly int $id,
+        public readonly string $name,
+        public readonly string $goal,
+        public readonly string $status,
+        public readonly string $card,
+        public readonly int $updatedAt,
+    ) {}
+}

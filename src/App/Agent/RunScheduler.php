@@ -65,6 +65,7 @@ final class RunScheduler {
     private ?ApprovalService $approvals = null;
     private ?BackgroundDelegations $background = null;
     private ?MemoryContext $memory = null;
+    private ?ProjectContext $projects = null;
     private ?ConversationAudience $audience = null;
     /** @var array<int, Future<void>> deliveries waiting for the conversation's run to end */
     private array $deliveries = [];
@@ -327,6 +328,23 @@ final class RunScheduler {
         }
     }
 
+    /** The active project of a chat goes into the prompt of its new conversations. */
+    public function useProjects(ProjectContext $projects): void {
+        $this->projects = $projects;
+    }
+
+    private function project(Principal $principal, string $channel, string $chatId): string {
+        if ($this->projects === null) {
+            return '';
+        }
+        try {
+            return $this->projects->block($principal, $channel, $chatId);
+        } catch (Throwable $e) {
+            $this->logger->warning('Project context is not available', ['error' => $e::class]);
+            return '';
+        }
+    }
+
     /** @param ConversationAudience|null $audience shared with the memory tools */
     public function useMemory(MemoryContext $memory, ?ConversationAudience $audience = null): void {
         $this->memory = $memory;
@@ -381,7 +399,7 @@ final class RunScheduler {
         if ($meta->systemPrompt === null) {
             // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId)), $model, SystemPrompt::VERSION);
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId)), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);

@@ -1,0 +1,141 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Agent;
+
+use Amp\NullCancellation;
+use Amp\PHPUnit\AsyncTestCase;
+use OpenCCK\App\Agent\ProjectContext;
+use OpenCCK\App\Agent\Tool\ProjectEditTool;
+use OpenCCK\App\Agent\Tool\ProjectTool;
+use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\App\Service\ProjectCommands;
+use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Domain\Project\Project;
+use OpenCCK\Domain\Project\ProjectTask;
+use OpenCCK\Test\Support\AgentStack;
+use OpenCCK\Test\Support\InMemoryConversationRepository;
+use OpenCCK\Test\Support\InMemoryProjectRepository;
+use OpenCCK\Test\Support\ScriptedLlm;
+
+final class ProjectsTest extends AsyncTestCase {
+    private InMemoryProjectRepository $projects;
+    private InMemoryConversationRepository $conversations;
+    private Principal $owner;
+    private int $conversation;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->projects = new InMemoryProjectRepository();
+        $this->conversations = new InMemoryConversationRepository();
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->conversation = $this->conversations->openConversation(1, 'telegram', '42');
+    }
+
+    /** @param array<string, mixed> $args */
+    private function edit(array $args, ?Principal $who = null): \OpenCCK\App\Agent\Tool\ToolResult {
+        return (new ProjectEditTool($this->projects, $this->conversations))->execute($args, new ToolContext(1, $this->conversation, $who ?? $this->owner, new NullCancellation()));
+    }
+
+    public function testGoalStatusNewProjectAndRelationWaitForTheOwner(): void {
+        $tool = new ProjectEditTool($this->projects, $this->conversations);
+
+        foreach (['create', 'goal', 'status', 'relation'] as $action) {
+            self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => $action]), $action);
+        }
+        foreach (['card', 'add_task', 'task_status', 'activate'] as $action) {
+            self::assertSame(DangerClass::Write, $tool->danger(['action' => $action]), $action);
+        }
+    }
+
+    public function testTheAgentKeepsTheCardAndTasksOfTheChatsProject(): void {
+        $this->edit(['action' => 'create', 'project' => 'Меркурий', 'text' => 'Агент на сервере']);
+        $this->edit(['action' => 'activate', 'project' => 'Меркурий']);
+
+        self::assertFalse($this->edit(['action' => 'card', 'text' => 'PHP 8.2, AMPHP, PostgreSQL'])->isError);
+        self::assertStringContainsString('Задача #1', $this->edit(['action' => 'add_task', 'text' => 'Память', 'profile' => ['reasoning' => 6]])->content);
+        $this->edit(['action' => 'add_task', 'text' => 'HRR', 'parent_id' => 1]);
+        self::assertTrue($this->edit(['action' => 'task_status', 'task_id' => 2, 'status' => 'done'])->isError, 'a closed task needs a result');
+        self::assertFalse($this->edit(['action' => 'task_status', 'task_id' => 2, 'status' => 'done', 'text' => 'замер записан'])->isError);
+
+        $project = $this->projects->byName('меркурий');
+        self::assertSame('PHP 8.2, AMPHP, PostgreSQL', $project?->card);
+        self::assertSame(['reasoning' => 6], $this->projects->task(1)?->profile);
+        self::assertSame(ProjectTask::DONE, $this->projects->task(2)?->status);
+        self::assertSame(['Память'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks((int) $project?->id, 10)));
+    }
+
+    public function testSecretsAndForeignTasksAreRefused(): void {
+        $this->edit(['action' => 'create', 'project' => 'А', 'text' => '']);
+        $this->edit(['action' => 'create', 'project' => 'Б', 'text' => '']);
+        $this->edit(['action' => 'add_task', 'project' => 'Б', 'text' => 'чужая']);
+
+        self::assertTrue($this->edit(['action' => 'card', 'project' => 'А', 'text' => 'ключ sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef'])->isError);
+        self::assertTrue($this->edit(['action' => 'task_status', 'project' => 'А', 'task_id' => 1, 'status' => 'doing'])->isError);
+        self::assertTrue($this->edit(['action' => 'card', 'text' => 'без проекта'])->isError, 'no project named, none bound to the chat');
+        self::assertTrue($this->edit(['action' => 'create', 'project' => 'а', 'text' => ''])->isError);
+    }
+
+    public function testContextGivesTheCardTheWritersRelationAndTasksButNothingToVisitors(): void {
+        $project = $this->projects->create('Меркурий', 'Агент на сервере');
+        $this->projects->update($project->id, null, null, 'PHP 8.2');
+        $this->projects->addTask($project->id, 'Память', null, []);
+        $this->projects->setRelation($project->id, 1, 'Главный проект, качество важнее сроков');
+        $this->projects->setRelation($project->id, 2, 'Чужое отношение');
+        $this->projects->activate('telegram', '42', $project->id);
+        $context = new ProjectContext($this->projects);
+
+        $block = $context->block($this->owner, 'telegram', '42');
+
+        self::assertStringContainsString('Активный проект: Меркурий (идёт)', $block);
+        self::assertStringContainsString('Цель: Агент на сервере', $block);
+        self::assertStringContainsString('PHP 8.2', $block);
+        self::assertStringContainsString('Главный проект', $block);
+        self::assertStringNotContainsString('Чужое отношение', $block);
+        self::assertStringContainsString('#1 Память', $block);
+        self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::Visitor, null), 'telegram', '42'));
+        self::assertSame('', $context->block($this->owner, 'telegram', '43'));
+    }
+
+    public function testOwnerCommandsBindAChat(): void {
+        $commands = new ProjectCommands($this->projects);
+
+        self::assertStringContainsString('Проектов пока нет', $commands->list('telegram', '42'));
+        self::assertStringContainsString('Заведён проект. «Сайт» — проект этого чата', $commands->project('telegram', '42', ' Сайт'));
+        self::assertStringContainsString('▶ Сайт — идёт', $commands->list('telegram', '42'));
+        self::assertStringContainsString('Проект чата: Сайт', $commands->project('telegram', '42', ''));
+        self::assertStringNotContainsString('Заведён', $commands->project('telegram', '43', 'сайт'));
+        $commands->project('telegram', '42', '-');
+        self::assertNull($this->projects->active('telegram', '42'));
+    }
+
+    public function testListShowsTheChatsProject(): void {
+        $this->projects->create('Альфа', 'Поддержка сайта');
+        $beta = $this->projects->create('Бета', '');
+        $this->projects->update($beta->id, null, Project::PAUSED, null);
+        $this->projects->activate('telegram', '42', $beta->id);
+
+        $list = (new ProjectTool($this->projects, $this->conversations))->execute([], new ToolContext(1, $this->conversation, $this->owner, new NullCancellation()))->content;
+
+        self::assertStringContainsString('Альфа — идёт; цель: Поддержка сайта; открытых задач: 0', $list);
+        self::assertStringContainsString('Бета — на паузе; открытых задач: 0 (проект этого чата)', $list);
+    }
+
+    public function testANewConversationOfTheChatGetsTheProjectInItsPrompt(): void {
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $project = $this->projects->create('Меркурий', 'Агент на сервере');
+        $this->projects->activate('telegram', '42', $project->id);
+        $stack->scheduler->useProjects(new ProjectContext($this->projects));
+
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+
+        $system = $stack->llm->requests[0]->messages[0]->content;
+        self::assertStringContainsString('<untrusted-data source="project">', $system);
+        self::assertStringContainsString('Активный проект: Меркурий', $system);
+    }
+}

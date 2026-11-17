@@ -28,7 +28,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память, /projects и /project <имя> — проекты и проект этого чата.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -45,6 +45,7 @@ final class ChatService implements MessageHandler {
         private readonly ?TraceReports $reports = null,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?MemoryCommands $memory = null,
+        private readonly ?ProjectCommands $projects = null,
     ) {}
 
     public function handle(IncomingMessage $message): void {
@@ -100,6 +101,16 @@ final class ChatService implements MessageHandler {
                     '/consolidate' => $this->memory->consolidate(),
                     default => $this->memory->forget(substr($text, strlen($command))),
                 });
+            }
+            return;
+        }
+        if (in_array($command, ['/project', '/projects'], true) && $this->projects !== null) {
+            if (!$principal->isOwner()) {
+                $this->reply($message, self::OWNER_ONLY);
+            } else {
+                $this->reply($message, $command === '/projects'
+                    ? $this->projects->list($message->channel, $message->chatId)
+                    : $this->projects->project($message->channel, $message->chatId, substr($text, strlen($command))));
             }
             return;
         }

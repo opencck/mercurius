@@ -76,14 +76,18 @@ use OpenCCK\Infrastructure\Module\TraceRetentionModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
 use OpenCCK\App\Agent\ConversationAudience;
+use OpenCCK\App\Agent\ProjectContext;
 use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\App\Agent\Tool\MemoryProposeTool;
 use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
+use OpenCCK\App\Agent\Tool\ProjectEditTool;
+use OpenCCK\App\Agent\Tool\ProjectTool;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Infrastructure\Config\MemorySettings;
 use OpenCCK\App\Service\MemoryCommands;
+use OpenCCK\App\Service\ProjectCommands;
 use OpenCCK\Memory\App\Consolidation;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
@@ -107,6 +111,7 @@ use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
+use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
 use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
 use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
@@ -306,6 +311,11 @@ $consolidation = new Consolidation(
         $channel->send(new OutgoingMessage($telegram->ownerId, $text));
     },
 );
+// spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
+$projectRepository = new PostgresProjectRepository($db);
+$scheduler->useProjects(new ProjectContext($projectRepository));
+$tools->register(new ProjectTool($projectRepository, $conversations));
+$tools->register(new ProjectEditTool($projectRepository, $conversations));
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
@@ -322,6 +332,7 @@ $chat = new ChatService(
     new TraceReports(new PostgresTraceReportRepository($db), $traces),
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
+    new ProjectCommands($projectRepository),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards]);
 
