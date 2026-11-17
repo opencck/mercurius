@@ -25,6 +25,18 @@ final class MediaPrefs {
         public readonly MediaSettings $settings,
     ) {}
 
+    /**
+     * The models to try for a model kind, in order: the one asked for, the participant's preferred, then the owner's
+     * list; only the owner's models, each once.
+     *
+     * @return list<string>
+     */
+    public static function candidates(MediaSettings $settings, string $modelKind, ?string $preferred, ?string $asked = null): array {
+        $list = $settings->models($modelKind);
+        $order = array_values(array_filter([$asked, $preferred], static fn(?string $m): bool => $m !== null && in_array($m, $list, true)));
+        return array_values(array_unique([...$order, ...$list]));
+    }
+
     /** The participant's way for the kind, with the owner's default filled in. */
     public function of(int $principalId, string $kind): MediaPref {
         $own = $this->repository->of($principalId)[$kind] ?? new MediaPref($kind);

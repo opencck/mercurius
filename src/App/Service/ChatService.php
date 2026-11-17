@@ -257,13 +257,14 @@ final class ChatService implements MessageHandler {
                 $message = self::withText($message, $header . "\n" . $message->text);
             }
         }
+        $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
         $outside = false;
         if (($original->attachments !== [] || $original->repliedAttachments !== []) && $intake !== null && $policies !== null) {
-            $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180));
+            // the spend of the media models is counted on the conversation
+            $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180), $conversationId);
             $outside = $taken->outside;
             $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
         }
-        $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
         $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed, $outside);
     }
 

@@ -391,6 +391,20 @@ $tracer = new Tracer($traces, $modelCatalog, $logger);
 $approvalStore = new PostgresApprovalRepository($db);
 $approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger, $tracer);
 $llmCalls = new PostgresLlmCallRepository($db);
+// spec: BRIEF.md#входящие-вложения — vision, speech and video models through the models' HTTP client (VLESS when set);
+// an own endpoint's key is the vault secret media-endpoint-<name>
+$mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
+    $modelHttp,
+    $openRouterKey,
+    $openAiKey,
+    $mediaSettings,
+    static function (string $name) use ($vault, $principals, $telegram): ?string {
+        $owner = $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId);
+        return $owner === null ? null : $vault->reveal('media-endpoint-' . $name, $owner);
+    },
+    $llmCalls,
+    $logger,
+);
 $loop = new AgentLoop(
     $llm,
     $runs,
@@ -742,7 +756,7 @@ $chat = new ChatService(
     $runMessages,
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
     // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent
-    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV), $ownerZone, logger: $logger, maxFile: $telegram->fileLimit),
+    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs),
     $policies,
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days

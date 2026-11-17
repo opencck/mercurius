@@ -62,11 +62,16 @@ final class AttachmentIntake {
         private readonly LoggerInterface $logger = new NullLogger(),
         /** the largest file the channel gives: 20 MB from the cloud Bot API, more from a local server */
         private readonly int $maxFile = self::MAX_FILE,
+        /** vision, speech and video models; null — files are only kept and named */
+        private readonly ?\OpenCCK\Infrastructure\Media\MediaModels $models = null,
+        /** the participant's way with files over the owner's defaults */
+        private readonly ?MediaPrefs $prefs = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
 
-    public function intake(Principal $principal, ParticipantPolicy $policy, IncomingMessage $message, Cancellation $cancellation): IntakeResult {
+    /** @param int|null $conversationId where the spend of the models is counted */
+    public function intake(Principal $principal, ParticipantPolicy $policy, IncomingMessage $message, Cancellation $cancellation, ?int $conversationId = null): IntakeResult {
         // the files of the message, then those of the message it replies to (a question to a photo sent earlier), once each
         $files = [];
         $replied = [];
@@ -86,7 +91,11 @@ final class AttachmentIntake {
         $folder = 'inbox/' . ($this->now)()->setTimezone($this->zone)->format('Y-m-d');
         $blocks = [];
         $total = 0;
+        $outside = false;
+        $call = new \OpenCCK\Infrastructure\Media\MediaCall($conversationId, null, $cancellation);
         foreach (array_values($files) as $i => $attachment) {
+            // only the participant's own voice is their words; anything else — and anything not processed — is data
+            $outside = $outside || !self::ownVoice($attachment) || isset($replied[$attachment->fileId]);
             $name = MediaNames::clean($attachment->fileName);
             if ($i >= self::MAX_FILES) {
                 $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), sprintf(t('media.intake.too_many'), self::MAX_FILES));
@@ -106,9 +115,9 @@ final class AttachmentIntake {
             $total += strlen($bytes);
             $path = $limits === null ? null : $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
             $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . (isset($replied[$attachment->fileId]) ? t('media.intake.replied') : '')
-                . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation);
+                . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation, $call);
         }
-        return new IntakeResult(implode("\n\n", $blocks), true);
+        return new IntakeResult(implode("\n\n", $blocks), $outside);
     }
 
     /** 50 MB of files a message, or one largest file when the channel gives more. */
@@ -131,13 +140,19 @@ final class AttachmentIntake {
         };
     }
 
-    private function content(Principal $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation): string {
+    /** A voice message or a round video of the participant themselves, not forwarded: what is said there is their words. */
+    private static function ownVoice(Attachment $attachment): bool {
+        return in_array($attachment->kind, [AttachmentKind::Voice, AttachmentKind::VideoNote], true) && !$attachment->forwarded;
+    }
+
+    private function content(Principal $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
         $category = self::category($attachment);
         $model = self::MODEL[$category] ?? null;
         if ($model !== null) {
-            return $this->settings->models($model) === []
-                ? sprintf(t('media.intake.not_set'), t('media.model.' . $model), 'MEDIA_' . strtoupper($model) . '_MODELS', t('media.input.' . $model))
-                : sprintf(t('media.intake.set_later'), t('media.model.' . $model));
+            if ($this->settings->models($model) === []) {
+                return sprintf(t('media.intake.not_set'), t('media.model.' . $model), 'MEDIA_' . strtoupper($model) . '_MODELS', t('media.input.' . $model));
+            }
+            return $this->understand($principal, $attachment, $category, $model, $name, $bytes, $call);
         }
         return match ($category) {
             'text' => $this->text($name, $bytes, $path),
@@ -145,6 +160,56 @@ final class AttachmentIntake {
                 ? t('media.intake.no_sandbox')
                 : $this->extract($principal, $limits, $name, $path, $cancellation),
             default => '',
+        };
+    }
+
+    /**
+     * A photo, speech or a video read by the participant's preferred model or the first of the owner's list that
+     * answers — at once if the participant's way for this kind is "auto" (and a recording is not too long); else a note
+     * how to ask. The principles of choosing come along: the agent picks a model by them for questions about details.
+     */
+    private function understand(Principal $principal, Attachment $attachment, string $category, string $model, string $name, string $bytes, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
+        $pref = $this->prefs?->of($principal->id, $category) ?? new \OpenCCK\Domain\Media\MediaPref($category, in_array($category, $this->settings->auto, true) ? 'auto' : 'demand');
+        $principles = $this->principles($model, $pref->rules);
+        if ($pref->mode === 'off') {
+            return t('media.intake.off') . $principles;
+        }
+        $long = in_array($category, ['voice', 'audio'], true) && ($attachment->duration ?? 0) > $this->settings->audioAutoMinutes * 60;
+        if ($pref->mode !== 'auto' || $long || $this->models === null) {
+            return sprintf(t('media.intake.on_request'), t('media.action.' . $model)) . $principles;
+        }
+        $refs = MediaPrefs::candidates($this->settings, $model, $pref->model);
+        $models = $this->models;
+        $answer = match ($model) {
+            'vision' => $models->first($refs, static fn(string $ref) => $models->look($ref, [['bytes' => $bytes, 'mime' => $attachment->mimeType ?? self::mime($name, 'image/jpeg')]], t('media.prompt.describe'), $call)),
+            'speech' => $models->first($refs, static fn(string $ref) => $models->transcribe($ref, $bytes, $name, $call)),
+            default => $models->first($refs, static fn(string $ref) => $models->video($ref, $bytes, $attachment->mimeType ?? self::mime($name, 'video/mp4'), t('media.prompt.video'), $call)),
+        };
+        if ($answer->text === null) {
+            return sprintf(t('media.intake.failed_models'), $answer->error ?? '') . $principles;
+        }
+        $text = SecretMasker::mask(mb_substr($answer->text, 0, $this->settings->textLimit));
+        if ($model === 'speech' && self::ownVoice($attachment)) {
+            // the participant said it: their words, not data from outside
+            return '🎤 ' . $text;
+        }
+        return sprintf(t('media.intake.by_model'), $answer->model) . "\n" . UntrustedWrapper::wrap('file:' . $name, $text) . $principles;
+    }
+
+    /** The owner's and the participant's principles for the model kind, as a line for the agent; '' — none. */
+    private function principles(string $model, string $own): string {
+        $owner = $this->settings->rules($model);
+        if ($owner === '' && $own === '') {
+            return '';
+        }
+        return "\n" . sprintf(t('media.intake.principles'), $owner === '' ? '—' : $owner, $own === '' ? '—' : $own);
+    }
+
+    private static function mime(string $name, string $default): string {
+        return match (strtolower(pathinfo($name, PATHINFO_EXTENSION))) {
+            'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif', 'jpg', 'jpeg' => 'image/jpeg',
+            'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
+            default => $default,
         };
     }
 
