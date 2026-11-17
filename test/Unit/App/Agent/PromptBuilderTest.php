@@ -30,5 +30,6 @@ final class PromptBuilderTest extends TestCase {
     public function testRulesNoLongerDenyTools(): void {
         self::assertStringNotContainsString('нет инструментов', SystemPrompt::text());
         self::assertStringContainsString('<untrusted-data', SystemPrompt::text());
+        self::assertStringContainsString('Если инструмент не вызывался, действия не было.', SystemPrompt::text(), 'no reported step without a tool');
     }
 }
