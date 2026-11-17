@@ -140,7 +140,7 @@ final class Proposals {
                 return $this->forget((int) $proposal->factId);
             case Proposal::PROFILE:
             case Proposal::SUMMARY:
-                $this->store->setCore($proposal->kind, $proposal->text);
+                $this->store->setCore(MemoryContext::section($proposal->kind, $proposal->scope), $proposal->text);
                 return true;
         }
         return false;

@@ -99,7 +99,7 @@ final class ProjectEditTool implements Tool {
                 return ToolResult::error('Нужно имя проекта: project.');
             }
             try {
-                $project = $this->projects->create($name, mb_substr($text, 0, Project::GOAL_MAX));
+                $project = $this->projects->create($name, mb_substr($text, 0, Project::GOAL_MAX), Project::scopeOf($context->principal));
             } catch (DomainException $e) {
                 return ToolResult::error($e->getMessage());
             }
@@ -128,10 +128,12 @@ final class ProjectEditTool implements Tool {
     private function project(array $args, ToolContext $context): ?Project {
         $name = Args::string($args, 'project');
         if ($name !== null) {
-            return $this->projects->byName($name);
+            return $this->projects->byName($name, Project::scopeOf($context->principal));
         }
         $meta = $this->conversations->meta($context->conversationId);
-        return $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId);
+        $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId);
+        // spec: BRIEF.md#несколько-пользователей — a participant works only with their own projects
+        return $active !== null && $active->visibleTo($context->principal) ? $active : null;
     }
 
     private function update(Project $project, ?string $goal, ?string $status, ?string $card, string $what): ToolResult {

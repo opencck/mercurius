@@ -52,9 +52,12 @@ final class ProjectTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $meta = $this->conversations->meta($context->conversationId);
         $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId);
+        if ($active !== null && !$active->visibleTo($context->principal)) {
+            $active = null;
+        }
         $name = Args::string($args, 'name');
         if ($name === null) {
-            $all = $this->projects->all(self::LIST);
+            $all = $this->projects->all(self::LIST, Project::scopeOf($context->principal));
             if ($all === []) {
                 return ToolResult::ok('Проектов пока нет.');
             }
@@ -70,7 +73,7 @@ final class ProjectTool implements Tool {
                 $all,
             )));
         }
-        $project = $this->projects->byName($name);
+        $project = $this->projects->byName($name, Project::scopeOf($context->principal));
         if ($project === null) {
             return ToolResult::error(sprintf('Проекта «%s» нет.', $name));
         }

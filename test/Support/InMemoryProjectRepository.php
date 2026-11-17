@@ -19,29 +19,28 @@ final class InMemoryProjectRepository implements ProjectRepository {
     /** @var array<string, int> "channel:chat" => project */
     public array $chats = [];
 
-    public function create(string $name, string $goal): Project {
-        if ($this->byName($name) !== null) {
-            throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
+    public function create(string $name, string $goal, ?int $ownerId = null): Project {
+        foreach ($this->projects as $p) {
+            if ($p->ownerId === $ownerId && mb_strtolower($p->name) === mb_strtolower($name)) {
+                throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
+            }
         }
         $id = count($this->projects) + 1;
-        return $this->projects[$id] = new Project($id, $name, $goal, Project::ACTIVE, '', time());
+        return $this->projects[$id] = new Project($id, $name, $goal, Project::ACTIVE, '', time(), $ownerId);
     }
 
     public function find(int $id): ?Project {
         return $this->projects[$id] ?? null;
     }
 
-    public function byName(string $name): ?Project {
-        foreach ($this->projects as $project) {
-            if (mb_strtolower($project->name) === mb_strtolower($name)) {
-                return $project;
-            }
-        }
-        return null;
+    public function byName(string $name, ?int $for = null): ?Project {
+        $found = array_values(array_filter($this->projects, static fn(Project $p): bool => mb_strtolower($p->name) === mb_strtolower($name) && ($for === null || $p->ownerId === $for)));
+        usort($found, static fn(Project $a, Project $b): int => [$a->ownerId !== null, $a->id] <=> [$b->ownerId !== null, $b->id]);
+        return $found[0] ?? null;
     }
 
-    public function all(int $limit): array {
-        $all = array_values($this->projects);
+    public function all(int $limit, ?int $for = null): array {
+        $all = array_values(array_filter($this->projects, static fn(Project $p): bool => $for === null || $p->ownerId === $for));
         usort($all, static fn(Project $a, Project $b): int => [$a->status !== Project::ACTIVE, mb_strtolower($a->name)] <=> [$b->status !== Project::ACTIVE, mb_strtolower($b->name)]);
         return array_slice($all, 0, $limit);
     }
@@ -51,7 +50,7 @@ final class InMemoryProjectRepository implements ProjectRepository {
         if ($p === null) {
             return null;
         }
-        return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time());
+        return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time(), $p->ownerId);
     }
 
     public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?\DateTimeImmutable $dueAt = null): ProjectTask {
@@ -68,8 +67,10 @@ final class InMemoryProjectRepository implements ProjectRepository {
     }
 
     public function dueTasks(\DateTimeImmutable $until, int $limit): array {
-        $found = array_values(array_filter($this->tasks, fn(ProjectTask $t): bool => $t->isOpen() && $t->dueAt !== null && $t->dueAt <= $until
-            && ($this->projects[$t->projectId] ?? null)?->status === Project::ACTIVE));
+        $found = array_values(array_filter($this->tasks, function (ProjectTask $t) use ($until): bool {
+            $project = $this->projects[$t->projectId] ?? null;
+            return $t->isOpen() && $t->dueAt !== null && $t->dueAt <= $until && $project !== null && $project->status === Project::ACTIVE && $project->ownerId === null;
+        }));
         usort($found, static fn(ProjectTask $a, ProjectTask $b): int => [$a->dueAt, $a->id] <=> [$b->dueAt, $b->id]);
         return array_slice($found, 0, $limit);
     }

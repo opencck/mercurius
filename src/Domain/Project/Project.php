@@ -25,5 +25,17 @@ final class Project {
         public readonly string $status,
         public readonly string $card,
         public readonly int $updatedAt,
+        /** null — the agent's owner; otherwise the participant the project belongs to */
+        public readonly ?int $ownerId = null,
     ) {}
+
+    /** The owner of the agent sees every project; a participant only their own. */
+    public function visibleTo(\OpenCCK\Domain\Entity\Principal $principal): bool {
+        return $principal->isOwner() || $this->ownerId === $principal->id;
+    }
+
+    /** The filter for a participant: null — the owner, who sees everything. */
+    public static function scopeOf(\OpenCCK\Domain\Entity\Principal $principal): ?int {
+        return $principal->isOwner() ? null : $principal->id;
+    }
 }

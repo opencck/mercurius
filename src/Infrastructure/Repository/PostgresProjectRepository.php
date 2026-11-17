@@ -14,17 +14,18 @@ use OpenCCK\Domain\Repository\ProjectRepository;
 use UnexpectedValueException;
 
 final class PostgresProjectRepository implements ProjectRepository {
-    private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated';
+    private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated, owner_id';
     private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result, extract(epoch FROM due_at)::bigint AS due';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function create(string $name, string $goal): Project {
-        if ($this->byName($name) !== null) {
+    public function create(string $name, string $goal, ?int $ownerId = null): Project {
+        $row = $this->db->execute('SELECT id FROM projects WHERE coalesce(owner_id, 0) = ? AND lower(name) = lower(?)', [$ownerId ?? 0, $name])->fetchRow();
+        if ($row !== null) {
             throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
         }
         try {
-            $row = $this->db->execute('INSERT INTO projects (name, goal) VALUES (?, ?) RETURNING ' . self::PROJECT, [$name, $goal])->fetchRow();
+            $row = $this->db->execute('INSERT INTO projects (name, goal, owner_id) VALUES (?, ?, ?) RETURNING ' . self::PROJECT, [$name, $goal, $ownerId])->fetchRow();
         } catch (SqlQueryError) {
             throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
         }
@@ -36,14 +37,17 @@ final class PostgresProjectRepository implements ProjectRepository {
         return $row === null ? null : self::project($row);
     }
 
-    public function byName(string $name): ?Project {
-        $row = $this->db->execute('SELECT ' . self::PROJECT . ' FROM projects WHERE lower(name) = lower(?)', [$name])->fetchRow();
+    public function byName(string $name, ?int $for = null): ?Project {
+        $row = $this->db->execute(
+            'SELECT ' . self::PROJECT . ' FROM projects WHERE lower(name) = lower(?) AND (?::bigint IS NULL OR owner_id = ?) ORDER BY owner_id IS NOT NULL, id LIMIT 1',
+            [$name, $for, $for],
+        )->fetchRow();
         return $row === null ? null : self::project($row);
     }
 
-    public function all(int $limit): array {
+    public function all(int $limit, ?int $for = null): array {
         $found = [];
-        foreach ($this->db->execute("SELECT " . self::PROJECT . " FROM projects ORDER BY status <> 'active', lower(name) LIMIT ?", [$limit]) as $row) {
+        foreach ($this->db->execute("SELECT " . self::PROJECT . " FROM projects WHERE ?::bigint IS NULL OR owner_id = ? ORDER BY status <> 'active', lower(name) LIMIT ?", [$for, $for, $limit]) as $row) {
             $found[] = self::project($row);
         }
         return $found;
@@ -75,7 +79,7 @@ final class PostgresProjectRepository implements ProjectRepository {
         foreach ($this->db->execute(
             "SELECT " . self::TASK . " FROM project_tasks
              WHERE status IN ('open', 'doing') AND due_at <= to_timestamp(?)
-               AND project_id IN (SELECT id FROM projects WHERE status = 'active')
+               AND project_id IN (SELECT id FROM projects WHERE status = 'active' AND owner_id IS NULL)
              ORDER BY due_at, id LIMIT ?",
             [$until->getTimestamp(), $limit],
         ) as $row) {
@@ -146,7 +150,7 @@ final class PostgresProjectRepository implements ProjectRepository {
 
     /** @param array<string, mixed> $row */
     private static function project(array $row): Project {
-        return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'));
+        return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'), isset($row['owner_id']) && is_int($row['owner_id']) ? $row['owner_id'] : null);
     }
 
     /** @param array<string, mixed> $row */

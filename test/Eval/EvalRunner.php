@@ -93,7 +93,7 @@ final class EvalRunner {
                     $answer = trim($message->content);
                 }
             } elseif ($message->role === Role::Tool) {
-                $trace[] = 'результат: ' . mb_substr($message->content, 0, 300);
+                $trace[] = 'результат: ' . mb_substr($message->content, 0, 1500);
             }
         }
 

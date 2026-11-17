@@ -14,15 +14,22 @@ use OpenCCK\Domain\Project\ProjectTask;
  *       to a project, and the project a chat works on
  */
 interface ProjectRepository {
-    /** @throws DomainException when a project with this name exists (names are compared case-insensitively) */
-    public function create(string $name, string $goal): Project;
+    /**
+     * @param int|null $ownerId null — the agent's owner; otherwise the participant
+     * @throws DomainException when this owner has a project with this name (compared case-insensitively)
+     */
+    public function create(string $name, string $goal, ?int $ownerId = null): Project;
 
     public function find(int $id): ?Project;
 
-    public function byName(string $name): ?Project;
+    /** @param int|null $for null — the owner: every project, their own first; otherwise only this participant's */
+    public function byName(string $name, ?int $for = null): ?Project;
 
-    /** @return list<Project> active first, then by name */
-    public function all(int $limit): array;
+    /**
+     * @param int|null $for null — the owner: every project; otherwise only this participant's
+     * @return list<Project> active first, then by name
+     */
+    public function all(int $limit, ?int $for = null): array;
 
     /** Changes what is given; null leaves a field as it is. */
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project;

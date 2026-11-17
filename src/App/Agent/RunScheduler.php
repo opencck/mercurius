@@ -393,11 +393,12 @@ final class RunScheduler {
 
     /** spec: BRIEF.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
     private function core(Principal $principal, int $conversationId): string {
-        if ($this->memory === null || !$principal->isOwner() || !$this->audience()->isPrivate($conversationId)) {
+        if ($this->memory === null || !$this->audience()->isPrivate($conversationId)) {
             return '';
         }
         try {
-            return $this->memory->core();
+            // spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
+            return $this->memory->core($principal->isOwner() ? \OpenCCK\Memory\App\Audience::OWNER : \OpenCCK\Memory\App\Audience::principal($principal->id));
         } catch (Throwable $e) {
             $this->logger->warning('Memory core is not available', ['error' => $e::class]);
             return '';

@@ -60,6 +60,23 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         self::assertSame(['reasoning' => 6], $this->projects->task($parent->id)?->profile);
     }
 
+    public function testEachOwnerHasTheirOwnProjectsAndTheAgentOwnerSeesAll(): void {
+        $mine = $this->projects->create('Дом', 'мой');
+        $theirs = $this->projects->create('дом', 'пользователя', $this->principalId);
+
+        self::assertNull($mine->ownerId);
+        self::assertSame($this->principalId, $theirs->ownerId);
+        self::assertSame($mine->id, $this->projects->byName('ДОМ')?->id, 'the owner gets their own first');
+        self::assertSame($theirs->id, $this->projects->byName('Дом', $this->principalId)?->id);
+        self::assertSame([$theirs->id], array_map(static fn(Project $p): int => $p->id, $this->projects->all(10, $this->principalId)));
+        self::assertCount(2, $this->projects->all(10));
+        try {
+            $this->projects->create('ДОМ', 'ещё раз', $this->principalId);
+            self::fail('one name per owner');
+        } catch (DomainException) {
+        }
+    }
+
     public function testDeadlinesOfOpenTasksInActiveProjectsComeEarliestFirst(): void {
         $project = $this->projects->create('Дом', '');
         $paused = $this->projects->create('Архив', '');

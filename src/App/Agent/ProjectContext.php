@@ -30,6 +30,9 @@ final class ProjectContext {
             return '';
         }
         $project = $this->projects->active($channel, $chatId);
+        if ($project !== null && !$project->visibleTo($principal)) {
+            return '';
+        }
         if ($project === null) {
             return '';
         }

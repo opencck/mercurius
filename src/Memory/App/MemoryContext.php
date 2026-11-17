@@ -31,15 +31,26 @@ final class MemoryContext {
         return Recall::format($this->recall->find($message, $scopes, $conversationId));
     }
 
-    /** Layer 1: the owner's profile and the summary of what is going on; '' while both are empty. */
-    public function core(): string {
+    /**
+     * Layer 1: the profile and the summary of what is going on — the owner's, or a participant's own in their private
+     * chat; '' while both are empty.
+     *
+     * spec: BRIEF.md#несколько-пользователей — each user has their own layered memory
+     */
+    public function core(string $scope = Audience::OWNER): string {
         $parts = [];
-        foreach ([self::PROFILE => 'Профиль владельца', self::SUMMARY => 'Текущие дела'] as $section => $title) {
-            $text = trim($this->store->core($section));
+        $who = $scope === Audience::OWNER ? 'владельца' : 'собеседника';
+        foreach ([self::PROFILE => 'Профиль ' . $who, self::SUMMARY => 'Текущие дела'] as $section => $title) {
+            $text = trim($this->store->core(self::section($section, $scope)));
             if ($text !== '') {
                 $parts[] = $title . ":\n" . $text;
             }
         }
         return implode("\n\n", $parts);
+    }
+
+    /** The section of layer 1 for a scope: the owner keeps the plain names. */
+    public static function section(string $section, string $scope): string {
+        return $scope === Audience::OWNER ? $section : $section . '@' . $scope;
     }
 }
