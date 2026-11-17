@@ -9,6 +9,7 @@ use Amp\CompositeCancellation;
 use Amp\TimeoutCancellation;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
+use OpenCCK\Domain\Agent\DangerClass;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -32,6 +33,8 @@ final class ToolExecutor {
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?Sandbox $sandbox = null,
         private readonly int $previewChars = 1500,
+        /** snapshots of the working folder before the first change of a run; null — none */
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Checkpoints $checkpoints = null,
     ) {}
 
     /** @param positive-int $timeoutSeconds */
@@ -42,6 +45,11 @@ final class ToolExecutor {
         $tool = $call->tool;
         $name = $call->call->name;
         $timeout = new TimeoutCancellation($timeoutSeconds);
+        // spec: BRIEF.md#планировщик-и-проекты — a snapshot before the first change a run makes in the working folder
+        $limits = $context->policy?->sandbox;
+        if ($this->checkpoints !== null && $limits !== null && $tool instanceof SandboxTool && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
+            $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
+        }
 
         try {
             $result = $tool->execute($call->args, $context->withCancellation(new CompositeCancellation($context->cancellation, $timeout)));

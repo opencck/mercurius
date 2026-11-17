@@ -375,7 +375,9 @@ $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);
 /** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below: the client asks it who answers a neighbour, send_file answers a task */
 $a2aServer = null;
-if ($sandbox !== null) {
+$checkpoints = $sandbox === null ? null : new \OpenCCK\App\Agent\Sandbox\Checkpoints($sandbox, $logger);
+if ($sandbox !== null && $checkpoints !== null) {
+    $tools->register(new \OpenCCK\App\Agent\Tool\CheckpointTool($sandbox, $checkpoints));
     $tools->register(new ReadFileTool($sandbox));
     $tools->register(new ListFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
@@ -447,7 +449,8 @@ $loop = new AgentLoop(
     $conversations,
     $llmCalls,
     $tools,
-    new ToolExecutor(logger: $logger, sandbox: $sandbox),
+    // spec: BRIEF.md#планировщик-и-проекты — a snapshot of the working folder before the first change of each run
+    new ToolExecutor(logger: $logger, sandbox: $sandbox, checkpoints: $checkpoints),
     $llmSettings->maxTokens,
     $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
     $llmSettings->historyLimit,

@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Agent\Sandbox;
+
+use Amp\NullCancellation;
+use Amp\PHPUnit\AsyncTestCase;
+use OpenCCK\App\Agent\Sandbox\Checkpoints;
+use OpenCCK\App\Agent\Tool\CheckpointTool;
+use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\App\Agent\Tool\ToolExecutor;
+use OpenCCK\App\Agent\Tool\ValidatedCall;
+use OpenCCK\App\Agent\Tool\WriteFileTool;
+use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Agent\ParticipantPolicy;
+use OpenCCK\Domain\Agent\RunLimits;
+use OpenCCK\Domain\Agent\SandboxLimits;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Test\Support\FakeSandbox;
+use Mercurius\Llm\ToolCall;
+
+/**
+ * Snapshots of the working folder: one before the first change of a run, a list, a diff, a restore that can be undone.
+ */
+final class CheckpointsTest extends AsyncTestCase {
+    private FakeSandbox $sandbox;
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->sandbox = new FakeSandbox();
+    }
+
+    private static function context(int $run = 3): ToolContext {
+        return new ToolContext($run, 9, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
+    }
+
+    /** @return list<string> */
+    private function commands(): array {
+        return array_values(array_filter($this->sandbox->calls, static fn(string $c): bool => str_starts_with($c, 'exec')));
+    }
+
+    public function testASnapshotBeforeTheFirstChangeOfARunOnly(): void {
+        $checkpoints = new Checkpoints($this->sandbox);
+        $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
+        $write = new WriteFileTool($this->sandbox);
+        $call = static fn(string $path): ValidatedCall => new ValidatedCall(new ToolCall('c-' . $path, 'write_file', '{}'), $write, ['path' => $path, 'content' => 'x'], null, DangerClass::Write);
+
+        $executor->run($call('a.txt'), self::context(), 10);
+        $executor->run($call('b.txt'), self::context(), 10);
+        $executor->run($call('c.txt'), self::context(4), 10);
+
+        $snapshots = array_values(array_filter($this->commands(), static fn(string $c): bool => str_contains($c, 'commit')));
+        self::assertCount(2, $snapshots, 'one per run, before its first change');
+        self::assertStringContainsString('.checkpoints', $snapshots[0]);
+        self::assertStringContainsString('inbox/', $snapshots[0], 'incoming files are not copied into snapshots');
+        $first = array_search($snapshots[0], $this->sandbox->calls, true);
+        $written = array_search('write 1 a.txt', $this->sandbox->calls, true);
+        self::assertIsInt($first);
+        self::assertIsInt($written);
+        self::assertLessThan($written, $first, 'the snapshot comes before the change');
+    }
+
+    public function testReadsTakeNoSnapshot(): void {
+        $checkpoints = new Checkpoints($this->sandbox);
+        $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
+        $read = new \OpenCCK\App\Agent\Tool\ReadFileTool($this->sandbox);
+        $this->sandbox->files[1]['a.txt'] = 'x';
+
+        $executor->run(new ValidatedCall(new ToolCall('c1', 'read_file', '{}'), $read, ['path' => 'a.txt'], null, DangerClass::Read), self::context(), 10);
+
+        self::assertSame([], $this->commands());
+    }
+
+    public function testTheToolListsDiffsAndRestoresAfterASnapshotOfNow(): void {
+        $tool = new CheckpointTool($this->sandbox, new Checkpoints($this->sandbox));
+
+        self::assertSame(DangerClass::Read, $tool->danger(['action' => 'list']));
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'restore', 'id' => 'abc1234']));
+        $tool->execute(['action' => 'list'], self::context());
+        self::assertStringContainsString('log', $this->commands()[0]);
+
+        $result = $tool->execute(['action' => 'restore', 'id' => 'abc1234', 'path' => 'src/app.php'], self::context());
+        self::assertFalse($result->isError, $result->content);
+        $commands = $this->commands();
+        self::assertStringContainsString('commit', $commands[1], 'what is there now is kept first: the restore can be undone');
+        self::assertStringContainsString("checkout 'abc1234' -- 'src/app.php'", $commands[2]);
+    }
+
+    public function testABadIdOrPathIsRefused(): void {
+        $tool = new CheckpointTool($this->sandbox, new Checkpoints($this->sandbox));
+
+        self::assertTrue($tool->execute(['action' => 'restore', 'id' => 'abc; rm -rf /'], self::context())->isError);
+        self::assertTrue($tool->execute(['action' => 'restore', 'id' => 'abc1234', 'path' => '../etc/passwd'], self::context())->isError);
+        self::assertTrue($tool->execute(['action' => 'diff', 'id' => '--output=x'], self::context())->isError);
+        self::assertSame([], $this->commands());
+    }
+}
