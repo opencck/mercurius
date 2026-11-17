@@ -69,6 +69,17 @@ final class InMemoryMemoryStore implements MemoryStore {
         return array_slice(array_map(static fn(array $pair): Fact => $pair[1], $scored), 0, $limit);
     }
 
+    public function active(int $limit): array {
+        $found = array_filter($this->facts, static fn(Fact $f): bool => $f->active);
+        ksort($found);
+        return array_slice(array_values($found), 0, $limit);
+    }
+
+    public function recalledAny(array $factIds): array {
+        $ever = array_map(static fn(array $r): int => $r[1], $this->recalls);
+        return array_values(array_intersect($factIds, $ever));
+    }
+
     public function encodeMissing(int $limit): int {
         return 0;
     }

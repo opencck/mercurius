@@ -28,7 +28,7 @@ final class ChatService implements MessageHandler {
     public const NEW_CONVERSATION = 'Начат новый диалог. Предыдущий я больше не учитываю.';
     public const GREETING = "Здравствуйте! Я Меркурий, ваш персональный агент.\n\n/new — начать новый диалог.\n/stop — остановить текущую задачу.
 
-Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт.";
+Для владельца: /permissions — сохранённые разрешения, /usage — расход, /runs — последние запуски, /trace <номер> — разбор запуска, /delegation — как агент делит задачи, /memory — что я помню, /forget <номер> — забыть факт, /consolidate — проверить память.";
     public const NOTHING_TO_STOP = 'Сейчас ничего не выполняется.';
     public const NO_GRANTS = 'Сохранённых разрешений нет.';
     public const OWNER_ONLY = 'Эта команда только для владельца.';
@@ -88,16 +88,18 @@ final class ChatService implements MessageHandler {
             $this->report($principal->isOwner(), $command, trim(substr($text, strlen($command))), $message);
             return;
         }
-        if (in_array($command, ['/memory', '/forget'], true) && $this->memory !== null) {
+        if (in_array($command, ['/memory', '/forget', '/consolidate'], true) && $this->memory !== null) {
             // spec: BRIEF.md#контекст-по-месту-и-аудитории — memory is the owner's and is shown only in a private chat
             if (!$principal->isOwner()) {
                 $this->reply($message, self::OWNER_ONLY);
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, self::MEMORY_PRIVATE);
             } else {
-                $this->reply($message, $command === '/memory'
-                    ? $this->memory->overview($message->channel, $message->chatId)
-                    : $this->memory->forget(substr($text, strlen($command))));
+                $this->reply($message, match ($command) {
+                    '/memory' => $this->memory->overview($message->channel, $message->chatId),
+                    '/consolidate' => $this->memory->consolidate(),
+                    default => $this->memory->forget(substr($text, strlen($command))),
+                });
             }
             return;
         }

@@ -19,6 +19,8 @@ final class MemorySettings {
         #[SensitiveParameter] ?string $secret,
         /** share of HRR in the score of a recalled fact, 0..1 */
         public readonly float $hrrWeight = 0.3,
+        /** hour of the nightly check of memory, UTC */
+        public readonly int $checkHour = 3,
     ) {
         $this->secret = $secret;
     }
@@ -32,7 +34,11 @@ final class MemorySettings {
         if ($weight !== null && (!is_numeric($weight) || (float) $weight < 0.0 || (float) $weight > 1.0)) {
             throw new ConfigException('MEMORY_HRR_WEIGHT must be a number from 0 to 1');
         }
-        return new self(Env::raw($env, 'MEMORY_SECRET'), $weight === null ? 0.3 : (float) $weight);
+        $hour = Env::raw($env, 'MEMORY_CHECK_HOUR');
+        if ($hour !== null && (!ctype_digit($hour) || (int) $hour > 23)) {
+            throw new ConfigException('MEMORY_CHECK_HOUR must be an hour from 0 to 23');
+        }
+        return new self(Env::raw($env, 'MEMORY_SECRET'), $weight === null ? 0.3 : (float) $weight, $hour === null ? 3 : (int) $hour);
     }
 
     /**

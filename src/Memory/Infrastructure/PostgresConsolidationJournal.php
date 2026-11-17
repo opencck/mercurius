@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Memory\Infrastructure;
+
+use Amp\Postgres\PostgresLink;
+use OpenCCK\Memory\Domain\ConsolidationJournal;
+
+final class PostgresConsolidationJournal implements ConsolidationJournal {
+    public function __construct(private readonly PostgresLink $db) {}
+
+    public function last(): ?array {
+        $row = $this->db->execute(
+            "SELECT extract(epoch FROM started_at)::bigint AS at, facts, chars, status FROM memory_consolidations WHERE status <> 'failed' ORDER BY id DESC LIMIT 1",
+        )->fetchRow();
+        if ($row === null) {
+            return null;
+        }
+        $at = $row['at'] ?? null;
+        $facts = $row['facts'] ?? null;
+        $chars = $row['chars'] ?? null;
+        $status = $row['status'] ?? null;
+        return [
+            'at' => is_int($at) ? $at : 0,
+            'facts' => is_int($facts) ? $facts : 0,
+            'chars' => is_int($chars) ? $chars : 0,
+            'status' => is_string($status) ? $status : '',
+        ];
+    }
+
+    public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void {
+        $this->db->execute(
+            'INSERT INTO memory_consolidations (status, facts, chars, duration_ms, report) VALUES (?, ?, ?, ?, ?::jsonb)',
+            [$status, $facts, $chars, $durationMs, json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)],
+        );
+    }
+
+    public function notice(string $kind, int $a, int $b, int $pauseDays): bool {
+        $row = $this->db->execute(
+            "INSERT INTO memory_notices (kind, a, b) VALUES (?, ?, ?)
+             ON CONFLICT (kind, a, b) DO UPDATE SET shown_at = now()
+             WHERE memory_notices.shown_at < now() - make_interval(days => ?)
+             RETURNING kind",
+            [$kind, $a, $b, $pauseDays],
+        )->fetchRow();
+        return $row !== null;
+    }
+}

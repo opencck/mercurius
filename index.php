@@ -10,6 +10,7 @@ use Mercurius\Llm\OpenAI\OpenAIClient;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
 use Mercurius\Llm\RetryingClient;
 use Mercurius\Messenger\ChatDispatcher;
+use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\Deduplicator;
 use Mercurius\Messenger\Telegram\LongPolling;
 use Mercurius\Messenger\Telegram\TelegramApi;
@@ -70,6 +71,7 @@ use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Infrastructure\Llm\ProviderRouter;
 use OpenCCK\Infrastructure\Module\AgentModule;
 use OpenCCK\Infrastructure\Module\ModelCatalogModule;
+use OpenCCK\Infrastructure\Module\MemoryConsolidationModule;
 use OpenCCK\Infrastructure\Module\TraceRetentionModule;
 use OpenCCK\Infrastructure\Module\TelegramModule;
 use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
@@ -82,12 +84,14 @@ use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Infrastructure\Config\MemorySettings;
 use OpenCCK\App\Service\MemoryCommands;
+use OpenCCK\Memory\App\Consolidation;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\ContentScreen;
 use OpenCCK\Memory\Domain\Fact;
 use OpenCCK\Memory\App\Recall;
 use OpenCCK\Memory\Domain\TextAnalyzer;
+use OpenCCK\Memory\Infrastructure\PostgresConsolidationJournal;
 use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
@@ -292,6 +296,16 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience)
     $transcript->redact(sprintf('[#%d] %s', $fact->id, $fact->text), sprintf('[#%d] (забыто)', $fact->id));
     $experience->redact($fact->text, '(забыто)');
 });
+// spec: BRIEF.md#консолидация-dreaming — the nightly check: code only, the owner decides
+$consolidation = new Consolidation(
+    $memoryStore,
+    $proposals,
+    new PostgresConsolidationJournal($db),
+    $memoryCards->show(...),
+    static function (string $text) use ($channel, $telegram): void {
+        $channel->send(new OutgoingMessage($telegram->ownerId, $text));
+    },
+);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
@@ -307,7 +321,7 @@ $chat = new ChatService(
     $approvals,
     new TraceReports(new PostgresTraceReportRepository($db), $traces),
     $logger,
-    new MemoryCommands($memoryStore, $proposals, $memoryContext),
+    new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
 );
 $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, MemoryCards::PREFIX => $memoryCards]);
 
@@ -333,6 +347,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
+    ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,

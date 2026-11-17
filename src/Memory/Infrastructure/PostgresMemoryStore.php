@@ -83,6 +83,25 @@ final class PostgresMemoryStore implements MemoryStore {
         return $facts;
     }
 
+    public function active(int $limit): array {
+        $facts = [];
+        foreach ($this->db->execute("SELECT " . self::FACT . " FROM facts WHERE status = 'active' ORDER BY id LIMIT ?", [$limit]) as $row) {
+            $facts[] = self::fact_($row);
+        }
+        return $facts;
+    }
+
+    public function recalledAny(array $factIds): array {
+        if ($factIds === []) {
+            return [];
+        }
+        $found = [];
+        foreach ($this->db->execute('SELECT DISTINCT fact_id FROM memory_recalls WHERE fact_id = ANY(?::bigint[])', [$factIds]) as $row) {
+            $found[] = self::int($row, 'fact_id');
+        }
+        return $found;
+    }
+
     public function encodeMissing(int $limit): int {
         $done = 0;
         foreach ($this->db->execute('SELECT id, array_to_json(keys)::text AS keys FROM facts WHERE hrr IS NULL ORDER BY id LIMIT ?', [$limit]) as $row) {

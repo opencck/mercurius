@@ -36,6 +36,21 @@ interface MemoryStore {
      */
     public function related(array $scopes, array $probes, float $threshold, int $limit): array;
 
+    /**
+     * Active facts of every scope, oldest first: what the nightly check looks at.
+     *
+     * @return list<Fact>
+     */
+    public function active(int $limit): array;
+
+    /**
+     * Which of the facts were ever given to a run.
+     *
+     * @param list<int> $factIds
+     * @return list<int>
+     */
+    public function recalledAny(array $factIds): array;
+
     /** Gives a vector to facts written before vectors existed; returns how many got one. */
     public function encodeMissing(int $limit): int;
 

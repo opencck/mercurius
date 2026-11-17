@@ -53,6 +53,20 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame([], $this->store->related([$this->scope], $probes, Hrr::RELATED_THRESHOLD, 10), 'the vector follows the new keys');
     }
 
+    public function testActiveFactsAndRecalledOnes(): void {
+        $a = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'a', ['a'], 0.5, Fact::AGENT, null);
+        $b = $this->store->addFact('chat:' . $this->scope, Fact::KNOWLEDGE, 'b', ['b'], 0.5, Fact::AGENT, null);
+        $c = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'c', ['c'], 0.5, Fact::AGENT, null);
+        $this->store->endFact($c->id, 'устарел');
+        $this->store->markRecalled($this->conversationId, [$b->id]);
+
+        $ids = array_map(static fn(Fact $f): int => $f->id, $this->store->active(10_000));
+        self::assertContains($a->id, $ids);
+        self::assertContains($b->id, $ids);
+        self::assertNotContains($c->id, $ids);
+        self::assertSame([$b->id], $this->store->recalledAny([$a->id, $b->id]));
+    }
+
     public function testFrequenciesCountWithinTheScope(): void {
         $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'a', ['сервер', 'диск'], 0.5, Fact::AGENT, null);
         $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'b', ['сервер'], 0.5, Fact::AGENT, null);

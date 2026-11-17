@@ -6,6 +6,7 @@ namespace OpenCCK\App\Service;
 
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\Memory\App\Audience;
+use OpenCCK\Memory\App\Consolidation;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\Domain\MemoryStore;
@@ -23,7 +24,13 @@ final class MemoryCommands {
         private readonly MemoryStore $store,
         private readonly Proposals $proposals,
         private readonly MemoryContext $context,
+        private readonly ?Consolidation $consolidation = null,
     ) {}
+
+    /** The nightly check, now, even if memory has not changed. */
+    public function consolidate(): string {
+        return $this->consolidation === null ? 'Проверка памяти не настроена.' : $this->consolidation->run(true);
+    }
 
     public function overview(string $channel, string $chatId): string {
         $parts = [];
@@ -39,7 +46,7 @@ final class MemoryCommands {
         if ($pending !== []) {
             $parts[] = "Ждут решения:\n" . implode("\n", array_map(static fn($p): string => sprintf('№%d %s: %s', $p->id, $p->kind, self::cut($p->text)), $pending));
         }
-        $parts[] = '/forget <номер> — забыть факт насовсем.';
+        $parts[] = '/forget <номер> — забыть факт насовсем. /consolidate — проверить память сейчас.';
         return implode("\n\n", $parts);
     }
 
