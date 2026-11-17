@@ -66,6 +66,28 @@ final class HttpRequestToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute($args, new ToolContext(1, 1, $stranger, new NullCancellation()))->isError, 'only the owner of the secret uses it');
     }
 
+    public function testASecretTravelsOnlyOverHttpsAndNeverFollowsARedirectAway(): void {
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $vault->put('key', 'token', 'sk-or-v1-secretvalue', $owner);
+        $this->http = new FakeHttpClient([
+            'https://example.com/a' => [302, ['location' => 'https://other.com/steal'], ''],
+            'https://example.com/b' => [302, ['location' => 'https://example.com/c'], ''],
+            'https://example.com/c' => [200, ['content-type' => 'text/plain'], 'ok'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
+
+        self::assertTrue($tool->execute(['url' => 'http://example.com/a', 'secret' => 'key'], self::context())->isError, 'never in clear text');
+        self::assertCount(0, $this->http->requested);
+
+        $away = $tool->execute(['url' => 'https://example.com/a', 'secret' => 'key'], self::context());
+        self::assertSame(['GET https://example.com/a'], $this->http->requested, 'the redirect to another host is not followed');
+        self::assertStringContainsString('other.com', $away->content);
+
+        $same = $tool->execute(['url' => 'https://example.com/b', 'secret' => 'key'], self::context());
+        self::assertStringContainsString('ok', $same->content, 'the same host is fine');
+    }
+
     public function testGetReturnsStatusTypeAndBody(): void {
         $result = $this->tool(['https://example.com/' => [200, ['content-type' => 'text/html'], '<h1>Hi</h1>']])
             ->execute(['url' => 'https://example.com/'], self::context());
@@ -80,7 +102,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
 
         self::assertTrue($result->isError);
         self::assertSame('Адрес postgres — внутренний: такие запросы запрещены.', $result->content);
-        self::assertSame([], $this->http->requested);
+        self::assertCount(0, $this->http->requested);
     }
 
     public function testRedirectToInternalAddressIsRefused(): void {

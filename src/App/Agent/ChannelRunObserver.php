@@ -57,6 +57,8 @@ final class ChannelRunObserver implements RunObserver {
         private readonly ?string $threadId = null,
         /** remembers which run wrote each delivered message; null — not remembered */
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $messages = null,
+        /** nobody waits for an answer (an unaddressed message of a free group): [SILENT] may end the run quietly */
+        private readonly bool $silenceAllowed = false,
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -100,7 +102,9 @@ final class ChannelRunObserver implements RunObserver {
     public function toolStarted(Run $run, string $name, string $argsPreview): void {
         // Text the model wrote before calling a tool is a thought, not the answer: the next call streams anew.
         $this->text = '';
-        $this->show(sprintf(t('agent.channel_run_observer.vypolnyayu'), $name, $argsPreview), ParseMode::Plain, force: true);
+        // ref: references/hermes-agent/gateway/display_config.py@e96221fa:L36-L37 (live_status "verb") — paths and arguments
+        //      stay out of a shared chat; a group is told only which tool runs
+        $this->show($this->shared() ? sprintf(t('agent.channel_run_observer.running_tool'), $name) : sprintf(t('agent.channel_run_observer.vypolnyayu'), $name, $argsPreview), ParseMode::Plain, force: true);
     }
 
     public function textDelta(Run $run, string $text): void {
@@ -120,6 +124,12 @@ final class ChannelRunObserver implements RunObserver {
 
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — in a free group the agent may stay silent
+        // ref: references/hermes-agent/gateway/response_filters.py@e96221fa:L241-L256 (silence_allowed) — only a turn nobody
+        //      waits for may vanish; someone who asked gets a visible answer
+        if ($reason === StopReason::Answered && str_starts_with(ltrim($finalText), '[SILENT]') && !$this->silenceAllowed) {
+            $rest = trim(substr(ltrim($finalText), strlen('[SILENT]')));
+            $finalText = $rest === '' ? t('agent.channel_run_observer.nothing_to_add') : $rest;
+        }
         if ($reason === StopReason::Answered && str_starts_with(ltrim($finalText), '[SILENT]')) {
             if ($this->messageId !== null) {
                 $this->channel->delete($this->chatId, $this->messageId);
@@ -159,6 +169,11 @@ final class ChannelRunObserver implements RunObserver {
         foreach ($parts as $part) {
             $this->sendPart($run, $part, $mode);
         }
+    }
+
+    /** A group or a channel: Telegram gives them negative ids. */
+    private function shared(): bool {
+        return str_starts_with($this->chatId, '-');
     }
 
     /** Sends one message of the run and remembers that the run wrote it. */

@@ -78,8 +78,8 @@ final class ChatService implements MessageHandler {
             if ($routed === null) {
                 return;
             }
-            [$known, $message] = $routed;
-            $this->proceed($known, $message);
+            [$known, $message, $silenceAllowed] = $routed;
+            $this->proceed($known, $message, $silenceAllowed);
             return;
         }
         $principal = $this->access->resolveMessage($message);
@@ -95,7 +95,7 @@ final class ChatService implements MessageHandler {
         $this->proceed($principal, $message);
     }
 
-    private function proceed(Principal $principal, IncomingMessage $message): void {
+    private function proceed(Principal $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
 
         $text = trim($message->text);
         if ($text === '') {
@@ -259,7 +259,7 @@ final class ChatService implements MessageHandler {
             }
         }
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
-        $this->scheduler->submit($principal, $message, $conversationId);
+        $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed);
     }
 
     /**

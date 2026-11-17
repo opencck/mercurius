@@ -54,6 +54,8 @@ use function Mercurius\I18n\t;
  *      the next turn instead of vanishing
  */
 final class RunScheduler {
+    /** @var array<int, bool> conversation => its last message expects no answer */
+    private array $silence = [];
     public const RESUMED = 'agent.run_scheduler.resumed';
     public const INTERRUPTED = 'agent.run_scheduler.interrupted';
     public const CRASHED = 'agent.run_scheduler.crashed';
@@ -172,9 +174,11 @@ final class RunScheduler {
     }
 
     /** Hands a message over and returns at once. */
-    public function submit(Principal $principal, IncomingMessage $message, int $conversationId): void {
+    /** @param bool $silenceAllowed nobody asked the agent (a free group): it may answer [SILENT] */
+    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false): void {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
+        $this->silence[$conversationId] = $silenceAllowed;
         $text = trim($message->text);
         $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
@@ -251,7 +255,7 @@ final class RunScheduler {
         if ($claimed === null) {
             return;
         }
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false);
         $observer->start();
         $this->launch($claimed, $principal, $observer);
     }
@@ -497,7 +501,7 @@ final class RunScheduler {
         }
         try {
             $this->transcript->appendUser($conversationId, $run->id, $this->withSkillNote($principal, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text), $messageId);
-            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages);
+            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false);
             $observer->start();
         } catch (Throwable $e) {
             // The run exists but will never run: free the conversation.
@@ -521,7 +525,7 @@ final class RunScheduler {
             }
         }
         $this->logger->info('Resuming run after restart', ['run' => $run->id]);
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false);
         $observer->start(\Mercurius\I18n\t(self::RESUMED));
         $this->launch($run, $principal, $observer);
     }

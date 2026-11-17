@@ -22,6 +22,13 @@ final class MessageMeta {
     /** A Telegram message is at most 4096 characters; the cap only guards against a malformed update. */
     private const QUOTE = 4096;
 
+    /** Text from outside as one inert line of at most 240 characters: no line breaks, no control characters. */
+    public static function inline(string $text, int $max = 240): string {
+        $text = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $text) ?? '';
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+        return mb_strlen($text) > $max ? mb_substr($text, 0, $max - 1) . '…' : $text;
+    }
+
     /** A header line, or '' when there is nothing beyond the text (a plain private message). */
     public static function header(IncomingMessage $message, string $botId, bool $always = false, ?int $run = null): string {
         $parts = [];
@@ -64,7 +71,7 @@ final class MessageMeta {
         if (is_array($created)) {
             /** @var mixed $value */
             $value = $created['name'] ?? null;
-            $name = is_string($value) ? $value : null;
+            $name = is_string($value) ? self::inline($value, 128) : null;
         }
         return $name === null ? sprintf(t('service.message_meta.tema'), $message->threadId) : sprintf(t('service.message_meta.tema_2'), $name, $message->threadId);
     }
@@ -83,18 +90,21 @@ final class MessageMeta {
         /** @var mixed $from */
         $from = $reply['from'] ?? null;
         $author = t('service.message_meta.neizvestno_kto');
+        $own = false;
         if (is_array($from)) {
             /** @var mixed $fromId */
             $fromId = $from['id'] ?? null;
             /** @var mixed $first */
             $first = $from['first_name'] ?? null;
-            $author = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId
+            $own = (is_int($fromId) || is_string($fromId)) && (string) $fromId === $botId;
+            $author = $own
                 ? t('service.message_meta.ty_agent') . ($run === null ? '' : t('service.message_meta.v_zapuske') . $run)
-                : (is_string($first) ? $first : t('service.message_meta.uchastnik'));
+                : (is_string($first) ? self::inline($first, 64) : t('service.message_meta.uchastnik'));
         }
         /** @var mixed $text */
         $text = $reply['text'] ?? ($reply['caption'] ?? null);
-        $piece = is_string($text) ? mb_substr(trim($text), 0, self::QUOTE) : '';
+        // the agent's own message is quoted whole (it wrote it); what someone else wrote is one short inert line
+        $piece = !is_string($text) ? '' : ($own ? mb_substr(trim($text), 0, self::QUOTE) : self::inline($text));
         return sprintf(
             t('service.message_meta.ono_otvechaet_na_soobschenie_kotoroe'),
             is_int($id) || is_string($id) ? (string) $id : '?',

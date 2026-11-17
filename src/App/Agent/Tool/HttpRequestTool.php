@@ -124,11 +124,23 @@ final class HttpRequestTool implements Tool, GrantKeyed {
             $headers[$header === '' ? 'Authorization' : $header] = $header === '' ? 'Bearer ' . $secretValue : $secretValue;
         }
 
+        $secretHost = null;
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
             $parts = parse_url($url);
             $scheme = strtolower($parts['scheme'] ?? '');
             if (($scheme !== 'http' && $scheme !== 'https') || !isset($parts['host'])) {
                 return ToolResult::error(t('tool.http_request.podderzhivayutsya_tolko_adresa_http_i'));
+            }
+            // a secret goes only over https and only to the host the owner allowed: a redirect elsewhere is not followed
+            if ($secretValue !== null) {
+                $host = strtolower($parts['host']);
+                if ($scheme !== 'https') {
+                    return ToolResult::error(t('tool.http_request.secret_https_only'));
+                }
+                if ($secretHost !== null && $host !== $secretHost) {
+                    return ToolResult::ok(sprintf(t('tool.http_request.secret_redirect_stopped'), $host));
+                }
+                $secretHost = $host;
             }
             $refusal = $this->guard->refusal($parts['host']);
             if ($refusal !== null) {

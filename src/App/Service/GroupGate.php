@@ -62,7 +62,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     /**
      * What to do with a group message: null — nothing (silent); otherwise who speaks and the message for the agent.
      *
-     * @return array{Principal, IncomingMessage}|null
+     * @return array{Principal, IncomingMessage, bool}|null the speaker, the message for the agent, whether it may stay silent
      */
     public function route(IncomingMessage $message): ?array {
         // spec: BRIEF.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
@@ -118,7 +118,9 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId, $this->runOfReply($message))]);
-        $prefix = sprintf(t('service.group_gate.gruppa_pishet_eto_soobschenie'), $group->title, $speaker, $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
+        // ref: references/hermes-agent/gateway/session.py@e96221fa:L296-L307 (neutralize_untrusted_inline_text) — a name or a
+        //      title is one short line: a line break could pose as a new section of the prompt
+        $prefix = sprintf(t('service.group_gate.gruppa_pishet_eto_soobschenie'), MessageMeta::inline($group->title), MessageMeta::inline($speaker), $message->messageId, $meta === [] ? '' : '; ' . implode('; ', $meta));
         $prefix .= $group->mode === Group::FREE && !$addressed
             ? t('service.group_gate.tebya_ne_zvali_otvet_tolko') . self::SILENT . '.]'
             : ']';
@@ -140,7 +142,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $message->threadId,
             $message->isEdited,
             $message->raw,
-        )];
+        ), $group->mode === Group::FREE && !$addressed];
     }
 
     /**

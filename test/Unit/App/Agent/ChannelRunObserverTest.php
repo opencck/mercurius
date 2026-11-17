@@ -95,6 +95,40 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         self::assertContains('Итог', $channel->texts('edit'));
     }
 
+    public function testSilenceIsShownWhereAnAnswerIsExpected(): void {
+        $channel = new FakeChannel();
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now);
+        $observer->start();
+
+        $observer->finished(self::finishedRun(), '[SILENT]', StopReason::Answered);
+
+        self::assertSame([], $channel->deleted, 'someone asked: the status is not removed');
+        self::assertNotContains('[SILENT]', $channel->texts('edit'));
+        self::assertNotSame([], $channel->texts('edit'));
+
+        $quiet = new FakeChannel();
+        $free = new ChannelRunObserver($quiet, '-100', null, 0.0, fn(): float => $this->now, silenceAllowed: true);
+        $free->start();
+        $free->finished(self::finishedRun(), '[SILENT]', StopReason::Answered);
+        self::assertSame([['-100', '100']], $quiet->deleted, 'nobody asked: the agent may keep quiet');
+    }
+
+    public function testAGroupSeesTheToolButNotItsArguments(): void {
+        $channel = new FakeChannel();
+        $group = new ChannelRunObserver($channel, '-100500', null, 0.0, fn(): float => $this->now);
+        $group->start();
+        $group->toolStarted(self::finishedRun(), 'read_file', '{"path":"/srv/secret/plan.md"}');
+
+        self::assertStringNotContainsString('plan.md', implode("\n", $channel->texts('edit')));
+        self::assertStringContainsString('read_file', implode("\n", $channel->texts('edit')));
+
+        $private = new FakeChannel();
+        $own = new ChannelRunObserver($private, '42', null, 0.0, fn(): float => $this->now);
+        $own->start();
+        $own->toolStarted(self::finishedRun(), 'read_file', '{"path":"/srv/plan.md"}');
+        self::assertStringContainsString('plan.md', implode("\n", $private->texts('edit')), 'the owner\'s chat keeps the details');
+    }
+
     public function testEveryDeliveredMessageRemembersItsRun(): void {
         $channel = new FakeChannel(maxLength: 20);
         $messages = new \OpenCCK\Test\Support\InMemoryRunMessageRepository();
