@@ -58,3 +58,6 @@
 [submodule "services/media-video"]
 	path = services/media-video
 	url = https://github.com/opencck/mercurius-media-video.git
+[submodule "services/media-docs"]
+	path = services/media-docs
+	url = https://github.com/opencck/mercurius-media-docs.git

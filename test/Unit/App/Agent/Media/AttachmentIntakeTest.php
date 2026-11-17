@@ -21,6 +21,9 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
+use OpenCCK\Infrastructure\Media\DocsService;
+use OpenCCK\Infrastructure\Services\ServiceModules;
+use OpenCCK\Test\Support\FakeHttpClient;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\FakeSandbox;
 
@@ -94,22 +97,48 @@ final class AttachmentIntakeTest extends AsyncTestCase {
         self::assertStringNotContainsString('0123456789abcdef0123', $result->text, 'secrets are masked');
     }
 
-    public function testAnOfficeDocumentIsExtractedInTheSandbox(): void {
+    public function testAnOfficeDocumentIsReadByTheDocsModule(): void {
         $this->channel->downloads['f1'] = 'PK...';
-        $this->sandbox->outcome = new CommandOutcome(0, 'Отчёт за неделю', '', false, false, 5);
+        $http = new FakeHttpClient([
+            'http://media-docs:8092/health' => [200, [], '{"status":"ok"}'],
+            'http://media-docs:8092/extract?name=report.docx&limit=20001' => [200, [], '{"text":"Отчёт за неделю"}'],
+        ]);
 
-        $result = $this->take(self::document('report.docx'));
+        $result = $this->intakeWithDocs($http)->intake($this->owner, self::policy(), self::message([self::document('report.docx')]), new NullCancellation());
 
-        self::assertContains("exec 1 python3 /opt/mercurius/extract_text.py 'inbox/2026-11-17/report.docx' 20000 @. t30", $this->sandbox->calls);
+        self::assertContains('POST http://media-docs:8092/extract?name=report.docx&limit=20001', $http->requested);
+        self::assertSame([], array_values(array_filter($this->sandbox->calls, static fn(string $c): bool => str_starts_with($c, 'exec'))), 'nothing runs in the sandbox');
         self::assertStringContainsString('Отчёт за неделю', $result->text);
         self::assertStringContainsString('<untrusted-data source="file:report.docx">', $result->text);
     }
 
-    public function testAnUnsupportedOrBrokenDocumentSaysSo(): void {
+    public function testABrokenDocumentSaysSo(): void {
         $this->channel->downloads['f1'] = 'PK...';
-        $this->sandbox->outcome = new CommandOutcome(1, '', 'BadZipFile: File is not a zip file', false, false, 5);
+        $http = new FakeHttpClient([
+            'http://media-docs:8092/health' => [200, [], '{"status":"ok"}'],
+            'http://media-docs:8092/extract?name=report.docx&limit=20001' => [422, [], '{"error":"BadZipFile: File is not a zip file"}'],
+        ]);
 
-        self::assertStringContainsString('BadZipFile', $this->take(self::document('report.docx'))->text);
+        $result = $this->intakeWithDocs($http)->intake($this->owner, self::policy(), self::message([self::document('report.docx')]), new NullCancellation());
+
+        self::assertStringContainsString('BadZipFile', $result->text);
+    }
+
+    public function testWithoutTheDocsModuleTheAgentIsToldHowToTurnItOn(): void {
+        $this->channel->downloads['f1'] = 'PK...';
+
+        $result = $this->take(self::document('report.docx'));
+
+        self::assertStringContainsString('media-docs', $result->text);
+        self::assertStringContainsString('inbox/2026-11-17/report.docx', $result->text, 'the file is still kept');
+    }
+
+    private function intakeWithDocs(FakeHttpClient $http): AttachmentIntake {
+        $client = new \Amp\Http\Client\HttpClient($http, []);
+        $modules = new ServiceModules($client);
+        $modules->add(DocsService::MODULE, 'http://media-docs:8092', 'token-0123456789abcdef');
+        $modules->check();
+        return new AttachmentIntake($this->channel, $this->sandbox, MediaSettings::fromEnv([]), new DateTimeZone('+03:00'), static fn(): DateTimeImmutable => new DateTimeImmutable('2026-11-17 12:00:00+03:00'), docs: new DocsService($client, $modules));
     }
 
     public function testALongTextIsCutWithThePath(): void {

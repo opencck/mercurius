@@ -18,6 +18,7 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
+use OpenCCK\Infrastructure\Media\DocsService;
 use OpenCCK\Infrastructure\Media\MediaModels;
 use OpenCCK\Infrastructure\Media\VideoService;
 use OpenCCK\Infrastructure\Services\ServiceModules;
@@ -39,7 +40,7 @@ final class MediaToolTest extends AsyncTestCase {
      * @param array<string, string> $env
      * @param array<string, array{int, array<non-empty-string, string>, string}> $responses
      */
-    private function tool(array $env, array $responses = [], bool $video = false): MediaTool {
+    private function tool(array $env, array $responses = [], bool $video = false, bool $docs = false): MediaTool {
         $this->sandbox = new FakeSandbox();
         $this->http = new FakeHttpClient($responses);
         $settings = MediaSettings::fromEnv($env);
@@ -48,9 +49,12 @@ final class MediaToolTest extends AsyncTestCase {
         $modules = new ServiceModules($client);
         if ($video) {
             $modules->add(VideoService::MODULE, 'http://media-video:8091', 'token-0123456789abcdef');
-            $modules->check();
         }
-        return new MediaTool($this->sandbox, $models, new MediaPrefs(new InMemoryMediaPrefRepository(), $settings), new VideoService($client, $modules));
+        if ($docs) {
+            $modules->add(DocsService::MODULE, 'http://media-docs:8092', 'token-0123456789abcdef');
+        }
+        $modules->check();
+        return new MediaTool($this->sandbox, $models, new MediaPrefs(new InMemoryMediaPrefRepository(), $settings), new VideoService($client, $modules), new DocsService($client, $modules));
     }
 
     private static function context(): ToolContext {
@@ -138,6 +142,29 @@ final class MediaToolTest extends AsyncTestCase {
 
         self::assertStringContainsString('КОНЕЦ', $result->content);
         self::assertStringNotContainsString(str_repeat('а', 600), $result->content, 'from the offset on');
+    }
+
+    public function testAnOfficeDocumentFromWhereItStoppedByTheDocsModule(): void {
+        $tool = $this->tool([], [
+            'http://media-docs:8092/health' => [200, [], '{"status":"ok"}'],
+            'http://media-docs:8092/extract?name=report.docx&limit=20010' => [200, [], json_encode(['text' => str_repeat('а', 10) . 'Вторая часть'], JSON_THROW_ON_ERROR)],
+        ], docs: true);
+        $this->sandbox->files[1]['inbox/report.docx'] = 'PK';
+
+        $result = $tool->execute(['action' => 'extract', 'path' => 'inbox/report.docx', 'offset' => 10], self::context());
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertStringStartsWith('Вторая часть', $result->content);
+    }
+
+    public function testAnOfficeDocumentWithoutTheDocsModule(): void {
+        $tool = $this->tool([]);
+        $this->sandbox->files[1]['inbox/report.docx'] = 'PK';
+
+        $result = $tool->execute(['action' => 'extract', 'path' => 'inbox/report.docx'], self::context());
+
+        self::assertTrue($result->isError);
+        self::assertStringContainsString('media-docs', $result->content);
     }
 
     public function testTheModelsAndPrinciples(): void {

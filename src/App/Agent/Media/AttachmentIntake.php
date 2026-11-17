@@ -44,8 +44,6 @@ final class AttachmentIntake {
      */
     public const SANDBOX_MAX = 25_000_000;
     public const MAX_TOTAL = 50_000_000;
-    public const EXTRACT_SECONDS = 30;
-    public const EXTRACTOR = '/opt/mercurius/extract_text.py';
     private const TEXT = ['txt', 'md', 'markdown', 'csv', 'tsv', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml', 'ini', 'conf', 'sql', 'php', 'py', 'js', 'ts', 'go', 'java', 'c', 'h', 'cpp', 'rs', 'rb', 'sh', 'css'];
     private const OFFICE = ['docx', 'pptx', 'xlsx', 'odt', 'pdf', 'rtf'];
     private const IMAGE = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'heic'];
@@ -72,6 +70,8 @@ final class AttachmentIntake {
         private readonly ?\OpenCCK\Infrastructure\Media\MediaModels $models = null,
         /** the participant's way with files over the owner's defaults */
         private readonly ?MediaPrefs $prefs = null,
+        /** the media-docs module: the text of office documents and PDF; null or down — the file is only kept */
+        private readonly ?\OpenCCK\Infrastructure\Media\DocsService $docs = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
         $this->maxFile = min($maxFile, self::SANDBOX_MAX);
@@ -163,9 +163,7 @@ final class AttachmentIntake {
         }
         return match ($category) {
             'text' => $this->text($name, $bytes, $path),
-            'office' => $limits === null || $path === null || $this->sandbox === null
-                ? t('media.intake.no_sandbox')
-                : $this->extract($principal, $limits, $name, $path, $cancellation),
+            'office' => $this->extract($name, $bytes, $path, $cancellation),
             default => '',
         };
     }
@@ -228,21 +226,23 @@ final class AttachmentIntake {
         return $this->framed($name, $text, $path);
     }
 
-    private function extract(Principal $principal, SandboxLimits $limits, string $name, string $path, Cancellation $cancellation): string {
-        // quoted for the POSIX shell of the sandbox whatever runs this (escapeshellarg follows the host)
-        $command = sprintf('python3 %s %s %d', self::EXTRACTOR, "'" . str_replace("'", "'\''", $path) . "'", $this->settings->textLimit);
+    /**
+     * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — an office document or PDF is read by the media-docs module, in a child
+     * process with limits there; without the module the file is only kept
+     */
+    private function extract(string $name, string $bytes, ?string $path, Cancellation $cancellation): string {
+        if ($this->docs === null || !$this->docs->up()) {
+            return t('media.intake.no_docs_module');
+        }
         try {
-            $outcome = $this->sandbox?->exec($principal->id, $limits, 'intake-' . bin2hex(random_bytes(4)), $command, '.', self::EXTRACT_SECONDS, $cancellation);
-        } catch (SandboxFailure $e) {
-            return sprintf(t('media.intake.not_extracted'), mb_substr($e->getMessage(), 0, 200));
+            [$status, $text] = $this->docs->extract($bytes, $name, $this->settings->textLimit + 1, $cancellation);
+        } catch (\RuntimeException $e) {
+            return sprintf(t('media.intake.not_extracted'), $e->getMessage());
         }
-        if ($outcome === null || $outcome->timedOut) {
-            return sprintf(t('media.intake.not_extracted'), t('media.intake.timeout'));
-        }
-        return match ($outcome->exitCode) {
-            0 => $this->framed($name, $outcome->stdout, $path),
-            2 => t('media.intake.unsupported'),
-            default => sprintf(t('media.intake.not_extracted'), mb_substr(trim($outcome->stderr), 0, 200)),
+        return match ($status) {
+            200 => $this->framed($name, $text, $path),
+            415 => t('media.intake.unsupported'),
+            default => sprintf(t('media.intake.not_extracted'), $text),
         };
     }
 

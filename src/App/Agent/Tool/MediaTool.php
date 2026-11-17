@@ -12,6 +12,7 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Infrastructure\Media\MediaAnswer;
 use OpenCCK\Infrastructure\Media\MediaCall;
+use OpenCCK\Infrastructure\Media\DocsService;
 use OpenCCK\Infrastructure\Media\MediaModels;
 use OpenCCK\Infrastructure\Media\VideoService;
 
@@ -35,6 +36,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
         private readonly MediaModels $models,
         private readonly MediaPrefs $prefs,
         private readonly ?VideoService $video = null,
+        private readonly ?DocsService $docs = null,
     ) {
         parent::__construct($sandbox);
     }
@@ -139,17 +141,24 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
         return $parts === [] ? ToolResult::error(t('tool.media.nothing')) : ToolResult::ok(implode("\n\n", $parts));
     }
 
-    /** The text of a document from the offset on, up to the limit: office and PDF read in the sandbox, the rest as text. */
+    /** The text of a document from the offset on, up to the limit: office and PDF read by media-docs, the rest as text. */
     private function extract(ToolContext $context, SandboxLimits $limits, string $path, int $offset): ToolResult {
         $limit = $this->prefs->settings->textLimit;
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        if (in_array($extension, ['docx', 'pptx', 'xlsx', 'odt', 'pdf', 'rtf'], true)) {
-            $quoted = "'" . str_replace("'", "'\\''", $path) . "'";
-            $outcome = $this->sandbox->exec($context->principal->id, $limits, 'media-' . bin2hex(random_bytes(4)), sprintf('python3 %s %s %d', AttachmentIntake::EXTRACTOR, $quoted, $offset + $limit), '.', AttachmentIntake::EXTRACT_SECONDS, $context->cancellation);
-            if ($outcome->exitCode !== 0) {
-                return ToolResult::error(sprintf(t('media.intake.not_extracted'), mb_substr(trim($outcome->stderr), 0, 200)));
+        if (in_array($extension, DocsService::KINDS, true)) {
+            // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — office documents and PDF are read by the media-docs module
+            if ($this->docs === null || !$this->docs->up()) {
+                return ToolResult::error(t('media.intake.no_docs_module'));
             }
-            $text = $outcome->stdout;
+            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
+            try {
+                [$status, $text] = $this->docs->extract($bytes, basename(str_replace('\\', '/', $path)), $offset + $limit, $context->cancellation);
+            } catch (\RuntimeException $e) {
+                return ToolResult::error(sprintf(t('media.intake.not_extracted'), $e->getMessage()));
+            }
+            if ($status !== 200) {
+                return ToolResult::error($status === 415 ? t('media.intake.unsupported') : sprintf(t('media.intake.not_extracted'), $text));
+            }
         } else {
             $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
             $converted = mb_check_encoding($bytes, 'UTF-8') ? $bytes : iconv('Windows-1251', 'UTF-8', $bytes);

@@ -339,6 +339,8 @@ $tools = new ToolRegistry();
 // checked at start and once a minute
 $serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger);
 $serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
+$serviceModules->add(\OpenCCK\Infrastructure\Media\DocsService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_TOKEN'));
+$docsService = new \OpenCCK\Infrastructure\Media\DocsService(HttpClients::create(), $serviceModules);
 $tools->withServices($serviceModules->up(...));
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::defer(static function () use ($serviceModules): void {
     $serviceModules->check();
@@ -417,7 +419,9 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $logger,
 );
 if ($sandbox !== null) {
-    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules)));
+    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
+    // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
+    $tools->register(new \OpenCCK\App\Agent\Tool\DocumentsTool($sandbox, $docsService));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go
     $inboxCleaner = new \OpenCCK\App\Agent\Media\InboxCleaner($principals, $policies, $sandbox, $mediaSettings, $logger);
     \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(600, static function () use ($inboxCleaner): void {
@@ -778,7 +782,7 @@ $chat = new ChatService(
     $runMessages,
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
     // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent
-    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs),
+    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs, docs: $docsService),
     $policies,
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days

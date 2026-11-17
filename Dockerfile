@@ -53,16 +53,13 @@ USER mercurius
 CMD ["composer", "test-integration"]
 
 # Sandbox: where the agent runs commands and keeps files. Runtimes the agent can build tools on (owner decision):
-# PHP 8.2 with Composer, Python 3 (with python-pptx, python-docx, openpyxl: presentations, documents, tables without a download), Node.js with npm, Go. The executor runs as root with a minimal capability set
+# PHP 8.2 with Composer, Python 3, Node.js with npm, Go. Documents and video are modules (media-docs, media-video), not here. The executor runs as root with a minimal capability set
 # (compose) and does every participant operation as that participant's Unix user.
 # spec: BRIEF.md#песочница
 FROM php:8.2-cli-bookworm AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
-        python3-docx python3-openpyxl python3-lxml python3-pil python3-xlsxwriter python3-typing-extensions poppler-utils \
-    # python-pptx is not packaged in bookworm: from PyPI, its dependencies from the lines above
-    && pip3 install --break-system-packages --no-cache-dir --no-deps python-pptx==1.0.2 \
     && docker-php-ext-install pcntl sockets \
     && rm -rf /var/lib/apt/lists/* \
     && echo 'zend.assertions=-1' > /usr/local/etc/php/conf.d/mercurius.ini
@@ -73,8 +70,6 @@ WORKDIR /app
 COPY --from=base /app/vendor ./vendor
 COPY composer.json sandbox.php ./
 COPY src ./src
-# spec: BRIEF.md#входящие-вложения — the text of an incoming document comes out here, as the participant
-COPY bin/extract_text.py /opt/mercurius/
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM
