@@ -256,12 +256,14 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         $run = $this->execute($this->loop($llm), $this->start());
 
         $history = $this->transcript->historyEntries(1, $run->id + 1, 10);
-        $answer = array_pop($history);
         $noted = array_pop($history);
+        $answer = array_pop($history);
         self::assertNotNull($answer);
         self::assertNotNull($noted);
         self::assertSame('Спросил.', $answer->message->content, 'the answer stays as written');
+        self::assertSame(\Mercurius\Llm\Role::User, $noted->message->role, 'a system note after the answer, not words of the agent it could copy');
         $note = $noted->message->content;
+        self::assertStringStartsWith('[Служебная заметка системы', $note);
         self::assertStringContainsString('save {"to":"Roman"} → Отправлено в личный чат: Roman.', $note, 'tool rounds are not in the history of earlier runs: what was done is kept next to the answer');
         self::assertStringNotContainsString('look', $note, 'reads are not actions');
     }

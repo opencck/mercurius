@@ -31,6 +31,9 @@ final class RunState {
     public string $partial = '';
     public int $continuations = 0;
     public int $emptyRetries = 0;
+    /** an answer that reported an action in words without calling a tool, shown back once with a reminder */
+    public ?string $textAction = null;
+    public bool $textActionRetried = false;
     /** A call that broke mid-stream was repeated once. */
     public bool $streamRetried = false;
     /** The last call delivered at least one stream event before it failed. */

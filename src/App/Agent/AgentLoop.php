@@ -82,6 +82,9 @@ final class AgentLoop {
     private const MAX_CONTINUATIONS = 4;
     /** Retries of an empty answer. */
     private const MAX_EMPTY_RETRIES = 3;
+    public const TEXT_ACTION_NOTE = 'agent.agent_loop.text_action';
+    /** how the system note of done actions begins (now and before), in both languages */
+    private const ACTION_MARKERS = ['[Сделано в этом запуске', '[Done in this run', '[Служебная заметка системы', '[System note'];
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
@@ -233,6 +236,18 @@ final class AgentLoop {
                     $state->emptyRetries++;
                     continue;
                 }
+                // spec: BRIEF.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
+                //      words (it copies the system note of earlier runs) is shown back once with a reminder
+                // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
+                //      completion without tool calls" in the prompt; here the loop also catches the copied note
+                if (!$state->textActionRetried && self::reportsAnAction($text)) {
+                    $state->textActionRetried = true;
+                    $state->textAction = $text;
+                    $state->partial = '';
+                    $this->logger->notice('An action was written as text, not called', ['run' => $state->run->id]);
+                    continue;
+                }
+                $state->textAction = null;
                 $state->partial = '';
                 $state->finalText = $text;
                 $this->saveAnswer($state, $text);
@@ -362,6 +377,9 @@ final class AgentLoop {
      * @return list<Message>
      */
     private function tail(RunState $state): array {
+        if ($state->textAction !== null) {
+            return [Message::assistant($state->textAction), Message::user(\Mercurius\I18n\t(self::TEXT_ACTION_NOTE))];
+        }
         if ($state->partial !== '') {
             return [Message::assistant($state->partial), Message::user(\Mercurius\I18n\t(self::CONTINUE_NOTE))];
         }
@@ -668,14 +686,25 @@ final class AgentLoop {
         };
     }
 
+    /** The answer reports a done action in the form of the system note instead of calling a tool. */
+    private static function reportsAnAction(string $text): bool {
+        foreach (self::ACTION_MARKERS as $marker) {
+            if (str_contains($text, $marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private function saveAnswer(RunState $state, string $text): void {
         try {
-            // the note goes right before the answer: the answer itself stays what the model wrote (jobs and reports read it)
+            // the answer stays what the model wrote (jobs and reports read it); the note follows it as a system note, not
+            // as words of the agent: a note in the agent's own voice was copied by the model instead of calling a tool
+            $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, []);
             $note = $this->actionsNote($state->run->id);
             if ($note !== '') {
-                $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $note, []);
+                $this->transcript->appendUser($state->run->conversationId, $state->run->id, $note);
             }
-            $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, []);
         } catch (Throwable $e) {
             $this->logger->error('Could not save the final answer', ['run' => $state->run->id, 'error' => $e::class]);
         }

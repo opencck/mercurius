@@ -169,6 +169,38 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringContainsString('no such file', $results[1]->content ?? '');
     }
 
+    public function testAnActionWrittenAsTextIsNotTakenForDone(): void {
+        $save = new FakeTool('settings', DangerClass::Write);
+        $this->registry->register($save);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::text('[Сделано в этом запуске: settings {"action":"set"} → Настройка предложена владельцу]'),
+            ScriptedLlm::calls(new ToolCall('c1', 'settings', '{"q":"set"}')),
+            ScriptedLlm::text('Готово: настройка сохранена.'),
+        ]);
+
+        $run = $this->execute($llm, $this->start('давай'));
+
+        self::assertCount(1, $save->calls, 'the agent was told nothing was done and called the tool');
+        self::assertSame('Готово: настройка сохранена.', $this->observer->final);
+        $asked = self::lastMessages($llm);
+        self::assertSame(RunStatus::Done, $run->status);
+        $nudged = array_filter($llm->requests[1]->messages, static fn(Message $m): bool => str_contains($m->content, 'инструмент не вызывал'));
+        self::assertCount(1, $nudged, 'the second call carries the reminder');
+        self::assertNotEmpty($asked);
+    }
+
+    public function testATextReportTwiceIsLetThrough(): void {
+        $llm = new ScriptedLlm([
+            ScriptedLlm::text('[Сделано в этом запуске: x → y]'),
+            ScriptedLlm::text('[Сделано в этом запуске: x → y]'),
+        ]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(RunStatus::Done, $run->status, 'one reminder, then the answer stands: no loop');
+        self::assertCount(2, $llm->requests);
+    }
+
     public function testToolErrorGoesBackToModel(): void {
         $this->registry->register(new FakeTool('t', handler: static fn(): ToolResult => ToolResult::error('нет доступа')));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 't', '{}')), ScriptedLlm::text('не вышло')]);
