@@ -99,6 +99,37 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertNotContains('Разрешить', $labels, 'nobody approves what they could not read');
     }
 
+    public function testAfterThreeRefusalsInARowTheSameActionIsRefusedWithoutACard(): void {
+        $script = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 'push', '{"remote":"origin"}'));
+            $script[] = ScriptedLlm::text('Понял.');
+        }
+        $stack = new AgentStack(new ScriptedLlm($script));
+        $push = new FakeKeyedTool('push', 'git-push:origin');
+        $stack->registry->register($push);
+        $cards = static fn(): int => count(array_filter($stack->channel->log, static fn(array $e): bool => $e[0] === 'send' && str_starts_with($e[2], 'Подтвердите действие')));
+
+        for ($i = 1; $i <= 3; $i++) {
+            $stack->say('отправь изменения');
+            $stack->scheduler->awaitIdle();
+            $stack->press(sprintf('ap:%d:d', $i));
+            \Amp\delay(0.01);
+            $stack->scheduler->awaitIdle();
+        }
+        self::assertSame(3, $cards());
+
+        $stack->say('отправь изменения');
+        $stack->scheduler->awaitIdle();
+        \Amp\delay(0.01);
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(3, $cards(), 'the owner is not asked a fourth time');
+        self::assertSame(0, $push->runs);
+        $result = implode("\n", array_map(static fn(\Mercurius\Llm\Message $m): string => $m->content, $stack->llm->requests[7]->messages ?? []));
+        self::assertStringContainsString('трижды', $result, 'the model is told why');
+    }
+
     public function testApprovePressResumesTheRun(): void {
         $this->waitingRun();
 

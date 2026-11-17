@@ -25,6 +25,19 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         return $this->approvals->create($this->runId, $callId, $this->principalId, 'run_command', 'git push', 'git-push:origin', new DateTimeImmutable($expires))->id;
     }
 
+    public function testRefusalsInARowAreCountedUntilAnApproval(): void {
+        $since = new DateTimeImmutable('-1 day');
+        $first = $this->create('c1');
+        $this->approvals->decide($first, ApprovalStatus::Approved, null, null);
+        foreach (['c2', 'c3'] as $call) {
+            $this->approvals->decide($this->create($call), ApprovalStatus::Denied, 'нет', null);
+        }
+        $this->create('c4');
+
+        self::assertSame(2, $this->approvals->deniedInARow($this->principalId, 'git push', $since), 'a pending one and the approval before do not count');
+        self::assertSame(0, $this->approvals->deniedInARow($this->principalId, 'git push --force', $since), 'another action is another streak');
+    }
+
     public function testCreatedApprovalIsPending(): void {
         $id = $this->create();
         $approval = $this->approvals->find($id);

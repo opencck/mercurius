@@ -42,6 +42,8 @@ use function Mercurius\I18n\t;
  *      "already decided" for a second press; the approval lives in the database here, not in process memory
  */
 final class ApprovalService implements ApprovalGate, CallbackHandler {
+    /** Refusals in a row after which exactly the same action is refused without asking the owner again. */
+    public const REFUSALS = 3;
     /** Longer actions go to the owner as a file next to the card: you cannot approve what you cannot see. */
     private const CARD_LIMIT = 3000;
     /** Seconds of flood the card waits out before the action is refused. */
@@ -71,15 +73,28 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($args) : null;
         $label = SecretMasker::mask($call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name);
         $shown = SecretMasker::mask(json_encode(SecretMasker::maskArgs($args), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
+        $summary = $label . "\n" . $call->call->name . ' ' . $shown;
+        // ref: references/hermes-agent/tools/approval.py@e96221fa:L64-L111 (denial circuit breaker) — after three refusals in
+        //      a row the answer is a hard stop; here the owner is not asked a fourth time about exactly the same action
+        $refusedBefore = $this->approvals->deniedInARow($principal->id, $summary, new DateTimeImmutable('-1 day'));
         $approval = $this->approvals->create(
             $run->id,
             $call->call->id,
             $principal->id,
             $call->call->name,
-            $label . "\n" . $call->call->name . ' ' . $shown,
+            $summary,
             $key,
             new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)),
         );
+        if ($refusedBefore >= self::REFUSALS) {
+            $this->logger->notice('Action refused without a card: refused in a row before', ['approval' => $approval->id, 'run' => $run->id, 'tool' => $call->call->name]);
+            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, sprintf(t('agent.approval_service.refused_in_a_row'), $refusedBefore), null);
+            if ($decided !== null) {
+                // The run is still pausing in this fiber: it continues once the pause is saved.
+                EventLoop::defer(fn() => $this->continue($decided));
+            }
+            return;
+        }
 
         $inFile = mb_strlen($shown) > self::CARD_LIMIT;
         // ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L2744-L2763 (send_exec_approval) — an action

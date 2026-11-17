@@ -39,6 +39,20 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         return null;
     }
 
+    public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int {
+        $denied = 0;
+        foreach (array_reverse($this->approvals) as $a) {
+            if ($a->principalId !== $principalId || $a->summary !== $summary || !in_array($a->status, [ApprovalStatus::Approved, ApprovalStatus::Denied], true)) {
+                continue;
+            }
+            if ($a->status !== ApprovalStatus::Denied) {
+                break;
+            }
+            $denied++;
+        }
+        return $denied;
+    }
+
     public function decide(int $id, ApprovalStatus $status, ?string $reason, ?int $decidedBy): ?Approval {
         $a = $this->approvals[$id] ?? null;
         if ($a === null || $a->status !== ApprovalStatus::Pending) {

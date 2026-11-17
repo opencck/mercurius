@@ -74,6 +74,21 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         $this->db->execute('UPDATE approvals SET card_chat_id = ?, card_message_id = ? WHERE id = ?', [$chatId, $messageId, $id]);
     }
 
+    public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int {
+        $denied = 0;
+        foreach ($this->db->execute(
+            "SELECT status FROM approvals WHERE principal_id = ? AND summary = ? AND status IN ('approved', 'denied') AND created_at >= ?
+             ORDER BY id DESC LIMIT 10",
+            [$principalId, $summary, $since->format('Y-m-d H:i:sP')],
+        ) as $row) {
+            if (($row['status'] ?? null) !== 'denied') {
+                break;
+            }
+            $denied++;
+        }
+        return $denied;
+    }
+
     public function hasGrant(int $principalId, string $key): bool {
         return $this->db->execute(
             'SELECT 1 FROM approval_grants WHERE principal_id = ? AND key = ? AND revoked_at IS NULL',

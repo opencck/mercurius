@@ -32,6 +32,12 @@ interface ApprovalRepository {
 
     public function setCard(int $id, string $chatId, string $messageId): void;
 
+    /**
+     * How many of the latest decisions on exactly this action, asked by this participant since $since, were refusals
+     * in a row (an approval ends the streak).
+     */
+    public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int;
+
     public function hasGrant(int $principalId, string $key): bool;
 
     public function addGrant(int $principalId, string $key): void;
