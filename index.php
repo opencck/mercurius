@@ -84,6 +84,11 @@ use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\MemorySearchTool;
 use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\Infrastructure\Module\SchedulerModule;
+use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
+use OpenCCK\App\Agent\Tool\JobCancelTool;
+use OpenCCK\App\Agent\Tool\JobCreateTool;
+use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
 use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
@@ -411,6 +416,15 @@ $mcpManager = new McpManager(
 );
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
 
+// spec: BRIEF.md#планировщик-и-проекты — jobs by a schedule, run without the owner, reported by the scheduler
+$ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? 'UTC');
+$quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23-8';
+$quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
+$jobRepository = new PostgresJobRepository($db);
+$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger);
+$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));
+$tools->register(new JobCancelTool($jobRepository, $jobScheduler));
+
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
@@ -462,6 +476,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
+    ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,
         $telegram,
