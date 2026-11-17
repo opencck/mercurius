@@ -12,10 +12,20 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `dbbb7af` | 2026-11-17 | Канал связи и адаптер Telegram |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `a83d8c0` | 2026-11-17 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `2f8986c` | 2026-11-17 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [mail-mcp/](mail-mcp/) | `6a68991` | 2026-11-17 | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
+
+## Модули: сервисы, MCP, скиллы
+
+Тяжёлое и необязательное — отдельные репозитории сабмодулями в `services/`, `mcp/`, `skills/`, сервис — в своём профиле
+compose, по умолчанию выключен ([BRIEF.md → Модули](../BRIEF.md#модули-сервисы-mcp-и-скиллы)). Журнал модулей ведётся
+здесь же.
+
+| Модуль | Каталог | Коммит | Проверено | Профиль | Назначение |
+|--------|---------|--------|-----------|---------|------------|
+| [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `cc4c9a9` | 2026-11-17 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 
 ## Как работать с пакетом
 
@@ -28,6 +38,12 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — модуль media-video, i18n: как включить модуль
+
+- `mercurius-media-video` `cc4c9a9` (новый, `services/media-video`, профиль `media-video`): `POST /frames`, `POST /audio`,
+  `GET /health`, токен `MEDIA_VIDEO_TOKEN`. ffmpeg и `video_frames.sh` убраны из песочницы.
+- `mercurius-i18n` `2f8986c`: `tool.media.no_video_module` — что сказать владельцу, если модуля нет.
 
 ### 2026-11-17 — i18n: инструмент media
 

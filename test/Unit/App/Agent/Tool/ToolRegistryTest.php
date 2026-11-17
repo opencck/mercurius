@@ -27,6 +27,20 @@ final class ToolRegistryTest extends TestCase {
         self::assertSame([], $registry->names($this->policy([])));
     }
 
+    public function testAToolOfAModuleServiceOnlyWhileTheServiceIsUp(): void {
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('a'));
+        $registry->register(new ServiceToolStub());
+        /** @var \ArrayObject<string, bool> $state */
+        $state = new \ArrayObject(['up' => false]);
+        $registry->withServices(static fn(string $name): bool => $name === 'media-docs' && ($state['up'] ?? false));
+
+        self::assertSame(['a'], $registry->names($this->policy(null)));
+        self::assertFalse($registry->allows($this->policy(null), 'docs'));
+        $state['up'] = true;
+        self::assertSame(['a', 'docs'], $registry->names($this->policy(null)));
+    }
+
     public function testDuplicateNameIsRejected(): void {
         $registry = new ToolRegistry();
         $registry->register(new FakeTool('a'));
@@ -42,5 +56,32 @@ final class ToolRegistryTest extends TestCase {
 
         self::assertSame($tool, $registry->get('a'));
         self::assertNull($registry->get('b'));
+    }
+}
+
+/** A tool of the media-docs module. */
+final class ServiceToolStub implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\NeedsService {
+    public function service(): string {
+        return 'media-docs';
+    }
+
+    public function definition(): \Mercurius\Llm\ToolDefinition {
+        return new \Mercurius\Llm\ToolDefinition('docs', 'docs', ['type' => 'object', 'properties' => []]);
+    }
+
+    public function danger(array $args): \OpenCCK\Domain\Agent\DangerClass {
+        return \OpenCCK\Domain\Agent\DangerClass::Read;
+    }
+
+    public function untrusted(): bool {
+        return false;
+    }
+
+    public function timeout(): int {
+        return 30;
+    }
+
+    public function execute(array $args, \OpenCCK\App\Agent\Tool\ToolContext $context): \OpenCCK\App\Agent\Tool\ToolResult {
+        return \OpenCCK\App\Agent\Tool\ToolResult::ok('docs');
     }
 }

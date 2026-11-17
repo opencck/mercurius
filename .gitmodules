@@ -55,3 +55,6 @@
 [submodule "packages/i18n"]
 	path = packages/i18n
 	url = https://github.com/opencck/mercurius-i18n.git
+[submodule "services/media-video"]
+	path = services/media-video
+	url = https://github.com/opencck/mercurius-media-video.git

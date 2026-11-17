@@ -13,6 +13,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Infrastructure\Media\MediaAnswer;
 use OpenCCK\Infrastructure\Media\MediaCall;
 use OpenCCK\Infrastructure\Media\MediaModels;
+use OpenCCK\Infrastructure\Media\VideoService;
 
 use function Mercurius\I18n\t;
 
@@ -28,12 +29,12 @@ use function Mercurius\I18n\t;
  */
 final class MediaTool extends SandboxTool implements ReadsOutside {
     public const NAME = 'media';
-    private const FRAMES = '.media/frames';
 
     public function __construct(
         Sandbox $sandbox,
         private readonly MediaModels $models,
         private readonly MediaPrefs $prefs,
+        private readonly ?VideoService $video = null,
     ) {
         parent::__construct($sandbox);
     }
@@ -102,42 +103,39 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
             'speech' => $refs === [] ? self::notSet('speech') : self::answer($models->first($refs, static fn(string $ref): MediaAnswer => $models->transcribe($ref, $bytes, $name, $call))),
             default => $refs !== []
                 ? self::answer($models->first($refs, static fn(string $ref): MediaAnswer => $models->video($ref, $bytes, self::mime($name), $question, $call)))
-                : $this->byFrames($context, $limits, $path, $question, $asked, $call),
+                : $this->byFrames($context, $bytes, $question, $asked, $call),
         };
     }
 
     /** No video model: its frames go to a vision model, its sound to a speech model, both answers together. */
-    private function byFrames(ToolContext $context, SandboxLimits $limits, string $path, string $question, ?string $asked, MediaCall $call): ToolResult {
+    private function byFrames(ToolContext $context, string $bytes, string $question, ?string $asked, MediaCall $call): ToolResult {
         $settings = $this->prefs->settings;
         $vision = MediaPrefs::candidates($settings, 'vision', $this->prefs->of($context->principal->id, 'image')->model, $asked);
         $speech = MediaPrefs::candidates($settings, 'speech', $this->prefs->of($context->principal->id, 'voice')->model);
         if ($vision === [] && $speech === []) {
             return self::notSet('video');
         }
-        $quoted = "'" . str_replace("'", "'\\''", $path) . "'";
-        $outcome = $this->sandbox->exec($context->principal->id, $limits, 'media-' . bin2hex(random_bytes(4)), sprintf('rm -rf %1$s && sh /opt/mercurius/video_frames.sh %2$s %1$s 8', self::FRAMES, $quoted), '.', 120, $context->cancellation);
-        if ($outcome->exitCode !== 0) {
-            return ToolResult::error(sprintf(t('tool.media.no_frames'), mb_substr(trim($outcome->stderr), 0, 200)));
+        // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — frames and sound come from the media-video module, not the sandbox
+        if ($this->video === null || !$this->video->up()) {
+            return ToolResult::error(t('tool.media.no_video_module'));
         }
-        $names = array_values(array_filter(array_map('trim', explode("\n", $outcome->stdout))));
-        $frames = [];
+        try {
+            $video = $this->video->frames($bytes, 8, $context->cancellation);
+        } catch (\RuntimeException $e) {
+            return ToolResult::error(sprintf(t('tool.media.no_frames'), $e->getMessage()));
+        }
+        $frames = array_map(static fn(string $frame): array => ['bytes' => $frame, 'mime' => 'image/jpeg'], $video['frames']);
         $parts = [];
-        foreach ($names as $file) {
-            if (str_starts_with($file, 'frame-')) {
-                $frames[] = ['bytes' => $this->sandbox->fetch($context->principal->id, $limits, self::FRAMES . '/' . $file, 5_000_000, $context->cancellation), 'mime' => 'image/jpeg'];
-            }
-        }
         $models = $this->models;
         if ($frames !== [] && $vision !== []) {
             $seen = $models->first($vision, static fn(string $ref): MediaAnswer => $models->look($ref, $frames, $question . ' ' . t('tool.media.frames_note'), $call));
             $parts[] = sprintf(t('tool.media.frames'), $seen->model, $seen->text ?? ($seen->error ?? ''));
         }
-        if (in_array('audio.m4a', $names, true) && $speech !== []) {
-            $sound = $this->sandbox->fetch($context->principal->id, $limits, self::FRAMES . '/audio.m4a', AttachmentIntake::SANDBOX_MAX, $context->cancellation);
+        $sound = $video['audio'];
+        if ($sound !== null && $speech !== []) {
             $heard = $models->first($speech, static fn(string $ref): MediaAnswer => $models->transcribe($ref, $sound, 'audio.m4a', $call));
             $parts[] = sprintf(t('tool.media.speech'), $heard->model, $heard->text ?? ($heard->error ?? ''));
         }
-        $this->sandbox->exec($context->principal->id, $limits, 'media-' . bin2hex(random_bytes(4)), 'rm -rf ' . self::FRAMES, '.', 30, $context->cancellation);
         return $parts === [] ? ToolResult::error(t('tool.media.nothing')) : ToolResult::ok(implode("\n\n", $parts));
     }
 

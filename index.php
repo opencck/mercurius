@@ -335,6 +335,17 @@ $transcript = new PostgresTranscriptRepository($db);
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
+// spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — module services from .env; a tool of a module only while its service is up,
+// checked at start and once a minute
+$serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger);
+$serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
+$tools->withServices($serviceModules->up(...));
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::defer(static function () use ($serviceModules): void {
+    $serviceModules->check();
+}));
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($serviceModules): void {
+    $serviceModules->check();
+}));
 // spec: BRIEF.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
 $guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient));
@@ -406,7 +417,7 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $logger,
 );
 if ($sandbox !== null) {
-    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs));
+    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules)));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go
     $inboxCleaner = new \OpenCCK\App\Agent\Media\InboxCleaner($principals, $policies, $sandbox, $mediaSettings, $logger);
     \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(600, static function () use ($inboxCleaner): void {

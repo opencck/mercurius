@@ -14,6 +14,18 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 final class ToolRegistry {
     /** @var array<string, Tool> */
     private array $tools = [];
+    /** @var (\Closure(string): bool)|null whether a module service is up */
+    private ?\Closure $services = null;
+
+    /**
+     * Tools of module services are offered only while their service is up.
+     *
+     * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
+     * @param \Closure(string): bool $up
+     */
+    public function withServices(\Closure $up): void {
+        $this->services = $up;
+    }
 
     public function register(Tool $tool): void {
         $name = $tool->definition()->name;
@@ -47,6 +59,9 @@ final class ToolRegistry {
      */
     public function allows(ParticipantPolicy $policy, string $name): bool {
         $tool = $this->tools[$name] ?? null;
+        if ($tool instanceof NeedsService && ($this->services === null || !($this->services)($tool->service()))) {
+            return false;
+        }
         if ($tool instanceof RequestsAccess) {
             return $policy->tools !== null;
         }

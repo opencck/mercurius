@@ -8,7 +8,6 @@ use Amp\Http\Client\HttpClient;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Media\MediaPrefs;
-use OpenCCK\App\Agent\Sandbox\CommandOutcome;
 use OpenCCK\App\Agent\Tool\MediaTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
@@ -20,6 +19,8 @@ use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use OpenCCK\Infrastructure\Media\MediaModels;
+use OpenCCK\Infrastructure\Media\VideoService;
+use OpenCCK\Infrastructure\Services\ServiceModules;
 use OpenCCK\Test\Support\FakeHttpClient;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryLlmCallRepository;
@@ -38,12 +39,18 @@ final class MediaToolTest extends AsyncTestCase {
      * @param array<string, string> $env
      * @param array<string, array{int, array<non-empty-string, string>, string}> $responses
      */
-    private function tool(array $env, array $responses = []): MediaTool {
+    private function tool(array $env, array $responses = [], bool $video = false): MediaTool {
         $this->sandbox = new FakeSandbox();
         $this->http = new FakeHttpClient($responses);
         $settings = MediaSettings::fromEnv($env);
-        $models = new MediaModels(new HttpClient($this->http, []), 'or-key', null, $settings, static fn(string $n): ?string => null, new InMemoryLlmCallRepository());
-        return new MediaTool($this->sandbox, $models, new MediaPrefs(new InMemoryMediaPrefRepository(), $settings));
+        $client = new HttpClient($this->http, []);
+        $models = new MediaModels($client, 'or-key', null, $settings, static fn(string $n): ?string => null, new InMemoryLlmCallRepository());
+        $modules = new ServiceModules($client);
+        if ($video) {
+            $modules->add(VideoService::MODULE, 'http://media-video:8091', 'token-0123456789abcdef');
+            $modules->check();
+        }
+        return new MediaTool($this->sandbox, $models, new MediaPrefs(new InMemoryMediaPrefRepository(), $settings), new VideoService($client, $modules));
     }
 
     private static function context(): ToolContext {
@@ -84,25 +91,43 @@ final class MediaToolTest extends AsyncTestCase {
         self::assertStringContainsString('Длинная лекция о котах.', $tool->execute(['action' => 'transcribe', 'path' => 'inbox/lecture.mp3'], self::context())->content);
     }
 
-    public function testAVideoWithoutAVideoModelGoesByFramesAndSpeech(): void {
+    public function testAVideoWithoutAVideoModelGoesByFramesAndSpeechOfTheVideoModule(): void {
+        $frames = json_encode(['seconds' => 4.0, 'frames' => [base64_encode('F1'), base64_encode('F2')], 'audio' => base64_encode('M4A')], JSON_THROW_ON_ERROR);
         $tool = $this->tool(
             ['MEDIA_VISION_MODELS' => 'openrouter:z-ai/glm-5.3-flash', 'MEDIA_SPEECH_MODELS' => 'openrouter:openai/whisper-1'],
-            ['https://openrouter.ai/api/v1/chat/completions' => self::chat('Собака бежит за мячом.'), 'https://openrouter.ai/api/v1/audio/transcriptions' => [200, [], '{"text":"Апорт!"}']],
+            [
+                'https://openrouter.ai/api/v1/chat/completions' => self::chat('Собака бежит за мячом.'),
+                'https://openrouter.ai/api/v1/audio/transcriptions' => [200, [], '{"text":"Апорт!"}'],
+                'http://media-video:8091/health' => [200, [], '{"status":"ok"}'],
+                'http://media-video:8091/frames?count=8' => [200, [], $frames],
+            ],
+            video: true,
         );
         $this->sandbox->files[1]['inbox/dog.mp4'] = 'MP4';
-        // what video_frames.sh leaves: frames and the sound
-        $this->sandbox->files[1]['.media/frames/frame-01.jpg'] = 'F1';
-        $this->sandbox->files[1]['.media/frames/frame-02.jpg'] = 'F2';
-        $this->sandbox->files[1]['.media/frames/audio.m4a'] = 'M4A';
-        $this->sandbox->outcome = new CommandOutcome(0, "audio.m4a\nframe-01.jpg\nframe-02.jpg\n", '', false, false, 10);
 
         $result = $tool->execute(['action' => 'video', 'path' => 'inbox/dog.mp4', 'question' => 'Что на видео?'], self::context());
 
         self::assertFalse($result->isError, $result->content);
         self::assertStringContainsString('Собака бежит за мячом.', $result->content);
         self::assertStringContainsString('Апорт!', $result->content);
-        self::assertSame(2, substr_count($this->http->bodies[0], '"type":"image_url"'), 'the frames go together to the vision model');
-        self::assertNotEmpty(array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'video_frames.sh')));
+        $toVideo = array_search('POST http://media-video:8091/frames?count=8', $this->http->requested, true);
+        self::assertIsInt($toVideo);
+        self::assertSame('MP4', $this->http->bodies[$toVideo], 'the video itself goes to the module');
+        self::assertSame('Bearer token-0123456789abcdef', $this->http->headers[$toVideo]['authorization'] ?? null);
+        $toVision = array_search('POST https://openrouter.ai/api/v1/chat/completions', $this->http->requested, true);
+        self::assertIsInt($toVision);
+        self::assertSame(2, substr_count($this->http->bodies[$toVision], '"type":"image_url"'), 'the frames go together to the vision model');
+        self::assertSame(['fetch 1 inbox/dog.mp4'], $this->sandbox->calls, 'nothing runs in the sandbox, the video is only read');
+    }
+
+    public function testWithoutTheVideoModuleTheAgentIsToldHowToTurnItOn(): void {
+        $tool = $this->tool(['MEDIA_VISION_MODELS' => 'openrouter:z-ai/glm-5.3-flash']);
+        $this->sandbox->files[1]['inbox/dog.mp4'] = 'MP4';
+
+        $result = $tool->execute(['action' => 'video', 'path' => 'inbox/dog.mp4', 'question' => 'Что на видео?'], self::context());
+
+        self::assertTrue($result->isError);
+        self::assertStringContainsString('media-video', $result->content);
     }
 
     public function testTheTextOfADocumentFromWhereItStopped(): void {

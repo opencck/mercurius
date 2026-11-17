@@ -85,6 +85,32 @@ services:
     networks:
       - internal
 
+  # Optional module media-video (COMPOSE_PROFILES=media-video, MEDIA_VIDEO_TOKEN): ffmpeg behind a small API, the frames
+  # and the sound of a video for the media tool when no video model is set. Its own repository, a submodule.
+  # spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
+  media-video:
+    profiles: ["media-video"]
+    build:
+      context: services/media-video
+    image: mercurius-media-video:${APP_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      MEDIA_VIDEO_TOKEN: ${MEDIA_VIDEO_TOKEN:-}
+    mem_limit: 1g
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
   # The browser of the agent: Chromium under puppeteer-core with a small API. Its own network: it sees the internet
   # and the app's requests, not the database, the sandbox or the executor; every page request is checked against
   # internal addresses (browser/guard.js). Profiles with logins live in storage/browser.
