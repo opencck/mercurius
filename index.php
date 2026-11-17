@@ -293,8 +293,37 @@ $modelRouter = new ModelRouter(
 );
 $logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'providers' => $llmSettings->providers(), 'model' => $llmSettings->model]);
 
-// Channel: Telegram.
-$telegramApi = new TelegramApi($telegram->token(), HttpClients::create());
+// Channel: Telegram — directly, through a proxy or VLESS (TELEGRAM_PROXY); the cloud Bot API or a local server.
+// spec: BRIEF.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+$telegramHttp = HttpClients::create($telegram->route(), $logger);
+$telegramFiles = rtrim($telegram->filesRoot, '/') . '/';
+// a local server keeps files on its disk; they are read only inside its folder, up to the limit
+$telegramLocalFile = static function (string $path, int $maxBytes) use ($telegramFiles): ?string {
+    if (!str_starts_with($path, $telegramFiles) || str_contains($path, '..')) {
+        return null;
+    }
+    try {
+        return \Amp\File\getSize($path) > $maxBytes ? null : \Amp\File\read($path);
+    } catch (\Amp\File\FilesystemException) {
+        return null;
+    }
+};
+$telegramApi = new TelegramApi($telegram->token(), $telegramHttp, $telegram->apiUrl ?? TelegramApi::DEFAULT_BASE_URL, localFile: $telegramLocalFile);
+// Once, when moving to a local server, the bot leaves the cloud Bot API (logOut): updates then go to the local one.
+// Back to the cloud — the marker is removed; Telegram lets a bot back only 10 minutes after logOut.
+$cloudLoggedOut = PATH_ROOT . '/storage/telegram-cloud-logged-out';
+if ($telegram->apiUrl !== null && !is_file($cloudLoggedOut)) {
+    try {
+        (new TelegramApi($telegram->token(), $telegramHttp))->call('logOut');
+        $logger->notice('The bot left the cloud Bot API for the local server');
+    } catch (\Mercurius\Messenger\Telegram\TelegramException $e) {
+        $logger->notice('Cloud logOut', ['result' => mb_substr($e->getMessage(), 0, 200)]);
+    }
+    @file_put_contents($cloudLoggedOut, date('c'));
+} elseif ($telegram->apiUrl === null && is_file($cloudLoggedOut)) {
+    @unlink($cloudLoggedOut);
+}
+$logger->info('Telegram route', ['proxy' => $telegram->route() === null ? 'direct' : (str_starts_with($telegram->route(), 'vless') ? 'vless' : 'proxy'), 'api' => $telegram->apiUrl ?? 'cloud']);
 $channel = new TelegramChannel($telegramApi, logger: $logger);
 
 // Agent: runs, tools, scheduler.
@@ -709,7 +738,7 @@ $chat = new ChatService(
     $runMessages,
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
     // spec: BRIEF.md#входящие-вложения — files of messages go into the sandbox and are described to the agent
-    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV), $ownerZone, logger: $logger),
+    new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV), $ownerZone, logger: $logger, maxFile: $telegram->fileLimit),
     $policies,
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days

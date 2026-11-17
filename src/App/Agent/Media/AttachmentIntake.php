@@ -60,6 +60,8 @@ final class AttachmentIntake {
         private readonly DateTimeZone $zone,
         ?Closure $now = null,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** the largest file the channel gives: 20 MB from the cloud Bot API, more from a local server */
+        private readonly int $maxFile = self::MAX_FILE,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -78,13 +80,13 @@ final class AttachmentIntake {
                 $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), sprintf(t('media.intake.too_many'), self::MAX_FILES));
                 continue;
             }
-            if ($attachment->size !== null && $attachment->size > self::MAX_FILE) {
-                $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), t('media.intake.too_big'));
+            if ($attachment->size !== null && $attachment->size > $this->maxFile) {
+                $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), sprintf(t('media.intake.too_big'), intdiv($this->maxFile, 1_000_000)));
                 continue;
             }
-            $bytes = $this->channel->download($attachment->fileId, min(self::MAX_FILE, self::MAX_TOTAL - $total));
+            $bytes = $this->channel->download($attachment->fileId, min($this->maxFile, $this->maxTotal() - $total));
             if ($bytes === null) {
-                $reason = $total >= self::MAX_TOTAL || ($attachment->size !== null && $total + $attachment->size > self::MAX_TOTAL)
+                $reason = $total >= $this->maxTotal() || ($attachment->size !== null && $total + $attachment->size > $this->maxTotal())
                     ? t('media.intake.too_much') : t('media.intake.failed');
                 $blocks[] = $this->line($attachment, $name, null, null) . "\n" . sprintf(t('media.intake.not_downloaded'), $reason);
                 continue;
@@ -94,6 +96,11 @@ final class AttachmentIntake {
             $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation);
         }
         return new IntakeResult(implode("\n\n", $blocks), true);
+    }
+
+    /** 50 MB of files a message, or one largest file when the channel gives more. */
+    private function maxTotal(): int {
+        return max(self::MAX_TOTAL, $this->maxFile);
     }
 
     /** What the file is: text, office, image, voice, audio, video or other. */

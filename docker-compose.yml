@@ -21,6 +21,8 @@ services:
         condition: service_healthy
     volumes:
       - ./storage/app:/app/storage
+      # files of the local Bot API server (profile telegram-api), read at the path it reports
+      - ./storage/telegram-api:/var/lib/telegram-bot-api:ro
     healthcheck:
       test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/health') === false ? 1 : 0);"]
       interval: 30s
@@ -40,6 +42,30 @@ services:
         aliases:
           # Another instance on the same host takes its own name (WEB_ALIAS), or the proxy would spread requests.
           - ${WEB_ALIAS:-mercurius}
+
+  # Optional: a local Telegram Bot API server (COMPOSE_PROFILES=telegram-api, TELEGRAM_API_URL=http://telegram-api:8081).
+  # By default the bot works with the cloud Bot API. Files up to 2000 MB; TELEGRAM_API_ID and TELEGRAM_API_HASH from
+  # my.telegram.org. An HTTP proxy in TELEGRAM_PROXY carries its webhook requests.
+  # spec: BRIEF.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+  telegram-api:
+    profiles: ["telegram-api"]
+    build:
+      context: docker/telegram-bot-api
+    image: mercurius-telegram-api:7232881
+    restart: unless-stopped
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+    volumes:
+      - ./storage/telegram-api:/var/lib/telegram-bot-api
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - internal
 
   # The built-in mail server (MCP, mercurius-mail-mcp): IMAP and SMTP of the mailbox in the agent's settings. It keeps
   # no credentials: the app sends the mailbox in headers of each request. Without MAIL_MCP_TOKEN it only waits.
