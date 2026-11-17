@@ -39,8 +39,9 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     public const RECENT = 20;
     public const SILENT = '[SILENT]';
 
-    /** @var array<string, list<string>> recent messages by chat */
-    private array $recent = [];
+    /** Lines of the talk older than this do not go into a run. */
+    private const RECENT_SECONDS = 86400;
+    private readonly \OpenCCK\Domain\Repository\GroupTalkRepository $talk;
     /** @var array<string, true> groups left in this process */
     private array $left = [];
 
@@ -57,7 +58,11 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
         /** records strangers of approved groups as visitors and shows them to the owner */
         private readonly ?VisitorService $visitors = null,
-    ) {}
+        /** the observed talk by chat and topic; null — in the memory of the process */
+        ?\OpenCCK\Domain\Repository\GroupTalkRepository $talk = null,
+    ) {
+        $this->talk = $talk ?? new \OpenCCK\Infrastructure\Repository\InMemoryGroupTalkRepository();
+    }
 
     /**
      * What to do with a group message: null — nothing (silent); otherwise who speaks and the message for the agent.
@@ -95,8 +100,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
-        $context = $this->recent[$message->chatId] ?? [];
-        $this->remember($message->chatId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
+        // spec: BRIEF.md#группа — the talk of a topic is its own and survives a restart
+        $thread = MessageMeta::topicKey($message);
+        $context = $this->talk->recent($message->channel, $message->chatId, $thread, self::RECENT, self::RECENT_SECONDS);
+        $this->remember($message->channel, $message->chatId, $thread, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(trim($message->text), 0, 500)));
         if ($group->status !== Group::APPROVED) {
             return null;
         }
@@ -157,7 +164,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $group = $this->groups->find($change->channel, $change->chatId);
         $title = $change->chatTitle ?? $change->chatId;
         if (!$change->isMember()) {
-            unset($this->left[$change->chatId], $this->recent[$change->chatId]);
+            unset($this->left[$change->chatId]);
+            $this->talk->forget($change->channel, $change->chatId);
             if ($group !== null && $group->status === Group::APPROVED) {
                 $this->groups->decide($change->channel, $change->chatId, Group::PENDING, $group->mode);
                 $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.menya_ubrali_iz_gruppy'), $group->title)));
@@ -249,11 +257,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         return trim(preg_replace('~(^|\s)@' . preg_quote($this->botUsername, '~') . '\b[,:]?~iu', '$1', $text) ?? $text);
     }
 
-    private function remember(string $chatId, string $line): void {
-        $this->recent[$chatId][] = SecretMasker::mask($line);
-        if (count($this->recent[$chatId]) > self::RECENT) {
-            $this->recent[$chatId] = array_slice($this->recent[$chatId], -self::RECENT);
-        }
+    private function remember(string $channel, string $chatId, string $thread, string $line): void {
+        $this->talk->add($channel, $chatId, $thread, SecretMasker::mask($line));
     }
 
     private function card(string $chatId, string $title): void {

@@ -135,6 +135,27 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(0, $this->stack->llm->requests, 'a stranger is still not answered');
     }
 
+    public function testTheTalkOfATopicStaysInItsTopicAndSurvivesARestart(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b')]));
+        $talk = new \OpenCCK\Infrastructure\Repository\InMemoryGroupTalkRepository();
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), talk: $talk);
+        $this->stack->useGroups($this->gate);
+        $topic = static fn(string $id): array => ['is_topic_message' => true];
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':m');
+        $this->say('в теме 12 про свет', thread: '12', extra: $topic('12'));
+        $this->say('в теме 13 про воду', thread: '13', extra: $topic('13'));
+
+        // a restart: a new gate over the same store
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), talk: $talk);
+        $this->stack->useGroups($this->gate);
+        $this->say('@mrcuribot что там?', thread: '12', extra: $topic('12'));
+
+        $prompt = array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '';
+        self::assertStringContainsString('в теме 12 про свет', $prompt, 'the talk survived the restart');
+        self::assertStringNotContainsString('в теме 13 про воду', $prompt, 'another topic is another talk');
+    }
+
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {
         $this->stack(new ScriptedLlm([]));
 

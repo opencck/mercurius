@@ -601,6 +601,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     $forumTopics,
     $runMessages,
     $visitors,
+    new \OpenCCK\Infrastructure\Repository\PostgresGroupTalkRepository($db),
 );
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
