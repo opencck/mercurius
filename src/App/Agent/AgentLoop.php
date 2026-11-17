@@ -34,6 +34,7 @@ use OpenCCK\App\Agent\Model\FallbackModels;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Agent\Tool\ToolResult;
+use OpenCCK\App\Agent\Tool\PreparesCall;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\ApprovalStatus;
@@ -255,13 +256,14 @@ final class AgentLoop {
             }
             $state->truncatedRetried = false;
 
-            if (!$this->persist($state, $response->text, $outcome->calls)) {
+            $calls = $this->prepare($state, $outcome->calls);
+            if (!$this->persist($state, $response->text, $calls)) {
                 return StopReason::PersistFailed;
             }
             if (trim($response->text) !== '') {
                 $state->observer->commentary($state->run, $response->text);
             }
-            $reason = $this->execute($state, $outcome->calls);
+            $reason = $this->execute($state, $calls);
             if ($reason !== null || $state->paused) {
                 return $reason;
             }
@@ -438,6 +440,33 @@ final class AgentLoop {
     private function settle(RunState $state, int $reserved, Usage $usage): void {
         $this->runs->settle($state->run->id, $reserved, max(0, $usage->totalTokens()), max(0, $usage->promptTokens()));
         $state->run = $this->runs->find($state->run->id) ?? $state->run;
+    }
+
+    /**
+     * Tools that complete their arguments do it before the call is saved, so the card, the grant and the run all see
+     * the same completed call; a call that cannot be completed gets its reason as an error.
+     *
+     * spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17
+     *
+     * @param list<ValidatedCall> $calls
+     * @return list<ValidatedCall>
+     */
+    private function prepare(RunState $state, array $calls): array {
+        return array_map(function (ValidatedCall $call) use ($state): ValidatedCall {
+            if (!$call->executable() || !$call->tool instanceof PreparesCall || $call->args === null) {
+                return $call;
+            }
+            try {
+                $prepared = $call->tool->prepare($call->args, $state->principal, $state->policy, $state->cancellation);
+            } catch (\Amp\CancelledException $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                $prepared = $e::class;
+            }
+            return is_string($prepared)
+                ? new ValidatedCall($call->call, $call->tool, $call->args, $prepared, $call->danger)
+                : new ValidatedCall($call->call, $call->tool, $prepared, null, $call->tool->danger($prepared));
+        }, $calls);
     }
 
     /** @param list<ValidatedCall> $calls */

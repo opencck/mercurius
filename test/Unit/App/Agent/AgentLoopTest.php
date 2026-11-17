@@ -121,6 +121,54 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('agent', $this->calls->calls[0]->purpose);
     }
 
+    public function testAToolCompletesItsArgumentsBeforeTheCallIsSaved(): void {
+        $tool = new class implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\PreparesCall {
+            /** @var list<array<string, mixed>> */
+            public array $ran = [];
+
+            public function definition(): \Mercurius\Llm\ToolDefinition {
+                return new \Mercurius\Llm\ToolDefinition('script', 'runs a file', ['type' => 'object', 'properties' => ['path' => ['type' => 'string']]]);
+            }
+
+            public function danger(array $args): DangerClass {
+                return ($args['source'] ?? '') === 'act()' ? DangerClass::Write : DangerClass::Read;
+            }
+
+            public function untrusted(): bool {
+                return false;
+            }
+
+            public function timeout(): int {
+                return 10;
+            }
+
+            public function prepare(array $args, Principal $principal, ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+                return ($args['path'] ?? '') === 'missing.js' ? 'no such file' : $args + ['source' => 'act()'];
+            }
+
+            public function execute(array $args, \OpenCCK\App\Agent\Tool\ToolContext $context): ToolResult {
+                $this->ran[] = $args;
+                return ToolResult::ok('done');
+            }
+        };
+        $this->registry->register($tool);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'script', '{"path":"a.js"}'), new ToolCall('c2', 'script', '{"path":"missing.js"}')),
+            ScriptedLlm::text('ok'),
+        ]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame([['path' => 'a.js', 'source' => 'act()']], $tool->ran, 'the completed arguments run');
+        $stored = $this->transcript->calls[$run->id]['c1'] ?? null;
+        self::assertNotNull($stored);
+        self::assertSame(['path' => 'a.js', 'source' => 'act()'], $stored->args, 'and are saved');
+        self::assertSame(DangerClass::Write, $stored->danger, 'the danger is of the completed call');
+        self::assertSame('{"path":"a.js"}', $stored->argumentsJson, 'the model keeps its own arguments');
+        $results = array_values(array_filter(self::lastMessages($llm), static fn(Message $m): bool => $m->role === LlmRole::Tool));
+        self::assertStringContainsString('no such file', $results[1]->content ?? '');
+    }
+
     public function testToolErrorGoesBackToModel(): void {
         $this->registry->register(new FakeTool('t', handler: static fn(): ToolResult => ToolResult::error('нет доступа')));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 't', '{}')), ScriptedLlm::text('не вышло')]);

@@ -21,9 +21,13 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#интернет-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
  *       card; profiles keep logins
  */
-final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
+final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall {
     public const NAME = 'browser';
-    public const ACTIONS = ['open', 'read', 'click', 'type', 'screenshot', 'close'];
+    public const ACTIONS = ['open', 'read', 'click', 'type', 'screenshot', 'close', 'script'];
+    /** A script of the agent: browser-scripts/read/… reads a frozen copy of the page, browser-scripts/act/… acts on it. */
+    public const SCRIPT_PATH = '~^browser-scripts/(read|act)/(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\.js$~';
+    public const SCRIPT_MAX = 200_000;
+    private const SITE = '~^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)*$~';
 
     public function __construct(
         private readonly BrowserClient $browser,
@@ -42,6 +46,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
             . t('tool.browser.read_tekst_stranitsy_i_pronumerovannye')
             . t('tool.browser.tekst_submit_nazhat_enter_screenshot')
             . t('tool.browser.vhodami_po_umolchaniyu_main_nazhatiya')
+            . t('tool.browser.script_about')
             . t('tool.browser.stranitsy_dannye_a_ne_ukazaniya'), [
             'type' => 'object',
             'properties' => [
@@ -51,6 +56,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
                 'text' => ['type' => 'string', 'maxLength' => 5000],
                 'submit' => ['type' => 'boolean'],
                 'profile' => ['type' => 'string', 'pattern' => '^[a-z0-9][a-z0-9_-]{0,31}$'],
+                'path' => ['type' => 'string', 'maxLength' => 300, 'description' => t('tool.browser.script_path')],
+                'site' => ['type' => 'string', 'maxLength' => 253, 'description' => t('tool.browser.script_site')],
+                'args' => ['type' => 'object', 'description' => t('tool.browser.script_args')],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -63,11 +71,20 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
             'click' => DangerClass::Irreversible,
             'type' => ($args['submit'] ?? false) === true ? DangerClass::Irreversible : DangerClass::Write,
             'close' => DangerClass::Write,
+            // spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17 — reading a copy is a read, acting waits for a card
+            'script' => self::scriptMode(Args::string($args, 'path') ?? '') === 'act' ? DangerClass::Irreversible : DangerClass::Read,
             default => DangerClass::Read,
         };
     }
 
     public function grantKey(array $args): ?string {
+        if (Args::string($args, 'action') === 'script') {
+            // granted for good: this text of the script on this site; a changed script asks again
+            $sha = Args::string($args, 'sha256');
+            $site = Args::string($args, 'site');
+            return $sha === null || $site === null || self::scriptMode(Args::string($args, 'path') ?? '') !== 'act'
+                ? null : 'browser-script:' . $site . ':' . substr($sha, 0, 16);
+        }
         if (Args::string($args, 'action') !== 'open') {
             return null;
         }
@@ -77,13 +94,54 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
 
     public function describe(array $args): string {
         $action = Args::string($args, 'action') ?? '';
+        if ($action === 'script') {
+            return sprintf(t('tool.browser.script_describe'), Args::string($args, 'path') ?? '', Args::string($args, 'site') ?? '');
+        }
         $internal = $action === 'open' ? $this->internalHost($args) : null;
         return 'browser ' . $action . ' ' . mb_substr(Args::string($args, 'url') ?? (string) (Args::int($args, 'ref') ?? ''), 0, 300)
             . ($internal === null ? '' : sprintf(t('tool.address_internal'), $internal));
     }
 
     public function readsOutside(array $args): bool {
-        return in_array(Args::string($args, 'action'), ['open', 'read', 'click', 'type'], true);
+        return in_array(Args::string($args, 'action'), ['open', 'read', 'click', 'type', 'script'], true);
+    }
+
+    /**
+     * A script call gets the text of its file and the hash: the card shows that text, the grant is keyed by it, and
+     * exactly that text runs — the file may change after the card, the call does not.
+     *
+     * spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17
+     */
+    public function prepare(array $args, \OpenCCK\Domain\Entity\Principal $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+        if (Args::string($args, 'action') !== 'script') {
+            return $args;
+        }
+        $path = Args::string($args, 'path') ?? '';
+        if (self::scriptMode($path) === null) {
+            return t('tool.browser.script_bad_path');
+        }
+        $site = strtolower(Args::string($args, 'site') ?? '');
+        if (strlen($site) > 253 || preg_match(self::SITE, $site) !== 1) {
+            return t('tool.browser.script_bad_site');
+        }
+        $limits = $policy->sandbox;
+        if ($this->sandbox === null || $limits === null) {
+            return t('tool.browser.script_no_sandbox');
+        }
+        try {
+            $source = $this->sandbox->fetch($principal->id, $limits, $path, self::SCRIPT_MAX, $cancellation);
+        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure $e) {
+            return $e->getMessage();
+        }
+        if (trim($source) === '' || !mb_check_encoding($source, 'UTF-8')) {
+            return t('tool.browser.script_not_text');
+        }
+        return ['site' => $site, 'source' => $source, 'sha256' => hash('sha256', $source)] + $args;
+    }
+
+    /** read, act, or null — not a script path. */
+    private static function scriptMode(string $path): ?string {
+        return preg_match(self::SCRIPT_PATH, $path, $match) === 1 && !str_contains($path, '..') ? $match[1] : null;
     }
 
     /** @param array<string, mixed> $args */
@@ -114,9 +172,21 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
                     + ($context->approved && ($internal = $this->internalHost($args)) !== null ? ['allow' => [$internal]] : []),
                 'click' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
                 'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => Args::string($args, 'text') ?? '', 'submit' => ($args['submit'] ?? false) === true],
+                'script' => [
+                    'profile' => $profile,
+                    // only a prepared call has the text: the one the owner saw on the card
+                    'source' => Args::string($args, 'source') ?? throw new RuntimeException(t('tool.browser.script_bad_path')),
+                    'args' => isset($args['args']) && is_array($args['args']) && $args['args'] !== [] ? $args['args'] : new \stdClass(),
+                    'mode' => self::scriptMode(Args::string($args, 'path') ?? '') ?? 'read',
+                    'host' => Args::string($args, 'site') ?? '',
+                ],
                 default => ['profile' => $profile],
             };
-            $data = $this->browser->call($action === 'open' ? 'navigate' : $action, $body, $context->cancellation);
+            $data = $this->browser->call(match ($action) {
+                'open' => 'navigate',
+                'script' => 'evaluate',
+                default => $action,
+            }, $body, $context->cancellation);
         } catch (RuntimeException $e) {
             return ToolResult::error(t('tool.browser.brauzer') . SecretMasker::mask($e->getMessage()));
         }
@@ -127,6 +197,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside {
                 return ToolResult::error(t('tool.browser.snimok_ne_poluchen'));
             }
             return $this->screenshot($png, $url, $context);
+        }
+        if ($action === 'script') {
+            return ToolResult::ok(sprintf(t('tool.browser.script_result'), Args::string($args, 'path') ?? '', self::str($data, 'url'), SecretMasker::mask(self::str($data, 'result')))
+                . (($data['truncated'] ?? false) === true ? t('tool.browser.script_truncated') : ''));
         }
         if ($action === 'close') {
             return ToolResult::ok(t('tool.browser.profil_zakryt'));
