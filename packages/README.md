@@ -27,7 +27,7 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `cc4c9a9` | 2026-11-17 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `479b35c` | 2026-11-18 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
 | [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `429aa10` | 2026-11-18 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
-| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `ecc9627` | 2026-11-18 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
+| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `7e43a9f` | 2026-11-18 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `1406472` | 2026-11-18 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 ## Как работать с пакетом
@@ -41,6 +41,11 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-18 — telegram-bot-api: сторож
+
+- `mercurius-telegram-bot-api` `7e43a9f`: сторож в контейнере — три пропущенных ответа подряд, и сервер перезапускается
+  (2026-11-18 сервер завис и перестал доставлять вебхуки до ручного перезапуска).
 
 ### 2026-11-18 — i18n: файлы в peer_delegate
 
