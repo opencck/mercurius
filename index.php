@@ -261,7 +261,16 @@ $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
 $memoryStore = new PostgresMemoryStore($db);
 $textAnalyzer = new TextAnalyzer();
-$recall = new Recall($memoryStore, $textAnalyzer);
+$recall = new Recall($memoryStore, $textAnalyzer, null, $memorySettings->hrrWeight);
+try {
+    // Facts written before vectors existed get one; a handful, at start.
+    $encoded = $memoryStore->encodeMissing(1000);
+    if ($encoded > 0) {
+        $logger->info('Memory vectors encoded', ['facts' => $encoded]);
+    }
+} catch (Throwable $e) {
+    $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
+}
 $audience = new ConversationAudience($conversations);
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);

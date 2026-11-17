@@ -6,6 +6,7 @@ namespace OpenCCK\Memory\Infrastructure;
 
 use Amp\Postgres\PostgresLink;
 use OpenCCK\Memory\Domain\Fact;
+use OpenCCK\Memory\Domain\Hrr;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
 use Throwable;
@@ -26,8 +27,8 @@ final class PostgresMemoryStore implements MemoryStore {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                'INSERT INTO facts (scope, category, text, keys, trust, provenance, run_id) VALUES (?, ?, ?, ?::text[], ?, ?, ?) RETURNING ' . self::FACT,
-                [$scope, $category, $text, $keys, $trust, $provenance, $runId],
+                'INSERT INTO facts (scope, category, text, keys, trust, provenance, run_id, hrr) VALUES (?, ?, ?, ?::text[], ?, ?, ?, ?::vector) RETURNING ' . self::FACT,
+                [$scope, $category, $text, $keys, $trust, $provenance, $runId, self::vector($keys)],
             )->fetchRow() ?? throw new UnexpectedValueException('Fact was not created');
             $fact = self::fact_($row);
             $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, 1, ?, ?)', [$fact->id, $text, 'добавлен']);
@@ -44,6 +45,71 @@ final class PostgresMemoryStore implements MemoryStore {
     public function fact(int $id): ?Fact {
         $row = $this->db->execute('SELECT ' . self::FACT . ' FROM facts WHERE id = ?', [$id])->fetchRow();
         return $row === null ? null : self::fact_($row);
+    }
+
+    public function similarities(array $factIds, array $phasor): array {
+        if ($factIds === []) {
+            return [];
+        }
+        $found = [];
+        foreach ($this->db->execute(
+            'SELECT id, (-(hrr <#> ?::vector) / ' . Hrr::DIM . ')::float8 AS sim FROM facts WHERE id = ANY(?::bigint[]) AND hrr IS NOT NULL',
+            [self::literal($phasor), $factIds],
+        ) as $row) {
+            $found[self::int($row, 'id')] = isset($row['sim']) && is_float($row['sim']) ? $row['sim'] : 0.0;
+        }
+        return $found;
+    }
+
+    public function related(array $scopes, array $probes, float $threshold, int $limit): array {
+        if ($scopes === [] || $probes === []) {
+            return [];
+        }
+        $terms = [];
+        $params = [];
+        foreach ($probes as $probe) {
+            $terms[] = '-(hrr <#> ?::vector)';
+            $params[] = self::literal($probe);
+        }
+        $sim = 'GREATEST(' . implode(', ', $terms) . ') / ' . Hrr::DIM;
+        $facts = [];
+        foreach ($this->db->execute(
+            'SELECT ' . self::FACT . ", sim FROM (SELECT *, $sim AS sim FROM facts WHERE status = 'active' AND scope = ANY(?::text[]) AND hrr IS NOT NULL) f
+             WHERE sim >= ? ORDER BY sim DESC, id DESC LIMIT ?",
+            [...$params, $scopes, $threshold, $limit],
+        ) as $row) {
+            $facts[] = self::fact_($row);
+        }
+        return $facts;
+    }
+
+    public function encodeMissing(int $limit): int {
+        $done = 0;
+        foreach ($this->db->execute('SELECT id, array_to_json(keys)::text AS keys FROM facts WHERE hrr IS NULL ORDER BY id LIMIT ?', [$limit]) as $row) {
+            /** @var mixed $keys */
+            $keys = json_decode(self::str($row, 'keys'), true, 4, JSON_THROW_ON_ERROR);
+            $list = [];
+            if (is_array($keys)) {
+                foreach (array_keys($keys) as $i) {
+                    if (isset($keys[$i]) && is_string($keys[$i])) {
+                        $list[] = $keys[$i];
+                    }
+                }
+            }
+            $this->db->execute('UPDATE facts SET hrr = ?::vector WHERE id = ? AND hrr IS NULL', [self::vector($list), self::int($row, 'id')]);
+            $done++;
+        }
+        return $done;
+    }
+
+    /** @param list<string> $keys */
+    private static function vector(array $keys): string {
+        return self::literal(Hrr::phasor(Hrr::fact($keys)));
+    }
+
+    /** @param list<float> $values */
+    private static function literal(array $values): string {
+        return '[' . implode(',', array_map(static fn(float $v): string => sprintf('%.7F', $v), $values)) . ']';
     }
 
     public function candidates(array $scopes, array $keys, int $limit): array {
@@ -95,8 +161,8 @@ final class PostgresMemoryStore implements MemoryStore {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
-                "UPDATE facts SET text = ?, keys = ?::text[], version = version + 1, updated_at = now() WHERE id = ? AND status = 'active' RETURNING " . self::FACT,
-                [$text, $keys, $id],
+                "UPDATE facts SET text = ?, keys = ?::text[], hrr = ?::vector, version = version + 1, updated_at = now() WHERE id = ? AND status = 'active' RETURNING " . self::FACT,
+                [$text, $keys, self::vector($keys), $id],
             )->fetchRow();
             if ($row === null) {
                 $transaction->rollback();

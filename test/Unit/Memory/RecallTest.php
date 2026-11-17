@@ -42,6 +42,28 @@ final class RecallTest extends TestCase {
         return array_map(static fn(Fact $f): string => $f->text, $facts);
     }
 
+    public function testRelatedFindsWhatIsTiedToAName(): void {
+        $this->add('owner', 'Сервер pve-01 стоит в Хельсинки');
+        $this->add('owner', 'На pve-01 диск NVMe на 2 ТБ');
+        $this->add('owner', 'Владелец пьёт чай с бергамотом');
+        $this->add('chat:telegram:-1', 'В группе тоже есть pve-01');
+
+        $texts = self::texts($this->recall->related('pve-01', ['owner']));
+
+        self::assertContains('На pve-01 диск NVMe на 2 ТБ', $texts);
+        self::assertContains('Сервер pve-01 стоит в Хельсинки', $texts);
+        self::assertNotContains('Владелец пьёт чай с бергамотом', $texts);
+        self::assertNotContains('В группе тоже есть pve-01', $texts);
+        self::assertSame(['Владелец пьёт чай с бергамотом'], self::texts($this->recall->related('бергамот', ['owner'])));
+        self::assertSame([], $this->recall->related('', ['owner']));
+    }
+
+    public function testHyphenatedWordsAreAlsoTheirParts(): void {
+        $this->add('owner', 'VPN-сервер на 3x-ui стоит в Амстердаме');
+
+        self::assertSame(['VPN-сервер на 3x-ui стоит в Амстердаме'], self::texts($this->recall->find('где стоит VPN', ['owner'])));
+    }
+
     public function testFindsTheFactTheQuestionIsAbout(): void {
         self::assertSame(['Владелец пьёт кофе без сахара'], self::texts($this->recall->find('Какой кофе я пью?', ['owner'])));
     }

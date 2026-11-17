@@ -15,6 +15,13 @@ use PHPUnit\Framework\TestCase;
 final class ServiceSettingsTest extends TestCase {
     private const TOKEN = '123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
+    public function testMemoryHrrWeight(): void {
+        self::assertSame(0.3, \OpenCCK\Infrastructure\Config\MemorySettings::fromEnv([])->hrrWeight);
+        self::assertSame(0.0, \OpenCCK\Infrastructure\Config\MemorySettings::fromEnv(['MEMORY_HRR_WEIGHT' => '0'])->hrrWeight);
+        $this->expectException(\OpenCCK\Infrastructure\Config\ConfigException::class);
+        \OpenCCK\Infrastructure\Config\MemorySettings::fromEnv(['MEMORY_HRR_WEIGHT' => '1.5']);
+    }
+
     public function testTelegramPollingWithoutAppUrl(): void {
         $settings = TelegramSettings::fromEnv(['TELEGRAM_BOT_TOKEN' => self::TOKEN, 'TELEGRAM_ADMIN_ID' => '42'], null);
 

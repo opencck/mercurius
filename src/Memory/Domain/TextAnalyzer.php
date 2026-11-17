@@ -57,6 +57,15 @@ final class TextAnalyzer {
             if ($key !== '' && !isset($this->stop[$key])) {
                 $keys[$key] = true;
             }
+            // A hyphenated word ("vpn-сервер", "telegram-бот") is also its parts: the question says "VPN" or "бот".
+            if (str_contains($word, '-') && !self::isIdentifier($word)) {
+                foreach (explode('-', $word) as $part) {
+                    $stem = mb_strlen($part) < 2 || isset($this->stop[$part]) ? '' : $this->stem($part);
+                    if ($stem !== '' && !isset($this->stop[$stem])) {
+                        $keys[$stem] = true;
+                    }
+                }
+            }
         }
         // PHP turns a numeric string key ("10") into an int: keys stay strings.
         return array_map(strval(...), array_keys($keys));

@@ -6,6 +6,7 @@ namespace OpenCCK\Memory\App;
 
 use Closure;
 use OpenCCK\Memory\Domain\Fact;
+use OpenCCK\Memory\Domain\Hrr;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\TextAnalyzer;
 
@@ -18,6 +19,8 @@ use OpenCCK\Memory\Domain\TextAnalyzer;
  * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L964-L1060 (relevant) — IDF weights, words no fact
  *      holds count against coverage at the smallest weight, a matched identifier is decisive, one shared word that
  *      other facts hold too does not pick a fact out; without n-grams, name forms and the FTS index: keys are stems
+ * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L615-L636 (_rerank) — HRR as a share of the score of
+ *      candidates the words already picked, shifted to [0, 1]; it never lets a fact past the gate
  */
 final class Recall {
     public const BUDGET = 1500;
@@ -25,6 +28,9 @@ final class Recall {
     public const WINDOW = 20;
     private const CANDIDATES = 100;
     private const HALF_LIFE_DAYS = 180.0;
+    /** share of HRR in the score of a fact that passed the gate */
+    public const HRR_WEIGHT = 0.3;
+    public const RELATED_LIMIT = 10;
 
     /** @var Closure(): int */
     private readonly Closure $now;
@@ -34,6 +40,7 @@ final class Recall {
         private readonly MemoryStore $store,
         private readonly TextAnalyzer $analyzer,
         ?Closure $now = null,
+        private readonly float $hrrWeight = self::HRR_WEIGHT,
     ) {
         $this->now = $now ?? static fn(): int => time();
     }
@@ -65,8 +72,8 @@ final class Recall {
 
         // array keys of numeric words come back as ints
         $known = array_map(strval(...), array_keys($weights));
-        /** @var list<array{Fact, float}> $scored */
-        $scored = [];
+        /** @var list<array{Fact, float, float}> $passed fact, its coverage score, its age factor */
+        $passed = [];
         foreach ($this->store->candidates($scopes, $known, self::CANDIDATES) as $fact) {
             if (isset($given[$fact->id])) {
                 continue;
@@ -87,7 +94,17 @@ final class Recall {
                 continue;
             }
             $age = (float) max(0, $now - $fact->updatedAt) / 86400.0;
-            $scored[] = [$fact, ($identifier ? max($coverage, 1.0) : $coverage) * $fact->trust * 0.5 ** ($age / self::HALF_LIFE_DAYS)];
+            $passed[] = [$fact, $identifier ? max($coverage, 1.0) : $coverage, $fact->trust * 0.5 ** ($age / self::HALF_LIFE_DAYS)];
+        }
+        $hrr = [];
+        if ($this->hrrWeight > 0.0 && count($passed) > 1) {
+            $hrr = $this->store->similarities(array_map(static fn(array $p): int => $p[0]->id, $passed), Hrr::phasor(Hrr::query($keys)));
+        }
+        /** @var list<array{Fact, float}> $scored */
+        $scored = [];
+        foreach ($passed as [$fact, $coverage, $factor]) {
+            $relevance = isset($hrr[$fact->id]) ? (1.0 - $this->hrrWeight) * $coverage + $this->hrrWeight * ($hrr[$fact->id] + 1.0) / 2.0 : $coverage;
+            $scored[] = [$fact, $relevance * $factor];
         }
         usort($scored, self::better(...));
 
@@ -105,6 +122,29 @@ final class Recall {
             $this->store->markRecalled($conversationId, array_map(static fn(Fact $f): int => $f->id, $found));
         }
         return $found;
+    }
+
+    /**
+     * Facts tied to a word or a name by HRR: as an entity or as a word of the content.
+     *
+     * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L819-L839 (related) — the best of the entity and
+     *      content probes against the noise threshold; one database query instead of a pass over every vector
+     *
+     * @param list<string> $scopes
+     * @return list<Fact>
+     */
+    public function related(string $word, array $scopes, int $limit = self::RELATED_LIMIT): array {
+        $keys = $this->analyzer->keys($word);
+        if ($keys === [] || $scopes === []) {
+            return [];
+        }
+        $probes = [];
+        foreach ($keys as $key) {
+            foreach (Hrr::probes($key) as $probe) {
+                $probes[] = Hrr::phasor($probe);
+            }
+        }
+        return $this->store->related($scopes, $probes, Hrr::RELATED_THRESHOLD, $limit);
     }
 
     /**

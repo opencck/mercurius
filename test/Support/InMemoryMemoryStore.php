@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Support;
 
 use OpenCCK\Memory\Domain\Fact;
+use OpenCCK\Memory\Domain\Hrr;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
 
@@ -33,6 +34,43 @@ final class InMemoryMemoryStore implements MemoryStore {
 
     public function fact(int $id): ?Fact {
         return $this->facts[$id] ?? null;
+    }
+
+    public function similarities(array $factIds, array $phasor): array {
+        $found = [];
+        foreach ($factIds as $id) {
+            if (isset($this->facts[$id])) {
+                $found[$id] = Hrr::dot(Hrr::phasor(Hrr::fact($this->facts[$id]->keys)), $phasor);
+            }
+        }
+        return $found;
+    }
+
+    public function related(array $scopes, array $probes, float $threshold, int $limit): array {
+        $scored = [];
+        foreach ($this->facts as $fact) {
+            if (!$fact->active || !in_array($fact->scope, $scopes, true) || $probes === []) {
+                continue;
+            }
+            $phasor = Hrr::phasor(Hrr::fact($fact->keys));
+            $sim = max(array_map(static fn(array $probe): float => Hrr::dot($phasor, $probe), $probes));
+            if ($sim >= $threshold) {
+                $scored[] = [$sim, $fact];
+            }
+        }
+        usort(
+            $scored,
+            /**
+             * @param array{float, Fact} $a
+             * @param array{float, Fact} $b
+             */
+            static fn(array $a, array $b): int => [$b[0], $b[1]->id] <=> [$a[0], $a[1]->id],
+        );
+        return array_slice(array_map(static fn(array $pair): Fact => $pair[1], $scored), 0, $limit);
+    }
+
+    public function encodeMissing(int $limit): int {
+        return 0;
     }
 
     public function candidates(array $scopes, array $keys, int $limit): array {

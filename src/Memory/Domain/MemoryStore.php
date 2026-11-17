@@ -17,6 +17,29 @@ interface MemoryStore {
     public function fact(int $id): ?Fact;
 
     /**
+     * HRR similarity of each listed fact to a query phasor, in [-1, 1]; facts without a vector are left out.
+     *
+     * spec: BRIEF.md#hrr-с-самого-начала — a fact's vector follows its keys on every write
+     *
+     * @param list<int> $factIds
+     * @param list<float> $phasor
+     * @return array<int, float>
+     */
+    public function similarities(array $factIds, array $phasor): array;
+
+    /**
+     * Active facts of the scopes whose similarity to any of the probes reaches the threshold, best first.
+     *
+     * @param list<string> $scopes
+     * @param list<list<float>> $probes phasors
+     * @return list<Fact>
+     */
+    public function related(array $scopes, array $probes, float $threshold, int $limit): array;
+
+    /** Gives a vector to facts written before vectors existed; returns how many got one. */
+    public function encodeMissing(int $limit): int;
+
+    /**
      * Active facts of the scopes sharing at least one key, newest first.
      *
      * @param list<string> $scopes

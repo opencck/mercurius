@@ -6,6 +6,7 @@ namespace OpenCCK\Test\Support;
 
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\Memory\Domain\Fact;
+use OpenCCK\Memory\Domain\Hrr;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
 
@@ -33,6 +34,23 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame(['сервер', 'pve-01', 'хельсинк'], $found[0]->keys);
         self::assertTrue($found[0]->active);
         self::assertSame(1, $found[0]->version);
+    }
+
+    public function testVectorsFollowTheKeys(): void {
+        $server = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Сервер pve-01 в Хельсинки', ['сервер', 'pve-01', 'хельсинк'], 0.8, Fact::OWNER_SAID, null);
+        $coffee = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Кофе без сахара', ['коф', 'сахар'], 0.8, Fact::OWNER_SAID, null);
+        $query = Hrr::phasor(Hrr::query(['сервер', 'хельсинк']));
+
+        $sims = $this->store->similarities([$server->id, $coffee->id], $query);
+        self::assertEqualsWithDelta(Hrr::similarity(Hrr::fact($server->keys), Hrr::query(['сервер', 'хельсинк'])), $sims[$server->id] ?? 0.0, 1e-4);
+        self::assertLessThan(0.2, $sims[$coffee->id] ?? 1.0);
+
+        $probes = array_map(Hrr::phasor(...), Hrr::probes('pve-01'));
+        self::assertSame([$server->id], array_map(static fn(Fact $f): int => $f->id, $this->store->related([$this->scope], $probes, Hrr::RELATED_THRESHOLD, 10)));
+        self::assertSame([], $this->store->related(['chat:' . $this->scope], $probes, Hrr::RELATED_THRESHOLD, 10));
+
+        $this->store->changeFact($server->id, 'Сервер pve-02 в Хельсинки', ['сервер', 'pve-02', 'хельсинк'], 'переехал');
+        self::assertSame([], $this->store->related([$this->scope], $probes, Hrr::RELATED_THRESHOLD, 10), 'the vector follows the new keys');
     }
 
     public function testFrequenciesCountWithinTheScope(): void {

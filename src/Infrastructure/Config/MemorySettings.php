@@ -7,14 +7,19 @@ namespace OpenCCK\Infrastructure\Config;
 use SensitiveParameter;
 
 /**
- * Memory: the key of the fingerprints a forgotten text leaves behind.
+ * Memory: the key of the fingerprints a forgotten text leaves behind, and the share of HRR in recall.
  *
  * spec: BRIEF.md#память-слои — forgetting removes the text; a keyed fingerprint keeps it from being stored again
+ * spec: BRIEF.md#hrr-с-самого-начала — the weight of HRR is a setting, not a constant
  */
 final class MemorySettings {
     private readonly ?string $secret;
 
-    private function __construct(#[SensitiveParameter] ?string $secret) {
+    private function __construct(
+        #[SensitiveParameter] ?string $secret,
+        /** share of HRR in the score of a recalled fact, 0..1 */
+        public readonly float $hrrWeight = 0.3,
+    ) {
         $this->secret = $secret;
     }
 
@@ -23,7 +28,11 @@ final class MemorySettings {
      * @throws ConfigException
      */
     public static function fromEnv(array $env): self {
-        return new self(Env::raw($env, 'MEMORY_SECRET'));
+        $weight = Env::raw($env, 'MEMORY_HRR_WEIGHT');
+        if ($weight !== null && (!is_numeric($weight) || (float) $weight < 0.0 || (float) $weight > 1.0)) {
+            throw new ConfigException('MEMORY_HRR_WEIGHT must be a number from 0 to 1');
+        }
+        return new self(Env::raw($env, 'MEMORY_SECRET'), $weight === null ? 0.3 : (float) $weight);
     }
 
     /**
