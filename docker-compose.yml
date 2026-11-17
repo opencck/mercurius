@@ -38,7 +38,8 @@ services:
       browser:
       web:
         aliases:
-          - mercurius
+          # Another instance on the same host takes its own name (WEB_ALIAS), or the proxy would spread requests.
+          - ${WEB_ALIAS:-mercurius}
 
   # The browser of the agent: Chromium under puppeteer-core with a small API. Its own network: it sees the internet
   # and the app's requests, not the database, the sandbox or the executor; every page request is checked against
@@ -193,6 +194,7 @@ networks:
   sandbox:
     ipam:
       config:
-        - subnet: 172.31.250.0/24
+        # Another instance on the same host needs its own subnet (and its own firewall rule).
+        - subnet: ${SANDBOX_SUBNET:-172.31.250.0/24}
   web:
     external: true
