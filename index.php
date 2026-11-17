@@ -602,7 +602,7 @@ $presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals,
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
-$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses);
+$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: $groupGate);
 $deduplicator = new Deduplicator();
 
 $routes = [];

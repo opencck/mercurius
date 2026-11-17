@@ -8,7 +8,9 @@ use Mercurius\Messenger\Button;
 use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
+use Mercurius\Messenger\IncomingMembership;
 use Mercurius\Messenger\IncomingMessage;
+use Mercurius\Messenger\MembershipHandler;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\SecretMasker;
 use OpenCCK\App\Agent\Tool\UntrustedWrapper;
@@ -31,7 +33,7 @@ use Psr\Log\LoggerInterface;
  *      without running the agent; gateway/response_filters.py@e96221fa:L242-L256 — silence allowed in a free chat.
  *      Here a group must be approved by the owner first, and the observed talk is kept in memory for the next run.
  */
-final class GroupGate implements CallbackHandler {
+final class GroupGate implements CallbackHandler, MembershipHandler {
     public const RECENT = 20;
     public const SILENT = '[SILENT]';
 
@@ -113,6 +115,40 @@ final class GroupGate implements CallbackHandler {
             $message->isEdited,
             $message->raw,
         )];
+    }
+
+    /**
+     * The bot was added to a group or removed from it. Added: the owner gets the card at once, not after the first
+     * message; a refused group is left again. Removed: the group waits for the owner again if the bot comes back.
+     * hermes has no handling of my_chat_member to follow; the card is the same as for the first message.
+     */
+    public function handleMembership(IncomingMembership $change): void {
+        if (!in_array($change->chatType, ['group', 'supergroup'], true)) {
+            return;
+        }
+        $group = $this->groups->find($change->channel, $change->chatId);
+        $title = $change->chatTitle ?? $change->chatId;
+        if (!$change->isMember()) {
+            unset($this->left[$change->chatId], $this->recent[$change->chatId]);
+            if ($group !== null && $group->status === Group::APPROVED) {
+                $this->groups->decide($change->channel, $change->chatId, Group::PENDING, $group->mode);
+                $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf('Меня убрали из группы «%s».', $group->title)));
+            }
+            $this->logger->notice('Bot removed from a group', ['chat' => $change->chatId, 'status' => $change->status]);
+            return;
+        }
+        $joined = !in_array($change->oldStatus, ['creator', 'administrator', 'member', 'restricted'], true);
+        if ($group === null) {
+            if ($this->groups->create($change->channel, $change->chatId, $title)) {
+                $this->card($change->chatId, $title);
+            }
+        } elseif ($group->status === Group::REFUSED) {
+            $this->left[$group->chatId] = true;
+            $this->channel->leave($group->chatId);
+        } elseif ($group->status === Group::PENDING && $joined) {
+            $this->card($change->chatId, $group->title);
+        }
+        $this->logger->notice('Bot added to a group', ['chat' => $change->chatId, 'status' => $change->status, 'by' => $change->userId]);
     }
 
     public function handleCallback(IncomingCallback $callback): void {

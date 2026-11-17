@@ -7,6 +7,7 @@ namespace OpenCCK\Test\Unit\App\Service;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
 use Mercurius\Messenger\IncomingCallback;
+use Mercurius\Messenger\IncomingMembership;
 use Mercurius\Messenger\IncomingMessage;
 use OpenCCK\App\Service\GroupGate;
 use OpenCCK\Domain\Group\Group;
@@ -43,6 +44,44 @@ final class GroupGateTest extends AsyncTestCase {
 
     private function press(string $data): void {
         $this->gate->handleCallback(new IncomingCallback('telegram', 'cb' . ++$this->id, '42', '42', 'Owner', '7', $data, (string) $this->id));
+    }
+
+    private function membership(string $status, string $type = 'supergroup', string $old = 'left'): void {
+        $this->gate->handleMembership(new IncomingMembership('telegram', self::GROUP, 'Дом', $type, '42', 'Owner', $status, $old, (string) ++$this->id));
+    }
+
+    /** @return list<string> */
+    private function cards(): array {
+        return array_values(array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'Меня добавили в группу «Дом»')));
+    }
+
+    public function testTheCardComesWhenTheBotIsAddedAndARemovalAsksAgainNextTime(): void {
+        $this->stack(new ScriptedLlm([]));
+
+        $this->membership('member');
+        $this->membership('administrator', old: 'member');
+        self::assertCount(1, $this->cards(), 'the card comes at once, before anyone writes; one card');
+
+        $this->press('gr:' . self::GROUP . ':m');
+        $this->membership('kicked', old: 'member');
+        self::assertSame(Group::PENDING, $this->groups->find('telegram', self::GROUP)?->status);
+        self::assertContains('Меня убрали из группы «Дом».', $this->stack->channel->texts('send'));
+
+        $this->membership('member');
+        self::assertCount(2, $this->cards(), 'added again — the owner decides again');
+        $this->membership('member', 'private');
+        self::assertCount(2, $this->cards(), 'a private chat is not a group');
+    }
+
+    public function testARefusedGroupIsLeftWhenTheBotIsAddedAgain(): void {
+        $this->stack(new ScriptedLlm([]));
+        $this->membership('member');
+        $this->press('gr:' . self::GROUP . ':r');
+
+        $this->membership('member');
+
+        self::assertSame([self::GROUP, self::GROUP], $this->stack->channel->left, 'left on the refusal and again when added back');
+        self::assertCount(1, $this->cards());
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {
