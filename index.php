@@ -204,7 +204,19 @@ $validateSettings = static function (array $env): ?string {
         MemorySettings::fromEnv($env);
         VaultSettings::fromEnv($env);
         \OpenCCK\Infrastructure\Config\SearchSettings::build($env, HttpClients::create(), \OpenCCK\Infrastructure\Config\Env::raw($env, 'OPENROUTER_API_KEY'));
-        new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($env, 'OWNER_TIMEZONE') ?? '+03:00');
+        try {
+            new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($env, 'OWNER_TIMEZONE') ?? '+03:00');
+        } catch (Throwable) {
+            return 'OWNER_TIMEZONE: неизвестный часовой пояс — пример: Europe/Moscow или +03:00';
+        }
+        $quiet = \OpenCCK\Infrastructure\Config\Env::raw($env, 'QUIET_HOURS');
+        if ($quiet !== null && preg_match('~^([01]?\d|2[0-3])-([01]?\d|2[0-3])$~', $quiet) !== 1) {
+            return 'QUIET_HOURS: «с-до» в часах, например 23-8';
+        }
+        $digest = \OpenCCK\Infrastructure\Config\Env::raw($env, 'DIGEST_TIME');
+        if ($digest !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digest) !== 1) {
+            return 'DIGEST_TIME: ЧЧ:ММ, например 09:00';
+        }
     } catch (ConfigException $e) {
         return $e->getMessage();
     } catch (Throwable $e) {
