@@ -81,6 +81,7 @@ final class ExecutorServer implements RequestHandler {
             'replace' => $this->replace($request),
             'list' => ['entries' => $this->files->list($id, $limits, $request->string('path', '.'), $request->int('depth', 1, 1, 3))],
             'usage' => ['bytes' => $this->files->usage($id)],
+            'fetch' => ['content' => base64_encode($this->files->fetch($id, $limits, $request->string('path'), $request->int('max_bytes', 5_000_000, 1, 5_000_000)))],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
             // spec: BRIEF.md#песочница — the streaming API: a process lives between the calls
             'spawn' => ['session' => $this->streams()->spawn($id, $limits, $request->string('command'), $this->workspace->resolve($id, $request->string('cwd', '.')), $request->env())],

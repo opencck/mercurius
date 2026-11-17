@@ -88,6 +88,15 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
         return $entries;
     }
 
+    public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes, Cancellation $cancellation): string {
+        $body = $this->call('fetch', $principalId, $limits, ['path' => $path, 'max_bytes' => $maxBytes], self::FILE_TIMEOUT, $cancellation);
+        $bytes = base64_decode(self::string($body, 'content'), true);
+        if ($bytes === false) {
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_vernula_neponyatnyy_otvet'));
+        }
+        return $bytes;
+    }
+
     public function spawn(int $principalId, SandboxLimits $limits, string $command, #[SensitiveParameter] array $env, Cancellation $cancellation): string {
         $body = $this->call('spawn', $principalId, $limits, ['command' => $command, 'env' => (object) $env], self::FILE_TIMEOUT, $cancellation);
         $session = self::string($body, 'session');

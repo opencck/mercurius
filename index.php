@@ -339,6 +339,8 @@ if ($sandbox !== null) {
     $tools->register(new ListFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
+    // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
+    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations));
 }
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.

@@ -89,4 +89,18 @@ final class FilesTest extends SandboxTestCase {
         $this->expectException(SandboxError::class);
         $this->files->read(7, self::limits(), '/etc/passwd', 1, 10);
     }
+
+    public function testAFileComesWholeAsBytesUpToTheLimit(): void {
+        $this->sh(11, "printf '\\000\\377\\001PK' > bin.dat");
+
+        self::assertSame("\x00\xff\x01PK", $this->files->fetch(11, self::limits(), 'bin.dat', 100));
+        try {
+            $this->files->fetch(11, self::limits(), 'bin.dat', 3);
+            self::fail('a file over the limit came');
+        } catch (SandboxError $e) {
+            self::assertSame(413, $e->status);
+        }
+        $this->expectException(SandboxError::class);
+        $this->files->fetch(11, self::limits(), '/etc/passwd', 100);
+    }
 }

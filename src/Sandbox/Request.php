@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
  * the core is trusted (it holds the token), so limits come from the request.
  */
 final class Request {
-    public const OPERATIONS = ['exec', 'read', 'write', 'replace', 'list', 'usage', 'cancel', 'spawn', 'send', 'receive', 'close'];
+    public const OPERATIONS = ['exec', 'read', 'write', 'replace', 'list', 'usage', 'cancel', 'spawn', 'send', 'receive', 'close', 'fetch'];
 
     /** @param array<string, mixed> $body */
     private function __construct(

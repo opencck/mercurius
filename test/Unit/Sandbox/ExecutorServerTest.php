@@ -45,6 +45,10 @@ final class ExecutorServerTest extends AsyncTestCase {
             }
         };
         $files ??= new class implements FileStore {
+            public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes): string {
+                return '';
+            }
+
             public function read(int $principalId, SandboxLimits $limits, string $path, int $startLine, int $maxLines): array {
                 throw new SandboxError('Не удалось прочитать x: нет файла', 404);
             }

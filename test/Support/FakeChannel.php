@@ -37,6 +37,8 @@ final class FakeChannel implements Channel {
     public array $answers = [];
     /** @var list<array{string, string, string}> sent files: chat, name, content */
     public array $files = [];
+    /** @var list<?string> the topic of every file sent */
+    public array $fileThreads = [];
 
     /** @var list<?string> the forum topic of every sent message */
     public array $threads = [];
@@ -147,11 +149,12 @@ final class FakeChannel implements Channel {
         $this->answers[] = [$callbackId, $text, $alert];
     }
 
-    public function sendFile(string $chatId, string $fileName, string $content, ?string $caption = null): SendResult {
+    public function sendFile(string $chatId, string $fileName, string $content, ?string $caption = null, ?string $threadId = null): SendResult {
         if ($this->sendFileFails) {
             return SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'down');
         }
         $this->files[] = [$chatId, $fileName, $content];
+        $this->fileThreads[] = $threadId;
         return SendResult::ok((string) $this->nextId++);
     }
 }

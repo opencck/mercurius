@@ -29,4 +29,11 @@ interface FileStore {
     public function list(int $principalId, SandboxLimits $limits, string $path, int $depth): array;
 
     public function usage(int $principalId): int;
+
+    /**
+     * The file whole, as bytes, up to $maxBytes.
+     *
+     * @throws SandboxError
+     */
+    public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes): string;
 }

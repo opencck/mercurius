@@ -52,6 +52,28 @@ final class Files implements FileStore {
         return ['text' => $text, 'totalLines' => (int) trim($count)];
     }
 
+    /**
+     * The whole file as bytes, read as the participant: the shell gives it in base64 so binary files come whole.
+     *
+     * spec: BRIEF.md#песочница — a file the agent made goes to the chat
+     */
+    public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes): string {
+        $file = $this->workspace->resolve($principalId, $path);
+        $result = $this->asUser($principalId, $limits, sprintf(
+            'test -f %1$s || { echo "not a file" >&2; exit 2; }; s=$(stat -c %%s -- %1$s); [ "$s" -le %2$d ] || { echo "bigger than %2$d bytes" >&2; exit 3; }; base64 -w0 -- %1$s',
+            escapeshellarg($file),
+            $maxBytes,
+        ));
+        if ($result->exitCode !== 0) {
+            throw new SandboxError(sprintf(t('sandbox.files.ne_udalos_prochitat'), $path, self::reason($result)), $result->exitCode === 3 ? 413 : 404);
+        }
+        $bytes = base64_decode(trim($result->stdout), true);
+        if ($bytes === false) {
+            throw new SandboxError(sprintf(t('sandbox.files.ne_udalos_prochitat'), $path, 'base64'), 500);
+        }
+        return $bytes;
+    }
+
     public function write(int $principalId, SandboxLimits $limits, string $path, string $content): void {
         $file = $this->workspace->resolve($principalId, $path);
         $this->checkRoom($principalId, $limits, strlen($content));

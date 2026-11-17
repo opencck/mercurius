@@ -37,4 +37,11 @@ interface Sandbox {
      * @throws SandboxFailure
      */
     public function list(int $principalId, SandboxLimits $limits, string $path, int $depth, Cancellation $cancellation): array;
+
+    /**
+     * The whole file as bytes, up to $maxBytes.
+     *
+     * @throws SandboxFailure
+     */
+    public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes, Cancellation $cancellation): string;
 }
