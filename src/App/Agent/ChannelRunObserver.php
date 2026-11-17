@@ -13,11 +13,12 @@ use Mercurius\Messenger\ParseMode;
 use Mercurius\Messenger\TextSplitter;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\StopReason;
-
-
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Revolt\EventLoop;
 
 use function Amp\delay;
+
 /**
  * Shows a run in the chat with one status message: a placeholder, then the current step, then the streamed answer;
  * the final text replaces it, long text goes on in new messages. Edits are throttled as in the plain chat.
@@ -49,6 +50,7 @@ final class ChannelRunObserver implements RunObserver {
         private readonly float $freshAfter = 60.0,
         /** the longest flood wait the final message sits out before going another way */
         private readonly float $maxFloodWait = 120.0,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -95,6 +97,9 @@ final class ChannelRunObserver implements RunObserver {
             && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
         if (!$delivered) {
             $sent = $this->delivered(fn(): SendResult => $this->channel->send(new OutgoingMessage($this->chatId, $first, $this->replyTo, $mode)));
+            if (!$sent) {
+                $this->logger->warning('Run answer was not delivered', ['run' => $run->id, 'chat' => $this->chatId]);
+            }
             // The preview points below only once something is below.
             $preview = $fresh ? $messageId : null;
             if ($sent && $preview !== null) {
@@ -126,8 +131,13 @@ final class ChannelRunObserver implements RunObserver {
             }
             // A long flood: the answer still goes, once the chat may be written to again.
             // Unreferenced: a pending answer does not keep a stopping process alive.
-            EventLoop::unreference(EventLoop::delay((float) $result->retryAfter + 1.0, static function () use ($attempt): void {
-                $attempt();
+            $this->logger->notice('Run answer waits out a flood', ['chat' => $this->chatId, 'seconds' => $result->retryAfter]);
+            $logger = $this->logger;
+            $chatId = $this->chatId;
+            EventLoop::unreference(EventLoop::delay((float) $result->retryAfter + 1.0, static function () use ($attempt, $logger, $chatId): void {
+                if (!$attempt()->success) {
+                    $logger->warning('Run answer was not delivered after a flood', ['chat' => $chatId]);
+                }
             }));
             return true;
         }

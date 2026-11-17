@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `0907de0` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `6744d13` | 2026-11-16 | Канал связи и адаптер Telegram |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `f0380d8` | 2026-11-17 | Канал связи и адаптер Telegram |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) подключаются в своих фазах.
 
@@ -25,6 +25,13 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — messenger: тест правок после склеенных
+
+- `mercurius-messenger` `f0380d8`: тест — две правки одного сообщения, начатые вместе, склеиваются в один вызов, а
+  следующие правки (поток и итог с разметкой) всё равно уходят. Поводом был ответ агента, не дошедший в Telegram после
+  двух инструментов, запущенных разом; канал ошибку не воспроизвёл, в приложении добавлена запись в журнал о
+  недоставленном итоге.
 
 ### 2026-11-16 — llm: инструменты OpenAI без рассуждения
 

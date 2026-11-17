@@ -216,7 +216,7 @@ final class RunScheduler {
         if ($claimed === null) {
             return;
         }
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger);
         $observer->start();
         $this->launch($claimed, $principal, $observer);
     }
@@ -396,7 +396,7 @@ final class RunScheduler {
         }
         try {
             $this->transcript->appendUser($conversationId, $run->id, $recall ? $this->withFacts($principal, $meta, $text) : $text, $messageId);
-            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval);
+            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger);
             $observer->start();
         } catch (Throwable $e) {
             // The run exists but will never run: free the conversation.
@@ -420,7 +420,7 @@ final class RunScheduler {
             }
         }
         $this->logger->info('Resuming run after restart', ['run' => $run->id]);
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger);
         $observer->start(self::RESUMED);
         $this->launch($run, $principal, $observer);
     }

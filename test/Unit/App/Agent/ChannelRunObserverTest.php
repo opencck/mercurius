@@ -13,6 +13,7 @@ use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Test\Support\FakeChannel;
+use OpenCCK\Test\Support\RecordingLogger;
 
 /**
  * The final answer reaches the chat whatever happens to the streamed preview.
@@ -48,6 +49,17 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         $observer->finished(self::finishedRun(), 'Итог', StopReason::Answered);
 
         self::assertContains('Итог', $channel->texts('send'), 'the answer is not lost');
+    }
+
+    public function testLostAnswerIsLogged(): void {
+        $channel = new FakeChannel(sendFails: true);
+        $logger = new RecordingLogger();
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now, logger: $logger);
+        $observer->start();
+
+        $observer->finished(self::finishedRun(), 'Итог', StopReason::Answered);
+
+        self::assertContains('Run answer was not delivered', array_column($logger->records, 'message'));
     }
 
     public function testLongFloodIsSatOutInTheBackground(): void {
