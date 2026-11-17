@@ -93,6 +93,12 @@ final class AgentStack {
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, servers: $servers);
     }
 
+    /** The chat where answers to the agent's personal messages go back to who asked. */
+    public function useRelays(\OpenCCK\Domain\Repository\MessageRelayRepository $relays): void {
+        $service = new \OpenCCK\App\Service\RelayService($relays, $this->principals, $this->conversations, $this->scheduler, $this->channel);
+        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, relays: $service);
+    }
+
     /** The chat with group chats behind the gate. */
     public function useGroups(\OpenCCK\App\Service\GroupGate $groups): void {
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, groups: $groups);

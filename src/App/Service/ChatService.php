@@ -63,6 +63,8 @@ final class ChatService implements MessageHandler {
         private readonly string $botId = '',
         /** names the run that wrote the message a reply answers */
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
+        /** answers to the agent's personal messages go back to who asked */
+        private readonly ?RelayService $relays = null,
     ) {}
 
     /** The run that wrote the agent's message this one answers; null when it is not known. */
@@ -90,6 +92,10 @@ final class ChatService implements MessageHandler {
         }
         if ($principal->status === PrincipalStatus::Pending) {
             $this->reply($message, \Mercurius\I18n\t(VisitorService::WAITING));
+            return;
+        }
+        // spec: BRIEF.md#личные-сообщения-участникам — an answer to the agent's question goes to the conversation that asked
+        if ($this->relays?->answer($principal, $message) === true) {
             return;
         }
         $this->proceed($principal, $message);

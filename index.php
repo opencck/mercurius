@@ -619,6 +619,9 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     },
     is_numeric($_ENV['GROUP_FREE_DAILY_TOKENS'] ?? null) ? (int) $_ENV['GROUP_FREE_DAILY_TOKENS'] : 200000,
 );
+// spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
+$messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
+$tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME));
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
     $conversations,
@@ -640,6 +643,7 @@ $chat = new ChatService(
     $groupGate,
     explode(':', $telegram->token(), 2)[0],
     $runMessages,
+    new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger),
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
