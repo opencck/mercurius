@@ -505,6 +505,11 @@ $mcpManager = new McpManager(
     $logger,
 );
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
+// spec: BRIEF.md#скиллы-и-mcp — servers down at start are tried again, connected ones are listed again for changes
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($mcpManager): void {
+    \Amp\async($mcpManager->tick(...))->ignore();
+}));
+$tools->register(new \OpenCCK\App\Agent\Tool\McpResourcesTool($mcpManager));
 // spec: BRIEF.md#скиллы-и-mcp — the built-in mail server: the mailbox from the settings goes in headers of each request
 $mailHeaders = \OpenCCK\Infrastructure\Config\MailSettings::headers($_ENV);
 $mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');

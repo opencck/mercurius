@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `7e046dc` | 2026-11-17 | Канал связи и адаптер Telegram |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `1f36ce8` | 2026-11-17 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `fde2382` | 2026-11-17 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [mail-mcp/](mail-mcp/) | `6a68991` | 2026-11-17 | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
@@ -28,6 +28,10 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-17 — i18n: ресурсы MCP
+
+- `mercurius-i18n` `fde2382`: тексты инструмента `mcp_resources`.
 
 ### 2026-11-17 — i18n: заметка о сделанном и сообщения без текста
 

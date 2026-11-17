@@ -48,7 +48,23 @@ final class McpManager {
         private readonly Closure $tell,
         private readonly LoggerInterface $logger,
         private readonly McpBreaker $breaker = new McpBreaker(),
+        /** @var (Closure(): float)|null seconds now; null — the system clock */
+        private readonly ?Closure $clock = null,
     ) {}
+
+    /** Pause before the first retry of a server that did not answer, doubled each time up to RETRY_MAX. */
+    private const RETRY_FIRST = 30.0;
+    private const RETRY_MAX = 900.0;
+    /** How often the tools of connected servers are listed again: a change is caught without a restart. */
+    private const RESYNC = 900.0;
+    private const RESOURCE_MAX = 100_000;
+
+    /** @var array<string, array{int, float}> servers that did not answer: tries so far and when to try again */
+    private array $down = [];
+    private ?float $lastResync = null;
+    private bool $ticking = false;
+    /** @var array<string, McpServer> built-in servers by name */
+    private array $builtinServers = [];
 
     /** At start: the tools of every active server; a changed one is turned off. */
     /** @var array<string, string> bearer tokens of built-in servers by name */
@@ -62,11 +78,13 @@ final class McpManager {
      */
     public function connectBuiltin(McpServer $server, #[\SensitiveParameter] string $token): void {
         $this->builtin[$server->name] = $token;
+        $this->builtinServers[$server->name] = $server;
         try {
             $count = $this->sync($server, false, new NullCancellation());
             $this->logger->info('Built-in MCP server connected', ['server' => $server->name, 'tools' => $count]);
         } catch (Throwable $e) {
             $this->logger->warning('Built-in MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
+            $this->markDown($server->name, 0);
         }
     }
 
@@ -77,6 +95,7 @@ final class McpManager {
                     $this->sync($server, false, new NullCancellation());
                 } catch (Throwable $e) {
                     $this->logger->warning('MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
+                    $this->markDown($server->name, 0);
                 }
             }
         }
@@ -127,6 +146,129 @@ final class McpManager {
     public function remove(string $name): bool {
         $this->unregister($name);
         return $this->servers->remove($name);
+    }
+
+    /**
+     * Called every half a minute: a server that did not answer is tried again after a growing pause, and every
+     * RESYNC seconds the tools of connected servers are listed again, so a changed set is caught without a restart.
+     * Our HTTP client keeps no stream open, so tools/list_changed notifications never arrive: this listing stands in.
+     *
+     * ref: references/hermes-agent/tools/mcp_tool_health.py@e96221fa:L99-L143 (_make_message_handler, _refresh_tools) —
+     *      a refresh of the tools re-registers them; hermes does it on tools/list_changed over its open session
+     * ref: references/hermes-agent/tools/mcp_tool_lifecycle.py@e96221fa:L110-L120 — per-server backoff of reconnects
+     */
+    public function tick(): void {
+        // a slow server may hold a tick past the next one: they never overlap
+        if ($this->ticking) {
+            return;
+        }
+        $this->ticking = true;
+        try {
+            $this->check();
+        } finally {
+            $this->ticking = false;
+        }
+    }
+
+    private function check(): void {
+        $now = $this->now();
+        foreach ($this->down as $name => [$tries, $next]) {
+            if ($next > $now) {
+                continue;
+            }
+            $server = $this->builtinServers[$name] ?? $this->servers->find($name);
+            if ($server === null || (!isset($this->builtinServers[$name]) && $server->status !== McpServer::ACTIVE)) {
+                unset($this->down[$name]);
+                continue;
+            }
+            try {
+                $count = $this->sync($server, false, new NullCancellation());
+                unset($this->down[$name]);
+                $this->logger->info('MCP server reconnected', ['server' => $name, 'tools' => $count, 'tries' => $tries + 1]);
+            } catch (Throwable $e) {
+                $this->markDown($name, $tries + 1);
+            }
+        }
+        if ($this->lastResync === null) {
+            $this->lastResync = $now;
+            return;
+        }
+        if ($now - $this->lastResync < self::RESYNC) {
+            return;
+        }
+        $this->lastResync = $now;
+        foreach ($this->connected() as $server) {
+            try {
+                $this->sync($server, false, new NullCancellation());
+            } catch (Throwable $e) {
+                $this->logger->warning('MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
+                $this->markDown($server->name, 0);
+            }
+        }
+    }
+
+    /**
+     * Resources of a connected server: uri, name, type, description.
+     *
+     * @return list<array{uri: string, name: string, description: string, mimeType: string}>
+     * @throws DomainException
+     */
+    public function resources(string $name, Cancellation $cancellation): array {
+        $server = $this->connectedServer($name);
+        try {
+            $list = $this->client->resources($server, $this->token($server), $cancellation);
+        } catch (RuntimeException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        return array_map(static fn(array $r): array => [
+            'uri' => $r['uri'],
+            'name' => self::clean(mb_substr($r['name'], 0, 200)),
+            'description' => self::clean(mb_substr($r['description'], 0, self::DESCRIPTION_MAX)),
+            'mimeType' => self::clean(mb_substr($r['mimeType'], 0, 100)),
+        ], $list);
+    }
+
+    /** @throws DomainException */
+    public function readResource(string $name, string $uri, Cancellation $cancellation): string {
+        $server = $this->connectedServer($name);
+        try {
+            $text = $this->client->readResource($server, $this->token($server), $uri, $cancellation);
+        } catch (RuntimeException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        return mb_substr(self::clean($text), 0, self::RESOURCE_MAX);
+    }
+
+    /** @return list<McpServer> servers whose tools are in the registry now */
+    private function connected(): array {
+        $connected = [];
+        foreach (array_keys($this->registered) as $name) {
+            $server = $this->builtinServers[$name] ?? $this->servers->find($name);
+            if ($server !== null && (isset($this->builtinServers[$name]) || $server->status === McpServer::ACTIVE)) {
+                $connected[] = $server;
+            }
+        }
+        return $connected;
+    }
+
+    /** @throws DomainException */
+    private function connectedServer(string $name): McpServer {
+        foreach ($this->connected() as $server) {
+            if ($server->name === $name) {
+                return $server;
+            }
+        }
+        $names = array_map(static fn(McpServer $s): string => $s->name, $this->connected());
+        throw new DomainException(sprintf(t('mcp.mcp_manager.not_connected'), $name, $names === [] ? '—' : implode(', ', $names)));
+    }
+
+    private function markDown(string $name, int $tries): void {
+        $pause = min(self::RETRY_FIRST * (float) (2 ** min($tries, 10)), self::RETRY_MAX);
+        $this->down[$name] = [$tries, $this->now() + $pause];
+    }
+
+    private function now(): float {
+        return $this->clock === null ? microtime(true) : ($this->clock)();
     }
 
     /** @return list<string> tool names of a server in the registry */

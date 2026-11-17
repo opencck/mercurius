@@ -76,6 +76,56 @@ final class HttpMcpClient implements McpClient {
         return [implode("\n", $texts), ($result['isError'] ?? false) === true];
     }
 
+    /**
+     * ref: references/hermes-agent/tools/mcp_tool_handlers.py@e96221fa:L970-L996 (_render_resource_list,
+     *      _render_read_resource) — uri, name, description, mimeType of each resource; text parts joined, binary ones named
+     */
+    public function resources(McpServer $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): array {
+        $session = $this->initialize($server, $token, $cancellation);
+        $resources = [];
+        $cursor = null;
+        for ($page = 0; $page < self::PAGES; $page++) {
+            $result = $this->rpc($server, $token, $session, 'resources/list', $cursor === null ? [] : ['cursor' => $cursor], $cancellation);
+            $list = isset($result['resources']) && is_array($result['resources']) ? $result['resources'] : [];
+            foreach (array_keys($list) as $k) {
+                $item = $list[$k] ?? null;
+                if (!is_array($item) || !isset($item['uri']) || !is_string($item['uri'])) {
+                    continue;
+                }
+                $resources[] = [
+                    'uri' => $item['uri'],
+                    'name' => isset($item['name']) && is_string($item['name']) ? $item['name'] : '',
+                    'description' => isset($item['description']) && is_string($item['description']) ? $item['description'] : '',
+                    'mimeType' => isset($item['mimeType']) && is_string($item['mimeType']) ? $item['mimeType'] : '',
+                ];
+            }
+            $cursor = isset($result['nextCursor']) && is_string($result['nextCursor']) ? $result['nextCursor'] : null;
+            if ($cursor === null) {
+                break;
+            }
+        }
+        return $resources;
+    }
+
+    public function readResource(McpServer $server, #[SensitiveParameter] ?string $token, string $uri, Cancellation $cancellation): string {
+        $session = $this->initialize($server, $token, $cancellation);
+        $result = $this->rpc($server, $token, $session, 'resources/read', ['uri' => $uri], $cancellation);
+        $parts = [];
+        $contents = isset($result['contents']) && is_array($result['contents']) ? $result['contents'] : [];
+        foreach (array_keys($contents) as $k) {
+            $part = $contents[$k] ?? null;
+            if (!is_array($part)) {
+                continue;
+            }
+            if (isset($part['text']) && is_string($part['text'])) {
+                $parts[] = $part['text'];
+            } elseif (isset($part['blob']) && is_string($part['blob'])) {
+                $parts[] = sprintf(t('mcp.http_mcp_client.binary'), (int) (strlen($part['blob']) * 3 / 4));
+            }
+        }
+        return implode("\n", $parts);
+    }
+
     private function initialize(McpServer $server, ?string $token, Cancellation $cancellation): ?string {
         [, $session] = $this->send($server, $token, null, [
             'jsonrpc' => '2.0',
