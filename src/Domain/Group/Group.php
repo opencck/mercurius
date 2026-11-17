@@ -22,5 +22,7 @@ final class Group {
         public readonly string $title,
         public readonly string $status,
         public readonly string $mode,
+        /** a forum with topics: projects get topics of their own */
+        public readonly bool $forum = false,
     ) {}
 }

@@ -12,7 +12,7 @@ final class PostgresGroupRepository implements GroupRepository {
     public function __construct(private readonly PostgresLink $db) {}
 
     public function find(string $channel, string $chatId): ?Group {
-        $row = $this->db->execute('SELECT channel, chat_id, title, status, mode FROM chat_groups WHERE channel = ? AND chat_id = ?', [$channel, $chatId])->fetchRow();
+        $row = $this->db->execute('SELECT channel, chat_id, title, status, mode, forum FROM chat_groups WHERE channel = ? AND chat_id = ?', [$channel, $chatId])->fetchRow();
         return $row === null ? null : self::group($row);
     }
 
@@ -25,7 +25,7 @@ final class PostgresGroupRepository implements GroupRepository {
 
     public function decide(string $channel, string $chatId, string $status, string $mode): ?Group {
         $row = $this->db->execute(
-            'UPDATE chat_groups SET status = ?, mode = ? WHERE channel = ? AND chat_id = ? RETURNING channel, chat_id, title, status, mode',
+            'UPDATE chat_groups SET status = ?, mode = ? WHERE channel = ? AND chat_id = ? RETURNING channel, chat_id, title, status, mode, forum',
             [$status, $mode, $channel, $chatId],
         )->fetchRow();
         return $row === null ? null : self::group($row);
@@ -33,7 +33,7 @@ final class PostgresGroupRepository implements GroupRepository {
 
     public function all(): array {
         $found = [];
-        foreach ($this->db->query('SELECT channel, chat_id, title, status, mode FROM chat_groups ORDER BY created_at') as $row) {
+        foreach ($this->db->query('SELECT channel, chat_id, title, status, mode, forum FROM chat_groups ORDER BY created_at') as $row) {
             $found[] = self::group($row);
         }
         return $found;
@@ -42,6 +42,10 @@ final class PostgresGroupRepository implements GroupRepository {
     /** @param array<string, mixed> $row */
     private static function group(array $row): Group {
         $s = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : '';
-        return new Group($s('channel'), $s('chat_id'), $s('title'), $s('status'), $s('mode'));
+        return new Group($s('channel'), $s('chat_id'), $s('title'), $s('status'), $s('mode'), ($row['forum'] ?? false) === true);
+    }
+
+    public function setForum(string $channel, string $chatId, bool $forum): void {
+        $this->db->execute('UPDATE chat_groups SET forum = ? WHERE channel = ? AND chat_id = ? AND forum <> ?', [$forum, $channel, $chatId, $forum]);
     }
 }

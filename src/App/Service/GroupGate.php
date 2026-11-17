@@ -50,6 +50,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly string $botId,
         private readonly ?string $botUsername,
         private readonly LoggerInterface $logger,
+        /** forum topics as projects; null — topics are just threads */
+        private readonly ?ForumTopics $forum = null,
     ) {}
 
     /**
@@ -58,10 +60,15 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
      * @return array{Principal, IncomingMessage}|null
      */
     public function route(IncomingMessage $message): ?array {
+        // spec: BRIEF.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
+        /** @var mixed $chat */
+        $chat = $message->raw['chat'] ?? null;
+        $forum = is_array($chat) && ($chat['is_forum'] ?? false) === true;
         $group = $this->groups->find($message->channel, $message->chatId);
         if ($group === null) {
             $title = self::title($message);
             if ($this->groups->create($message->channel, $message->chatId, $title)) {
+                $this->groups->setForum($message->channel, $message->chatId, $forum);
                 $this->card($message->chatId, $title);
             }
             return null;
@@ -71,6 +78,15 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
                 $this->left[$group->chatId] = true;
                 $this->channel->leave($group->chatId);
             }
+            return null;
+        }
+        if ($forum !== $group->forum) {
+            $this->groups->setForum($message->channel, $message->chatId, $forum);
+        }
+        /** @var mixed $opened */
+        $opened = $message->raw['forum_topic_created'] ?? null;
+        if (is_array($opened)) {
+            $this->topicOpened($message, $opened);
             return null;
         }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
@@ -174,6 +190,23 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $this->channel->leave($group->chatId);
         }
         $this->logger->notice('Group decided', ['chat' => $group->chatId, 'status' => $status, 'mode' => $mode]);
+    }
+
+    /**
+     * Someone opened a forum topic: it becomes a draft project of whoever opened it (the owner's projects have no
+     * owner id). A stranger's topic is left alone.
+     *
+     * @param array<array-key, mixed> $opened
+     */
+    private function topicOpened(IncomingMessage $message, array $opened): void {
+        $thread = MessageMeta::topicKey($message);
+        $principal = $this->principals->findByIdentity($message->channel, $message->userId);
+        if ($this->forum === null || $thread === '' || $principal === null || $principal->status !== PrincipalStatus::Active) {
+            return;
+        }
+        /** @var mixed $name */
+        $name = $opened['name'] ?? '';
+        $this->forum->opened($message->channel, $message->chatId, $thread, is_string($name) ? $name : '', \OpenCCK\Domain\Project\Project::scopeOf($principal));
     }
 
     /** A mention of the bot, a reply to its message, or a command addressed to it. */

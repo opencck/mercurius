@@ -41,6 +41,25 @@ final class ProjectsTest extends AsyncTestCase {
         return (new ProjectEditTool($this->projects, $this->conversations))->execute($args, new ToolContext(1, $this->conversation, $who ?? $this->owner, new NullCancellation()));
     }
 
+    public function testInAForumAProjectGetsItsTopicAndClosesItWhenDone(): void {
+        $channel = new \OpenCCK\Test\Support\FakeChannel();
+        $groups = new \OpenCCK\Test\Support\InMemoryGroupRepository();
+        $groups->create('telegram', '-100500', 'Дом');
+        $groups->decide('telegram', '-100500', \OpenCCK\Domain\Group\Group::APPROVED, \OpenCCK\Domain\Group\Group::MENTION);
+        $groups->setForum('telegram', '-100500', true);
+        $forum = new \OpenCCK\App\Service\ForumTopics($channel, $groups, $this->projects, new \Psr\Log\NullLogger());
+        $conversation = $this->conversations->openConversation(1, 'telegram', '-100500');
+        $tool = new ProjectEditTool($this->projects, $this->conversations, forum: $forum);
+        $context = new ToolContext(1, $conversation, $this->owner, new NullCancellation());
+
+        $created = $tool->execute(['action' => 'create', 'project' => 'Сайт', 'text' => 'Магазин'], $context);
+        $done = $tool->execute(['action' => 'status', 'project' => 'Сайт', 'status' => 'done'], $context);
+
+        self::assertStringContainsString('Создал тему «Сайт»', $created->content);
+        self::assertFalse($done->isError);
+        self::assertSame(['create', 'close'], array_column($channel->topics, 0));
+    }
+
     public function testGoalStatusNewProjectAndRelationWaitForTheOwner(): void {
         $tool = new ProjectEditTool($this->projects, $this->conversations);
 

@@ -149,6 +149,14 @@ final class PostgresProjectRepository implements ProjectRepository {
         );
     }
 
+    public function topicsOf(int $projectId): array {
+        $found = [];
+        foreach ($this->db->execute("SELECT channel, chat_id, thread_id FROM chat_projects WHERE project_id = ? AND thread_id <> '' ORDER BY updated_at", [$projectId]) as $row) {
+            $found[] = ['channel' => self::str($row, 'channel'), 'chatId' => self::str($row, 'chat_id'), 'threadId' => self::str($row, 'thread_id')];
+        }
+        return $found;
+    }
+
     /** @param array<string, mixed> $row */
     private static function project(array $row): Project {
         return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'), isset($row['owner_id']) && is_int($row['owner_id']) ? $row['owner_id'] : null);

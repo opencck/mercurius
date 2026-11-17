@@ -506,7 +506,10 @@ $tools->register(new JobManageTool($jobRepository, $jobScheduler));
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
 $tools->register(new ProjectTool($projectRepository, $conversations));
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone));
+$groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
+$forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
+$tools->register(new \OpenCCK\App\Agent\Tool\ForumTopicTool($channel, $conversations));
 $scheduler->useJobRuns($jobScheduler);
 
 // spec: BRIEF.md#сеть-агентов — A2A v1.0: neighbours connect with their own tokens; the agent gives tasks to its own
@@ -567,13 +570,14 @@ try {
     $botUsername = null;
 }
 $groupGate = new \OpenCCK\App\Service\GroupGate(
-    new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db),
+    $groupRepository,
     $principals,
     $channel,
     $telegram->ownerId,
     explode(':', $telegram->token(), 2)[0],
     $botUsername,
     $logger,
+    $forumTopics,
 );
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),

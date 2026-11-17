@@ -59,4 +59,11 @@ interface ProjectRepository {
 
     /** Binds the chat to a project; null unbinds it. */
     public function activate(string $channel, string $chatId, ?int $projectId, string $threadId = ''): void;
+
+    /**
+     * The forum topics the project is bound to.
+     *
+     * @return list<array{channel: string, chatId: string, threadId: string}>
+     */
+    public function topicsOf(int $projectId): array;
 }

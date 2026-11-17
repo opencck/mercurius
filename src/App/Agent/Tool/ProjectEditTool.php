@@ -32,6 +32,8 @@ final class ProjectEditTool implements Tool {
         private readonly ProjectRepository $projects,
         private readonly ConversationRepository $conversations,
         private readonly \DateTimeZone $zone = new \DateTimeZone('UTC'),
+        /** in a forum a project gets a topic; null — no forum topics */
+        private readonly ?\OpenCCK\App\Service\ForumTopics $forum = null,
     ) {}
 
     /**
@@ -103,7 +105,10 @@ final class ProjectEditTool implements Tool {
             } catch (DomainException $e) {
                 return ToolResult::error($e->getMessage());
             }
-            return ToolResult::ok(sprintf('Проект «%s» заведён.', $project->name));
+            $meta = $this->conversations->meta($context->conversationId);
+            // spec: BRIEF.md#форум-темы--проекты — a new project in a forum gets its own topic
+            $topic = $meta === null ? '' : ($this->forum?->created($project, $meta) ?? '');
+            return ToolResult::ok(trim(sprintf('Проект «%s» заведён. %s', $project->name, $topic)));
         }
         $project = $this->project($args, $context);
         if ($project === null) {
@@ -138,6 +143,9 @@ final class ProjectEditTool implements Tool {
 
     private function update(Project $project, ?string $goal, ?string $status, ?string $card, string $what): ToolResult {
         $this->projects->update($project->id, $goal, $status, $card);
+        if ($status !== null) {
+            $this->forum?->statusChanged($project, $status);
+        }
         return ToolResult::ok(sprintf('%s проекта «%s» обновлена.', $what, $project->name));
     }
 

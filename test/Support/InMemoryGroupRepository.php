@@ -15,6 +15,13 @@ final class InMemoryGroupRepository implements GroupRepository {
         return $this->groups[$channel . ':' . $chatId] ?? null;
     }
 
+    public function setForum(string $channel, string $chatId, bool $forum): void {
+        $g = $this->groups[$channel . ':' . $chatId] ?? null;
+        if ($g !== null) {
+            $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $g->status, $g->mode, $forum);
+        }
+    }
+
     public function create(string $channel, string $chatId, string $title): bool {
         if (isset($this->groups[$channel . ':' . $chatId])) {
             return false;
@@ -28,7 +35,7 @@ final class InMemoryGroupRepository implements GroupRepository {
         if ($g === null) {
             return null;
         }
-        return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $status, $mode);
+        return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $status, $mode, $g->forum);
     }
 
     public function all(): array {

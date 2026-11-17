@@ -38,7 +38,7 @@ final class GroupGateTest extends AsyncTestCase {
     /** @param array<array-key, mixed> $extra */
     private function say(string $text, string $userId = '42', array $extra = [], ?string $thread = null): void {
         $id = (string) ++$this->id;
-        $this->stack->chat->handle(new IncomingMessage('telegram', self::GROUP, $userId, 'u' . $userId, 'User ' . $userId, $text, $id, null, false, new DateTimeImmutable(), $id, $thread, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']] + $extra));
+        $this->stack->chat->handle(new IncomingMessage('telegram', self::GROUP, $userId, 'u' . $userId, 'User ' . $userId, $text, $id, null, false, new DateTimeImmutable(), $id, $thread, raw: $extra + ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']]));
         delay(0.02);
     }
 
@@ -101,6 +101,22 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertSame('12', $this->stack->conversations->meta($first)?->threadId);
         self::assertSame('', $this->stack->conversations->meta($general)?->threadId, 'a reply thread outside a forum is not a topic');
         self::assertCount(4, $this->stack->llm->requests);
+    }
+
+    public function testAForumIsRecognisedAndATopicSomeoneOpensBecomesAProject(): void {
+        $this->stack(new ScriptedLlm([]));
+        $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), new \OpenCCK\App\Service\ForumTopics($this->stack->channel, $this->groups, $projects, new NullLogger()));
+        $this->stack->useGroups($this->gate);
+        $forum = ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup', 'is_forum' => true]];
+        $this->say('первое', extra: $forum);
+        $this->press('gr:' . self::GROUP . ':m');
+        self::assertTrue($this->groups->find('telegram', self::GROUP)?->forum);
+
+        $this->say('', thread: '88', extra: $forum + ['is_topic_message' => true, 'forum_topic_created' => ['name' => 'Ремонт', 'icon_color' => 0]]);
+
+        self::assertSame('Ремонт', $projects->active('telegram', self::GROUP, '88')?->name);
+        self::assertCount(0, $this->stack->llm->requests, 'opening a topic is not a question to the agent');
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {

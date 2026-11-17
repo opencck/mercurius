@@ -19,4 +19,7 @@ interface GroupRepository {
 
     /** @return list<Group> */
     public function all(): array;
+
+    /** Records whether the group is a forum (Telegram says so with every message). */
+    public function setForum(string $channel, string $chatId, bool $forum): void;
 }

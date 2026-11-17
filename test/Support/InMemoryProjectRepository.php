@@ -18,6 +18,8 @@ final class InMemoryProjectRepository implements ProjectRepository {
     public array $relations = [];
     /** @var array<string, int> "channel:chat" => project */
     public array $chats = [];
+    /** @var array<string, array{channel: string, chatId: string, threadId: string}> */
+    private array $places = [];
 
     public function create(string $name, string $goal, ?int $ownerId = null): Project {
         foreach ($this->projects as $p) {
@@ -104,11 +106,23 @@ final class InMemoryProjectRepository implements ProjectRepository {
         return $id === null ? null : ($this->projects[$id] ?? null);
     }
 
+    public function topicsOf(int $projectId): array {
+        $found = [];
+        foreach ($this->chats as $key => $id) {
+            $place = $this->places[$key] ?? null;
+            if ($id === $projectId && $place !== null && $place['threadId'] !== '') {
+                $found[] = $place;
+            }
+        }
+        return $found;
+    }
+
     public function activate(string $channel, string $chatId, ?int $projectId, string $threadId = ''): void {
         if ($projectId === null) {
             unset($this->chats[$channel . ':' . $chatId . ':' . $threadId]);
             return;
         }
         $this->chats[$channel . ':' . $chatId . ':' . $threadId] = $projectId;
+        $this->places[$channel . ':' . $chatId . ':' . $threadId] = ['channel' => $channel, 'chatId' => $chatId, 'threadId' => $threadId];
     }
 }

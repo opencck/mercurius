@@ -95,6 +95,41 @@ final class FakeChannel implements Channel {
     /** @var list<string> */
     public array $left = [];
 
+    /** @var list<array{string, string, string, string}> topic changes: action, chat, thread, name */
+    public array $topics = [];
+    /** createTopic answers null: the chat is not a forum or the bot may not manage topics */
+    public bool $topicsFail = false;
+    private int $nextTopic = 500;
+
+    public function createTopic(string $chatId, string $name): ?string {
+        if ($this->topicsFail) {
+            return null;
+        }
+        $thread = (string) $this->nextTopic++;
+        $this->topics[] = ['create', $chatId, $thread, $name];
+        return $thread;
+    }
+
+    public function editTopic(string $chatId, string $threadId, string $name): bool {
+        $this->topics[] = ['edit', $chatId, $threadId, $name];
+        return !$this->topicsFail;
+    }
+
+    public function closeTopic(string $chatId, string $threadId): bool {
+        $this->topics[] = ['close', $chatId, $threadId, ''];
+        return !$this->topicsFail;
+    }
+
+    public function reopenTopic(string $chatId, string $threadId): bool {
+        $this->topics[] = ['reopen', $chatId, $threadId, ''];
+        return !$this->topicsFail;
+    }
+
+    public function deleteTopic(string $chatId, string $threadId): bool {
+        $this->topics[] = ['delete', $chatId, $threadId, ''];
+        return !$this->topicsFail;
+    }
+
     public function leave(string $chatId): bool {
         $this->left[] = $chatId;
         return true;
