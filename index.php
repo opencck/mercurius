@@ -405,6 +405,9 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $llmCalls,
     $logger,
 );
+if ($sandbox !== null) {
+    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs));
+}
 $loop = new AgentLoop(
     $llm,
     $runs,
