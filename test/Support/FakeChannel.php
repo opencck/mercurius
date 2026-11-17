@@ -44,6 +44,13 @@ final class FakeChannel implements Channel {
     public array $threads = [];
     /** @var list<bool> whether the link preview was off, for every sent message */
     public array $previewsOff = [];
+    /** @var array<string, string> incoming files by their id */
+    public array $downloads = [];
+
+    public function download(string $fileId, int $maxBytes): ?string {
+        $bytes = $this->downloads[$fileId] ?? null;
+        return $bytes === null || strlen($bytes) > $maxBytes ? null : $bytes;
+    }
 
     public function send(OutgoingMessage $message): SendResult {
         $this->threads[] = $message->threadId;
