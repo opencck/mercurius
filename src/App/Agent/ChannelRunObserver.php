@@ -119,6 +119,17 @@ final class ChannelRunObserver implements RunObserver {
         }
     }
 
+    /**
+     * The status message a waiting run left says the decision came: «waiting for the owner» does not stay forever.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+     */
+    public function settled(string $text): void {
+        if ($this->messageId !== null) {
+            $this->channel->edit($this->chatId, $this->messageId, $text);
+        }
+    }
+
     public function waiting(Run $run, string $text): void {
         $this->text = '';
         $this->show($text, ParseMode::Plain, force: true);

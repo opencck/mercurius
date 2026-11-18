@@ -70,6 +70,8 @@ final class RunScheduler {
     private array $active = [];
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: list<string>, future: Future<void>}> */
     private array $pending = [];
+    /** @var array<int, ChannelRunObserver> the observer of each run that paused for the owner: its message is updated once decided */
+    private array $waiting = [];
     /** @var array<int, list<string>> outside data that came to a conversation between runs: the next run is marked */
     private array $tainted = [];
     private ?ApprovalService $approvals = null;
@@ -355,6 +357,9 @@ final class RunScheduler {
         if ($claimed === null) {
             return;
         }
+        $paused = $this->waiting[$run->id] ?? null;
+        unset($this->waiting[$run->id]);
+        $paused?->settled(\Mercurius\I18n\t('agent.run_scheduler.decided'));
         $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
         $observer->start();
         $this->launch($claimed, $principal, $observer);
@@ -691,6 +696,9 @@ final class RunScheduler {
                     if (($this->active[$conversationId]['cancellation'] ?? null) === $cancellation) {
                         unset($this->active[$conversationId], $this->stopping[$conversationId]);
                     }
+                }
+                if ($final->status === RunStatus::WaitingApproval) {
+                    $this->waiting[$run->id] = $observer;
                 }
                 if (!$final->status->isActive()) {
                     $this->carryOver($final, $principal);

@@ -165,6 +165,18 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertStringContainsString('Разрешено владельцем', implode("\n", $this->stack->channel->texts('edit')));
     }
 
+    public function testTheWaitingMessageSaysTheDecisionCameAfterThePress(): void {
+        $this->waitingRun();
+        $edits = count($this->stack->channel->texts('edit'));
+
+        $this->stack->press('ap:1:a');
+        $this->stack->scheduler->awaitIdle();
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — «waiting for the owner» does not stay after the decision
+        $after = array_slice($this->stack->channel->texts('edit'), $edits);
+        self::assertContains('Решение владельца получено — продолжаю.', $after);
+    }
+
     public function testAlwaysSavesTheGrantSoTheNextPushDoesNotAsk(): void {
         $this->waitingRun();
         $this->stack->press('ap:1:g');

@@ -135,6 +135,10 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertFalse($this->stack->approvals->hasGrant(1, 'git-push:origin'));
         self::assertSame('Отозвано.', $this->stack->channel->answers[0][1]);
         self::assertSame([], $this->stack->llm->requests);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the list is updated after a revoke
+        $edited = $this->stack->channel->texts('edit');
+        self::assertNotSame([], $edited, 'the message of the list changes');
+        self::assertStringNotContainsString('git-push:origin', (string) end($edited));
     }
 
     public function testPermissionsWithNoGrantsSaysSo(): void {

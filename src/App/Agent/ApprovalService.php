@@ -147,19 +147,24 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
 
     /** Sends the active grants with a revoke button each; false when there are none. */
     public function showGrants(string $chatId, ?string $replyTo): bool {
-        $grants = $this->approvals->grants();
-        if ($grants === []) {
+        if ($this->approvals->grants() === []) {
             return false;
         }
+        [$text, $rows] = $this->grantList();
+        $this->channel->send(new OutgoingMessage($chatId, $text, $replyTo, buttons: $rows));
+        return true;
+    }
+
+    /** @return array{string, list<list<Button>>} the text of the saved grants and a revoke button for each */
+    private function grantList(): array {
         $lines = [];
         $rows = [];
-        foreach ($grants as $grant) {
+        foreach ($this->approvals->grants() as $grant) {
             $name = $this->principals->find($grant->principalId)->displayName ?? (t('agent.approval_service.uchastnik') . $grant->principalId);
             $lines[] = sprintf('%d. %s — %s', $grant->id, $grant->key, $name);
             $rows[] = [new Button(sprintf(t('agent.approval_service.otozvat'), $grant->id), sprintf('pg:%d:x', $grant->id))];
         }
-        $this->channel->send(new OutgoingMessage($chatId, t('agent.approval_service.sohranennye_razresheniya') . implode("\n", $lines), $replyTo, buttons: $rows));
-        return true;
+        return [$lines === [] ? t('agent.approval_service.no_grants_left') : t('agent.approval_service.sohranennye_razresheniya') . implode("\n", $lines), $rows];
     }
 
     public function handleCallback(IncomingCallback $callback): void {
@@ -168,6 +173,11 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $this->channel->answerCallback($callback->callbackId, $revoked === null ? t('agent.approval_service.uzhe_otozvano') : t('agent.approval_service.otozvano'));
             if ($revoked !== null) {
                 $this->logger->info('Grant revoked', ['grant' => $revoked->id, 'key' => $revoked->key]);
+            }
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the list is updated after a revoke
+            if ($callback->messageId !== null) {
+                [$text, $rows] = $this->grantList();
+                $this->channel->edit($callback->chatId, $callback->messageId, $text, buttons: $rows);
             }
             return;
         }
