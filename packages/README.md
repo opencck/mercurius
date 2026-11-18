@@ -10,7 +10,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `0907de0` | 2026-11-16 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `ea23faf` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `efdba72` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `7904109` | 2026-11-18 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
@@ -42,6 +42,12 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-18 — messenger: файлы локального Bot API
+
+- `mercurius-messenger` `efdba72`: путь файла локального сервера содержит каталог бота `<id>:<токен>/`; двоеточие не
+  проходило проверку пути, и голосовые, фото и документы не читались. Теперь двоеточие допускается только в абсолютном
+  пути локального сервера.
 
 ### 2026-11-18 — i18n: /proposals
 
