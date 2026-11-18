@@ -42,6 +42,27 @@ final class ToolCallValidatorTest extends TestCase {
         self::assertSame(DangerClass::Write, $outcome->calls[0]->danger);
     }
 
+    public function testStringsOfSimpleTypesAreReadAsTheSchemaSays(): void {
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('typed', DangerClass::Read, [
+            'type' => 'object',
+            'properties' => [
+                'n' => ['type' => 'integer'], 'x' => ['type' => 'number'], 'on' => ['type' => 'boolean'],
+                'list' => ['type' => 'array', 'items' => ['type' => 'string']], 'name' => ['type' => 'string'],
+            ],
+        ]));
+        $validator = new ToolCallValidator($registry);
+
+        // ref: references/hermes-agent/tools/arg_coercion.py@e96221fa:L173-L240 — a string of a number, a boolean or JSON
+        //      is read as the schema says; what does not parse stays as it was
+        $outcome = $validator->validate([new ToolCall('c1', 'typed', '{"n":"42","x":"1.5","on":"True","list":"[\"a\",\"b\"]","name":"7"}')], new ParticipantPolicy(['typed'], new RunLimits(30, 1000, 900, 120), null, true));
+        self::assertNull($outcome->calls[0]->error);
+        self::assertSame(['n' => 42, 'x' => 1.5, 'on' => true, 'list' => ['a', 'b'], 'name' => '7'], $outcome->calls[0]->args);
+
+        $wrong = $validator->validate([new ToolCall('c2', 'typed', '{"n":"4.5"}')], new ParticipantPolicy(['typed'], new RunLimits(30, 1000, 900, 120), null, true));
+        self::assertNotNull($wrong->calls[0]->error, 'a decimal is not an integer: the schema refuses it');
+    }
+
     public function testUnknownToolReturnsAllowedNames(): void {
         $outcome = $this->validator->validate([new ToolCall('c1', 'nope', '{}')], $this->policy());
 

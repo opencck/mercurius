@@ -64,7 +64,7 @@ final class ToolCallValidator {
                 continue;
             }
             /** @var array<string, mixed> $args */
-            $args = $decoded;
+            $args = self::coerce($decoded, $tool->definition()->parameters);
 
             $key = $call->name . "\0" . CanonicalJson::encode($args);
             if (isset($seen[$key])) {
@@ -110,4 +110,57 @@ final class ToolCallValidator {
         );
     }
 
+
+    /**
+     * Strings of simple types read as the schema says: "42" for an integer, "true" for a boolean, a JSON text for an
+     * array or an object. What does not parse stays as it was, and the schema check speaks about it.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — arguments of simple types are brought to the schema first
+     * ref: references/hermes-agent/tools/arg_coercion.py@e96221fa:L173-L240 (_coerce_value) — the same rules: a number
+     *      that is not finite or an integer with decimals stays a string, booleans by "true"/"false"
+     * @param mixed $args the decoded arguments, an object
+     * @param array<array-key, mixed> $parameters
+     * @return array<array-key, mixed>
+     */
+    private static function coerce(mixed $args, array $parameters): array {
+        if (!is_array($args)) {
+            return [];
+        }
+        $properties = $parameters['properties'] ?? null;
+        if (!is_array($properties)) {
+            return $args;
+        }
+        foreach ($args as $key => $value) {
+            $schema = $properties[$key] ?? null;
+            if (!is_string($value) || !is_array($schema) || !isset($schema['type']) || !is_string($schema['type'])) {
+                continue;
+            }
+            $args[$key] = match ($schema['type']) {
+                'integer' => preg_match('~^\s*-?\d{1,18}(\.0+)?\s*$~', $value) === 1 ? (int) $value : $value,
+                'number' => is_numeric($value) && is_finite((float) $value) ? (str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value) : $value,
+                'boolean' => match (strtolower(trim($value))) {
+                    'true' => true,
+                    'false' => false,
+                    default => $value,
+                },
+                'array' => self::json($value, true) ?? $value,
+                'object' => self::json($value, false) ?? $value,
+                default => $value,
+            };
+        }
+        return $args;
+    }
+
+    /** @return array<array-key, mixed>|null the JSON text as a list (or an object); null when it is not one */
+    private static function json(string $value, bool $list): ?array {
+        try {
+            $decoded = json_decode($value, true, 32, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+        if (!is_array($decoded)) {
+            return null;
+        }
+        return array_is_list($decoded) === $list || $decoded === [] ? $decoded : null;
+    }
 }
