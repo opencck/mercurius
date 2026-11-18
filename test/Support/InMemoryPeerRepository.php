@@ -57,6 +57,11 @@ final class InMemoryPeerRepository implements PeerRepository {
     }
 
     public function allowKey(int $principalId, string $name, string $fingerprint): void {
+        foreach ($this->keys as $id => $k) {
+            if ($id !== $principalId && $k['fingerprint'] === $fingerprint) {
+                throw new \RuntimeException('duplicate key value violates unique constraint "agent_keys_fingerprint_key"');
+            }
+        }
         $this->keys[$principalId] = ['name' => $name, 'fingerprint' => $fingerprint, 'revoked' => false];
     }
 
@@ -68,6 +73,16 @@ final class InMemoryPeerRepository implements PeerRepository {
             }
         }
         return false;
+    }
+
+    public function restoreKey(string $fingerprint): ?int {
+        foreach ($this->keys as $id => $k) {
+            if ($k['fingerprint'] === $fingerprint) {
+                $this->keys[$id]['revoked'] = false;
+                return $id;
+            }
+        }
+        return null;
     }
 
     public function principalByFingerprint(string $fingerprint): ?int {

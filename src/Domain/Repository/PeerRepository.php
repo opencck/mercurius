@@ -19,6 +19,9 @@ interface PeerRepository {
 
     public function revokeKey(string $name): bool;
 
+    /** Lets a revoked key in again for the agent it belongs to; its principal, or null when the key is not known at all. */
+    public function restoreKey(string $fingerprint): ?int;
+
     /** The agent the key belongs to; null for an unknown or revoked one. */
     public function principalByFingerprint(string $fingerprint): ?int;
 

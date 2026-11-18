@@ -33,6 +33,11 @@ final class PostgresPeerRepository implements PeerRepository {
         return $this->db->execute('UPDATE agent_keys SET revoked_at = now() WHERE name = ? AND revoked_at IS NULL RETURNING name', [$name])->fetchRow() !== null;
     }
 
+    public function restoreKey(string $fingerprint): ?int {
+        $row = $this->db->execute('UPDATE agent_keys SET revoked_at = NULL WHERE fingerprint = ? RETURNING principal_id', [$fingerprint])->fetchRow();
+        return isset($row['principal_id']) && is_int($row['principal_id']) ? $row['principal_id'] : null;
+    }
+
     public function principalByFingerprint(string $fingerprint): ?int {
         $row = $this->db->execute('SELECT principal_id FROM agent_keys WHERE fingerprint = ? AND revoked_at IS NULL', [$fingerprint])->fetchRow();
         return isset($row['principal_id']) && is_int($row['principal_id']) ? $row['principal_id'] : null;

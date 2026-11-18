@@ -32,10 +32,25 @@ final class ParticipantsTool implements Tool {
 
     public const NAME = 'participants';
 
+    /** @param (\Closure(): list<array{name: string, fingerprint: string, principal: int, revoked: bool}>)|null $keys the keys of agents */
     public function __construct(
         private readonly PrincipalRepository $principals,
         private readonly PolicyService $policies,
+        private readonly ?\Closure $keys = null,
     ) {}
+
+    /**
+     * The key an agent connects with: two agents may share a name, never a key. An agent without a key cannot connect.
+     *
+     * @return array<int, string> principal => «SHA256:… (revoked)»
+     */
+    private function keysByAgent(): array {
+        $found = [];
+        foreach ($this->keys === null ? [] : ($this->keys)() as $key) {
+            $found[$key['principal']] = $key['fingerprint'] . ($key['revoked'] ? t('tool.participants.key_revoked') : '');
+        }
+        return $found;
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.participants.uchastniki_lyudi_i_agenty_kotorye')
@@ -71,13 +86,15 @@ final class ParticipantsTool implements Tool {
         if (Args::string($args, 'action') === 'decide') {
             return $this->decide(Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
         }
+        $keys = $this->keysByAgent();
         $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $query === ''
             || (string) $p->id === $query
-            || str_contains(mb_strtolower($p->displayName ?? ''), $query)));
+            || str_contains(mb_strtolower($p->displayName ?? ''), $query)
+            || str_contains(mb_strtolower($keys[$p->id] ?? ''), $query)));
         if ($found === []) {
             return ToolResult::ok($query === '' ? t('tool.participants.uchastnikov_net') : sprintf(t('tool.participants.uchastnika_net'), $query));
         }
-        return ToolResult::ok(implode("\n", array_map(fn(Principal $p): string => $this->line($p), $found)));
+        return ToolResult::ok(implode("\n", array_map(fn(Principal $p): string => $this->line($p, $keys), $found)));
     }
 
     /**
@@ -107,7 +124,8 @@ final class ParticipantsTool implements Tool {
         return ToolResult::ok(sprintf(t('tool.participants.decided'), $decided->id, $decided->displayName ?? '', $decided->role->value, $decided->status->value));
     }
 
-    private function line(Principal $p): string {
+    /** @param array<int, string> $keys */
+    private function line(Principal $p, array $keys = []): string {
         $head = sprintf(
             t('tool.participants.rol'),
             $p->id,
@@ -116,6 +134,9 @@ final class ParticipantsTool implements Tool {
             $p->role->value,
             $p->status->value,
         );
+        if ($p->kind === PrincipalKind::Agent && $this->keys !== null) {
+            $head .= isset($keys[$p->id]) ? sprintf(t('tool.participants.key'), $keys[$p->id]) : t('tool.participants.no_key');
+        }
         if ($p->isOwner()) {
             return $head . t('tool.participants.vladelets_vse_prava');
         }

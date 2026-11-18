@@ -366,7 +366,11 @@ $tools->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($tools, $policies))
 $mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
 $mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
 $tools->register(new \OpenCCK\App\Agent\Tool\MediaPrefsTool($mediaPrefs));
-$tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies));
+/** @var \OpenCCK\Infrastructure\Repository\PostgresPeerRepository|null $peerRepository set below */
+$peerRepository = null;
+$tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies, static function () use (&$peerRepository): array {
+    return $peerRepository?->keys() ?? [];
+}));
 $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();

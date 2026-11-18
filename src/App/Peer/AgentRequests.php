@@ -106,6 +106,11 @@ final class AgentRequests implements CallbackHandler {
         }
         if ($role === null) {
             $outcome = sprintf(t('peer.agent_requests.rejected'), $decided->name, $decided->fingerprint);
+        } elseif (($known = $this->peers->restoreKey($decided->fingerprint)) !== null) {
+            // A key the owner revoked before goes back to its agent, with its rights: a second participant for the same
+            // key would get nothing (the key keeps pointing at the first one) and only confuse who is who.
+            $who = $this->principals->find($known);
+            $outcome = sprintf(t('peer.agent_requests.restored'), $who->displayName ?? ('#' . $known), $decided->fingerprint, $who?->role->value ?? '?');
         } else {
             $name = $this->freeName($decided->name, $decided->fingerprint);
             $agent = $this->principals->createAgent($name, $role);
