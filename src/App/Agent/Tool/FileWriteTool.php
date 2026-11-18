@@ -54,7 +54,16 @@ final class FileWriteTool implements Tool, GrantKeyed {
         if ($server === '' || $path === '') {
             return null;
         }
-        return sprintf('%s:%s:%s', $this->never($args) === null ? 'file-write' : 'file-write-never', $server, $path);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — «always» is for this content written this way at this place:
+        //       a saved grant does not let a page steer another content into the same file
+        return sprintf(
+            '%s:%s:%s:%s:%s',
+            $this->never($args) === null ? 'file-write' : 'file-write-never',
+            $server,
+            $path,
+            ($args['append'] ?? false) === true ? 'append' : 'write',
+            substr(hash('sha256', Args::string($args, 'content') ?? ''), 0, 16),
+        );
     }
 
     public function describe(array $args): string {

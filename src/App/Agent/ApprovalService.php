@@ -207,9 +207,10 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
      * Denies what the run waits for without resuming it: the owner wrote instead of pressing (their words are the
      * reason), stopped the run, or the run failed. The card gets the outcome.
      */
-    public function denyPending(int $runId, string $reason, string $outcome): bool {
+    /** @param int|null $decidedBy the person who refused (the owner wrote instead of pressing); null — not a person's refusal */
+    public function denyPending(int $runId, string $reason, string $outcome, ?int $decidedBy = null): bool {
         $pending = $this->approvals->pendingForRun($runId);
-        $decided = $pending === null ? null : $this->approvals->decide($pending->id, ApprovalStatus::Denied, $reason, null);
+        $decided = $pending === null ? null : $this->approvals->decide($pending->id, ApprovalStatus::Denied, $reason, $decidedBy);
         if ($decided === null) {
             return false;
         }

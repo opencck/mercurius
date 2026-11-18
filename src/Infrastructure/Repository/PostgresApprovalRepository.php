@@ -77,7 +77,10 @@ final class PostgresApprovalRepository implements ApprovalRepository {
     public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int {
         $denied = 0;
         foreach ($this->db->execute(
-            "SELECT status FROM approvals WHERE principal_id = ? AND summary = ? AND status IN ('approved', 'denied') AND created_at >= ?
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — only a person's refusal counts: one the agent made itself
+            //       (the card did not reach the owner, already refused in a row) neither counts nor breaks the streak
+            "SELECT status FROM approvals WHERE principal_id = ? AND summary = ? AND created_at >= ?
+               AND (status = 'approved' OR (status = 'denied' AND decided_by IS NOT NULL))
              ORDER BY id DESC LIMIT 10",
             [$principalId, $summary, $since->format('Y-m-d H:i:sP')],
         ) as $row) {

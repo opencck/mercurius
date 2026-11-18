@@ -30,12 +30,22 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         $first = $this->create('c1');
         $this->approvals->decide($first, ApprovalStatus::Approved, null, null);
         foreach (['c2', 'c3'] as $call) {
-            $this->approvals->decide($this->create($call), ApprovalStatus::Denied, 'нет', null);
+            $this->approvals->decide($this->create($call), ApprovalStatus::Denied, 'нет', $this->principalId);
         }
         $this->create('c4');
 
         self::assertSame(2, $this->approvals->deniedInARow($this->principalId, 'git push', $since), 'a pending one and the approval before do not count');
         self::assertSame(0, $this->approvals->deniedInARow($this->principalId, 'git push --force', $since), 'another action is another streak');
+    }
+
+    public function testOnlyRefusalsOfAPersonAreCounted(): void {
+        $since = new DateTimeImmutable('-1 day');
+        $this->approvals->decide($this->create('c1'), ApprovalStatus::Denied, 'нет', $this->principalId);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a card that did not reach the owner is not their refusal
+        foreach (['c2', 'c3', 'c4'] as $call) {
+            $this->approvals->decide($this->create($call), ApprovalStatus::Denied, 'карточка не дошла', null);
+        }
+        self::assertSame(1, $this->approvals->deniedInARow($this->principalId, 'git push', $since), 'automatic refusals neither count nor break the streak');
     }
 
     public function testCreatedApprovalIsPending(): void {

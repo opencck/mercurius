@@ -198,7 +198,11 @@ final class ServerToolsTest extends AsyncTestCase {
         $args = ['server' => 'db', 'path' => '/root/.ssh/authorized_keys', 'content' => 'k', 'append' => true];
 
         self::assertStringStartsWith('file-write-never:db:', (string) $tool->grantKey($args));
-        self::assertSame('file-write:db:/etc/app.conf', $tool->grantKey(['server' => 'DB', 'path' => '/etc/app.conf', 'content' => '']));
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a grant for good is for this content at this place
+        $write = ['server' => 'DB', 'path' => '/etc/app.conf', 'content' => 'a=1'];
+        self::assertSame('file-write:db:/etc/app.conf:write:' . substr(hash('sha256', 'a=1'), 0, 16), $tool->grantKey($write));
+        self::assertNotSame($tool->grantKey($write), $tool->grantKey(['content' => 'a=2'] + $write), 'other content is another grant');
+        self::assertNotSame($tool->grantKey($write), $tool->grantKey(['append' => true] + $write), 'appending is another grant');
         self::assertStringContainsString('ОПАСНО', $tool->describe($args));
 
         $result = $tool->execute($args, new ToolContext(5, 1, $this->owner, new NullCancellation(), approved: true));

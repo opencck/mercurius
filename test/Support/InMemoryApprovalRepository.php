@@ -17,6 +17,8 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
     private array $expires = [];
     /** @var array<int, Grant> */
     private array $grants = [];
+    /** @var array<int, ?int> who decided each approval; null — decided by the agent itself */
+    private array $deciders = [];
     private int $next = 1;
     private int $nextGrant = 1;
 
@@ -45,6 +47,9 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
             if ($a->principalId !== $principalId || $a->summary !== $summary || !in_array($a->status, [ApprovalStatus::Approved, ApprovalStatus::Denied], true)) {
                 continue;
             }
+            if ($a->status === ApprovalStatus::Denied && ($this->deciders[$a->id] ?? null) === null) {
+                continue;
+            }
             if ($a->status !== ApprovalStatus::Denied) {
                 break;
             }
@@ -61,6 +66,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         if ($status !== ApprovalStatus::Expired && $this->expires[$id] <= new DateTimeImmutable()) {
             return null;
         }
+        $this->deciders[$id] = $decidedBy;
         return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId);
     }
 

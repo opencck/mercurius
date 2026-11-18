@@ -266,7 +266,7 @@ final class RunScheduler {
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
         // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
-        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, t('agent.run_scheduler.otkazano_vladelets_otvetil_tekstom')) === true) {
+        if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, t('agent.run_scheduler.otkazano_vladelets_otvetil_tekstom'), $principal->id) === true) {
             $this->resumeRun($run->id);
             return;
         }
