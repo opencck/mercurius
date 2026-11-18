@@ -18,6 +18,34 @@ final class SettingsCatalog {
     public const INT = 'int';
     public const FLOAT = 'float';
 
+    /**
+     * What a setting is when neither .env nor the dialog gives it: shown by /settings and the settings tool, so the agent
+     * knows the number it works with. Checked against the parsers of the settings by a test.
+     *
+     * @var array<string, string>
+     */
+    public const DEFAULTS = [
+        'LLM_REASONING_EFFORT' => 'low',
+        'LLM_MAX_TOKENS' => '4096',
+        'LLM_HISTORY_LIMIT' => '40',
+        'LLM_CONTEXT_WINDOW' => '131072',
+        'AGENT_MAX_TURNS' => '30',
+        'AGENT_TOKEN_BUDGET' => '400000',
+        'AGENT_RUN_TIMEOUT' => '900',
+        'AGENT_TOOL_TIMEOUT' => '120',
+        'AGENT_APPROVAL_TIMEOUT' => '1800',
+        'AGENT_WORKER_MAX_TURNS' => '15',
+        'AGENT_WORKER_TOKEN_BUDGET' => '100000',
+        'AGENT_MAX_WORKERS_PER_RUN' => '10',
+        'AGENT_DAILY_SPEND_CAP' => '0',
+        'AGENT_MONTHLY_SPEND_CAP' => '0',
+        'JOB_TOKEN_BUDGET' => '100000',
+        'GROUP_FREE_DAILY_TOKENS' => '200000',
+        'MEDIA_AUDIO_AUTO_MINUTES' => '10',
+        'MEDIA_TEXT_LIMIT' => '20000',
+        'MEDIA_INBOX_DAYS' => '30',
+    ];
+
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
         'OPENROUTER_API_KEY' => ['models', self::SECRET, 'settings.about.openrouter_api_key'],

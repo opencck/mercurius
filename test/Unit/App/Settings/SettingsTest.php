@@ -61,6 +61,30 @@ final class SettingsTest extends AsyncTestCase {
         self::assertStringNotContainsString('sk-env', $text);
     }
 
+    public function testAnUnsetLimitShowsTheValueInEffect(): void {
+        $text = $this->settings->text();
+        // spec: BRIEF.md#настройки-агента — the agent sees the number it works with, so it can double it
+        self::assertStringContainsString('AGENT_TOKEN_BUDGET = 400000 (по умолчанию)', $text);
+        self::assertStringContainsString('AGENT_MAX_TURNS = 30 (по умолчанию)', $text);
+        self::assertStringContainsString('SEARXNG_URL = — (по умолчанию)', $text, 'a setting without a default stays empty');
+    }
+
+    public function testTheDefaultsShownAreTheOnesTheAgentStartsWith(): void {
+        $agent = \OpenCCK\Infrastructure\Config\AgentSettings::fromEnv([]);
+        $defaults = \OpenCCK\App\Settings\SettingsCatalog::DEFAULTS;
+        self::assertSame((string) $agent->maxTurns, $defaults['AGENT_MAX_TURNS']);
+        self::assertSame((string) $agent->tokenBudget, $defaults['AGENT_TOKEN_BUDGET']);
+        self::assertSame((string) $agent->runTimeout, $defaults['AGENT_RUN_TIMEOUT']);
+        self::assertSame((string) $agent->toolTimeout, $defaults['AGENT_TOOL_TIMEOUT']);
+        self::assertSame((string) $agent->approvalTimeout, $defaults['AGENT_APPROVAL_TIMEOUT']);
+        self::assertSame((string) $agent->workerMaxTurns, $defaults['AGENT_WORKER_MAX_TURNS']);
+        self::assertSame((string) $agent->workerTokenBudget, $defaults['AGENT_WORKER_TOKEN_BUDGET']);
+        self::assertSame((string) $agent->maxWorkersPerRun, $defaults['AGENT_MAX_WORKERS_PER_RUN']);
+        foreach (array_keys($defaults) as $key) {
+            self::assertTrue(\OpenCCK\App\Settings\SettingsCatalog::has($key), $key);
+        }
+    }
+
     public function testAValueThatWouldStopTheStartIsRefusedAndEmptyGoesBackToEnv(): void {
         try {
             $this->settings->set($this->owner, 'OWNER_TIMEZONE', 'Mars/Base');

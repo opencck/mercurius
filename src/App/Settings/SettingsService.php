@@ -65,7 +65,7 @@ final class SettingsService {
         $out = [];
         foreach (SettingsCatalog::ALL as $key => [$group, $kind, $about]) {
             $raw = isset($stored[$key]) ? ($stored[$key]['secret'] ? '***' : ($stored[$key]['value'] ?? '')) : (isset($this->env[$key]) && is_string($this->env[$key]) ? $this->env[$key] : '');
-            $shown = $raw === '' ? '—' : ($kind === SettingsCatalog::SECRET ? t('settings.settings_service.zadan') : $raw);
+            $shown = $raw === '' ? (SettingsCatalog::DEFAULTS[$key] ?? '—') : ($kind === SettingsCatalog::SECRET ? t('settings.settings_service.zadan') : $raw);
             $out[] = ['key' => $key, 'group' => t('settings.group.' . $group), 'about' => t($about), 'value' => $shown, 'source' => isset($stored[$key]) ? t('settings.settings_service.dialog') : ($raw === '' ? t('settings.settings_service.po_umolchaniyu') : '.env')];
         }
         return $out;
