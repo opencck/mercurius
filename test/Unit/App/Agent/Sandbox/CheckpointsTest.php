@@ -89,6 +89,20 @@ final class CheckpointsTest extends AsyncTestCase {
         self::assertStringContainsString("checkout 'abc1234' -- 'src/app.php'", $commands[2]);
     }
 
+    public function testSnapshotsRunWithoutSettingsThatStartPrograms(): void {
+        $tool = new CheckpointTool($this->sandbox, new Checkpoints($this->sandbox));
+
+        $tool->execute(['action' => 'restore', 'id' => 'abc1234', 'path' => 'a.txt'], self::context());
+        $tool->execute(['action' => 'list'], self::context());
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the participant writes the folder of the snapshots too: its
+        //       config is written anew before every command, and git takes no settings from elsewhere
+        foreach ($this->commands() as $command) {
+            self::assertStringContainsString('GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat', $command);
+            self::assertStringContainsString("> .checkpoints/config", $command, 'filters and the like of the old config are gone');
+        }
+    }
+
     public function testABadIdOrPathIsRefused(): void {
         $tool = new CheckpointTool($this->sandbox, new Checkpoints($this->sandbox));
 

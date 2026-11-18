@@ -86,15 +86,24 @@ final class Checkpoints {
             && !str_starts_with($path, self::DIR);
     }
 
-    private const GIT = 'git --git-dir=' . self::DIR . ' --work-tree=.';
+    /**
+     * git with no settings of the system or the participant, and none that start a program: the participant writes
+     * the snapshot folder too, and a snapshot runs before a change without anyone being asked.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — snapshots start no program of the participant
+     */
+    private const GIT = 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat --git-dir=' . self::DIR . ' --work-tree=.';
+    /** the config of the snapshot store, written anew before every command: filters and the like set there are gone */
+    private const CONFIG = "printf '[core]\\n\\trepositoryformatversion = 0\\n\\tbare = false\\n' > " . self::DIR . '/config';
 
     private function git(int $principalId, SandboxLimits $limits, string $command, Cancellation $cancellation, bool $init = true): CommandOutcome {
         $setup = '';
         if ($init) {
             $exclude = implode("\\n", self::EXCLUDES);
-            $setup = '[ -d ' . self::DIR . ' ] || { git init -q --bare ' . self::DIR . ' && git --git-dir=' . self::DIR . ' config core.bare false'
-                . " && printf '" . $exclude . "\\n' > " . self::DIR . '/info/exclude; } && ';
+            $setup = '[ -d ' . self::DIR . ' ] || { GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git init -q --bare --template= ' . self::DIR
+                . ' && mkdir -p ' . self::DIR . "/info && printf '" . $exclude . "\\n' > " . self::DIR . '/info/exclude; } && ';
         }
+        $setup .= '{ [ ! -d ' . self::DIR . ' ] || ' . self::CONFIG . '; } && ';
         return $this->sandbox->exec($principalId, $limits, 'checkpoint-' . bin2hex(random_bytes(4)), $setup . self::GIT . ' ' . $command, '.', self::SECONDS, $cancellation);
     }
 

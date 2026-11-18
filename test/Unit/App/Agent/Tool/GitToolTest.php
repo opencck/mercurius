@@ -63,11 +63,38 @@ final class GitToolTest extends AsyncTestCase {
     public function testWithoutASecretNothingIsAdded(): void {
         $tool = $this->tool();
 
-        $result = $tool->execute(['args' => ['status', '--short']], $this->context());
+        $result = $tool->execute(['args' => ['commit', '-m', 'x']], $this->context());
 
         self::assertFalse($result->isError, $result->content);
-        self::assertSame(["exec 1 git 'status' '--short' @. t120"], $this->sandbox->calls);
+        self::assertSame(["exec 1 git 'commit' '-m' 'x' @. t120"], $this->sandbox->calls);
         self::assertSame(['GIT_TERMINAL_PROMPT' => '0'], $this->sandbox->env);
+    }
+
+    public function testAReadStartsNoProgramOfTheRepository(): void {
+        $tool = $this->tool();
+
+        $result = $tool->execute(['args' => ['status', '--short']], $this->context());
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a read runs without a card, so the repository may not make
+        //       it start a program: settings that would are off, and a config with filters or diff programs stops it
+        self::assertFalse($result->isError, $result->content);
+        $command = $this->sandbox->calls[0] ?? '';
+        self::assertStringContainsString("git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat 'status' '--short'", $command);
+        self::assertStringContainsString('git config --get-regexp', $command);
+        self::assertStringContainsString('filter', $command);
+        self::assertStringContainsString('textconv', $command);
+        self::assertSame('1', $this->sandbox->env['GIT_CONFIG_NOSYSTEM'] ?? null);
+        self::assertSame('/dev/null', $this->sandbox->env['GIT_CONFIG_GLOBAL'] ?? null);
+    }
+
+    public function testOptionsThatStartProgramsMakeAReadACard(): void {
+        $tool = $this->tool();
+
+        foreach ([['grep', '-O', 'x'], ['grep', '-Ovim', 'x'], ['grep', '--open-files-in-pager=sh', 'x'], ['diff', '--ext-diff'], ['log', '--textconv'], ['diff', '--output=/tmp/x'], ['show', '-x']] as $args) {
+            self::assertSame(DangerClass::Irreversible, $tool->danger(['args' => $args]), implode(' ', $args));
+        }
+        self::assertNotSame(DangerClass::Read, $tool->danger(['args' => ['ls-remote', 'https://example.com/r.git']]), 'ls-remote talks to a server');
+        self::assertSame(DangerClass::Read, $tool->danger(['args' => ['log', '--oneline', '-5']]));
     }
 
     public function testArgumentsAreQuotedAndOptionsThatRunProgramsAreRefused(): void {

@@ -34,7 +34,14 @@ use function Mercurius\I18n\t;
  */
 final class GitTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'git';
-    private const READS = ['status', 'log', 'diff', 'show', 'blame', 'ls-files', 'ls-remote', 'rev-parse', 'describe', 'shortlog', 'grep'];
+    /** reads of the repository: no card; ls-remote talks to a server and is not one */
+    private const READS = ['status', 'log', 'diff', 'show', 'blame', 'ls-files', 'rev-parse', 'describe', 'shortlog', 'grep'];
+    /** options that make a read start a program or write a file: such a read waits for a card */
+    private const PROGRAM_OPTIONS = '~^(-O|--open-files-in-pager|--output|--ext-diff$|--textconv$|--extcmd|-x$)~';
+    /** settings off for a read: the repository's own config could start a program with them */
+    private const READ_HARDENED = ['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'diff.external=', 'core.pager=cat'];
+    /** settings of the repository that start a program in a read and cannot be turned off from the command line */
+    private const READ_PROGRAMS = '^(filter\..*\.(clean|smudge|process)|diff\..*\.(textconv|command))$';
     /** options that make git start a program the command names */
     private const REFUSED = '~^(-c|--config-env|--exec-path|--upload-pack|--receive-pack|--exec)(=|$)|^-c.~';
     /** commands where -u is --upload-pack: a short cluster with u (-u sh, -ush, -qush) starts a program there */
@@ -80,7 +87,21 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         if ((new CommandClassifier())->classify(self::command($list))->danger === DangerClass::Irreversible) {
             return DangerClass::Irreversible;
         }
-        return in_array($list[0] ?? '', self::READS, true) ? DangerClass::Read : DangerClass::Write;
+        if (in_array($list[0] ?? '', self::READS, true)) {
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a read that would start a program is not a read
+            return self::startsProgram($list) ? DangerClass::Irreversible : DangerClass::Read;
+        }
+        return DangerClass::Write;
+    }
+
+    /** @param list<string> $list */
+    private static function startsProgram(array $list): bool {
+        foreach ($list as $arg) {
+            if (preg_match(self::PROGRAM_OPTIONS, $arg) === 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function grantKey(array $args): ?string {
@@ -147,11 +168,21 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             $hidden = [$token, $basic];
             $hardened = self::HARDENED;
         }
+        $check = '';
+        if ($secret === null && in_array($list[0], self::READS, true) && !self::startsProgram($list)) {
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a read runs without a card: the settings of the
+            //       repository and of the participant that start programs are off, and filters or diff programs in
+            //       the repository config stop it (they cannot be turned off from the command line)
+            $env += ['GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null'];
+            $hardened = self::READ_HARDENED;
+            $check = "if git config --get-regexp '" . self::READ_PROGRAMS . "' >/dev/null 2>&1; then echo '"
+                . str_replace("'", "'\\''", t('tool.git.read_programs')) . "' >&2; exit 3; fi; ";
+        }
         $outcome = $this->env->execEnv(
             $context->principal->id,
             $limits,
             $context->callId,
-            self::command($list, $hardened),
+            $check . self::command($list, $hardened),
             Args::string($args, 'cwd') ?? '.',
             max(1, Args::int($args, 'timeout') ?? $this->defaultTimeout),
             $env,
