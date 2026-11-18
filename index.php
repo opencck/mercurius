@@ -611,15 +611,6 @@ $tools->register(new \OpenCCK\App\Agent\Tool\SkillSaveTool($skillLibrary, $skill
 $skillHttp = HttpClients::guarded($addressGuard);
 $skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)]);
 $tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
-// skills of the earlier catalog in the base move once into the owner's folder of skills, then the base forgets them
-\Amp\async(static function () use ($skillLibrary, $principals, $telegram, $db, $logger): void {
-    \Amp\delay(20);
-    $owner = $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId);
-    if ($owner !== null) {
-        (new \OpenCCK\App\Skill\SkillMigration(new \OpenCCK\Infrastructure\Repository\PostgresOldSkillCatalog($db), $skillLibrary, $logger))->toFolder($owner);
-    }
-});
-
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
 /** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
