@@ -352,7 +352,13 @@ final class McpManager {
             if ($this->registry->get($name) !== null || !$server->registers($tool['name'])) {
                 continue;
             }
-            $this->registry->register(new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker));
+            try {
+                $this->registry->register(new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker));
+            } catch (\InvalidArgumentException $e) {
+                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a tool with a schema no model can call is left out
+                $this->logger->warning('An MCP tool is not registered', ['server' => $server->name, 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);
+                continue;
+            }
             $names[] = $name;
         }
         $this->registered[$server->name] = $names;

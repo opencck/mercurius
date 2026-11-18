@@ -27,12 +27,54 @@ final class ToolRegistry {
         $this->services = $up;
     }
 
+    /** @throws \InvalidArgumentException the name or the schema of the tool is not one a model can call */
     public function register(Tool $tool): void {
-        $name = $tool->definition()->name;
+        $definition = $tool->definition();
+        $name = $definition->name;
         if (isset($this->tools[$name])) {
             throw new LogicException(sprintf('Tool "%s" is already registered', $name));
         }
+        $problem = self::problem($name, $definition->parameters);
+        if ($problem !== null) {
+            throw new \InvalidArgumentException(sprintf('Tool "%s" is not registered: %s', mb_substr($name, 0, 80), $problem));
+        }
         $this->tools[$name] = $tool;
+    }
+
+    /**
+     * What is wrong with a tool for a model; null — nothing. A missing type of the root is taken as an object.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a tool is checked when it is registered (an MCP one above all)
+     * ref: references/hermes-agent/tools/mcp_tool_schema.py@e96221fa:L78-L123 (_repair_object_shape) — hermes fills a
+     *      missing object type; what cannot be read as an object of named properties is refused here
+     * @param array<array-key, mixed> $parameters
+     */
+    private static function problem(string $name, array $parameters): ?string {
+        if (preg_match('~^[A-Za-z0-9_-]{1,64}$~', $name) !== 1) {
+            return 'the name is not 1-64 letters, digits, _ or -';
+        }
+        if (($parameters['type'] ?? 'object') !== 'object') {
+            return 'the parameters are not an object';
+        }
+        $properties = $parameters['properties'] ?? [];
+        if (!is_array($properties)) {
+            return 'the properties are not a map';
+        }
+        foreach ($properties as $property => $schema) {
+            if (!is_string($property) || !is_array($schema)) {
+                return 'a property is not a named schema';
+            }
+        }
+        $required = $parameters['required'] ?? [];
+        if (!is_array($required)) {
+            return 'required is not a list';
+        }
+        foreach ($required as $field) {
+            if (!is_string($field) || !array_key_exists($field, $properties)) {
+                return 'required names a property that is not there';
+            }
+        }
+        return null;
     }
 
     /** Takes tools out — those of an MCP server that was turned off or changed. */

@@ -49,6 +49,26 @@ final class ToolRegistryTest extends TestCase {
         $registry->register(new FakeTool('a'));
     }
 
+    public function testAToolWithABadSchemaIsNotRegistered(): void {
+        $registry = new ToolRegistry();
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a tool is checked when it is registered
+        foreach ([
+            new FakeTool('bad name!'),
+            new FakeTool('list', parameters: ['type' => 'array']),
+            new FakeTool('props', parameters: ['type' => 'object', 'properties' => 'x']),
+            new FakeTool('req', parameters: ['type' => 'object', 'properties' => ['a' => ['type' => 'string']], 'required' => ['b']]),
+        ] as $tool) {
+            try {
+                $registry->register($tool);
+                self::fail('registered: ' . $tool->definition()->name);
+            } catch (\InvalidArgumentException $e) {
+                self::assertNotSame('', $e->getMessage());
+            }
+        }
+        $registry->register(new FakeTool('typeless', parameters: ['properties' => ['a' => ['type' => 'string']]]));
+        self::assertNotNull($registry->get('typeless'), 'a missing root type is taken as an object, as hermes repairs it');
+    }
+
     public function testGet(): void {
         $registry = new ToolRegistry();
         $tool = new FakeTool('a');
