@@ -64,8 +64,11 @@ final class SettingsTest extends AsyncTestCase {
     public function testAnUnsetLimitShowsTheValueInEffect(): void {
         $text = $this->settings->text();
         // spec: BRIEF.md#настройки-агента — the agent sees the number it works with, so it can double it
-        self::assertStringContainsString('AGENT_TOKEN_BUDGET = 400000 (по умолчанию)', $text);
-        self::assertStringContainsString('AGENT_MAX_TURNS = 30 (по умолчанию)', $text);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the default limits: 750 turns, 1 million tokens, 8 hours
+        self::assertStringContainsString('AGENT_TOKEN_BUDGET = 1000000 (по умолчанию)', $text);
+        self::assertStringContainsString('AGENT_MAX_TURNS = 750 (по умолчанию)', $text);
+        self::assertStringContainsString('AGENT_RUN_TIMEOUT = 28800 (по умолчанию)', $text);
+        self::assertStringContainsString('AGENT_WORKER_MAX_TURNS = 375 (по умолчанию)', $text);
         self::assertStringContainsString('SEARXNG_URL = — (по умолчанию)', $text, 'a setting without a default stays empty');
     }
 

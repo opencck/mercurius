@@ -43,13 +43,14 @@ final class AgentSettings {
      */
     public static function fromEnv(array $env): self {
         return new self(
-            maxTurns: Env::positiveInt($env, 'AGENT_MAX_TURNS', 30, 10_000),
-            tokenBudget: Env::positiveInt($env, 'AGENT_TOKEN_BUDGET', 400_000, 50_000_000),
-            runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 900, 86_400),
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — 750 turns, 1 million tokens, 8 hours; a worker 375 turns
+            maxTurns: Env::positiveInt($env, 'AGENT_MAX_TURNS', 750, 10_000),
+            tokenBudget: Env::positiveInt($env, 'AGENT_TOKEN_BUDGET', 1_000_000, 50_000_000),
+            runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 28_800, 86_400),
             toolTimeout: Env::positiveInt($env, 'AGENT_TOOL_TIMEOUT', 120, 600),
             approvalTimeout: Env::positiveInt($env, 'AGENT_APPROVAL_TIMEOUT', 1800, 86_400),
-            workerMaxTurns: Env::positiveInt($env, 'AGENT_WORKER_MAX_TURNS', 15, 100),
-            workerTokenBudget: Env::positiveInt($env, 'AGENT_WORKER_TOKEN_BUDGET', 100_000, 10_000_000),
+            workerMaxTurns: Env::positiveInt($env, 'AGENT_WORKER_MAX_TURNS', 375, 5_000),
+            workerTokenBudget: Env::positiveInt($env, 'AGENT_WORKER_TOKEN_BUDGET', 500_000, 10_000_000),
             maxWorkersPerRun: Env::positiveInt($env, 'AGENT_MAX_WORKERS_PER_RUN', 10, 100),
             dailySpendCap: self::usd($env, 'AGENT_DAILY_SPEND_CAP'),
             monthlySpendCap: self::usd($env, 'AGENT_MONTHLY_SPEND_CAP'),

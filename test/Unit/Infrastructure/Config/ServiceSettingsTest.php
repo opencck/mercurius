@@ -173,13 +173,13 @@ final class ServiceSettingsTest extends TestCase {
     public function testAgentDefaults(): void {
         $settings = AgentSettings::fromEnv([]);
 
-        self::assertSame(30, $settings->maxTurns);
-        self::assertSame(400000, $settings->tokenBudget);
-        self::assertSame(900, $settings->runTimeout);
+        self::assertSame(750, $settings->maxTurns);
+        self::assertSame(1_000_000, $settings->tokenBudget);
+        self::assertSame(28_800, $settings->runTimeout);
         self::assertSame(120, $settings->toolTimeout);
         self::assertSame(1800, $settings->approvalTimeout);
-        self::assertSame(15, $settings->workerMaxTurns);
-        self::assertSame(100_000, $settings->workerTokenBudget);
+        self::assertSame(375, $settings->workerMaxTurns);
+        self::assertSame(500_000, $settings->workerTokenBudget);
     }
 
     public function testApprovalTimeoutIsAtMostADay(): void {
