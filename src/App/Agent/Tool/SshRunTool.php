@@ -65,6 +65,8 @@ final class SshRunTool implements Tool, GrantKeyed {
         $prefix = match ($this->console->classify($command, $server)->class) {
             Classification::CHANGE => 'ssh',
             Classification::NEVER => 'ssh-never',
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good
+            Classification::PRIVILEGED => 'ssh-sudo',
             default => null,
         };
         return $prefix === null ? null : sprintf('%s:v%d:%s:%s', $prefix, CommandClassifier::VERSION, $server, hash('sha256', $command));

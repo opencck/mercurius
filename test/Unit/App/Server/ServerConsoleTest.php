@@ -242,7 +242,8 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
         self::assertSame($key, $tool->grantKey(['server' => 'web', 'command' => ' systemctl restart nginx ']));
         self::assertNotSame($key, $tool->grantKey(['server' => 'web', 'command' => 'systemctl restart php']));
         self::assertStringContainsString(':v' . CommandClassifier::VERSION . ':', (string) $key);
-        self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good; sudo apart
+        self::assertStringStartsWith('ssh-sudo:v' . CommandClassifier::VERSION . ':web:', (string) $tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
         self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'df -h']), 'a read needs no grant');
     }
 
