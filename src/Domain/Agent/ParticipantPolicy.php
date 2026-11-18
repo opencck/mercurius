@@ -57,7 +57,15 @@ final class ParticipantPolicy {
             $this->dailySpendUsd <= 0.0 => $owner->dailySpendUsd,
             default => min($this->dailySpendUsd, $owner->dailySpendUsd),
         };
-        return new self($tools, $this->run->min($owner->run), $sandbox, $this->mayRequestApproval && $owner->mayRequestApproval, dailySpendUsd: $cap);
+        return new self(
+            $tools,
+            $this->run->min($owner->run),
+            $sandbox,
+            $this->mayRequestApproval && $owner->mayRequestApproval,
+            readOnly: $this->readOnly || $owner->readOnly,
+            irreversible: $this->irreversible && $owner->irreversible,
+            dailySpendUsd: $cap,
+        );
     }
 
     /**

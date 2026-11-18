@@ -24,6 +24,7 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
+use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\App\Skill\SkillLibrary;
@@ -70,6 +71,10 @@ final class RunScheduler {
     /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: bool, future: Future<void>}> */
     private array $pending = [];
     private ?ApprovalService $approvals = null;
+    /** @var (Closure(string, string, string): list<string>)|null who spoke in a group chat or topic in the last day */
+    private ?Closure $speakers = null;
+    /** @var array<int, ParticipantPolicy> by run: a ceiling after someone with fewer rights joined */
+    private array $caps = [];
     /** @var list<JobRuns> */
     private array $jobRuns = [];
     /** @var array<int, string|null> the forum topic of each conversation, from its last message */
@@ -119,6 +124,51 @@ final class RunScheduler {
 
     public function useApprovals(ApprovalService $approvals): void {
         $this->approvals = $approvals;
+    }
+
+    /**
+     * Who spoke in a group chat or topic in the last day: a run there gets no more rights than the weakest of them,
+     * and someone who joins during a run narrows it before the model reads their words.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * @param Closure(string, string, string): list<string> $speakers channel, chat, topic => user ids of the channel
+     */
+    public function useGroupSpeakers(Closure $speakers): void {
+        $this->speakers = $speakers;
+        $this->loop->useCap(fn(int $runId): ?ParticipantPolicy => $this->caps[$runId] ?? null);
+    }
+
+    /**
+     * The policy of a run in this conversation: the participant's own, and in a group no more than that of anyone who
+     * spoke there in the last day. Someone the channel knows but who is not an active participant, and a stranger,
+     * count as a visitor.
+     */
+    private function policyIn(int $conversationId, Principal $principal): ParticipantPolicy {
+        $policy = $this->policies->forPrincipal($principal);
+        $speakers = $this->speakers;
+        $meta = $this->conversations->meta($conversationId);
+        if ($speakers === null || $meta === null) {
+            return $policy;
+        }
+        $channel = $meta->channel;
+        $chatId = $meta->chatId;
+        if (!str_starts_with($chatId, '-')) {
+            return $policy;
+        }
+        $visitor = null;
+        foreach ($speakers($channel, $chatId, $meta->threadId) as $userId) {
+            $speaker = $this->principals->findByIdentity($channel, $userId);
+            if ($speaker !== null && $speaker->id === $principal->id) {
+                continue;
+            }
+            if ($speaker === null || $speaker->status !== \OpenCCK\Domain\Entity\PrincipalStatus::Active) {
+                $visitor ??= $this->policies->visitor();
+                $policy = $policy->capTo($visitor);
+                continue;
+            }
+            $policy = $policy->capTo($this->policies->forPrincipal($speaker));
+        }
+        return $policy;
     }
 
     /** Runs of scheduled jobs go on through the job scheduler. */
@@ -200,6 +250,15 @@ final class RunScheduler {
             return;
         }
         if ($run !== null) {
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — someone who joins a group's run narrows it before the
+            //      model reads their words (the ceiling is read before the next model call, which delivers the text)
+            if ($this->speakers !== null && $principal->id !== $run->principalId) {
+                $starter = $this->principals->find($run->principalId);
+                if ($starter !== null) {
+                    $joined = $this->policyIn($conversationId, $starter)->capTo($this->policies->forPrincipal($principal));
+                    $this->caps[$run->id] = isset($this->caps[$run->id]) ? $this->caps[$run->id]->capTo($joined) : $joined;
+                }
+            }
             if ($outside) {
                 // spec: BRIEF.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
                 $this->runs->markOutside($run->id, 'attachments');
@@ -549,7 +608,7 @@ final class RunScheduler {
             $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills, $meta->channel, $notes, $this->instance), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
-        $policy = $this->policies->forPrincipal($principal);
+        $policy = $this->policyIn($conversationId, $principal);
         // spec: BRIEF.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
         $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, str_starts_with($meta->chatId, '-') ? 'group chat' : null);
         if ($run === null) {
@@ -594,7 +653,7 @@ final class RunScheduler {
     private function launch(Run $run, Principal $principal, ChannelRunObserver $observer): void {
         $conversationId = $run->conversationId;
         $cancellation = new DeferredCancellation();
-        $policy = $this->policies->forPrincipal($principal);
+        $policy = $this->policyIn($conversationId, $principal);
         $this->active[$conversationId] = [
             'cancellation' => $cancellation,
             'future' => async(function () use ($run, $principal, $policy, $observer, $cancellation, $conversationId): void {
@@ -605,6 +664,7 @@ final class RunScheduler {
                     $this->fail($run, $observer);
                     return;
                 } finally {
+                    unset($this->caps[$run->id]);
                     // Only our own entry: a newer run of the conversation may have started meanwhile.
                     if (($this->active[$conversationId]['cancellation'] ?? null) === $cancellation) {
                         unset($this->active[$conversationId], $this->stopping[$conversationId]);

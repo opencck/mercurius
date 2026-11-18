@@ -41,6 +41,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
 
     /** Lines of the talk older than this do not go into a run. */
     private const RECENT_SECONDS = 86400;
+    /** who spoke within this counts as a participant of the chat for the rights of a run there */
+    public const ACTIVE_SECONDS = 86400;
     private readonly \OpenCCK\Domain\Repository\GroupTalkRepository $talk;
     /** @var array<string, true> groups left in this process */
     private array $left = [];
@@ -109,7 +111,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         // spec: BRIEF.md#группа — the talk of a topic is its own and survives a restart
         $thread = MessageMeta::topicKey($message);
         $context = $this->talk->recent($message->channel, $message->chatId, $thread, self::RECENT, self::RECENT_SECONDS);
-        $this->remember($message->channel, $message->chatId, $thread, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(MessageMeta::content($message), 0, 500)));
+        $this->remember($message->channel, $message->chatId, $thread, $message->userId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(MessageMeta::content($message), 0, 500)));
         if ($group->status !== Group::APPROVED) {
             return null;
         }
@@ -330,8 +332,19 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         return trim(preg_replace('~(^|\s)@' . preg_quote($this->botUsername, '~') . '\b[,:]?~iu', '$1', $text) ?? $text);
     }
 
-    private function remember(string $channel, string $chatId, string $thread, string $line): void {
-        $this->talk->add($channel, $chatId, $thread, SecretMasker::mask($line));
+    private function remember(string $channel, string $chatId, string $thread, string $userId, string $line): void {
+        $this->talk->add($channel, $chatId, $thread, SecretMasker::mask($line), $userId);
+    }
+
+    /**
+     * Who wrote in the chat or forum topic in the last day, as the channel names them: their words are in the context
+     * of a run there, so the run gets no more rights than the weakest of them.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * @return list<string>
+     */
+    public function speakers(string $channel, string $chatId, string $threadId): array {
+        return $this->talk->speakers($channel, $chatId, $threadId, self::ACTIVE_SECONDS);
     }
 
     private function card(string $chatId, string $title): void {

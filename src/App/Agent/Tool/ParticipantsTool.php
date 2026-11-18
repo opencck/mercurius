@@ -37,6 +37,8 @@ final class ParticipantsTool implements Tool {
         private readonly PrincipalRepository $principals,
         private readonly PolicyService $policies,
         private readonly ?\Closure $keys = null,
+        /** @var (\Closure(int): bool)|null whether a conversation is the owner's private chat; null — not checked */
+        private readonly ?\Closure $privateChat = null,
     ) {}
 
     /**
@@ -67,7 +69,8 @@ final class ParticipantsTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        return Args::string($args, 'action') === 'decide' ? DangerClass::Write : DangerClass::Read;
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        return Args::string($args, 'action') === 'decide' ? DangerClass::Irreversible : DangerClass::Read;
     }
 
     public function untrusted(): bool {
@@ -84,6 +87,9 @@ final class ParticipantsTool implements Tool {
         }
         $query = mb_strtolower(trim(Args::string($args, 'query') ?? ''));
         if (Args::string($args, 'action') === 'decide') {
+            if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
+                return ToolResult::error(t('tool.participants.private_chat_only'));
+            }
             return $this->decide(Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
         }
         $keys = $this->keysByAgent();

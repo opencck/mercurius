@@ -32,6 +32,19 @@ final class SetParticipantPolicyToolTest extends TestCase {
         return new ToolContext(1, 1, new Principal($role === Role::Owner ? 1 : 7, PrincipalKind::Human, $role, null), new NullCancellation());
     }
 
+    public function testRightsAreGivenOnlyWithACardAndOnlyInTheOwnersPrivateChat(): void {
+        $principals = new InMemoryPrincipalRepository();
+        $principals->put(new Principal(7, PrincipalKind::Human, Role::User, 'Гость'), 'telegram', '7');
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        $tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)), static fn(int $conversation): bool => $conversation === 1);
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['principal_id' => 7]));
+        $inGroup = new ToolContext(1, 2, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), approved: true);
+        self::assertTrue($tool->execute(['principal_id' => 7, 'tools' => null], $inGroup)->isError, 'not in a group, even approved');
+        self::assertSame([], $this->policies->policies);
+        self::assertFalse($tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::Owner))->isError);
+    }
+
     public function testNonOwnerCannotChangePolicies(): void {
         $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::User));
 

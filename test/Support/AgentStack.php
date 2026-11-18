@@ -101,6 +101,7 @@ final class AgentStack {
 
     /** The chat with group chats behind the gate. */
     public function useGroups(\OpenCCK\App\Service\GroupGate $groups): void {
+        $this->scheduler->useGroupSpeakers($groups->speakers(...));
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, groups: $groups);
     }
 

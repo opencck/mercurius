@@ -359,7 +359,13 @@ if ($searchSkipped !== []) {
 if ($webSearch !== null) {
     $tools->register(new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT)));
 }
-$tools->register(new SetParticipantPolicyTool($principals, $policies));
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — rights are given only in the owner's private chat: the owner's own
+//      chat in Telegram or over the WebSocket API, not a group, a channel, a job or a neighbour's task
+$ownerPrivateChat = static function (int $conversationId) use ($conversations): bool {
+    $meta = $conversations->meta($conversationId);
+    return $meta !== null && in_array($meta->channel, [TelegramChannel::NAME, \Mercurius\Messenger\Websocket\WebsocketChannel::NAME], true) && !str_starts_with($meta->chatId, '-');
+};
+$tools->register(new SetParticipantPolicyTool($principals, $policies, $ownerPrivateChat));
 // spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — a participant without a tool asks the owner for it
 $tools->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($tools, $policies));
 // spec: BRIEF.md#входящие-вложения — the owner's media models and principles, each participant's own way with files
@@ -370,7 +376,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\MediaPrefsTool($mediaPrefs));
 $peerRepository = null;
 $tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies, static function () use (&$peerRepository): array {
     return $peerRepository?->keys() ?? [];
-}));
+}, $ownerPrivateChat));
 $tools->register(new SetModelRoleTool($modelRoles));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
@@ -838,6 +844,8 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     },
     is_numeric($_ENV['GROUP_FREE_DAILY_TOKENS'] ?? null) ? (int) $_ENV['GROUP_FREE_DAILY_TOKENS'] : 200000,
 );
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a run in a group gets no more rights than the weakest one who spoke there
+$scheduler->useGroupSpeakers($groupGate->speakers(...));
 // spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
 $tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));

@@ -25,7 +25,10 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Read, $tool->danger([]));
-        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $tool->danger(['action' => 'decide']));
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['action' => 'decide']));
+        $inGroup = new ParticipantsTool($principals, $policies, privateChat: static fn(int $conversation): bool => false);
+        self::assertTrue($inGroup->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError, 'only in the private chat of the owner');
         self::assertFalse($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError);
         self::assertSame([Role::User, PrincipalStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
 

@@ -22,9 +22,13 @@ use function Mercurius\I18n\t;
 final class SetParticipantPolicyTool implements Tool {
     public const NAME = 'set_participant_policy';
 
+    /**
+     * @param (\Closure(int): bool)|null $privateChat whether a conversation is the owner's private chat; null — not checked
+     */
     public function __construct(
         private readonly PrincipalRepository $principals,
         private readonly PolicyService $policies,
+        private readonly ?\Closure $privateChat = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -47,8 +51,12 @@ final class SetParticipantPolicyTool implements Tool {
         ]);
     }
 
+    /**
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card and only in the owner's private
+     *       chat: it is what turns one steered call into lasting access
+     */
     public function danger(array $args): DangerClass {
-        return DangerClass::Write;
+        return DangerClass::Irreversible;
     }
 
     public function untrusted(): bool {
@@ -62,6 +70,9 @@ final class SetParticipantPolicyTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         if (!$context->principal->isOwner()) {
             return ToolResult::error(t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet'));
+        }
+        if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
+            return ToolResult::error(t('tool.participants.private_chat_only'));
         }
         $id = Args::int($args, 'principal_id');
         $target = $id === null ? null : $this->principals->find($id);

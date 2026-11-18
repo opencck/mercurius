@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\GroupTalkRepository;
 final class InMemoryGroupTalkRepository implements GroupTalkRepository {
     private const KEEP = 100;
 
-    /** @var array<string, list<array{int, string}>> chat:thread => [time, line] */
+    /** @var array<string, list<array{int, string, string}>> chat:thread => [time, line, author] */
     private array $talk = [];
     /** @var Closure(): int */
     private readonly Closure $clock;
@@ -21,9 +21,9 @@ final class InMemoryGroupTalkRepository implements GroupTalkRepository {
         $this->clock = $clock ?? static fn(): int => time();
     }
 
-    public function add(string $channel, string $chatId, string $threadId, string $line): void {
+    public function add(string $channel, string $chatId, string $threadId, string $line, string $userId = ''): void {
         $key = $channel . ':' . $chatId . ':' . $threadId;
-        $this->talk[$key][] = [($this->clock)(), $line];
+        $this->talk[$key][] = [($this->clock)(), $line, $userId];
         $this->talk[$key] = array_slice($this->talk[$key], -self::KEEP);
     }
 
@@ -36,6 +36,17 @@ final class InMemoryGroupTalkRepository implements GroupTalkRepository {
             }
         }
         return array_slice($lines, -$limit);
+    }
+
+    public function speakers(string $channel, string $chatId, string $threadId, int $seconds): array {
+        $since = ($this->clock)() - $seconds;
+        $who = [];
+        foreach ($this->talk[$channel . ':' . $chatId . ':' . $threadId] ?? [] as [$at, , $userId]) {
+            if ($at >= $since && $userId !== '') {
+                $who[$userId] = true;
+            }
+        }
+        return array_map(strval(...), array_keys($who));
     }
 
     public function forget(string $channel, string $chatId): void {

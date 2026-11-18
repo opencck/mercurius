@@ -94,6 +94,8 @@ final class AgentLoop {
     private const WARN_SHARE = 0.8;
 
     private readonly ToolCallValidator $validator;
+    /** @var (Closure(int): ?ParticipantPolicy)|null a ceiling for a run's policy, read before every model call */
+    private ?Closure $cap = null;
     private readonly BatchPlanner $planner;
     /** @var Closure(): float */
     private readonly Closure $clock;
@@ -164,9 +166,24 @@ final class AgentLoop {
         }
     }
 
+    /**
+     * A ceiling for the policy of a run, read before every model call: someone with fewer rights may have joined the
+     * conversation, and their words are delivered next.
+     *
+     * @param Closure(int): ?ParticipantPolicy $cap by run
+     */
+    public function useCap(Closure $cap): void {
+        $this->cap = $cap;
+    }
+
     /** @return StopReason|null null when the run paused for an approval */
     private function iterate(RunState $state): ?StopReason {
         while (true) {
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+            $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
+            if ($ceiling !== null) {
+                $state->policy = $state->policy->capTo($ceiling);
+            }
             $this->deliverInbox($state);
             $reason = $this->checkLimits($state);
             if ($reason !== null) {

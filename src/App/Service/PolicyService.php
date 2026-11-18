@@ -28,6 +28,11 @@ final class PolicyService {
         return new ParticipantPolicy(null, $this->ownerLimits, $this->ownerSandbox, true);
     }
 
+    /** What a visitor — or anyone the agent does not know — may do: talk, nothing more. */
+    public function visitor(): ParticipantPolicy {
+        return (new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false))->capTo($this->owner());
+    }
+
     public function forPrincipal(Principal $principal): ParticipantPolicy {
         $owner = $this->owner();
         if ($principal->isOwner()) {
