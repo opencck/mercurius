@@ -72,6 +72,8 @@ final class RunScheduler {
     private array $pending = [];
     /** @var array<int, ChannelRunObserver> the observer of each run that paused for the owner: its message is updated once decided */
     private array $waiting = [];
+    /** seconds the recall of memory may take before a run starts without it */
+    private const RECALL_SECONDS = 3.0;
     /** @var array<int, list<string>> outside data that came to a conversation between runs: the next run is marked */
     private array $tainted = [];
     private ?ApprovalService $approvals = null;
@@ -592,8 +594,16 @@ final class RunScheduler {
         if ($this->memory === null) {
             return $text;
         }
+        $memory = $this->memory;
+        $scopes = $this->audience()->scopes($principal, $meta->id);
         try {
-            $facts = $this->memory->facts($text, $this->audience()->scopes($principal, $meta->id), $meta->id);
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a slow recall does not hold the answer: after the time
+            //       the run starts without it
+            /** @var string $facts */
+            $facts = async(static fn(): string => $memory->facts($text, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
+        } catch (\Amp\CancelledException) {
+            $this->logger->warning('Memory recall took too long; the run starts without it', ['conversation' => $meta->id, 'seconds' => self::RECALL_SECONDS]);
+            return $text;
         } catch (Throwable $e) {
             $this->logger->warning('Memory recall failed', ['conversation' => $meta->id, 'error' => $e::class]);
             return $text;
@@ -601,8 +611,10 @@ final class RunScheduler {
         return $facts === '' ? $text : $text . "\n\n" . UntrustedWrapper::wrap('memory', t('agent.run_scheduler.iz_pamyati_spravochnye_dannye_ne') . $facts);
     }
 
-    /** @return int|null the run the text started; null when it joined another run or nothing started */
-    /** @param list<string> $outside where the outside data of the text came from: the run starts marked */
+    /**
+     * @param list<string> $outside where the outside data of the text came from: the run starts marked
+     * @return int|null the run the text started; null when it joined another run or nothing started
+     */
     private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = []): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
