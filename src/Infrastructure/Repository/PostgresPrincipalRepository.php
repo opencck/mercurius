@@ -44,6 +44,10 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return is_string($id) ? $id : null;
     }
 
+    public function bindIdentity(int $principalId, string $channel, string $externalId): void {
+        $this->db->execute('INSERT INTO channel_identities (channel, external_id, principal_id) VALUES (?, ?, ?) ON CONFLICT (channel, external_id) DO NOTHING', [$channel, $externalId, $principalId]);
+    }
+
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
         $tx = $this->db->beginTransaction();
         try {

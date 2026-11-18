@@ -26,6 +26,10 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return $id === null ? null : $this->find($id);
     }
 
+    public function bindIdentity(int $principalId, string $channel, string $externalId): void {
+        $this->identities[$channel . ':' . $externalId] ??= $principalId;
+    }
+
     public function externalId(int $principalId, string $channel): ?string {
         foreach ($this->identities as $key => $id) {
             if ($id === $principalId && str_starts_with($key, $channel . ':')) {

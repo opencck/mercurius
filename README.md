@@ -20,11 +20,12 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - **Groups:** work in groups the owner approves (on mention or freely); a forum where each topic is a project; posts in a channel through the owner's card.
 - **Delegation:** worker agents with a clean context, a model per part, a verifier for costly parts, background work.
 - **Agent network:** Mercurius instances give each other tasks over A2A, known by their keys.
+- **WebSocket API:** a second channel: `GET /api/ws` with `Authorization: Bearer <key>`; the owner issues keys to participants with `/apikey new <participant>`; JSON frames of messages, buttons and files.
 - **Operation:** settings in the dialog (`/settings`, `/set`, `/restart`), the agent's language (`AGENT_LANGUAGE`, Russian by default), traces and spend, Prometheus metrics, backup and restore (`bin/backup.sh`), an installation check (`doctor`), an evaluation set.
 
 ## Planned
 
-Self-improvement from its own traces; a second channel (REST/WebSocket API); MCP servers over stdio in the sandbox. Details are in [`ROADMAP.md`](ROADMAP.md).
+Self-improvement from its own traces; MCP servers over stdio in the sandbox. Details are in [`ROADMAP.md`](ROADMAP.md).
 
 ## Running it
 

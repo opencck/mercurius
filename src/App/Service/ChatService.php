@@ -68,6 +68,8 @@ final class ChatService implements MessageHandler {
         /** files of messages go into the sandbox and are described to the agent; null — files are not taken */
         private readonly ?\OpenCCK\App\Agent\Media\AttachmentIntake $intake = null,
         private readonly ?\OpenCCK\App\Service\PolicyService $policies = null,
+        /** keys of the WebSocket API; null — no such channel */
+        private readonly ?ApiKeyCommands $apiKeys = null,
     ) {}
 
     /** The run that wrote the agent's message this one answers; null when it is not known. */
@@ -196,6 +198,15 @@ final class ChatService implements MessageHandler {
                 !$principal->isOwner() => t(self::OWNER_ONLY),
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
+            });
+            return;
+        }
+        if ($command === '/apikey' && $this->apiKeys !== null) {
+            // spec: BRIEF.md#второй-канал-websocket-api — a key is shown once, so only in the private chat
+            $this->reply($message, match (true) {
+                !$principal->isOwner() => t(self::OWNER_ONLY),
+                !$message->isPrivateChat => t(self::SECRET_PRIVATE),
+                default => $this->apiKeys->handle(substr($text, strlen($command))),
             });
             return;
         }

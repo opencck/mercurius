@@ -19,15 +19,19 @@ use function Mercurius\I18n\t;
  *      routing by callback data prefix, answering even unknown presses so the client stops spinning
  */
 final class CallbackRouter implements CallbackHandler {
-    /** @param array<string, CallbackHandler> $handlers prefix => handler */
+    /**
+     * @param array<string, CallbackHandler> $handlers prefix => handler
+     * @param list<string> $otherOwnerIds the owner's ids in other channels (`p<id>` of the WebSocket API)
+     */
     public function __construct(
         private readonly Channel $channel,
         private readonly string $ownerUserId,
         private readonly array $handlers,
+        private readonly array $otherOwnerIds = [],
     ) {}
 
     public function handleCallback(IncomingCallback $callback): void {
-        if ($callback->userId !== $this->ownerUserId) {
+        if ($callback->userId !== $this->ownerUserId && !in_array($callback->userId, $this->otherOwnerIds, true)) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
         }

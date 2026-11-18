@@ -324,7 +324,9 @@ if ($telegram->apiUrl !== null && !is_file($cloudLoggedOut)) {
     @unlink($cloudLoggedOut);
 }
 $logger->info('Telegram route', ['proxy' => $telegram->route() === null ? 'direct' : (str_starts_with($telegram->route(), 'vless') ? 'vless' : 'proxy'), 'api' => $telegram->apiUrl ?? 'cloud']);
-$channel = new TelegramChannel($telegramApi, logger: $logger);
+// spec: BRIEF.md#второй-канал-websocket-api — chats ws:… go to the WebSocket API, the rest to Telegram
+$wsChannel = new \Mercurius\Messenger\Websocket\WebsocketChannel();
+$channel = new \Mercurius\Messenger\RoutingChannel(new TelegramChannel($telegramApi, logger: $logger), [\Mercurius\Messenger\Websocket\WebsocketChannel::PREFIX => $wsChannel]);
 
 // Agent: runs, tools, scheduler.
 $conversations = new PostgresConversationRepository($db);
@@ -803,6 +805,8 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
 // spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
 $tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
+// spec: BRIEF.md#второй-канал-websocket-api — keys of participants for the WebSocket API
+$apiKeys = new \OpenCCK\App\Api\ApiKeys(new \OpenCCK\Infrastructure\Repository\PostgresApiKeyRepository($db), $principals);
 $chat = new ChatService(
     new AccessService($principals, TelegramChannel::NAME, $telegram->ownerId, $visitors),
     $conversations,
@@ -829,11 +833,13 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger, $attachmentIntake = new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs, docs: $docsService), $policies),
     $attachmentIntake,
     $policies,
+    new \OpenCCK\App\Service\ApiKeyCommands($apiKeys, $principals),
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards]);
+$apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
+$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
@@ -865,6 +871,19 @@ if ($a2aServer !== null) {
         )];
     }
 }
+
+// spec: BRIEF.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
+$apiSocket = new \OpenCCK\Infrastructure\API\Handler\ApiSocketHandler(new \OpenCCK\App\Api\ApiGateway($wsChannel, $apiKeys, static fn(\Mercurius\Messenger\IncomingMessage $m): bool => $dispatcher->dispatch($m), static function (\Mercurius\Messenger\IncomingCallback $c) use ($dispatcher): void {
+    $dispatcher->dispatchCallback($c);
+}));
+$apiParser = new \Amp\Websocket\Parser\Rfc6455ParserFactory(messageSizeLimit: 30_000_000, frameSizeLimit: 30_000_000);
+$routes[] = ['GET', '/api/ws', static fn(\Amp\Http\Server\HttpServer $http): \Amp\Websocket\Server\Websocket => new \Amp\Websocket\Server\Websocket(
+    $http,
+    $logger,
+    $apiSocket,
+    $apiSocket,
+    clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $apiParser),
+)];
 
 // spec: BRIEF.md#планировщик-и-проекты — a signed event starts a job by event
 $routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
