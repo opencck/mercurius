@@ -198,6 +198,12 @@ final class CommandClassifier {
 
     private const SHUTDOWN = ['shutdown', 'reboot', 'halt', 'poweroff'];
 
+    /** the names of the rules of what is never done without the owner; the owner may take off any (SSH_NEVER_OFF) */
+    public const RULES = ['fork_bomb', 'pipe_to_shell', 'disk_write', 'persistence', 'shutdown', 'eval', 'init', 'systemctl_power', 'format', 'dd_device', 'root_delete', 'home_delete', 'root_chmod', 'kill_all', 'firewall_flush'];
+
+    /** @param list<string> $off rules the owner took off */
+    public function __construct(private readonly array $off = []) {}
+
     public function classify(string $command): Classification {
         $command = trim($command);
         if ($command === '') {
@@ -267,27 +273,42 @@ final class CommandClassifier {
         return new Classification(Classification::READ, sprintf(t('commandpolicy.command_classifier.tolko_chitaet'), $label));
     }
 
-    /** What is never allowed, read as operations; null when nothing of it is there. */
+    /**
+     * What is never done without the owner, read as operations; null when nothing of it is there. A rule the owner took
+     * off (by its name) does not hold. The reason ends with the name of the rule in brackets.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
+     * ref: references/hermes-agent/tools/approval_detection.py@e96221fa:L184-L230 (HARDLINE_PATTERNS) — the same floor:
+     *      root, home and system deletes, mkfs, dd and redirects to a disk, fork bomb, kill -1, shutdown, init and
+     *      telinit 0/6, systemctl power; ours adds a script piped from the network, persistence and the firewall
+     */
     private function never(string $command): ?string {
+        $found = $this->rule($command);
+        return $found === null ? null : $found[1] . ' [' . $found[0] . ']';
+    }
+
+    /** @return array{string, string}|null the name of the rule and the reason */
+    private function rule(string $command): ?array {
+        $on = fn(string $id): bool => !in_array($id, $this->off, true);
         $flat = preg_replace('~\s+~', ' ', $command) ?? $command;
-        if (preg_match('~:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}~', $flat) === 1) {
-            return t('commandpolicy.command_classifier.fork_bomba');
+        if ($on('fork_bomb') && preg_match('~:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}~', $flat) === 1) {
+            return ['fork_bomb', t('commandpolicy.command_classifier.fork_bomba')];
         }
-        if (preg_match('~\b(curl|wget|fetch)\b[^|]*\|\s*(sudo\s+)?(ba|z|da|k|a)?sh\b~', $flat) === 1) {
-            return t('commandpolicy.command_classifier.zagruzka_v_obolochku_iz_seti');
+        if ($on('pipe_to_shell') && preg_match('~\b(curl|wget|fetch)\b[^|]*\|\s*(sudo\s+)?(ba|z|da|k|a)?sh\b~', $flat) === 1) {
+            return ['pipe_to_shell', t('commandpolicy.command_classifier.zagruzka_v_obolochku_iz_seti')];
         }
-        if (preg_match('~>\s*/dev/(sd|nvme|vd|hd|xvd|mmcblk)~', $flat) === 1) {
-            return t('commandpolicy.command_classifier.zapis_poverh_diska');
+        if ($on('disk_write') && preg_match('~>\s*/dev/(sd|nvme|vd|hd|xvd|mmcblk)~', $flat) === 1) {
+            return ['disk_write', t('commandpolicy.command_classifier.zapis_poverh_diska')];
         }
-        if (preg_match('~(>>?\s*|\btee\b[^;|&]*\s|\b(cp|mv|install|ln)\b[^;|&]*\s)\S*(authorized_keys|/etc/cron|/etc/sudoers|/etc/systemd/)~', $flat) === 1) {
-            return t('commandpolicy.command_classifier.zapis_v_authorized_keys_cron');
+        if ($on('persistence') && preg_match('~(>>?\s*|\btee\b[^;|&]*\s|\b(cp|mv|install|ln)\b[^;|&]*\s)\S*(authorized_keys|/etc/cron|/etc/sudoers|/etc/systemd/)~', $flat) === 1) {
+            return ['persistence', t('commandpolicy.command_classifier.zapis_v_authorized_keys_cron')];
         }
         foreach (self::segments($command) as $words) {
             if ($words === null) {
                 continue;
             }
             $inner = self::shellProgram($words);
-            if ($inner !== null && ($found = $this->never($inner)) !== null) {
+            if ($inner !== null && ($found = $this->rule($inner)) !== null) {
                 return $found;
             }
             $name = self::commandName($words, true);
@@ -296,34 +317,43 @@ final class CommandClassifier {
             if ($name === null) {
                 continue;
             }
-            if (in_array($name, self::SHUTDOWN, true) || $name === 'eval') {
-                return sprintf(t('commandpolicy.command_classifier.zapreschen'), $name);
+            if ($on('shutdown') && in_array($name, self::SHUTDOWN, true)) {
+                return ['shutdown', sprintf(t('commandpolicy.command_classifier.zapreschen'), $name)];
             }
-            if ($name === 'init' && array_intersect($args, ['0', '6']) !== []) {
-                return t('commandpolicy.command_classifier.vyklyuchenie_cherez_init');
+            if ($on('eval') && $name === 'eval') {
+                return ['eval', sprintf(t('commandpolicy.command_classifier.zapreschen'), $name)];
             }
-            if ($name === 'systemctl' && array_intersect($args, ['reboot', 'poweroff', 'halt', 'kexec', 'emergency', 'rescue']) !== []) {
-                return t('commandpolicy.command_classifier.vyklyuchenie_cherez_systemctl');
+            if ($on('init') && ($name === 'init' || $name === 'telinit') && array_intersect($args, ['0', '6']) !== []) {
+                return ['init', t('commandpolicy.command_classifier.vyklyuchenie_cherez_init')];
             }
-            if (preg_match('~^(mkfs(\..+)?|mke2fs|mkswap|wipefs|mkdosfs|mkntfs)$~', $name) === 1) {
-                return t('commandpolicy.command_classifier.formatirovanie_ustroystva');
+            if ($on('systemctl_power') && $name === 'systemctl' && array_intersect($args, ['reboot', 'poweroff', 'halt', 'kexec', 'emergency', 'rescue']) !== []) {
+                return ['systemctl_power', t('commandpolicy.command_classifier.vyklyuchenie_cherez_systemctl')];
             }
-            if ($name === 'dd' && preg_grep('~^of=/dev/~', $args) !== []) {
-                return t('commandpolicy.command_classifier.zapis_dd_na_ustroystvo');
+            if ($on('format') && preg_match('~^(mkfs(\..+)?|mke2fs|mkswap|wipefs|mkdosfs|mkntfs)$~', $name) === 1) {
+                return ['format', t('commandpolicy.command_classifier.formatirovanie_ustroystva')];
             }
-            if ($name === 'rm' && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
-                return t('commandpolicy.command_classifier.rekursivnoe_udalenie_kornya');
+            if ($on('dd_device') && $name === 'dd' && preg_grep('~^of=/dev/~', $args) !== []) {
+                return ['dd_device', t('commandpolicy.command_classifier.zapis_dd_na_ustroystvo')];
             }
-            if (($name === 'chmod' || $name === 'chown') && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
-                return sprintf(t('commandpolicy.command_classifier.rekursivnyy_kornya'), $name);
+            if ($on('root_delete') && $name === 'rm' && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
+                return ['root_delete', t('commandpolicy.command_classifier.rekursivnoe_udalenie_kornya')];
             }
-            if ($name === 'iptables' || $name === 'ip6tables') {
+            if ($on('home_delete') && $name === 'rm' && self::recursive($args) && preg_grep('#^(~|\$\{?HOME\}?)/?\*?$#', $args) !== []) {
+                return ['home_delete', t('commandpolicy.command_classifier.home_delete')];
+            }
+            if ($on('root_chmod') && ($name === 'chmod' || $name === 'chown') && self::recursive($args) && array_filter($args, self::isRootPath(...)) !== []) {
+                return ['root_chmod', sprintf(t('commandpolicy.command_classifier.rekursivnyy_kornya'), $name)];
+            }
+            if ($on('kill_all') && ($name === 'kill' || $name === 'pkill') && in_array('-1', $args, true)) {
+                return ['kill_all', t('commandpolicy.command_classifier.kill_all')];
+            }
+            if ($on('firewall_flush') && ($name === 'iptables' || $name === 'ip6tables')) {
                 if (array_intersect($args, ['-F', '--flush', '-X']) !== [] || (in_array('-P', $args, true) && in_array('ACCEPT', $args, true))) {
-                    return t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana');
+                    return ['firewall_flush', t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana')];
                 }
             }
-            if ($name === 'nft' && in_array('flush', $args, true)) {
-                return t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana');
+            if ($on('firewall_flush') && $name === 'nft' && in_array('flush', $args, true)) {
+                return ['firewall_flush', t('commandpolicy.command_classifier.sbros_mezhsetevogo_ekrana')];
             }
         }
         return null;

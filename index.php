@@ -611,10 +611,12 @@ if (!$vault->enabled()) {
 $serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
 $hostKeyCards = new HostKeyCards($serverRepository, $channel, $telegram->ownerId);
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the owner may take off any rule of what is never done
+$sshNeverOff = array_values(array_filter(array_map('trim', explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SSH_NEVER_OFF') ?? '')), static fn(string $r): bool => $r !== ''));
 $serverConsole = new ServerConsole(
     $serverRepository,
     $vault,
-    new CommandClassifier(),
+    new CommandClassifier($sshNeverOff),
     $commandAudit,
     new AmpSshShell(),
     $hostKeyCards->ask(...),
@@ -626,7 +628,7 @@ $tools->register(new ServersTool($serverRepository));
 $tools->register(new ServerAddTool($serverRepository, $vault));
 $tools->register(new SshRunTool($serverConsole));
 $tools->register(new SqlQueryTool($serverConsole, $vault));
-$tools->register(new FileWriteTool($serverConsole, new CommandClassifier()));
+$tools->register(new FileWriteTool($serverConsole, new CommandClassifier($sshNeverOff)));
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
 

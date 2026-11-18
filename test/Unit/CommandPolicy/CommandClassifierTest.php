@@ -140,6 +140,12 @@ final class CommandClassifierTest extends TestCase {
             ['sh -c "rm -rf /"', Classification::NEVER],
             ['echo $(reboot)', Classification::NEVER],
             ['eval "$X"', Classification::NEVER],
+            // ref: references/hermes-agent/tools/approval_detection.py@e96221fa:L184-L230 (HARDLINE_PATTERNS)
+            ['kill -9 -1', Classification::NEVER],
+            ['telinit 6', Classification::NEVER],
+            ['rm -rf ~', Classification::NEVER],
+            ['rm -rf $HOME/', Classification::NEVER],
+            ['rm -rf ~/build', Classification::CHANGE],
         ];
         $named = [];
         foreach ($cases as [$command, $class]) {
@@ -154,5 +160,17 @@ final class CommandClassifierTest extends TestCase {
 
         self::assertSame($class, $result->class, $result->reason);
         self::assertNotSame('', $result->reason);
+    }
+
+    public function testTheOwnerTakesOffARuleByItsName(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
+        $strict = (new CommandClassifier())->classify('reboot');
+        self::assertSame(Classification::NEVER, $strict->class);
+        self::assertStringContainsString('[shutdown]', $strict->reason, 'the reason names the rule');
+
+        $lax = (new CommandClassifier(['shutdown']))->classify('reboot');
+        self::assertNotSame(Classification::NEVER, $lax->class, 'a rule taken off does not hold');
+        self::assertSame(Classification::NEVER, (new CommandClassifier(['shutdown']))->classify('rm -rf /')->class, 'the others still do');
+        self::assertContains('root_delete', CommandClassifier::RULES);
     }
 }

@@ -105,6 +105,7 @@ final class SettingsCatalog {
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
         'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
         'BROWSER_CONFIRM' => ['agent', self::INT, 'settings.about.browser_confirm'],
+        'SSH_NEVER_OFF' => ['servers', self::TEXT, 'settings.about.ssh_never_off'],
         'METRICS_TOKEN' => ['traces', self::SECRET, 'settings.about.metrics_token'],
         'MAIL_HOST' => ['mail', self::TEXT, 'settings.about.mail_host'],
         'MAIL_IMAP_PORT' => ['mail', self::INT, 'settings.about.mail_imap_port'],
