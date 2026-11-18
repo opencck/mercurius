@@ -31,6 +31,11 @@ final class Recall {
     /** share of HRR in the score of a fact that passed the gate */
     public const HRR_WEIGHT = 0.3;
     public const RELATED_LIMIT = 10;
+    /**
+     * A fact under this trust is not recalled: two «not useful» marks sink a fact the agent inferred.
+     * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L761 — min_trust_threshold 0.3
+     */
+    public const MIN_TRUST = 0.3;
 
     /** @var Closure(): int */
     private readonly Closure $now;
@@ -75,7 +80,7 @@ final class Recall {
         /** @var list<array{Fact, float, float}> $passed fact, its coverage score, its age factor */
         $passed = [];
         foreach ($this->store->candidates($scopes, $known, self::CANDIDATES) as $fact) {
-            if (isset($given[$fact->id])) {
+            if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
             }
             $matched = array_values(array_intersect($known, $fact->keys));
@@ -144,7 +149,10 @@ final class Recall {
                 $probes[] = Hrr::phasor($probe);
             }
         }
-        return $this->store->related($scopes, $probes, Hrr::RELATED_THRESHOLD, $limit);
+        return array_values(array_filter(
+            $this->store->related($scopes, $probes, Hrr::RELATED_THRESHOLD, $limit),
+            static fn(Fact $f): bool => $f->trust >= self::MIN_TRUST - 1e-9,
+        ));
     }
 
     /**

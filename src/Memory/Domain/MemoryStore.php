@@ -81,6 +81,12 @@ interface MemoryStore {
     /** @param list<string> $keys a new version; null when the fact is gone */
     public function changeFact(int $id, string $text, array $keys, string $reason): ?Fact;
 
+    /**
+     * The agent used the fact: trust moves by $delta within [0, 1], a useful one is counted; the time of the last change
+     * stays. Null when there is no such active fact.
+     */
+    public function rateFact(int $id, float $delta, bool $helpful): ?float;
+
     /** The fact stops being true; it stays in the history. */
     public function endFact(int $id, string $reason): bool;
 

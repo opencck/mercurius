@@ -154,4 +154,18 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertEqualsCanonicalizing([$a->id, $b->id], $this->store->recalled($this->conversationId, 20));
         self::assertSame([$b->id], $this->store->recalled($this->conversationId, 1), 'only the latest recalls');
     }
+
+    public function testRatingMovesTrustWithinBounds(): void {
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'c', ['c1'], 0.5, Fact::AGENT, null);
+
+        self::assertEqualsWithDelta(0.55, $this->store->rateFact($fact->id, 0.05, true), 0.0001);
+        for ($i = 0; $i < 7; $i++) {
+            $trust = $this->store->rateFact($fact->id, -0.1, false);
+        }
+        self::assertEqualsWithDelta(0.0, $trust ?? -1.0, 0.0001, 'never below zero');
+        self::assertEqualsWithDelta(0.0, $this->store->fact($fact->id)->trust ?? -1.0, 0.0001);
+
+        $this->store->endFact($fact->id, 'old');
+        self::assertNull($this->store->rateFact($fact->id, 0.05, true), 'an ended fact is not rated');
+    }
 }

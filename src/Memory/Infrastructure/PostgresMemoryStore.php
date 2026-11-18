@@ -202,6 +202,16 @@ final class PostgresMemoryStore implements MemoryStore {
         }
     }
 
+    public function rateFact(int $id, float $delta, bool $helpful): ?float {
+        // ref: references/hermes-plugin-holographic/store.py@4a794f8:L694-L709 (record_feedback) — updated_at stays
+        $row = $this->db->execute(
+            "UPDATE facts SET trust = least(1, greatest(0, trust + ?)), helpful_count = helpful_count + ? WHERE id = ? AND status = 'active' RETURNING trust::float8 AS trust",
+            [$delta, $helpful ? 1 : 0, $id],
+        )->fetchRow();
+        $trust = $row['trust'] ?? null;
+        return is_float($trust) ? $trust : null;
+    }
+
     public function endFact(int $id, string $reason): bool {
         $row = $this->db->execute("UPDATE facts SET status = 'ended', updated_at = now() WHERE id = ? AND status = 'active' RETURNING id", [$id])->fetchRow();
         if ($row === null) {

@@ -34,6 +34,7 @@ use OpenCCK\Domain\Repository\TranscriptRepository;
 use OpenCCK\Memory\App\MemoryContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Closure;
 use Throwable;
 
 use function Amp\async;
@@ -437,6 +438,18 @@ final class RunScheduler {
         }
     }
 
+    /** @var list<Closure(Run, Principal): void> told when a run ends, in the background */
+    private array $afterRun = [];
+
+    /**
+     * Something to do after a run ended (the background proposal of facts): it does not hold the conversation.
+     *
+     * @param Closure(Run, Principal): void $then
+     */
+    public function useAfterRun(Closure $then): void {
+        $this->afterRun[] = $then;
+    }
+
     /** @param ConversationAudience|null $audience shared with the memory tools */
     public function useMemory(MemoryContext $memory, ?ConversationAudience $audience = null): void {
         $this->memory = $memory;
@@ -599,6 +612,15 @@ final class RunScheduler {
                 }
                 if (!$final->status->isActive()) {
                     $this->carryOver($final, $principal);
+                    foreach ($this->afterRun as $then) {
+                        async(function () use ($then, $final, $principal): void {
+                            try {
+                                $then($final, $principal);
+                            } catch (Throwable $e) {
+                                $this->logger->error('After-run work failed', ['run' => $final->id, 'error' => $e::class]);
+                            }
+                        })->ignore();
+                    }
                 }
             }),
         ];

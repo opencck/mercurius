@@ -524,6 +524,19 @@ $proposals = new Proposals(
 );
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
+// spec: BRIEF.md#память-слои — every N turns a cheap model proposes facts through the owner's card
+$factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
+$scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
+    $llm,
+    static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP),
+    $transcript,
+    $conversations,
+    $proposals,
+    $memoryCards,
+    $audience,
+    $logger,
+    is_numeric($factNudgeTurns) ? max(0, min(1000, (int) $factNudgeTurns)) : \OpenCCK\App\Agent\FactNudge::EVERY,
+))->afterRun(...));
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
@@ -791,6 +804,7 @@ if ($a2aServer !== null) {
 }
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
+$tools->register(new \OpenCCK\App\Agent\Tool\MemoryFeedbackTool($memoryStore, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
 $tools->register(new ExperienceSearchTool($experience, $audience));

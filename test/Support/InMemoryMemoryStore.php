@@ -117,6 +117,20 @@ final class InMemoryMemoryStore implements MemoryStore {
         return $this->facts[$id] = new Fact($id, $f->scope, $f->category, $text, $keys, $f->trust, $f->provenance, $f->active, $f->version + 1, time());
     }
 
+    /** @var array<int, int> */
+    public array $helpful = [];
+
+    public function rateFact(int $id, float $delta, bool $helpful): ?float {
+        $f = $this->facts[$id] ?? null;
+        if ($f === null || !$f->active) {
+            return null;
+        }
+        $trust = max(0.0, min(1.0, round($f->trust + $delta, 6)));
+        $this->facts[$id] = new Fact($id, $f->scope, $f->category, $f->text, $f->keys, $trust, $f->provenance, true, $f->version, $f->updatedAt);
+        $this->helpful[$id] = ($this->helpful[$id] ?? 0) + ($helpful ? 1 : 0);
+        return $trust;
+    }
+
     public function endFact(int $id, string $reason): bool {
         $f = $this->facts[$id] ?? null;
         if ($f === null || !$f->active) {
