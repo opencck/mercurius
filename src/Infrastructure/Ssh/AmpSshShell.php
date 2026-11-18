@@ -97,8 +97,10 @@ final class AmpSshShell implements RemoteShell {
             if ($target->kind === 'private_key') {
                 // The library reads a key only from a file: a private one in RAM, removed right after the login.
                 $keyFile = (is_dir(self::KEY_DIR) && is_writable(self::KEY_DIR) ? self::KEY_DIR : sys_get_temp_dir()) . '/mercurius-key-' . bin2hex(random_bytes(12));
-                write($keyFile, $target->credential);
+                // the file is empty while it is open to others: rights first, then the key
+                write($keyFile, '');
                 chmod($keyFile, 0600);
+                write($keyFile, $target->credential);
                 $auth = new PublicKey($server->username, $keyFile);
             } else {
                 $auth = new UsernamePassword($server->username, $target->credential);
