@@ -44,9 +44,9 @@ final class InMemoryServerRepository implements ServerRepository {
         }
     }
 
-    public function decideHostKey(int $id, bool $trust): ?Server {
+    public function decideHostKey(int $id, bool $trust, ?string $fingerprint = null): ?Server {
         $s = $this->servers[$id] ?? null;
-        if ($s === null || $s->pendingHostKey === null) {
+        if ($s === null || $s->pendingHostKey === null || ($fingerprint !== null && $fingerprint !== $s->pendingHostKey)) {
             return null;
         }
         return $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, $trust ? $s->pendingHostKey : $s->hostKey, null, $s->route);

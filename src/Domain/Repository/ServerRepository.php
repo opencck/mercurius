@@ -24,8 +24,12 @@ interface ServerRepository {
     /** A key seen at the first connection waits for the owner. */
     public function setPendingHostKey(int $id, string $fingerprint): void;
 
-    /** The owner's answer: trust the pending key, or drop it. */
-    public function decideHostKey(int $id, bool $trust): ?Server;
+    /**
+     * The owner's answer: trust the pending key, or drop it.
+     *
+     * @param string|null $fingerprint the key the owner saw: the answer holds only while it is still the pending one
+     */
+    public function decideHostKey(int $id, bool $trust, ?string $fingerprint = null): ?Server;
 
     public function remove(int $id): bool;
 }

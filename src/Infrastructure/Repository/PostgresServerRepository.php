@@ -55,12 +55,13 @@ final class PostgresServerRepository implements ServerRepository {
         $this->db->execute('UPDATE servers SET pending_host_key = ? WHERE id = ? AND host_key IS NULL', [$fingerprint, $id]);
     }
 
-    public function decideHostKey(int $id, bool $trust): ?Server {
+    public function decideHostKey(int $id, bool $trust, ?string $fingerprint = null): ?Server {
         $row = $this->db->execute(
-            $trust
-                ? 'UPDATE servers SET host_key = pending_host_key, pending_host_key = NULL WHERE id = ? AND pending_host_key IS NOT NULL RETURNING ' . self::COLUMNS
-                : 'UPDATE servers SET pending_host_key = NULL WHERE id = ? AND pending_host_key IS NOT NULL RETURNING ' . self::COLUMNS,
-            [$id],
+            ($trust
+                ? 'UPDATE servers SET host_key = pending_host_key, pending_host_key = NULL WHERE id = ? AND pending_host_key IS NOT NULL'
+                : 'UPDATE servers SET pending_host_key = NULL WHERE id = ? AND pending_host_key IS NOT NULL')
+            . ' AND (?::text IS NULL OR pending_host_key = ?) RETURNING ' . self::COLUMNS,
+            [$id, $fingerprint, $fingerprint],
         )->fetchRow();
         return $row === null ? null : self::server($row);
     }

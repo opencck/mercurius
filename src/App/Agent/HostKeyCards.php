@@ -47,18 +47,26 @@ final class HostKeyCards implements CallbackHandler {
             $server->address(),
             $fingerprint,
         ), buttons: [[
-            new Button(t('agent.host_key_cards.doveryat'), sprintf('%s:%d:a', self::PREFIX, $server->id)),
-            new Button(t('agent.host_key_cards.ne_doveryat'), sprintf('%s:%d:r', self::PREFIX, $server->id)),
+            new Button(t('agent.host_key_cards.doveryat'), sprintf('%s:%d:a:%s', self::PREFIX, $server->id, self::tag($fingerprint))),
+            new Button(t('agent.host_key_cards.ne_doveryat'), sprintf('%s:%d:r:%s', self::PREFIX, $server->id, self::tag($fingerprint))),
         ]]));
     }
 
+    /** A short mark of the fingerprint the card shows: the button carries it, a press checks it. */
+    private static function tag(string $fingerprint): string {
+        return substr(hash('sha256', $fingerprint), 0, 12);
+    }
+
     public function handleCallback(IncomingCallback $callback): void {
-        if (preg_match('/^hk:(\d+):([ar])$/', $callback->data, $match) !== 1) {
-            $this->channel->answerCallback($callback->callbackId);
+        if (preg_match('/^hk:(\d+):([ar]):([0-9a-f]{12})$/', $callback->data, $match) !== 1) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.host_key_cards.uzhe_resheno'));
             return;
         }
         $trust = $match[2] === 'a';
-        $server = $this->servers->decideHostKey((int) $match[1], $trust);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the press decides the key the card showed: a key that came
+        //       in its place while the card waited has a card of its own
+        $pending = $this->servers->find((int) $match[1])?->pendingHostKey;
+        $server = $pending !== null && hash_equals(self::tag($pending), $match[3]) ? $this->servers->decideHostKey((int) $match[1], $trust, $pending) : null;
         if ($server === null) {
             $this->channel->answerCallback($callback->callbackId, t('agent.host_key_cards.uzhe_resheno'));
             return;
