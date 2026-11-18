@@ -382,6 +382,8 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new ListFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
+    // spec: BRIEF.md#планировщик-и-проекты — git with a token of the vault in the environment of one command
+    $tools->register(new \OpenCCK\App\Agent\Tool\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
     // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: BRIEF.md#между-агентами — in a task of another agent a file goes with the answer
     $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {

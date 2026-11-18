@@ -39,7 +39,9 @@ final class CommandRunner implements Runner {
         int $timeoutSeconds,
         ?string $stdin,
         Cancellation $cancellation,
+        array $env = [],
     ): CommandResult {
+        self::checkEnv($env);
         $this->users->ensure($principalId);
         if (($this->running[$principalId] ?? 0) >= $limits->concurrentCommands) {
             throw new SandboxError(sprintf(t('sandbox.command_runner.slishkom_mnogo_odnovremennyh_komand_ne'), $limits->concurrentCommands), 429);
@@ -48,12 +50,45 @@ final class CommandRunner implements Runner {
         try {
             // The process starts in the home (as root, before the privilege drop); the requested directory is entered
             // by the participant's shell, so a symlink into another home is refused by the kernel.
-            $result = $this->proc->run($this->argv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation);
+            // With an environment of its own the command gets it from the process, not from `env -i` arguments, which
+            // other users could read in /proc.
+            $result = $env === []
+                ? $this->proc->run($this->argv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation)
+                : $this->proc->run($this->streamArgv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation, $this->baseEnv($principalId) + $env);
         } finally {
             $this->running[$principalId]--;
         }
         $over = $this->files->usage($principalId) > $limits->diskBytes;
         return new CommandResult($result->exitCode, $result->stdout, $result->stderr, $result->timedOut, $result->cancelled, $result->durationMs, $over);
+    }
+
+    /** Names and values the executor accepts: no loader or shell variables, short values, at most a few. */
+    public const ENV_MAX = 8;
+
+    /**
+     * @param array<string, string> $env
+     * @throws SandboxError
+     */
+    public static function checkEnv(array $env): void {
+        if (count($env) > self::ENV_MAX) {
+            throw new SandboxError(t('sandbox.streams.bad_env'));
+        }
+        foreach ($env as $name => $value) {
+            if (preg_match('~^[A-Z_][A-Z0-9_]{0,63}$~', $name) !== 1 || in_array($name, ['PATH', 'HOME', 'USER', 'SHELL', 'BASH_ENV', 'ENV', 'IFS', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'LD_AUDIT'], true)
+                || strlen($value) > 8192 || str_contains($value, "\0")) {
+                throw new SandboxError(t('sandbox.streams.bad_env'));
+            }
+        }
+    }
+
+    /** @return array<string, string> the minimal environment every command of the participant starts with */
+    public function baseEnv(int $principalId): array {
+        return [
+            'HOME' => $this->workspace->home($principalId),
+            'USER' => $this->workspace->user($principalId),
+            'PATH' => self::PATH,
+            'LANG' => 'C.UTF-8',
+        ];
     }
 
     /**

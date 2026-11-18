@@ -22,7 +22,7 @@ final class Streams {
     public const BUFFER_BYTES = 4 * 1024 * 1024;
     public const RECEIVE_MAX = 1024 * 1024;
     public const WAIT_MAX = 25;
-    public const ENV_MAX = 8;
+    public const ENV_MAX = CommandRunner::ENV_MAX;
 
     /** @var array<string, StreamSession> */
     private array $sessions = [];
@@ -46,22 +46,10 @@ final class Streams {
         if ($own >= self::PER_PRINCIPAL) {
             throw new SandboxError(sprintf(t('sandbox.streams.too_many'), self::PER_PRINCIPAL), 429);
         }
-        if (count($env) > self::ENV_MAX) {
-            throw new SandboxError(t('sandbox.streams.bad_env'));
-        }
-        foreach ($env as $name => $value) {
-            if (preg_match('~^[A-Z_][A-Z0-9_]{0,63}$~', $name) !== 1 || in_array($name, ['PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH'], true) || strlen($value) > 8192 || str_contains($value, "\0")) {
-                throw new SandboxError(t('sandbox.streams.bad_env'));
-            }
-        }
+        CommandRunner::checkEnv($env);
         $this->users->ensure($principalId);
         $id = bin2hex(random_bytes(16));
-        $base = [
-            'HOME' => $this->workspace->home($principalId),
-            'USER' => $this->workspace->user($principalId),
-            'PATH' => CommandRunner::PATH,
-            'LANG' => 'C.UTF-8',
-        ];
+        $base = $this->runner->baseEnv($principalId);
         $this->sessions[$id] = new StreamSession(
             $id,
             $principalId,

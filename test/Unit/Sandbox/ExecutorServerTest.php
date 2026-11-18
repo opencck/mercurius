@@ -33,8 +33,8 @@ final class ExecutorServerTest extends AsyncTestCase {
         $runner = new class($this) implements Runner {
             public function __construct(private readonly ExecutorServerTest $test) {}
 
-            public function run(int $principalId, SandboxLimits $limits, string $command, string $cwd, int $timeoutSeconds, ?string $stdin, Cancellation $cancellation): CommandResult {
-                $this->test->commands[] = $command . ' @' . $cwd;
+            public function run(int $principalId, SandboxLimits $limits, string $command, string $cwd, int $timeoutSeconds, ?string $stdin, Cancellation $cancellation, array $env = []): CommandResult {
+                $this->test->commands[] = $command . ' @' . $cwd . ($env === [] ? '' : ' env:' . implode(',', array_keys($env)));
                 if ($command === 'wait') {
                     while (!$cancellation->isRequested()) {
                         delay(0.01);
@@ -109,6 +109,20 @@ final class ExecutorServerTest extends AsyncTestCase {
         self::assertTrue($body['ok']);
         self::assertSame('out', $body['stdout']);
         self::assertSame(['ls @/workspace/p7/src'], $this->commands);
+    }
+
+    public function testExecPassesEnvironmentOfTheCommand(): void {
+        $response = $this->server()->handleRequest($this->request('/v1/exec', ['principal_id' => 7, 'limits' => self::LIMITS, 'command' => 'git push', 'env' => ['GIT_TERMINAL_PROMPT' => '0']]));
+
+        self::assertSame(200, $response->getStatus());
+        self::assertSame(['git push @/workspace/p7 env:GIT_TERMINAL_PROMPT'], $this->commands);
+    }
+
+    public function testExecRefusesAnEnvironmentThatMovesTheShell(): void {
+        $response = $this->server()->handleRequest($this->request('/v1/exec', ['principal_id' => 7, 'limits' => self::LIMITS, 'command' => 'ls', 'env' => ['LD_PRELOAD' => '/tmp/x.so']]));
+
+        self::assertSame(400, $response->getStatus());
+        self::assertSame([], $this->commands);
     }
 
     public function testExecRefusesCwdOutsideHome(): void {

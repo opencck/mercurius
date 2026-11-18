@@ -14,6 +14,8 @@ interface Runner {
     /**
      * @param string $cwd an absolute path already resolved inside the participant's home
      * @param positive-int $timeoutSeconds
+     * @param array<string, string> $env extra environment of this command only (a token for git): given to the process,
+     *                                   never put into its arguments
      * @throws SandboxError
      */
     public function run(
@@ -24,5 +26,6 @@ interface Runner {
         int $timeoutSeconds,
         ?string $stdin,
         Cancellation $cancellation,
+        array $env = [],
     ): CommandResult;
 }

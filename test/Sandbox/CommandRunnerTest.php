@@ -38,6 +38,18 @@ final class CommandRunnerTest extends SandboxTestCase {
         self::assertStringContainsString('HOME=' . $this->workspace->home(7), $result->stdout);
     }
 
+    public function testEnvironmentOfOneCommandReachesItButNotItsArguments(): void {
+        $result = $this->runner->run(7, self::limits(), 'echo "$GIT_TOKEN_TEST"; tr "\0" " " < /proc/$$/cmdline', $this->workspace->home(7), 10, null, new \Amp\NullCancellation(), ['GIT_TOKEN_TEST' => 'tok-123']);
+
+        self::assertSame(0, $result->exitCode, $result->stderr);
+        $lines = explode("\n", $result->stdout, 2);
+        [$value, $cmdline] = [$lines[0], $lines[1] ?? ''];
+        self::assertSame('tok-123', $value);
+        self::assertStringNotContainsString('tok-123', $cmdline, 'the value is not in the arguments other users see');
+        putenv('SANDBOX_TOKEN=should-not-leak');
+        self::assertStringNotContainsString('SANDBOX_TOKEN', $this->runner->run(7, self::limits(), 'env', $this->workspace->home(7), 10, null, new \Amp\NullCancellation(), ['A_B' => '1'])->stdout);
+    }
+
     public function testTimeoutKillsBackgroundProcesses(): void {
         $result = $this->sh(7, 'sleep 300 & nohup sleep 301 >/dev/null 2>&1 & sleep 302', 1);
 

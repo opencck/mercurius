@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#песочница — executor behind a token
  */
-final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams {
+final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv {
     private const FILE_TIMEOUT = 60;
     private const EXTRA_SECONDS = 10;
 
@@ -40,8 +40,13 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
     ) {}
 
     public function exec(int $principalId, SandboxLimits $limits, string $callId, string $command, string $cwd, int $timeoutSeconds, Cancellation $cancellation): CommandOutcome {
+        return $this->execEnv($principalId, $limits, $callId, $command, $cwd, $timeoutSeconds, [], $cancellation);
+    }
+
+    public function execEnv(int $principalId, SandboxLimits $limits, string $callId, string $command, string $cwd, int $timeoutSeconds, #[SensitiveParameter] array $env, Cancellation $cancellation): CommandOutcome {
+        $fields = ['command' => $command, 'cwd' => $cwd, 'timeout' => $timeoutSeconds] + ($env === [] ? [] : ['env' => (object) $env]);
         try {
-            $body = $this->call('exec', $principalId, $limits, ['command' => $command, 'cwd' => $cwd, 'timeout' => $timeoutSeconds], $timeoutSeconds + self::EXTRA_SECONDS, $cancellation, $callId);
+            $body = $this->call('exec', $principalId, $limits, $fields, $timeoutSeconds + self::EXTRA_SECONDS, $cancellation, $callId);
         } catch (CancelledException $e) {
             if ($cancellation->isRequested()) {
                 try {

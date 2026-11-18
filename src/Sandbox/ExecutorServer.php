@@ -96,6 +96,8 @@ final class ExecutorServer implements RequestHandler {
     /** @return array<string, int|string|bool> */
     private function exec(Request $request): array {
         $cwd = $this->workspace->resolve($request->principalId, $request->string('cwd', '.'));
+        $env = $request->env();
+        CommandRunner::checkEnv($env);
         $deferred = new DeferredCancellation();
         if ($request->callId !== '') {
             $this->running[$request->callId] = $deferred;
@@ -109,6 +111,7 @@ final class ExecutorServer implements RequestHandler {
                 max(1, $request->int('timeout', 120, 1, 600)),
                 null,
                 $deferred->getCancellation(),
+                $env,
             )->toArray();
         } finally {
             unset($this->running[$request->callId]);
