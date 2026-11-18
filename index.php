@@ -348,7 +348,15 @@ $tools->withServices($serviceModules->up(...));
 }));
 // spec: BRIEF.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
 $guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
-$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient));
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — cookies of http_request live with the project of the conversation,
+//       else with the participant, like browser profiles
+$httpCookieProjects = new PostgresProjectRepository($db);
+$httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context) use ($conversations, $httpCookieProjects): string {
+    $meta = $conversations->meta($context->conversationId);
+    $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
+    return $project === null ? 'p' . $context->principal->id : 'project:' . $project->id;
+};
+$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope));
 // spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS

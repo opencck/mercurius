@@ -25,6 +25,12 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
     private const MAX_REDIRECTS = 5;
     private const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
     private const MAX_BODY = 1_048_576;
+    /** {{secret:name}} in the body or a header value: the code puts the value in, the model never sees it */
+    private const PLACEHOLDER = '~\{\{secret:([^{}\s]{1,100})\}\}~';
+    /** how long a cookie without its own expiry, or with a longer one, is kept */
+    private const COOKIE_DAYS = 30;
+
+    private readonly \OpenCCK\Domain\Repository\HttpCookieRepository $cookies;
 
     public function __construct(
         private readonly DelegateHttpClient $http,
@@ -33,7 +39,12 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         private readonly ?\OpenCCK\App\Vault\Vault $vault = null,
         /** @var (\Closure(AddressGuard): DelegateHttpClient)|null a client that dials through the given guard; null — $http */
         private readonly ?\Closure $clientFor = null,
-    ) {}
+        ?\OpenCCK\Domain\Repository\HttpCookieRepository $cookies = null,
+        /** @var (\Closure(ToolContext): string)|null whose cookies a call uses: a project, else the participant ("p<id>") */
+        private readonly ?\Closure $cookieScope = null,
+    ) {
+        $this->cookies = $cookies ?? new \OpenCCK\Infrastructure\Repository\InMemoryHttpCookieRepository();
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.http_request.http_zapros_k_publichnomu_adresu')
@@ -54,17 +65,17 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
 
     public function danger(array $args): DangerClass {
         // a secret leaves the agent only with the owner's card, whatever the method
-        return in_array(self::method($args), ['GET', 'HEAD'], true) && self::secret($args) === null && $this->internalHost($args) === null
+        return in_array(self::method($args), ['GET', 'HEAD'], true) && self::secrets($args) === [] && $this->internalHost($args) === null
             ? DangerClass::Read
             : DangerClass::Irreversible;
     }
 
     public function grantKey(array $args): ?string {
-        $secret = self::secret($args);
-        if ($secret !== null) {
-            // spec: BRIEF.md#серверы-и-сеть — a grant binds the secret to one host, as hermes binds a credential to hosts
+        $secrets = self::secrets($args);
+        if ($secrets !== []) {
+            // spec: BRIEF.md#серверы-и-сеть — a grant binds the secrets to one host, as hermes binds a credential to hosts
             $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
-            return is_string($host) && $host !== '' ? sprintf('http-secret:%s %s', $secret, strtolower($host)) : null;
+            return is_string($host) && $host !== '' ? sprintf('http-secret:%s %s', implode(',', $secrets), strtolower($host)) : null;
         }
         $method = self::method($args);
         if (in_array($method, ['GET', 'HEAD'], true)) {
@@ -78,8 +89,10 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
 
     public function describe(array $args): string {
         $secret = self::secret($args);
+        $inside = array_values(array_diff(self::secrets($args), $secret === null ? [] : [$secret]));
         return sprintf('HTTP %s %s', self::method($args), mb_substr(Args::string($args, 'url') ?? '', 0, 300))
             . ($secret === null ? '' : sprintf(t('tool.http_request.with_secret'), $secret, Args::string($args, 'secret_header') ?? 'Authorization: Bearer'))
+            . ($inside === [] ? '' : sprintf(t('tool.http_request.with_secrets_inside'), implode('», «', $inside)))
             . (($internal = $this->internalHost($args)) === null ? '' : sprintf(t('tool.address_internal'), $internal));
     }
 
@@ -91,6 +104,29 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         }
         $host = strtolower(trim($host, '[]'));
         return $this->guard->internal($host) ? $host : null;
+    }
+
+    /**
+     * Every secret a call uses: the one for a header and those named by {{secret:name}} in the body and header values;
+     * sorted, each once.
+     *
+     * @param array<string, mixed> $args
+     * @return list<string>
+     */
+    private static function secrets(array $args): array {
+        $names = [];
+        $secret = self::secret($args);
+        if ($secret !== null) {
+            $names[] = $secret;
+        }
+        foreach ([Args::string($args, 'body') ?? '', ...array_values(Args::stringMap($args, 'headers'))] as $text) {
+            if (preg_match_all(self::PLACEHOLDER, $text, $found) > 0) {
+                $names = [...$names, ...$found[1]];
+            }
+        }
+        $names = array_values(array_unique($names));
+        sort($names);
+        return $names;
     }
 
     /** @param array<string, mixed> $args */
@@ -134,17 +170,36 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         // ref: references/hermes-agent/agent/proxy_sources/iron_proxy.py@e96221fa:L1-L8, L63-L77 — the agent never holds the
         //      credential, it is put into the header on the way out and bound to hosts; hermes binds by configuration
         //      behind an egress proxy, here the value is put in by the code and the owner's grant binds it to a host
-        $secretName = self::secret($args);
-        $secretValue = null;
-        if ($secretName !== null) {
-            $secretValue = $this->vault?->reveal($secretName, $context->principal);
-            if ($secretValue === null) {
+        /** @var array<string, string> $values name => value of every secret of the call */
+        $values = [];
+        foreach (self::secrets($args) as $name) {
+            $value = $this->vault?->reveal($name, $context->principal);
+            if ($value === null) {
                 $names = $this->vault === null ? [] : array_column($this->vault->names($context->principal), 'name');
-                return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $secretName, $names === [] ? '—' : implode(', ', $names)));
+                return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $name, $names === [] ? '—' : implode(', ', $names)));
             }
-            $header = trim(Args::string($args, 'secret_header') ?? '');
-            $headers[$header === '' ? 'Authorization' : $header] = $header === '' ? 'Bearer ' . $secretValue : $secretValue;
+            $values[$name] = $value;
         }
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a login form: secrets go into the body by name, escaped for
+        //       its type (a form gets url-encoding, JSON — a string escape)
+        $type = '';
+        foreach ($headers as $name => $value) {
+            if (strtolower($name) === 'content-type') {
+                $type = strtolower($value);
+            }
+        }
+        if ($body !== null) {
+            $body = self::fill($body, $values, $type);
+        }
+        foreach ($headers as $name => $value) {
+            $headers[$name] = self::fill($value, $values, '');
+        }
+        $secretName = self::secret($args);
+        if ($secretName !== null) {
+            $header = trim(Args::string($args, 'secret_header') ?? '');
+            $headers[$header === '' ? 'Authorization' : $header] = $header === '' ? 'Bearer ' . $values[$secretName] : $values[$secretName];
+        }
+        $scope = $this->cookieScope === null ? 'p' . $context->principal->id : ($this->cookieScope)($context);
 
         // the owner allowed this call: its internal host, and no other, is let through
         $permitted = $context->approved ? $this->internalHost($args) : null;
@@ -157,12 +212,10 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             if (($scheme !== 'http' && $scheme !== 'https') || !isset($parts['host'])) {
                 return ToolResult::error(t('tool.http_request.podderzhivayutsya_tolko_adresa_http_i'));
             }
-            // a secret goes only over https and only to the host the owner allowed: a redirect elsewhere is not followed
-            if ($secretValue !== null) {
-                $host = strtolower($parts['host']);
-                if ($scheme !== 'https') {
-                    return ToolResult::error(t('tool.http_request.secret_https_only'));
-                }
+            // a secret goes only to the host the owner allowed (over http too — the owner's decision): a redirect
+            // elsewhere is not followed
+            $host = strtolower($parts['host']);
+            if ($values !== []) {
                 if ($secretHost !== null && $host !== $secretHost) {
                     return ToolResult::ok(sprintf(t('tool.http_request.secret_redirect_stopped'), $host));
                 }
@@ -177,8 +230,20 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             foreach ($headers as $name => $value) {
                 $request->setHeader($name, $value);
             }
+            // ref: references/hermes-agent/agent/redact_headers.py@e96221fa:L72-L79 — cookies carry sessions and are
+            //      hidden from what the model reads; here they are not shown at all and live in the jar of the scope
+            $jar = $this->cookies->cookies($scope, $host);
+            if ($jar !== [] && !$request->hasHeader('cookie')) {
+                $request->setHeader('cookie', implode('; ', array_map(static fn(string $n, string $v): string => $n . '=' . $v, array_keys($jar), $jar)));
+            }
             $request->setBodySizeLimit(PHP_INT_MAX);
             $response = $http->request($request, $context->cancellation);
+            foreach ($response->getHeaderArray('set-cookie') as $line) {
+                $cookie = self::cookie($line);
+                if ($cookie !== null) {
+                    $this->cookies->keep($scope, $host, ...$cookie);
+                }
+            }
 
             $location = $response->getHeader('location');
             // A request that changes something is not repeated at another address: the model decides.
@@ -189,9 +254,78 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
 
             $text = sprintf("HTTP %d\ncontent-type: %s\n\n", $response->getStatus(), $response->getHeader('content-type') ?? '');
             $answer = $text . $this->readBody($response->getBody(), $context);
-            return ToolResult::ok($secretValue === null ? $answer : str_replace($secretValue, '***', $answer));
+            return ToolResult::ok(self::mask($answer, $values));
         }
         return ToolResult::error(sprintf(t('tool.http_request.slishkom_mnogo_perenapravleniy_bolshe'), self::MAX_REDIRECTS));
+    }
+
+    /**
+     * Puts the values of secrets in place of their {{secret:name}}, escaped for the type of the text.
+     *
+     * @param array<string, string> $values
+     */
+    private static function fill(string $text, array $values, string $type): string {
+        return preg_replace_callback(self::PLACEHOLDER, static function (array $m) use ($values, $type): string {
+            $value = $values[$m[1]] ?? '';
+            if (str_contains($type, 'x-www-form-urlencoded')) {
+                return rawurlencode($value);
+            }
+            if (str_contains($type, 'json')) {
+                return substr(json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1);
+            }
+            return $value;
+        }, $text) ?? $text;
+    }
+
+    /**
+     * The answer without the values of the secrets, in any of the spellings they were sent in.
+     *
+     * @param array<string, string> $values
+     */
+    private static function mask(string $answer, array $values): string {
+        foreach ($values as $value) {
+            if (strlen($value) < 4) {
+                continue;
+            }
+            $spellings = array_unique([$value, rawurlencode($value), urlencode($value), substr(json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1)]);
+            $answer = str_replace($spellings, '***', $answer);
+        }
+        return $answer;
+    }
+
+    /**
+     * A Set-Cookie line as [name, value, expires]; a past expiry or Max-Age=0 removes the cookie, a cookie without an
+     * expiry or with a far one is kept for COOKIE_DAYS.
+     *
+     * @return array{string, string, int}|null
+     */
+    private static function cookie(string $line): ?array {
+        $parts = explode(';', $line);
+        $pair = explode('=', trim(array_shift($parts)), 2);
+        $name = trim($pair[0]);
+        if ($name === '' || !isset($pair[1]) || preg_match('~^[!#$%&\'*+.^_`|\~0-9A-Za-z-]{1,100}$~', $name) !== 1) {
+            return null;
+        }
+        $value = trim($pair[1]);
+        if (strlen($value) > 4096) {
+            return null;
+        }
+        $now = time();
+        $longest = $now + self::COOKIE_DAYS * 86400;
+        $expires = $longest;
+        foreach ($parts as $attribute) {
+            $kv = explode('=', trim($attribute), 2);
+            $key = strtolower(trim($kv[0]));
+            $given = trim($kv[1] ?? '');
+            if ($key === 'max-age' && preg_match('~^-?\d{1,12}$~', $given) === 1) {
+                $expires = $now + (int) $given;
+                break;
+            }
+            if ($key === 'expires' && ($at = strtotime($given)) !== false) {
+                $expires = $at;
+            }
+        }
+        return [$name, $value, min($expires, $longest)];
     }
 
     private function readBody(\Amp\ByteStream\ReadableStream $body, ToolContext $context): string {

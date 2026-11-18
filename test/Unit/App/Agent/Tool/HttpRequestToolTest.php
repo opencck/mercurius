@@ -66,7 +66,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute($args, new ToolContext(1, 1, $stranger, new NullCancellation()))->isError, 'only the owner of the secret uses it');
     }
 
-    public function testASecretTravelsOnlyOverHttpsAndNeverFollowsARedirectAway(): void {
+    public function testASecretNeverFollowsARedirectAwayAndMayGoOverHttp(): void {
         $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('key', 'token', 'sk-or-v1-secretvalue', $owner);
@@ -74,18 +74,101 @@ final class HttpRequestToolTest extends AsyncTestCase {
             'https://example.com/a' => [302, ['location' => 'https://other.com/steal'], ''],
             'https://example.com/b' => [302, ['location' => 'https://example.com/c'], ''],
             'https://example.com/c' => [200, ['content-type' => 'text/plain'], 'ok'],
+            'http://example.com/plain' => [200, ['content-type' => 'text/plain'], 'plain ok'],
         ]);
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
 
-        self::assertTrue($tool->execute(['url' => 'http://example.com/a', 'secret' => 'key'], self::context())->isError, 'never in clear text');
-        self::assertCount(0, $this->http->requested);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a secret goes over http too: the owner's card names the host
+        $plain = $tool->execute(['url' => 'http://example.com/plain', 'secret' => 'key'], self::context());
+        self::assertStringContainsString('plain ok', $plain->content);
 
         $away = $tool->execute(['url' => 'https://example.com/a', 'secret' => 'key'], self::context());
-        self::assertSame(['GET https://example.com/a'], $this->http->requested, 'the redirect to another host is not followed');
+        self::assertSame(['GET http://example.com/plain', 'GET https://example.com/a'], $this->http->requested, 'the redirect to another host is not followed');
         self::assertStringContainsString('other.com', $away->content);
 
         $same = $tool->execute(['url' => 'https://example.com/b', 'secret' => 'key'], self::context());
         self::assertStringContainsString('ok', $same->content, 'the same host is fine');
+    }
+
+    public function testSecretsArePutIntoTheBodyByTheirNamesEscapedForItsType(): void {
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $vault->put('panel-user', 'token', 'admin', $owner);
+        $vault->put('panel-pass', 'token', 'p&ss="w0rd"', $owner);
+        $this->http = new FakeHttpClient([
+            'http://example.com:2053/login' => [200, ['content-type' => 'application/json'], '{"success":true,"echo":"p&ss=\"w0rd\""}'],
+            'http://example.com:2053/json' => [200, ['content-type' => 'application/json'], '{"success":true}'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
+        $form = [
+            'url' => 'http://example.com:2053/login',
+            'method' => 'POST',
+            'headers' => ['Content-Type' => 'application/x-www-form-urlencoded'],
+            'body' => 'username={{secret:panel-user}}&password={{secret:panel-pass}}',
+        ];
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a login form: several secrets in the body, one card for them all
+        self::assertSame(DangerClass::Irreversible, $tool->danger($form));
+        self::assertSame('http-secret:panel-pass,panel-user example.com', $tool->grantKey($form), 'the grant names every secret and the host');
+        self::assertStringContainsString('panel-user', $tool->describe($form));
+        self::assertStringContainsString('panel-pass', $tool->describe($form));
+
+        $result = $tool->execute($form, self::context());
+        self::assertSame('username=admin&password=' . rawurlencode('p&ss="w0rd"'), $this->http->bodies[0], 'a form gets url-encoded values');
+        self::assertStringNotContainsString('w0rd', $result->content, 'the value never reaches the model');
+        self::assertArrayNotHasKey('authorization', $this->http->headers[0], 'a secret named only in the body goes only there');
+
+        $tool->execute([
+            'url' => 'http://example.com:2053/json',
+            'method' => 'POST',
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => '{"username":"{{secret:panel-user}}","password":"{{secret:panel-pass}}"}',
+        ], self::context());
+        self::assertSame(['username' => 'admin', 'password' => 'p&ss="w0rd"'], json_decode($this->http->bodies[1], true, 4, JSON_THROW_ON_ERROR), 'JSON gets escaped strings');
+
+        $missing = $tool->execute(['url' => 'http://example.com:2053/login', 'method' => 'POST', 'body' => 'p={{secret:nope}}'], self::context());
+        self::assertTrue($missing->isError);
+        self::assertStringContainsString('panel-user', $missing->content, 'the error lists the secrets there are');
+        self::assertCount(2, $this->http->requested, 'a request with an unknown secret is not sent');
+    }
+
+    public function testCookiesOfAHostAreKeptForTheParticipantWithoutShowingThem(): void {
+        $this->http = new FakeHttpClient([
+            'http://example.com/login' => [200, ['content-type' => 'application/json', 'set-cookie' => '3x-ui=SESSIONVALUE; Path=/; HttpOnly'], '{"success":true}'],
+            'http://example.com/panel/api/inbounds/list' => [200, ['content-type' => 'application/json'], '{"obj":[]}'],
+            'http://other.com/x' => [200, ['content-type' => 'text/plain'], 'x'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']));
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the session a server gives stays with the code, not the model
+        $login = $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST', 'body' => 'a=b'], self::context());
+        self::assertStringNotContainsString('SESSIONVALUE', $login->content);
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], self::context());
+        self::assertSame('3x-ui=SESSIONVALUE', $this->http->headers[1]['cookie'] ?? null, 'the next request to the host carries the session');
+
+        $tool->execute(['url' => 'http://other.com/x'], self::context());
+        self::assertArrayNotHasKey('cookie', $this->http->headers[2], 'another host does not get it');
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(2, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation()));
+        self::assertSame('3x-ui=SESSIONVALUE', $this->http->headers[3]['cookie'] ?? null, 'the next run of the participant keeps the session');
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(3, 1, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        self::assertArrayNotHasKey('cookie', $this->http->headers[4], 'another participant does not get it');
+    }
+
+    public function testCookiesOfAProjectAreSharedByItsParticipants(): void {
+        $this->http = new FakeHttpClient([
+            'http://example.com/login' => [200, ['set-cookie' => 'sid=PROJECTSESSION; Max-Age=3600'], 'ok'],
+            'http://example.com/list' => [200, [], 'list'],
+        ]);
+        $cookies = new \OpenCCK\Infrastructure\Repository\InMemoryHttpCookieRepository();
+        $scope = static fn(ToolContext $context): string => $context->conversationId === 7 ? 'project:3' : 'p' . $context->principal->id;
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), cookies: $cookies, cookieScope: $scope);
+
+        $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST'], new ToolContext(1, 7, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(2, 7, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        self::assertSame('sid=PROJECTSESSION', $this->http->headers[1]['cookie'] ?? null, 'a participant of the project uses its session');
+        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(3, 8, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        self::assertArrayNotHasKey('cookie', $this->http->headers[2], 'outside the project — not');
+        self::assertSame(['sid' => 'PROJECTSESSION'], $cookies->cookies('project:3', 'example.com'));
     }
 
     public function testGetReturnsStatusTypeAndBody(): void {
