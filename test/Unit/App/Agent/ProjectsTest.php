@@ -172,4 +172,28 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('<untrusted-data source="project">', $system);
         self::assertStringContainsString('Активный проект: Меркурий', $system);
     }
+
+    public function testAProjectSkillComesIntoTheContextOfItsChatOrTopic(): void {
+        $skills = new \OpenCCK\Test\Support\InMemorySkillRepository();
+        $catalog = new \OpenCCK\App\Skill\SkillCatalog($skills);
+        $skills->accept($catalog->propose('release-notes', 'How to write release notes', "# Release notes
+Group changes by area.", 'test', 1, 'owner')->id);
+        $catalog->propose('draft-only', 'Not accepted yet', 'secret plan', 'test', 1, 'owner');
+        $project = $this->projects->create('Меркурий', 'Агент');
+        $this->projects->activate('telegram', '-100', $project->id, '7');
+        $tool = new ProjectEditTool($this->projects, $this->conversations, skills: $catalog);
+        $context = new ToolContext(1, $this->conversation, $this->owner, new NullCancellation());
+
+        self::assertTrue($tool->execute(['action' => 'skill', 'project' => 'Меркурий', 'text' => 'draft-only'], $context)->isError, 'only an active skill');
+        self::assertFalse($tool->execute(['action' => 'skill', 'project' => 'Меркурий', 'text' => 'release-notes'], $context)->isError);
+        self::assertSame('release-notes', $this->projects->find($project->id)?->skill);
+
+        $block = (new ProjectContext($this->projects, $catalog))->block($this->owner, 'telegram', '-100', '7');
+        self::assertStringContainsString('release-notes', $block);
+        self::assertStringContainsString('Group changes by area.', $block);
+
+        self::assertFalse($tool->execute(['action' => 'skill', 'project' => 'Меркурий', 'text' => ''], $context)->isError, 'an empty name unbinds');
+        self::assertSame('', $this->projects->find($project->id)?->skill);
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'skill']));
+    }
 }

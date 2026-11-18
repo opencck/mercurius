@@ -34,6 +34,9 @@ interface ProjectRepository {
     /** Changes what is given; null leaves a field as it is. */
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project;
 
+    /** Binds a skill to the project ('' unbinds); null when there is no such project. */
+    public function setSkill(int $id, string $skill): ?Project;
+
     /** @param array<string, int> $profile */
     public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask;
 

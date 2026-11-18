@@ -25,7 +25,13 @@ final class ProjectContext {
     public const BUDGET = 2500;
     public const TASKS = 10;
 
-    public function __construct(private readonly ProjectRepository $projects) {}
+    /** a skill of the project is cut to this many characters; skill_view gives the rest */
+    public const SKILL_BUDGET = 8000;
+
+    public function __construct(
+        private readonly ProjectRepository $projects,
+        private readonly ?\OpenCCK\App\Skill\SkillCatalog $skills = null,
+    ) {}
 
     public function block(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
         if ($principal->role === Role::Visitor) {
@@ -54,7 +60,14 @@ final class ProjectContext {
             $parts[] = t('agent.project_context.otkrytye_zadachi') . implode("\n", array_map(self::task(...), $tasks));
         }
         $text = SecretMasker::mask(implode("\n\n", $parts));
-        return mb_strlen($text) > self::BUDGET ? mb_substr($text, 0, self::BUDGET - 1) . '…' : $text;
+        $text = mb_strlen($text) > self::BUDGET ? mb_substr($text, 0, self::BUDGET - 1) . '…' : $text;
+        // spec: BRIEF.md#форум-темы-проекты — the project's skill (accepted by the owner) comes with the project
+        $body = $project->skill === '' ? null : $this->skills?->body($project->skill);
+        if ($body !== null) {
+            $body = mb_strlen($body) > self::SKILL_BUDGET ? mb_substr($body, 0, self::SKILL_BUDGET - 1) . '…' : $body;
+            $text .= "\n\n" . sprintf(t('agent.project_context.skill'), $project->skill) . "\n" . $body;
+        }
+        return $text;
     }
 
     public static function status(string $status): string {

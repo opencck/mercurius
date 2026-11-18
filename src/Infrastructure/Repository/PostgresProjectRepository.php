@@ -16,7 +16,7 @@ use UnexpectedValueException;
 use function Mercurius\I18n\t;
 
 final class PostgresProjectRepository implements ProjectRepository {
-    private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated, owner_id';
+    private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated, owner_id, skill';
     private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result, extract(epoch FROM due_at)::bigint AS due';
 
     public function __construct(private readonly PostgresLink $db) {}
@@ -53,6 +53,11 @@ final class PostgresProjectRepository implements ProjectRepository {
             $found[] = self::project($row);
         }
         return $found;
+    }
+
+    public function setSkill(int $id, string $skill): ?Project {
+        $row = $this->db->execute('UPDATE projects SET skill = ?, updated_at = now() WHERE id = ? RETURNING ' . self::PROJECT, [$skill, $id])->fetchRow();
+        return $row === null ? null : self::project($row);
     }
 
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project {
@@ -132,7 +137,7 @@ final class PostgresProjectRepository implements ProjectRepository {
     public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
         // owner_id too: without it a participant's own project looked like the owner's and was hidden from them
         $row = $this->db->execute(
-            'SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated, p.owner_id
+            'SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated, p.owner_id, p.skill
              FROM chat_projects c JOIN projects p ON p.id = c.project_id WHERE c.channel = ? AND c.chat_id = ? AND c.thread_id = ?',
             [$channel, $chatId, $threadId],
         )->fetchRow();
@@ -161,7 +166,7 @@ final class PostgresProjectRepository implements ProjectRepository {
 
     /** @param array<string, mixed> $row */
     private static function project(array $row): Project {
-        return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'), isset($row['owner_id']) && is_int($row['owner_id']) ? $row['owner_id'] : null);
+        return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'), isset($row['owner_id']) && is_int($row['owner_id']) ? $row['owner_id'] : null, self::str($row, 'skill'));
     }
 
     /** @param array<string, mixed> $row */

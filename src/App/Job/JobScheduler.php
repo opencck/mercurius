@@ -85,6 +85,8 @@ final class JobScheduler implements JobRuns {
         private readonly int $tokenBudget = 100_000,
         /** @var (Closure(string): string)|null the text an address gives now (through the guard of internal addresses) */
         private readonly ?Closure $fetch = null,
+        /** the daily cap of reports the owner did not ask for right now; null — no cap */
+        private readonly ?ProactiveBudget $budget = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -98,6 +100,9 @@ final class JobScheduler implements JobRuns {
         $now = ($this->now)();
         if (!$this->isQuiet($now)) {
             foreach ($this->jobs->pendingReports() as $job) {
+                if ($this->budget !== null && !$this->budget->take()) {
+                    break;
+                }
                 $this->deliver($job, (string) $job->pendingReport);
                 $this->jobs->clearPending($job->id);
             }
@@ -225,7 +230,8 @@ final class JobScheduler implements JobRuns {
             return;
         }
         $report = sprintf(t('job.job_scheduler.report'), $byEvent ? '⚡' : '⏰', $job->id, $job->title, $byEvent ? t('job.job_scheduler.sobytie') : t('job.job_scheduler.zapusk'), $number, mb_substr($text, 0, self::REPORT_MAX));
-        $held = $this->isQuiet(($this->now)());
+        // spec: BRIEF.md#планировщик-и-проекты — quiet hours and the daily cap of initiative messages
+        $held = $this->isQuiet(($this->now)()) || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if (!$held) {
             $this->deliver($job, $report);

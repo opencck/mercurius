@@ -66,6 +66,15 @@ final class InMemoryJobRepository implements JobRepository {
         return true;
     }
 
+    public function setSchedule(int $id, string $schedule, ?DateTimeImmutable $next): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash);
+        return true;
+    }
+
     public function setNext(int $id, ?DateTimeImmutable $next): bool {
         $j = $this->jobs[$id] ?? null;
         if ($j === null) {

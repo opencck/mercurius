@@ -46,6 +46,9 @@ interface JobRepository {
     /** Moves the next run: resuming counts it from now, a run now puts it at now. */
     public function setNext(int $id, ?DateTimeImmutable $next): bool;
 
+    /** A new schedule and its next run; false when there is no such job. */
+    public function setSchedule(int $id, string $schedule, ?DateTimeImmutable $next): bool;
+
     /** After a restart nothing runs. */
     public function resetRunning(): int;
 

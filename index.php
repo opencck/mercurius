@@ -636,7 +636,10 @@ $jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JO
 // spec: BRIEF.md#планировщик-и-проекты — a watched address is read through the guard of internal addresses, as text
 $jobWatchHttp = HttpClients::guarded($addressGuard);
 $jobWatchText = new TextExtractor();
-$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
+// spec: BRIEF.md#планировщик-и-проекты — initiative messages: a daily cap of reports the owner did not ask for now
+$proactivePerDay = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_PER_DAY');
+$proactiveBudget = new \OpenCCK\App\Job\ProactiveBudget($proactivePerDay !== null && ctype_digit($proactivePerDay) ? (int) $proactivePerDay : 6, $ownerZone);
+$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
     $request = new \Amp\Http\Client\Request($url);
     $request->setTransferTimeout(30);
     $request->setBodySizeLimit(2_000_000);
@@ -651,14 +654,18 @@ $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));
 $tools->register(new JobManageTool($jobRepository, $jobScheduler));
+// spec: BRIEF.md#планировщик-и-проекты — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
+    $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
+}
 
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
-$scheduler->useProjects(new ProjectContext($projectRepository));
+$scheduler->useProjects(new ProjectContext($projectRepository, $skillCatalog));
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $skillCatalog));
 $tools->register(new \OpenCCK\App\Agent\Tool\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $telegram->ownerId, $logger);

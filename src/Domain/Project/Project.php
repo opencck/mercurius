@@ -27,6 +27,8 @@ final class Project {
         public readonly int $updatedAt,
         /** null — the agent's owner; otherwise the participant the project belongs to */
         public readonly ?int $ownerId = null,
+        /** an active skill loaded into the context of the project's chats and forum topics; '' — none */
+        public readonly string $skill = '',
     ) {}
 
     /** The owner of the agent sees every project; a participant only their own. */

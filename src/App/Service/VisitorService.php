@@ -39,6 +39,18 @@ final class VisitorService implements CallbackHandler {
     public const LET_IN_ADMIN = 'service.visitor_service.let_in_admin';
     /** The stranger's first message shown on the card, cut to this many characters. */
     private const PREVIEW = 500;
+    /** Strangers of one group with their own card; the next ones share one summary card of the group. */
+    public const GROUP_SINGLE_CARDS = 2;
+    /** Names shown on a summary card; the rest is a count. */
+    private const SUMMARY_NAMES = 30;
+
+    /** @var array<string, int> strangers of a group shown on own cards, by chat */
+    private array $singles = [];
+    /** @var array<string, int> the summary of a group, by chat */
+    private array $summaryOf = [];
+    /** @var array<int, array{title: string, messageId: ?string, visitors: list<int>, names: list<string>}> */
+    private array $summaries = [];
+    private int $nextSummary = 1;
 
     public function __construct(
         private readonly PrincipalRepository $principals,
@@ -49,10 +61,23 @@ final class VisitorService implements CallbackHandler {
         private readonly array $retryDelays = [2.0, 4.0],
     ) {}
 
-    /** Creates a pending visitor for a stranger and shows them to the owner once. */
-    /** @param string|null $group the title of the group the stranger wrote in; null — a private chat */
-    public function admit(IncomingMessage $message, ?string $group = null): Principal {
+    /**
+     * Creates a pending visitor for a stranger and shows them to the owner once.
+     *
+     * @param string|null $group the title of the group the stranger wrote in; null — a private chat
+     * @param string|null $groupChat the chat of that group: after a few strangers of one group the next ones share a
+     *                               summary card (spec: BRIEF.md#группа — one card of strangers in a big group)
+     */
+    public function admit(IncomingMessage $message, ?string $group = null, ?string $groupChat = null): Principal {
         $visitor = $this->principals->createVisitor($message->channel, $message->userId, $message->displayName ?? $message->userName);
+        if ($group !== null && $groupChat !== null) {
+            $shown = $this->singles[$groupChat] ?? 0;
+            if ($shown >= self::GROUP_SINGLE_CARDS) {
+                $this->summarize($groupChat, $group, $visitor, $message);
+                return $visitor;
+            }
+            $this->singles[$groupChat] = $shown + 1;
+        }
         $text = trim($message->text);
         $preview = mb_strlen($text) > self::PREVIEW ? mb_substr($text, 0, self::PREVIEW) . '…' : $text;
         $who = self::who($visitor, $message->userName, $message->userId);
@@ -75,6 +100,10 @@ final class VisitorService implements CallbackHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
+        if (preg_match('/^pv:g(\d+):([tr])$/', $callback->data, $match) === 1) {
+            $this->decideSummary($callback, (int) $match[1], $match[2] === 't');
+            return;
+        }
         if (preg_match('/^pv:(\d+):([tuar])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
@@ -102,6 +131,62 @@ final class VisitorService implements CallbackHandler {
             });
         }
         $this->logger->info('Visitor decided', ['visitor' => $decided->id, 'role' => $role->value, 'status' => $status->value]);
+    }
+
+    /** Adds a stranger to the summary card of the group: sent once, then edited. */
+    private function summarize(string $chat, string $title, Principal $visitor, IncomingMessage $message): void {
+        $id = $this->summaryOf[$chat] ?? null;
+        if ($id === null) {
+            $id = $this->nextSummary++;
+            $this->summaryOf[$chat] = $id;
+        }
+        $summary = $this->summaries[$id] ?? ['title' => $title, 'messageId' => null, 'visitors' => [], 'names' => []];
+        $summary['visitors'][] = $visitor->id;
+        $summary['names'][] = self::who($visitor, $message->userName, null);
+        $this->summaries[$id] = $summary;
+        $names = array_slice($summary['names'], -self::SUMMARY_NAMES);
+        $text = sprintf(t('service.visitor.summary'), $summary['title'], count($summary['visitors']), implode("\n", $names))
+            . (count($summary['names']) > self::SUMMARY_NAMES ? "\n…" : '');
+        $buttons = [[new Button(t('service.visitor.summary_talk'), sprintf('pv:g%d:t', $id)), new Button(t('service.visitor.summary_reject'), sprintf('pv:g%d:r', $id))]];
+        if ($summary['messageId'] !== null && $this->channel->edit($this->ownerChatId, $summary['messageId'], $text, buttons: $buttons)->success) {
+            return;
+        }
+        $result = $this->send(new OutgoingMessage($this->ownerChatId, $text, disableLinkPreview: true, buttons: $buttons));
+        $summary['messageId'] = $result->messageId;
+        $this->summaries[$id] = $summary;
+        if (!$result->success) {
+            $this->logger->warning('Visitor summary was not delivered', ['group' => $chat]);
+        }
+    }
+
+    /** One press decides every stranger still waiting on the summary; a new summary starts for the next ones. */
+    private function decideSummary(IncomingCallback $callback, int $id, bool $talk): void {
+        $summary = $this->summaries[$id] ?? null;
+        if ($summary === null) {
+            $this->channel->answerCallback($callback->callbackId, t('service.visitor.summary_gone'), true);
+            return;
+        }
+        unset($this->summaries[$id]);
+        $chat = array_search($id, $this->summaryOf, true);
+        if (is_string($chat)) {
+            unset($this->summaryOf[$chat]);
+        }
+        $decided = 0;
+        foreach ($summary['visitors'] as $visitorId) {
+            $principal = $this->principals->decideVisitor($visitorId, Role::Visitor, $talk ? PrincipalStatus::Active : PrincipalStatus::Rejected);
+            if ($principal !== null) {
+                $decided++;
+                if ($talk) {
+                    $this->tell($principal, $callback->channel, \Mercurius\I18n\t(self::LET_IN_TALK));
+                }
+            }
+        }
+        $outcome = $talk ? t('service.visitor.razgovor_razreshen') : t('service.visitor.otkazano');
+        $this->channel->answerCallback($callback->callbackId, $outcome);
+        if ($callback->messageId !== null) {
+            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.visitor.summary_done'), $summary['title'], $decided, $outcome));
+        }
+        $this->logger->info('Visitor summary decided', ['visitors' => $decided, 'talk' => $talk]);
     }
 
     /**

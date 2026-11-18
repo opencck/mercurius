@@ -115,7 +115,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         }
         if ($this->visitors !== null && $this->principals->findByIdentity($message->channel, $message->userId) === null) {
             // spec: BRIEF.md#группа — the owner can give a group member rights before they write to the bot
-            $this->visitors->admit($message, $group->title);
+            $this->visitors->admit($message, $group->title, $message->chatId);
             return null;
         }
         $addressed = $this->addressed($message);

@@ -52,7 +52,15 @@ final class InMemoryProjectRepository implements ProjectRepository {
         if ($p === null) {
             return null;
         }
-        return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time(), $p->ownerId);
+        return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time(), $p->ownerId, $p->skill);
+    }
+
+    public function setSkill(int $id, string $skill): ?Project {
+        $p = $this->projects[$id] ?? null;
+        if ($p === null) {
+            return null;
+        }
+        return $this->projects[$id] = new Project($p->id, $p->name, $p->goal, $p->status, $p->card, time(), $p->ownerId, $skill);
     }
 
     public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?\DateTimeImmutable $dueAt = null): ProjectTask {

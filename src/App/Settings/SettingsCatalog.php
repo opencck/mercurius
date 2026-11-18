@@ -62,6 +62,8 @@ final class SettingsCatalog {
         'OWNER_TIMEZONE' => ['time', self::TEXT, 'settings.about.owner_timezone'],
         'QUIET_HOURS' => ['time', self::TEXT, 'settings.about.quiet_hours'],
         'DIGEST_TIME' => ['time', self::TEXT, 'settings.about.digest_time'],
+        'INITIATIVE_SCHEDULE' => ['time', self::TEXT, 'settings.about.initiative_schedule'],
+        'INITIATIVE_PER_DAY' => ['time', self::INT, 'settings.about.initiative_per_day'],
         'MEMORY_CHECK_HOUR' => ['memory', self::INT, 'settings.about.memory_check_hour'],
         'MEMORY_HRR_WEIGHT' => ['memory', self::FLOAT, 'settings.about.memory_hrr_weight'],
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
