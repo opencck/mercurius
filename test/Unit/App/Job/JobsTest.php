@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Job;
 
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Agent\DangerClass;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
@@ -83,6 +86,44 @@ final class JobsTest extends AsyncTestCase {
         self::assertCount(2, $this->stack->llm->requests, 'a change runs the model');
         self::assertStringContainsString('<untrusted-data', array_slice($this->stack->llm->requests[1]->messages, -1)[0]->content ?? '', 'the page is data from outside');
         self::assertStringContainsString('890 ₽', implode("\n", $this->stack->channel->texts('send')));
+    }
+
+    public function testARunOfAJobWithOutsideDataIsMarkedUnlessTheOwnerTrustsItsSource(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('990'), ScriptedLlm::text('890'), ScriptedLlm::text('ok')]));
+        $watched = $this->jobs->create($this->owner->id, 'telegram', '42', 'Цена', 'Сообщи цену', 'every:60', $this->now->modify('-1 minute'));
+        $this->jobs->setWatch($watched->id, 'https://shop.example/item');
+        $this->pages['https://shop.example/item'] = '<b>990 ₽</b>';
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a run started by outside data uses no saved grant
+        $scheduler->tick(true);
+        self::assertSame('watch:https://shop.example/item', $this->stack->runs->find(1)?->outside);
+
+        $this->jobs->setTrusted($watched->id, true);
+        $this->pages['https://shop.example/item'] = '<b>890 ₽</b>';
+        $this->now = $this->now->modify('+61 minutes');
+        $scheduler->tick(true);
+        self::assertNull($this->stack->runs->find(2)?->outside, 'the owner trusts the source of this job');
+
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Сводка', 'Пришли сводку', 'every:60', $this->now->modify('-1 minute'), 'http_request');
+        $scheduler->tick(true);
+        self::assertStringContainsString('http_request', (string) $this->stack->runs->find(3)?->outside, 'a job set up after outside data carries the mark');
+    }
+
+    public function testOnlyTheOwnerTrustsTheSourceOfAJobAndAlwaysByACard(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $job = $this->jobs->create($this->owner->id, 'telegram', '42', 'Цена', 'Сообщи цену', 'every:60', $this->now);
+        $manage = new JobManageTool($this->jobs, $scheduler);
+        $as = static fn(Principal $who): ToolContext => new ToolContext(1, 1, $who, new NullCancellation());
+
+        self::assertSame(DangerClass::Irreversible, $manage->danger(['action' => 'trust', 'id' => $job->id]));
+        $refused = $manage->execute(['action' => 'trust', 'id' => $job->id], $as(new Principal(5, PrincipalKind::Human, Role::User, null)));
+        self::assertTrue($refused->isError);
+        self::assertFalse($this->jobs->find($job->id)?->trusted);
+
+        $manage->execute(['action' => 'trust', 'id' => $job->id], $as($this->owner));
+        self::assertTrue($this->jobs->find($job->id)?->trusted);
+        $manage->execute(['action' => 'distrust', 'id' => $job->id], $as($this->owner));
+        self::assertFalse($this->jobs->find($job->id)?->trusted);
     }
 
     public function testSchedulesComputeTheNextRunFromNow(): void {

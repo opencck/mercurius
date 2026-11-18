@@ -79,6 +79,16 @@ final class PostgresJobRepositoryTest extends AsyncTestCase {
         self::assertNull($this->jobs->find($job->id)?->hookSecret);
     }
 
+    public function testAJobKeepsItsOriginAndTheTrustOfTheOwner(): void {
+        $job = $this->jobs->create($this->principalId, 'telegram', '42', 'Цена', 'Сообщи цену', 'every:60', new DateTimeImmutable(), 'http_request');
+        self::assertSame('http_request', $job->origin);
+        self::assertFalse($job->trusted);
+
+        self::assertTrue($this->jobs->setTrusted($job->id, true));
+        self::assertTrue($this->jobs->find($job->id)?->trusted);
+        self::assertNull($this->jobs->create($this->principalId, 'telegram', '42', 'Сводка', 'Пришли', 'every:60', null)->origin);
+    }
+
     public function testOneSummaryADay(): void {
         $journal = new PostgresDigestJournal($this->db);
 

@@ -35,6 +35,10 @@ final class Job {
         public readonly ?string $watchUrl = null,
         /** the fingerprint of what the address gave last time */
         public readonly ?string $watchHash = null,
+        /** the outside data the run that set the job up had read; its runs carry that mark */
+        public readonly ?string $origin = null,
+        /** the owner trusts the source of the job: its runs are not marked and saved grants apply */
+        public readonly bool $trusted = false,
     ) {}
 
     public function byEvent(): bool {

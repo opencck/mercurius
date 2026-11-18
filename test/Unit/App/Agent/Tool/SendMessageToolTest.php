@@ -153,7 +153,10 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertNotEmpty($this->sentTo('77'), 'Roman got the question');
         self::assertContains('Роман ответил: пока тихо.', $this->stack->channel->texts('edit') + $this->sentTo('42'));
         self::assertNull($this->relays->takeOpen('telegram', '77', new \DateTimeImmutable('-1 day')), 'one answer per question');
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — someone's answer is outside data: no saved grant in its run
+        self::assertSame('relay', $this->stack->runs->find(2)?->outside);
     }
+
     public function testAnAnswerWithAFileBringsTheFile(): void {
         $this->stack(new ScriptedLlm([
             ScriptedLlm::calls(new ToolCall('c1', 'send_message', '{"to":"Roman","text":"Пришли отчёт","expect_reply":true}')),

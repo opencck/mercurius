@@ -16,9 +16,18 @@ final class InMemoryJobRepository implements JobRepository {
     /** @var array<int, array<string, DateTimeImmutable>> */
     public array $deliveries = [];
 
-    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt): Job {
+    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null): Job {
         $id = count($this->jobs) + 1;
-        return $this->jobs[$id] = new Job($id, $principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt, 0, null, null, Job::ACTIVE);
+        return $this->jobs[$id] = new Job($id, $principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt, 0, null, null, Job::ACTIVE, origin: $origin);
+    }
+
+    public function setTrusted(int $id, bool $trusted): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, trusted: $trusted);
+        return true;
     }
 
     public function find(int $id): ?Job {
@@ -71,7 +80,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash);
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted);
         return true;
     }
 
@@ -156,6 +165,7 @@ final class InMemoryJobRepository implements JobRepository {
         bool $clearHook = false,
         string|false|null $watchUrl = false,
         string|false|null $watchHash = false,
+        ?bool $trusted = null,
     ): Job {
         return new Job(
             $j->id,
@@ -173,6 +183,8 @@ final class InMemoryJobRepository implements JobRepository {
             $clearHook ? null : ($hookSecret ?? $j->hookSecret),
             $watchUrl === false ? $j->watchUrl : $watchUrl,
             $watchHash === false ? $j->watchHash : $watchHash,
+            $j->origin,
+            $trusted ?? $j->trusted,
         );
     }
 }

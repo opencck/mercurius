@@ -31,6 +31,8 @@ final class JobCreateTool implements Tool {
         private readonly ConversationRepository $conversations,
         private readonly JobScheduler $scheduler,
         private readonly ContentScreen $screen,
+        /** the runs, to see whether the one setting the job up had read outside data; null — not marked */
+        private readonly ?\OpenCCK\Domain\Repository\RunRepository $runs = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -87,7 +89,9 @@ final class JobCreateTool implements Tool {
         if ($watch !== '' && ($byEvent || preg_match('~^https?://[^\s/]+~i', $watch) !== 1)) {
             return ToolResult::error(t('tool.job_create.watch_bad'));
         }
-        $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a job set up after outside data carries the mark to its runs
+        $origin = $this->runs?->find($context->runId)?->outside;
+        $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first, $origin);
         if ($watch !== '') {
             // spec: BRIEF.md#планировщик-и-проекты — the job watches the address: the model only when it changed
             $this->jobs->setWatch($job->id, $watch);

@@ -697,7 +697,7 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
 });
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
-$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text)));
+$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));
 $tools->register(new JobManageTool($jobRepository, $jobScheduler));
 // spec: BRIEF.md#планировщик-и-проекты — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
@@ -807,6 +807,8 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     requests: $agentRequests,
     files: $a2aFiles,
 );
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour marks the run that reads it
+$peerNetwork->onAnswered($scheduler->taint(...));
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));

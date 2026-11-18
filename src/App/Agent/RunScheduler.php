@@ -68,8 +68,10 @@ final class RunScheduler {
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
-    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: bool, future: Future<void>}> */
+    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: list<string>, future: Future<void>}> */
     private array $pending = [];
+    /** @var array<int, list<string>> outside data that came to a conversation between runs: the next run is marked */
+    private array $tainted = [];
     private ?ApprovalService $approvals = null;
     /** @var (Closure(string, string, string): list<string>)|null who spoke in a group chat or topic in the last day */
     private ?Closure $speakers = null;
@@ -199,9 +201,25 @@ final class RunScheduler {
      *
      * @param \Closure(int): void $onDelivered gets the run the text started
      */
-    public function deliver(Principal $principal, int $conversationId, string $text, \Closure $onDelivered): void {
+    /**
+     * Outside data came to a conversation outside a run (the answer of a neighbour): the run now going, or the next
+     * one, is marked — no saved grant applies in it.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+     */
+    public function taint(int $conversationId, string $source): void {
+        $run = $this->runs->active($conversationId);
+        if ($run !== null) {
+            $this->runs->markOutside($run->id, $source);
+            return;
+        }
+        $this->tainted[$conversationId] = array_values(array_unique([...($this->tainted[$conversationId] ?? []), $source]));
+    }
+
+    /** @param string|null $outside where the text came from when it is not the agent's own (a worker's report) */
+    public function deliver(Principal $principal, int $conversationId, string $text, \Closure $onDelivered, ?string $outside = null): void {
         $id = $this->nextDelivery++;
-        $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text, $onDelivered): void {
+        $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text, $onDelivered, $outside): void {
             try {
                 while (!$this->shuttingDown) {
                     if (isset($this->active[$conversationId])) {
@@ -218,7 +236,7 @@ final class RunScheduler {
                         continue;
                     }
                     // A delivered report is the agent's own text, often quoting the web: no recall on it.
-                    $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false, recall: false);
+                    $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false, recall: false, outside: $outside === null ? [] : [$outside]);
                     if ($runId !== null) {
                         $onDelivered($runId);
                         return;
@@ -234,8 +252,11 @@ final class RunScheduler {
 
     /** Hands a message over and returns at once. */
     /** @param bool $silenceAllowed nobody asked the agent (a free group): it may answer [SILENT] */
-    /** @param bool $outside the message carries data from outside (files): the run that takes it is marked */
-    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, bool $outside = false): void {
+    /**
+     * @param string|null $outside where the data from outside in the message came from (files, someone's answer): the
+     *        run that takes it is marked; null — the message is the participant's own words
+     */
+    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
@@ -259,9 +280,9 @@ final class RunScheduler {
                     $this->caps[$run->id] = isset($this->caps[$run->id]) ? $this->caps[$run->id]->capTo($joined) : $joined;
                 }
             }
-            if ($outside) {
+            if ($outside !== null) {
                 // spec: BRIEF.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
-                $this->runs->markOutside($run->id, 'attachments');
+                $this->runs->markOutside($run->id, $outside);
             }
             $this->transcript->inbox($run->id, $text, $message->messageId);
             return;
@@ -270,7 +291,7 @@ final class RunScheduler {
         if (isset($this->pending[$conversationId])) {
             $this->pending[$conversationId]['texts'][] = $text;
             $this->pending[$conversationId]['last'] = $now;
-            $this->pending[$conversationId]['outside'] = $this->pending[$conversationId]['outside'] || $outside;
+            $this->pending[$conversationId]['outside'] = $outside === null ? $this->pending[$conversationId]['outside'] : [...$this->pending[$conversationId]['outside'], $outside];
             // someone asked: the batch no longer waits for the group to fall silent
             $this->pending[$conversationId]['quiet'] = $this->pending[$conversationId]['quiet'] && $silenceAllowed;
             return;
@@ -282,7 +303,7 @@ final class RunScheduler {
             'message' => $message,
             'principal' => $principal,
             'quiet' => $silenceAllowed,
-            'outside' => $outside,
+            'outside' => $outside === null ? [] : [$outside],
             'future' => async($this->startAfterDebounce(...), $conversationId),
         ];
     }
@@ -447,10 +468,7 @@ final class RunScheduler {
             return;
         }
         try {
-            $runId = $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId);
-            if ($runId !== null && $pending['outside']) {
-                $this->runs->markOutside($runId, 'attachments');
-            }
+            $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId, outside: $pending['outside']);
         } catch (Throwable $e) {
             $this->logger->error('Could not start a run', ['conversation' => $conversationId, 'error' => $e::class]);
             $this->channel->send(new OutgoingMessage($pending['message']->chatId, \Mercurius\I18n\t(self::NOT_STARTED), $pending['message']->messageId));
@@ -579,7 +597,8 @@ final class RunScheduler {
     }
 
     /** @return int|null the run the text started; null when it joined another run or nothing started */
-    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true): ?int {
+    /** @param list<string> $outside where the outside data of the text came from: the run starts marked */
+    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = []): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
@@ -610,7 +629,10 @@ final class RunScheduler {
         }
         $policy = $this->policyIn($conversationId, $principal);
         // spec: BRIEF.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
-        $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, str_starts_with($meta->chatId, '-') ? 'group chat' : null);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the mark is set at the start, before the model reads anything
+        $sources = array_values(array_unique([...(str_starts_with($meta->chatId, '-') ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
+        unset($this->tainted[$conversationId]);
+        $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, $sources === [] ? null : implode(', ', $sources));
         if ($run === null) {
             // Lost a race with another start: the text joins the run that won.
             $active = $this->runs->active($conversationId);

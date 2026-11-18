@@ -42,6 +42,8 @@ final class PeerNetwork {
     private array $retries = [];
     /** @var (Closure(OutgoingTask): void)|null told when a task ends; the A2A server continues a task that waited for it */
     private ?Closure $finished = null;
+    /** @var (Closure(int, string): void)|null */
+    private ?Closure $answered = null;
     /** @var array<int, true> outgoing tasks being read now */
     private array $reading = [];
     /** @var array<string, true> notices of tasks not kept yet: the neighbour ended the task before its answer to SendMessage was kept */
@@ -105,6 +107,15 @@ final class PeerNetwork {
      */
     public function onFinished(Closure $finished): void {
         $this->finished = $finished;
+    }
+
+    /**
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour is outside data in the conversation:
+     *       the run that reads it uses no saved grant
+     * @param Closure(int, string): void $answered the conversation and the source of the answer
+     */
+    public function onAnswered(Closure $answered): void {
+        $this->answered = $answered;
     }
 
     /**
@@ -490,6 +501,9 @@ final class PeerNetwork {
         // The next turn of the conversation sees the reply as data, not instructions.
         $conversation = $this->conversations->openConversation($out->principalId, $out->channel, $out->chatId);
         $this->transcript->appendUser($conversation, null, UntrustedWrapper::wrap('agent:' . $out->peer, sprintf(t('peer.peer_network.itog_zadachi_sosedu'), $out->id, $out->peer, $label, $answer)));
+        if ($this->answered !== null) {
+            ($this->answered)($conversation, 'agent:' . $out->peer);
+        }
         if ($this->finished !== null) {
             try {
                 ($this->finished)(new OutgoingTask($out->id, $out->peer, $out->remoteId, $out->principalId, $out->channel, $out->chatId, $out->task, $state, $answer, $out->leaderRun));

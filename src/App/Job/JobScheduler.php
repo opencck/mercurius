@@ -255,7 +255,10 @@ final class JobScheduler implements JobRuns {
         $policy = $this->policy($principal);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
         $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)()), $this->model);
-        $run = $this->runs->start($conversation, $principal->id, $this->model, $policy->run) ?? throw new \RuntimeException('run did not start');
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — an event, a watched page or a job set up after outside data
+        //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
+        $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));
+        $run = $this->runs->start($conversation, $principal->id, $this->model, $policy->run, null, $outside === '' ? null : $outside) ?? throw new \RuntimeException('run did not start');
         $this->transcript->appendUser($conversation, $run->id, sprintf(
             t('job.job_scheduler.zadanie_zapusk_zadanie_sdelay_ego'),
             $event === null || $source !== 'webhook' ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),

@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  */
 final class JobManageTool implements Tool {
     public const NAME = 'job_manage';
-    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now'];
+    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust'];
 
     public function __construct(
         private readonly JobRepository $jobs,
@@ -44,6 +44,10 @@ final class JobManageTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — trusting the source of a job is the owner's, always by a card
+        if (Args::string($args, 'action') === 'trust') {
+            return DangerClass::Irreversible;
+        }
         return in_array(Args::string($args, 'action') ?? 'list', ['list'], true) && Args::int($args, 'id') === null ? DangerClass::Read : DangerClass::Write;
     }
 
@@ -71,6 +75,8 @@ final class JobManageTool implements Tool {
             'pause' => $this->set($job, Job::PAUSED, t('tool.job_manage.priostanovleno')),
             'resume' => $this->resume($job),
             'run_now' => $this->runNow($job),
+            'trust' => $this->trust($job, true, $context),
+            'distrust' => $this->trust($job, false, $context),
             default => ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . $action),
         };
     }
@@ -96,6 +102,14 @@ final class JobManageTool implements Tool {
             $this->jobs->setNext($job->id, $next);
         }
         return $this->set($job, Job::ACTIVE, t('tool.job_manage.vozobnovleno'));
+    }
+
+    private function trust(Job $job, bool $trusted, ToolContext $context): ToolResult {
+        if (!$context->principal->isOwner()) {
+            return ToolResult::error(t('tool.job_manage.trust_owner_only'));
+        }
+        $this->jobs->setTrusted($job->id, $trusted);
+        return ToolResult::ok(sprintf(t($trusted ? 'tool.job_manage.trusted' : 'tool.job_manage.distrusted'), $job->id, $job->title));
     }
 
     private function runNow(Job $job): ToolResult {

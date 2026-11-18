@@ -283,9 +283,10 @@ final class BackgroundDelegations {
             $delegation->runId,
             UntrustedWrapper::wrap(DelegateTaskTool::NAME, $delegation->report),
         );
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker's report quotes what it read: its run is marked
         $this->scheduler->deliver($principal, $delegation->conversationId, $text, function (int $runId) use ($delegation): void {
             $this->delegations->markDelivered($delegation->id, $runId);
             unset($this->delivering[$delegation->id]);
-        });
+        }, 'worker report');
     }
 }

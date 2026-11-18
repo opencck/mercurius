@@ -282,6 +282,10 @@ final class AgentNetworkTest extends AsyncTestCase {
         $network->onFinished(static function (\OpenCCK\Domain\Peer\OutgoingTask $out) use (&$ended): void {
             $ended[] = $out;
         });
+        $tainted = [];
+        $network->onAnswered(static function (int $conversationId, string $source) use (&$tainted): void {
+            $tainted[] = [$conversationId, $source];
+        });
 
         $added = $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
         self::assertStringContainsString($this->followerKey->fingerprint(), $added, 'the owner sees the key to compare');
@@ -302,6 +306,8 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('Париж', $sent);
         self::assertSame(A2aTask::COMPLETED, $leaderPeers->outgoing[1]->state ?? null);
         self::assertCount(1, $ended, 'the server of the leader learns the task ended');
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour marks the next run of the conversation
+        self::assertSame([[$conversation, 'agent:follower']], $tainted);
         self::assertSame(1, $ended[0]->leaderRun);
         $first = array_key_first($this->followerPeers->tasks);
         self::assertNotNull($first);

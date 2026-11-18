@@ -11,7 +11,11 @@ use OpenCCK\Domain\Job\Job;
  * spec: BRIEF.md#планировщик-и-проекты
  */
 interface JobRepository {
-    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt): Job;
+    /** @param string|null $origin the outside data the run that sets the job up had read */
+    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null): Job;
+
+    /** The owner trusts the source of the job, or no longer does. */
+    public function setTrusted(int $id, bool $trusted): bool;
 
     public function find(int $id): ?Job;
 
