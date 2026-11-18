@@ -42,6 +42,10 @@ final class PeerNetwork {
     private array $retries = [];
     /** @var (Closure(OutgoingTask): void)|null told when a task ends; the A2A server continues a task that waited for it */
     private ?Closure $finished = null;
+    /** @var array<int, true> outgoing tasks being read now */
+    private array $reading = [];
+    /** @var array<string, true> notices of tasks not kept yet: the neighbour ended the task before its answer to SendMessage was kept */
+    private array $early = [];
 
     public function __construct(
         private readonly PeerRepository $peers,
@@ -65,7 +69,35 @@ final class PeerNetwork {
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
         /** @var (Closure(int): ?\OpenCCK\Domain\Agent\SandboxLimits)|null the sandbox limits of a participant */
         private readonly ?Closure $limitsOf = null,
-    ) {}
+    ) {
+        $this->links?->onNotice($this->noticed(...));
+    }
+
+    /**
+     * A neighbour told over a connection that a task changed: the task is read now, not at the next poll. The notice
+     * only starts the reading — what the task is comes from the neighbour it was given to, as by polling.
+     *
+     * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L660-L671 — hermes fires a push callback
+     *      when a task ends; here the push goes over the connection both sides already proved, no callback URL
+     * @param array<array-key, mixed> $params
+     */
+    public function noticed(string $from, string $method, array $params): void {
+        $id = isset($params['id']) && is_string($params['id']) ? $params['id'] : '';
+        if ($method !== 'TaskStatusUpdate' || $id === '') {
+            return;
+        }
+        foreach ($this->peers->openOutgoing(50) as $out) {
+            if ($out->remoteId === $id) {
+                $this->pollOne($out);
+                return;
+            }
+        }
+        $this->early[$id] = true;
+        if (count($this->early) > 100) {
+            array_shift($this->early);
+        }
+    }
 
     /**
      * spec: BRIEF.md#сеть-агентов — results go up the chain: a task of a neighbour that waited for this one goes on
@@ -278,6 +310,9 @@ final class PeerNetwork {
         if (in_array($state, A2aTask::TERMINAL, true)) {
             $this->spend($out, $remote);
             $this->finish($out, $state, A2aClient::answer($remote), $this->answerFiles($out, $remote, $link, $peer, $token));
+        } elseif (isset($this->early[$remoteId])) {
+            unset($this->early[$remoteId]);
+            \Amp\async(fn() => $this->pollOne($out))->ignore();
         }
         return $out;
     }
@@ -285,39 +320,56 @@ final class PeerNetwork {
     /** One pass over open outgoing tasks. */
     public function poll(): void {
         foreach ($this->peers->openOutgoing(self::POLL_BATCH) as $out) {
-            $peer = $this->peers->peer($out->peer);
-            $link = $peer === null ? $this->links?->named($out->peer) : null;
-            if ($link !== null) {
-                try {
-                    $task = A2aClient::over($link, 'GetTask', ['id' => $out->remoteId]);
-                } catch (Throwable $e) {
-                    $this->logger->notice('A2A poll failed', ['task' => $out->id, 'error' => $e->getMessage()]);
-                    continue;
-                }
-                $state = A2aClient::state($task);
-                if (in_array($state, A2aTask::TERMINAL, true)) {
-                    $this->spend($out, $task);
-                    $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, $link, null, null));
-                }
-                continue;
-            }
-            $owner = ($this->owner)();
-            $token = $peer === null || $owner === null ? null : $this->vault->reveal($peer->secret, $owner);
-            if ($peer === null || $token === null) {
-                $this->finish($out, A2aTask::FAILED, t('peer.peer_network.sosed_ili_ego_token_udaleny'));
-                continue;
-            }
+            $this->pollOne($out);
+        }
+    }
+
+    private function pollOne(OutgoingTask $out): void {
+        // a poll and a notice of the same task at once: the second one waits for the next turn
+        if (isset($this->reading[$out->id])) {
+            return;
+        }
+        $this->reading[$out->id] = true;
+        try {
+            $this->readTask($out);
+        } finally {
+            unset($this->reading[$out->id]);
+        }
+    }
+
+    private function readTask(OutgoingTask $out): void {
+        $peer = $this->peers->peer($out->peer);
+        $link = $peer === null ? $this->links?->named($out->peer) : null;
+        if ($link !== null) {
             try {
-                $task = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->get($p, $token, $out->remoteId));
+                $task = A2aClient::over($link, 'GetTask', ['id' => $out->remoteId]);
             } catch (Throwable $e) {
                 $this->logger->notice('A2A poll failed', ['task' => $out->id, 'error' => $e->getMessage()]);
-                continue;
+                return;
             }
             $state = A2aClient::state($task);
             if (in_array($state, A2aTask::TERMINAL, true)) {
                 $this->spend($out, $task);
-                $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, null, $peer, $token));
+                $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, $link, null, null));
             }
+            return;
+        }
+        $owner = ($this->owner)();
+        $token = $peer === null || $owner === null ? null : $this->vault->reveal($peer->secret, $owner);
+        if ($peer === null || $token === null) {
+            $this->finish($out, A2aTask::FAILED, t('peer.peer_network.sosed_ili_ego_token_udaleny'));
+            return;
+        }
+        try {
+            $task = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->get($p, $token, $out->remoteId));
+        } catch (Throwable $e) {
+            $this->logger->notice('A2A poll failed', ['task' => $out->id, 'error' => $e->getMessage()]);
+            return;
+        }
+        $state = A2aClient::state($task);
+        if (in_array($state, A2aTask::TERMINAL, true)) {
+            $this->spend($out, $task);
+            $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, null, $peer, $token));
         }
     }
 
@@ -396,7 +448,9 @@ final class PeerNetwork {
 
     /** @param list<array{name: string, bytes: string}> $files */
     private function finish(OutgoingTask $out, string $state, string $answer, array $files = []): void {
-        $this->peers->finishOutgoing($out->id, $state, mb_substr($answer, 0, 20_000));
+        if (!$this->peers->finishOutgoing($out->id, $state, mb_substr($answer, 0, 20_000))) {
+            return;
+        }
         $label = match ($state) {
             A2aTask::COMPLETED => t('peer.peer_network.otvet'),
             A2aTask::INPUT_REQUIRED => t('peer.peer_network.vopros'),

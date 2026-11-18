@@ -104,6 +104,28 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame(1, $this->connects);
     }
 
+    public function testTheNeighbourTellsOverTheConnectionThatTheTaskEnded(): void {
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+
+        $task = $a['network']->delegate($a['owner'], 'b', 'Посчитай', 'telegram', 'a', 0, []);
+        // no polling: b pushes the end of the task over the connection, a reads the answer at once
+        for ($i = 0; $i < 25 && ($a['peers']->outgoing[$task->id]->state ?? '') !== A2aTask::COMPLETED; $i++) {
+            delay(0.02);
+        }
+
+        self::assertSame(A2aTask::COMPLETED, $a['peers']->outgoing[$task->id]->state ?? null);
+        self::assertStringContainsString('B: четыре', implode("
+", $a['stack']->channel->texts('send')));
+    }
+
+    public function testANoticeOfATaskThisAgentDidNotGiveChangesNothing(): void {
+        $a = $this->agents['a'];
+        $a['network']->noticed('b', 'TaskStatusUpdate', ['id' => 'task-unknown', 'state' => A2aTask::COMPLETED]);
+        $a['network']->noticed('b', 'Whatever', []);
+        self::assertSame([], $a['stack']->channel->texts('send'));
+    }
+
     public function testALiveConnectionIsUsedInsteadOfAnotherAndCanBeClosed(): void {
         $a = $this->agents['a'];
         $a['network']->open('b');
@@ -111,6 +133,8 @@ final class A2aLinksTest extends AsyncTestCase {
         $a['network']->delegate($a['owner'], 'b', 'Ещё', 'telegram', 'a', 0, []);
 
         self::assertSame(1, $this->connects, 'one connection carries every task');
+        delay(0.1); // the answers come back over the same connection before it is closed
+        self::assertSame(1, $this->connects(), 'the answers came over it too');
         $all = $a['links']->all();
         $id = $all === [] ? 0 : $all[0]['id'];
         self::assertTrue($a['network']->closeLink($id));

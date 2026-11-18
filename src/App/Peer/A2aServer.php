@@ -456,6 +456,7 @@ final class A2aServer implements JobRuns {
             } catch (Throwable $e) {
                 $this->logger->error('A2A task failed', ['task' => $task->id, 'error' => $e::class]);
                 $this->peers->updateTask($task->id, A2aTask::FAILED, null, t('peer.a2a_server.vnutrennyaya_oshibka_agenta'));
+                $this->tell($task, A2aTask::FAILED);
                 return;
             } finally {
                 unset($this->cancels[$task->id]);
@@ -480,6 +481,7 @@ final class A2aServer implements JobRuns {
             }
             [$state, $text] = $this->outcome($final);
             $this->peers->updateTask($task->id, $state, null, $text);
+            $this->tell($task, $state);
         });
     }
 
@@ -510,6 +512,24 @@ final class A2aServer implements JobRuns {
         }
         if (!$this->sumUp($task, $agent, $out->leaderRun)) {
             $this->answered[$out->leaderRun] = true;
+        }
+    }
+
+    /**
+     * The agent that gave the task learns at once that it ended, over a live connection with it; without one it polls.
+     *
+     * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L660-L671 (_finish_task) — the push when
+     *      a task ends; hermes posts to a callback URL, here a notice goes over the connection both sides proved
+     */
+    private function tell(A2aTask $task, string $state): void {
+        if ($this->links === null) {
+            return;
+        }
+        foreach ($this->peers->keys() as $key) {
+            if ($key['principal'] === $task->principalId && !$key['revoked']) {
+                $this->links->to($key['fingerprint'])?->notify('TaskStatusUpdate', ['id' => $task->id, 'state' => $state]);
+            }
         }
     }
 

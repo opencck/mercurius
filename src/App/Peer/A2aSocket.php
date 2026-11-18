@@ -36,6 +36,8 @@ final class A2aSocket {
     private readonly \Amp\Future $reading;
     public float $lastUsed;
     public int $requests = 0;
+    /** @var (\Closure(string, array<array-key, mixed>): void)|null told of a notice of the other side: a method, no id */
+    private ?\Closure $notice = null;
 
     /** @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers a request of the other side */
     private function __construct(private readonly A2aChannel $channel, private readonly ?\Closure $serve = null) {
@@ -129,6 +131,29 @@ final class A2aSocket {
         return isset($answer['result']) && is_array($answer['result']) ? $answer['result'] : throw new RuntimeException(t('peer.a2a_client.sosed_otvetil_bez_rezultata'));
     }
 
+    /**
+     * A notice to the other side: a JSON-RPC notification, no answer. Lost when the connection is gone — the other side
+     * still polls.
+     *
+     * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
+     * @param array<string, mixed> $params
+     */
+    public function notify(string $method, array $params): void {
+        if ($this->closed) {
+            return;
+        }
+        try {
+            $this->channel->send(json_encode(['jsonrpc' => '2.0', 'method' => $method, 'params' => (object) $params], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        } catch (Throwable) {
+            // the connection is gone
+        }
+    }
+
+    /** @param \Closure(string, array<array-key, mixed>): void $notice */
+    public function onNotice(\Closure $notice): void {
+        $this->notice = $notice;
+    }
+
     public function alive(): bool {
         return !$this->closed && !$this->channel->isClosed();
     }
@@ -142,6 +167,16 @@ final class A2aSocket {
         try {
             while (($frame = $this->channel->receive()) !== null) {
                 $message = self::frame($frame);
+                if (isset($message['method']) && !array_key_exists('id', $message)) {
+                    // a notice of the other side: nothing is answered
+                    $method = is_string($message['method']) ? $message['method'] : '';
+                    $params = isset($message['params']) && is_array($message['params']) ? $message['params'] : [];
+                    $notice = $this->notice;
+                    if ($notice !== null && $method !== '') {
+                        async(static fn() => $notice($method, $params))->ignore();
+                    }
+                    continue;
+                }
                 if (isset($message['method'])) {
                     // a request of the other side: answered in its own fiber, reading goes on
                     $this->lastUsed = microtime(true);

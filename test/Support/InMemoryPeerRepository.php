@@ -206,8 +206,12 @@ final class InMemoryPeerRepository implements PeerRepository {
         return $found;
     }
 
-    public function finishOutgoing(int $id, string $state, ?string $result): void {
+    public function finishOutgoing(int $id, string $state, ?string $result): bool {
         $o = $this->outgoing[$id];
+        if (!in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true)) {
+            return false;
+        }
         $this->outgoing[$id] = new OutgoingTask($o->id, $o->peer, $o->remoteId, $o->principalId, $o->channel, $o->chatId, $o->task, $state, $result, $o->leaderRun);
+        return true;
     }
 }

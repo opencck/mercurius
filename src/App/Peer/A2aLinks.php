@@ -19,11 +19,23 @@ final class A2aLinks {
     private int $next = 1;
     /** @var array<int, array{direction: string, name: string, fingerprint: string, socket: A2aSocket, opened: float}> */
     private array $links = [];
+    /** @var (\Closure(string, string, array<array-key, mixed>): void)|null notices of the other sides: name, method, params */
+    private ?\Closure $notice = null;
+
+    /** @param \Closure(string, string, array<array-key, mixed>): void $notice */
+    public function onNotice(\Closure $notice): void {
+        $this->notice = $notice;
+    }
 
     /** @param self::OUT|self::IN $direction */
     public function add(string $direction, string $name, string $fingerprint, A2aSocket $socket): int {
         $this->prune();
         $id = $this->next++;
+        $socket->onNotice(function (string $method, array $params) use ($name): void {
+            if ($this->notice !== null) {
+                ($this->notice)($name, $method, $params);
+            }
+        });
         $this->links[$id] = ['direction' => $direction, 'name' => $name, 'fingerprint' => $fingerprint, 'socket' => $socket, 'opened' => microtime(true)];
         return $id;
     }

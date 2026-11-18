@@ -286,8 +286,7 @@ final class AgentNetworkTest extends AsyncTestCase {
         $this->follower->transcript->appendUser($conversation, null, 'Итог задачи #1 соседу «c»: Париж');
         $this->server->chainAnswered($this->followerPeers->outgoing[$out->id]);
         delay(0.1);
-        $done = $this->followerPeers->task($taskId);
-        self::assertNotNull($done);
+        $done = $this->followerPeers->tasks[$taskId] ?? self::fail('the task is gone');
         self::assertSame(A2aTask::COMPLETED, $done->state);
         self::assertSame('Итог: по данным C — Париж.', $done->result);
         $last = end($llm->requests);

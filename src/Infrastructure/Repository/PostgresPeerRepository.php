@@ -212,8 +212,11 @@ final class PostgresPeerRepository implements PeerRepository {
         return $found;
     }
 
-    public function finishOutgoing(int $id, string $state, ?string $result): void {
-        $this->db->execute('UPDATE a2a_outgoing SET state = ?, result = ?, updated_at = now() WHERE id = ?', [$state, $result, $id]);
+    public function finishOutgoing(int $id, string $state, ?string $result): bool {
+        return $this->db->execute(
+            'UPDATE a2a_outgoing SET state = ?, result = ?, updated_at = now() WHERE id = ? AND state IN (?, ?) RETURNING id',
+            [$state, $result, $id, A2aTask::SUBMITTED, A2aTask::WORKING],
+        )->fetchRow() !== null;
     }
 
     /** @param array<string, mixed> $row */

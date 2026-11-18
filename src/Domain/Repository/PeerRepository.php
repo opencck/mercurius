@@ -91,5 +91,6 @@ interface PeerRepository {
     /** @return list<OutgoingTask> */
     public function openOutgoing(int $limit): array;
 
-    public function finishOutgoing(int $id, string $state, ?string $result): void;
+    /** Ends an open task; false when it had ended already (a poll and a notice read it at once). */
+    public function finishOutgoing(int $id, string $state, ?string $result): bool;
 }
