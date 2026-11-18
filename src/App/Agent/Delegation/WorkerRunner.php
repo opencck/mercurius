@@ -105,7 +105,7 @@ final class WorkerRunner {
      * the web and the servers. A tool that is not here — a new one too — a worker does not get.
      */
     public const ALLOWED = [
-        'read_file', 'list_files', 'write_file', 'run_command', 'git', 'checkpoint', 'http_request', 'web_search', 'web_read',
+        'read_file', 'list_files', 'search_files', 'write_file', 'run_command', 'git', 'checkpoint', 'http_request', 'web_search', 'web_read',
         'browser', 'documents', 'media', 'skill_view', 'self_info', 'servers', 'ssh_run', 'sql_query', 'file_write', 'tcp_probe',
     ];
     /** @var list<string>|null names a worker may get, `name*` for a prefix; null — no list (tests) */

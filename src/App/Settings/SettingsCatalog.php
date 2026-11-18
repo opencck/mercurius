@@ -36,7 +36,7 @@ final class SettingsCatalog {
         'AGENT_APPROVAL_TIMEOUT' => '1800',
         'AGENT_WORKER_MAX_TURNS' => '375',
         'AGENT_WORKER_TOKEN_BUDGET' => '500000',
-        'AGENT_WORKER_TOOLS' => 'read_file,list_files,write_file,run_command,git,checkpoint,http_request,web_search,web_read,browser,documents,media,skill_view,self_info,servers,ssh_run,sql_query,file_write,tcp_probe',
+        'AGENT_WORKER_TOOLS' => 'read_file,list_files,search_files,write_file,run_command,git,checkpoint,http_request,web_search,web_read,browser,documents,media,skill_view,self_info,servers,ssh_run,sql_query,file_write,tcp_probe',
         'AGENT_MAX_WORKERS_PER_RUN' => '10',
         'AGENT_DAILY_SPEND_CAP' => '0',
         'BROWSER_CONFIRM' => '0',

@@ -403,6 +403,7 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\CheckpointTool($sandbox, $checkpoints));
     $tools->register(new ReadFileTool($sandbox));
     $tools->register(new ListFilesTool($sandbox));
+    $tools->register(new \OpenCCK\App\Agent\Tool\SearchFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: BRIEF.md#планировщик-и-проекты — git with a token of the vault in the environment of one command
