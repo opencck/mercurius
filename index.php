@@ -99,7 +99,6 @@ use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
 use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
 use OpenCCK\App\Service\McpCommands;
 use OpenCCK\App\Mcp\McpManager;
-use OpenCCK\Infrastructure\Repository\PostgresSkillRepository;
 use OpenCCK\App\Service\SkillCommands;
 use OpenCCK\App\Agent\Tool\SkillViewTool;
 use OpenCCK\Infrastructure\Browser\BrowserClient;
@@ -599,12 +598,12 @@ $tools->register(new \OpenCCK\App\Agent\Tool\SkillSaveTool($skillLibrary, $skill
 $skillHttp = HttpClients::guarded($addressGuard);
 $skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)]);
 $tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
-// skills of the earlier catalog in the base move once into the owner's folder of skills
+// skills of the earlier catalog in the base move once into the owner's folder of skills, then the base forgets them
 \Amp\async(static function () use ($skillLibrary, $principals, $telegram, $db, $logger): void {
     \Amp\delay(20);
     $owner = $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId);
     if ($owner !== null) {
-        (new \OpenCCK\App\Skill\SkillMigration(new PostgresSkillRepository($db), $skillLibrary, $logger))->toFolder($owner);
+        (new \OpenCCK\App\Skill\SkillMigration(new \OpenCCK\Infrastructure\Repository\PostgresOldSkillCatalog($db), $skillLibrary, $logger))->toFolder($owner);
     }
 });
 
