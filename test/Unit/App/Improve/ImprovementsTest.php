@@ -117,6 +117,16 @@ final class ImprovementsTest extends AsyncTestCase {
         self::assertSame([], $this->gated);
     }
 
+    public function testAnUndecidedProposalIsShownAgain(): void {
+        $improvements = $this->improvements();
+        $improvements->propose('idea', 'Первая', 'текст', 'почему');
+        $second = $improvements->propose('idea', 'Вторая', 'текст', 'почему');
+        $this->press($improvements, $second, 'r');
+
+        self::assertSame(1, $improvements->showOpen());
+        self::assertStringContainsString('Первая', (array_slice($this->channel->texts('send'), -1)[0] ?? ''), 'the card comes again with its buttons');
+    }
+
     public function testVersionsStayAndARollbackMovesThePointer(): void {
         $first = $this->notes->add('Правило один.', 'первое');
         $this->notes->activate($first);

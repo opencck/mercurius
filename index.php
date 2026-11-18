@@ -886,6 +886,7 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
     background: true,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvements));
+$chat->useImprovements($improvements);
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }

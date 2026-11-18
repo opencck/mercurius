@@ -74,6 +74,13 @@ final class ChatService implements MessageHandler {
         private readonly ?PromptCommands $prompt = null,
     ) {}
 
+    /** proposals of improvements: /proposals shows the undecided ones again */
+    private ?\OpenCCK\App\Improve\Improvements $improvements = null;
+
+    public function useImprovements(\OpenCCK\App\Improve\Improvements $improvements): void {
+        $this->improvements = $improvements;
+    }
+
     /** The run that wrote the agent's message this one answers; null when it is not known. */
     private function runOfReply(IncomingMessage $message): ?int {
         $replied = MessageMeta::repliedToAgent($message, $this->botId);
@@ -201,6 +208,15 @@ final class ChatService implements MessageHandler {
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
             });
+            return;
+        }
+        if ($command === '/proposals' && $this->improvements !== null) {
+            // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — a lost card is shown again
+            if (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif ($this->improvements->showOpen() === 0) {
+                $this->reply($message, t('improve.none_open'));
+            }
             return;
         }
         if ($command === '/prompt' && $this->prompt !== null) {

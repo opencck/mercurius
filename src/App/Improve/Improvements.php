@@ -53,6 +53,21 @@ final class Improvements implements CallbackHandler {
     /** Keeps a proposal and shows it to the owner; the number of the proposal. */
     public function propose(string $kind, string $title, string $text, string $reason, ?string $key = null): int {
         $id = $this->store->propose($kind, mb_substr(trim($title), 0, 120), mb_substr(trim($text), 0, PromptNotes::MAX), mb_substr(trim($reason), 0, 1000), $key);
+        $this->card($id, $kind, $title, $text, $reason, $key);
+        $this->logger->info('Improvement proposed', ['id' => $id, 'kind' => $kind]);
+        return $id;
+    }
+
+    /** Shows the proposals the owner has not decided again, with their buttons; the number of cards sent. */
+    public function showOpen(): int {
+        $open = $this->store->open();
+        foreach ($open as $p) {
+            $this->card($p['id'], $p['kind'], $p['title'], $p['body'], $p['reason'], $p['key']);
+        }
+        return count($open);
+    }
+
+    private function card(int $id, string $kind, string $title, string $text, string $reason, ?string $key): void {
         $body = match ($kind) {
             'setting' => sprintf('%s = %s', (string) $key, $text),
             'prompt' => $this->diff($text),
@@ -64,8 +79,6 @@ final class Improvements implements CallbackHandler {
             new Button(t('improve.accept'), sprintf('%s:%d:a', self::PREFIX, $id)),
             new Button(t('improve.reject'), sprintf('%s:%d:r', self::PREFIX, $id)),
         ]]));
-        $this->logger->info('Improvement proposed', ['id' => $id, 'kind' => $kind]);
-        return $id;
     }
 
     public function handleCallback(IncomingCallback $callback): void {

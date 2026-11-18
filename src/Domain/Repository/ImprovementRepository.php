@@ -22,6 +22,9 @@ interface ImprovementRepository {
      */
     public function move(int $id, array $from, string $to, ?string $result = null): bool;
 
+    /** @return list<array{id: int, kind: string, title: string, body: string, reason: string, key: ?string, status: string}> proposals still waiting for the owner, the oldest first */
+    public function open(): array;
+
     public function addNote(string $text, string $reason): int;
 
     /** @return array{version: int, text: string}|null */

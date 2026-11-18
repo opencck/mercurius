@@ -23,6 +23,16 @@ final class InMemoryImprovementRepository implements ImprovementRepository {
         return $p === null ? null : ['id' => $p['id'], 'kind' => $p['kind'], 'title' => $p['title'], 'body' => $p['body'], 'reason' => $p['reason'], 'key' => $p['key'], 'status' => $p['status']];
     }
 
+    public function open(): array {
+        $found = [];
+        foreach ($this->proposals as $id => $p) {
+            if ($p['status'] === 'proposed') {
+                $found[] = $this->find($id) ?? throw new \LogicException('gone');
+            }
+        }
+        return $found;
+    }
+
     public function move(int $id, array $from, string $to, ?string $result = null): bool {
         if (!isset($this->proposals[$id]) || !in_array($this->proposals[$id]['status'], $from, true)) {
             return false;

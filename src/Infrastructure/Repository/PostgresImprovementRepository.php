@@ -32,6 +32,17 @@ final class PostgresImprovementRepository implements ImprovementRepository {
         ];
     }
 
+    public function open(): array {
+        $found = [];
+        foreach ($this->db->query("SELECT id FROM improvements WHERE status = 'proposed' ORDER BY id LIMIT 20") as $row) {
+            $proposal = $this->find(self::int($row, 'id') ?? 0);
+            if ($proposal !== null) {
+                $found[] = $proposal;
+            }
+        }
+        return $found;
+    }
+
     public function move(int $id, array $from, string $to, ?string $result = null): bool {
         if ($from === []) {
             return false;
