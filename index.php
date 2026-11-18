@@ -434,8 +434,19 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 $browserUrl = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000';
 if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $browserToken !== null) {
+    $browserClient = new BrowserClient(HttpClients::create(), $browserUrl, $browserToken);
+    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — profiles of the old flat layout go into the owner's set, logins stay
+    $browserOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
+    \Amp\async(static function () use ($browserClient, $browserOwner, $logger): void {
+        try {
+            $moved = $browserClient->call('adopt', ['owner' => 'p' . $browserOwner->id], new \Amp\TimeoutCancellation(60));
+            $logger->info('Browser profiles adopted', ['moved' => $moved['moved'] ?? []]);
+        } catch (\Throwable $e) {
+            $logger->warning('Browser profiles were not adopted', ['error' => $e::class]);
+        }
+    })->ignore();
     $tools->register(new BrowserTool(
-        new BrowserClient(HttpClients::create(), $browserUrl, $browserToken),
+        $browserClient,
         $channel,
         $telegram->ownerId,
         $addressGuard,
@@ -445,6 +456,11 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
         // and the agent looks at it with a vision model of the owner's settings or the participant's choice
         $mediaModels,
         $mediaPrefs,
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — each participant has profiles of their own and of their project
+        static function (int $conversationId) use ($conversations, $httpCookieProjects): ?int {
+            $meta = $conversations->meta($conversationId);
+            return $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId)?->id;
+        },
     ));
 }
 if ($sandbox !== null) {

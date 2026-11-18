@@ -42,6 +42,29 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringContainsString('"allow":["nas.home.lan"]', $http->bodies[1]);
     }
 
+    public function testEachParticipantHasProfilesOfTheirOwnAndOfTheirProject(): void {
+        $page = '{"url":"https://example.com/","title":"Example","text":"ok","elements":[]}';
+        $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], $page], 'http://browser:3000/close' => [200, ['content-type' => 'application/json'], '{"ok":true}']]);
+        $this->channel = new FakeChannel();
+        $tool = new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', projectOf: static fn(int $conversationId): ?int => $conversationId === 7 ? 3 : null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $user = new Principal(5, PrincipalKind::Human, Role::User, null);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the profile comes from the participant, the model names only
+        //       a profile within their own set: a participant does not open the owner's "main"
+        $tool->execute(['action' => 'open', 'url' => 'https://example.com/'], new ToolContext(1, 1, $owner, new NullCancellation()));
+        $tool->execute(['action' => 'open', 'url' => 'https://example.com/', 'profile' => 'main'], new ToolContext(2, 2, $user, new NullCancellation()));
+        $tool->execute(['action' => 'open', 'url' => 'https://example.com/', 'profile' => 'shop'], new ToolContext(3, 7, $user, new NullCancellation()));
+        $tool->execute(['action' => 'close', 'profile' => 'main'], new ToolContext(2, 2, $user, new NullCancellation()));
+
+        $profiles = array_map(static function (string $body): mixed {
+            /** @var array<string, mixed> $sent */
+            $sent = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
+            return $sent['profile'] ?? null;
+        }, $http->bodies);
+        self::assertSame(['p1/main', 'p5/main', 'p5/projects/3/shop', 'p5/main'], $profiles);
+    }
+
     private static function context(): ToolContext {
         return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
     }
@@ -168,7 +191,7 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringNotContainsString('0123456789abcdef0123', $result->content, 'secrets of the page are masked');
         /** @var array{profile: string, mode: string, host: string, args: array<string, int>, source: string} $sent */
         $sent = json_decode($http->bodies[0], true, 8, JSON_THROW_ON_ERROR);
-        self::assertSame(['main', 'read', 'web.telegram.org', ['limit' => 20]], [$sent['profile'], $sent['mode'], $sent['host'], $sent['args']]);
+        self::assertSame(['p1/main', 'read', 'web.telegram.org', ['limit' => 20]], [$sent['profile'], $sent['mode'], $sent['host'], $sent['args']]);
         self::assertStringContainsString('.message', $sent['source']);
     }
 

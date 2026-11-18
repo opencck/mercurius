@@ -44,7 +44,20 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         private readonly ?\OpenCCK\Infrastructure\Media\MediaModels $models = null,
         /** the participant's choice of a vision model over the owner's list */
         private readonly ?\OpenCCK\App\Agent\Media\MediaPrefs $prefs = null,
+        /** @var (\Closure(int): ?int)|null the active project of a conversation; null — profiles are the participant's only */
+        private readonly ?\Closure $projectOf = null,
     ) {}
+
+    /**
+     * Where a profile lives: the participant's own set (`p<id>/<name>`), inside the active project of the conversation
+     * its own set there (`p<id>/projects/<project>/<name>`). The model names a profile, never a path of someone else's.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — profiles of the browser are laid out by participants and projects
+     */
+    private function profileOf(string $name, ToolContext $context): string {
+        $project = $this->projectOf === null ? null : ($this->projectOf)($context->conversationId);
+        return 'p' . $context->principal->id . ($project === null ? '' : '/projects/' . $project) . '/' . $name;
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.browser.nastoyaschiy_brauzer_chrome_dlya_stranit')
@@ -175,7 +188,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $action = Args::string($args, 'action') ?? '';
-        $profile = Args::string($args, 'profile') ?? 'main';
+        $profile = $this->profileOf(Args::string($args, 'profile') ?? 'main', $context);
         try {
             $body = match ($action) {
                 'open' => ['profile' => $profile, 'url' => Args::string($args, 'url') ?? '']
