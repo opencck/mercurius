@@ -26,7 +26,7 @@ use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\App\Skill\SkillCatalog;
+use OpenCCK\App\Skill\SkillLibrary;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Domain\Repository\RunRepository;
@@ -78,8 +78,8 @@ final class RunScheduler {
     private ?ProjectContext $projects = null;
     private ?\OpenCCK\App\Improve\PromptNotes $notes = null;
     private string $instance = '';
-    private ?SkillCatalog $skills = null;
-    /** @var array<int, array<string, int>> conversation => the skills its prompt was built with */
+    private ?SkillLibrary $skills = null;
+    /** @var array<int, string> conversation => the index of skills its prompt or last note had */
     private array $skillSnapshots = [];
     private ?ConversationAudience $audience = null;
     /** @var array<int, Future<void>> deliveries waiting for the conversation's run to end */
@@ -398,7 +398,7 @@ final class RunScheduler {
     }
 
     /** The index of skills goes into the prompt of new conversations; a change reaches open ones as a note. */
-    public function useSkills(SkillCatalog $skills): void {
+    public function useSkills(SkillLibrary $skills): void {
         $this->skills = $skills;
     }
 
@@ -476,21 +476,21 @@ final class RunScheduler {
      * spec: BRIEF.md#скиллы-и-mcp — a change of the catalog in the middle of a conversation is a one-off note on the
      *       next message, the prompt stays as it was
      */
-    private function withSkillNote(Principal $principal, int $conversationId, string $text): string {
+    private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
         if ($this->skills === null || $principal->role === Role::Visitor) {
             return $text;
         }
         try {
             $before = $this->skillSnapshots[$conversationId] ?? null;
-            $this->skillSnapshots[$conversationId] = $this->skills->snapshot();
-            $note = $before === null ? '' : $this->skills->note($before);
+            $now = $this->skills->index($principal, $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId));
+            $this->skillSnapshots[$conversationId] = $now;
         } catch (Throwable) {
             return $text;
         }
         if (count($this->skillSnapshots) > 500) {
             $this->skillSnapshots = array_slice($this->skillSnapshots, -250, null, true);
         }
-        return $note === '' ? $text : $text . "\n\n" . $note;
+        return $before === null || $before === $now ? $text : $text . "\n\n" . t('skill.library.changed') . "\n" . ($now === '' ? '—' : $now);
     }
 
     private function withFacts(Principal $principal, ConversationMeta $meta, string $text): string {
@@ -526,8 +526,8 @@ final class RunScheduler {
             $skills = '';
             if ($this->skills !== null && $principal->role !== Role::Visitor) {
                 try {
-                    $skills = $this->skills->index();
-                    $this->skillSnapshots[$conversationId] = $this->skills->snapshot();
+                    $skills = $this->skills->index($principal, $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId));
+                    $this->skillSnapshots[$conversationId] = $skills;
                 } catch (Throwable $e) {
                     $this->logger->warning('Skills index is not available', ['error' => $e::class]);
                 }
@@ -548,7 +548,7 @@ final class RunScheduler {
             return null;
         }
         try {
-            $this->transcript->appendUser($conversationId, $run->id, $this->withSkillNote($principal, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text), $messageId);
+            $this->transcript->appendUser($conversationId, $run->id, $this->withSkillNote($principal, $meta, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text), $messageId);
             $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
             $observer->start();
         } catch (Throwable $e) {

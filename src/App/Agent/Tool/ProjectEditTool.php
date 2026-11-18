@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'goal', 'status', 'card', 'skill', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
+    public const ACTIONS = ['create', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
     public const RELATION_MAX = 1000;
@@ -36,8 +36,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         private readonly \DateTimeZone $zone = new \DateTimeZone('UTC'),
         /** in a forum a project gets a topic; null — no forum topics */
         private readonly ?\OpenCCK\App\Service\ForumTopics $forum = null,
-        /** the active skills a project can take; null — no skills */
-        private readonly ?\OpenCCK\App\Skill\SkillCatalog $skills = null,
     ) {}
 
     /**
@@ -64,8 +62,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . t('tool.project_edit.1_10_po_osyam_esli')
             . t('tool.project_edit.open_doing_done_dropped_dlya')
             . t('tool.project_edit.relation_otnoshenie_sobesednika_k_proekt')
-            . t('tool.project_edit.proekt_proektom_etogo_chata_create')
-            . t('tool.project_edit.skill_about'), [
+            . t('tool.project_edit.proekt_proektom_etogo_chata_create'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -142,7 +139,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 ? $this->update($project, null, Args::string($args, 'status'), null, t('tool.project_edit.status'))
                 : ToolResult::error(t('tool.project_edit.status_proekta_active_paused_ili')),
             'card' => $this->update($project, null, null, $text, t('tool.project_edit.kartochka')),
-            'skill' => $this->skill($project, trim($text)),
             'add_task' => $this->addTask($project, $text, Args::int($args, 'parent_id'), $args),
             'task_status' => $this->taskStatus($project, Args::int($args, 'task_id'), Args::string($args, 'status'), $text),
             'task_due' => $this->taskDue($project, Args::int($args, 'task_id'), Args::string($args, 'due') ?? ''),
@@ -150,19 +146,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'activate' => $this->activate($project, $context),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
-    }
-
-    /**
-     * spec: BRIEF.md#форум-темы-проекты — a skill of the project comes into the context of its chats and topics
-     * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L6320-L6360 (_resolve_topic_binding)
-     *      — hermes binds a skill to a forum topic in its config; here the skill belongs to the project the topic is
-     */
-    private function skill(Project $project, string $name): ToolResult {
-        if ($name !== '' && ($this->skills === null || $this->skills->body($name) === null)) {
-            return ToolResult::error(sprintf(t('tool.project_edit.skill_unknown'), $name));
-        }
-        $this->projects->setSkill($project->id, $name);
-        return ToolResult::ok($name === '' ? sprintf(t('tool.project_edit.skill_off'), $project->name) : sprintf(t('tool.project_edit.skill_on'), $name, $project->name));
     }
 
     /** @param array<string, mixed> $args */

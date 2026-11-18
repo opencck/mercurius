@@ -4,34 +4,92 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Service;
 
-use OpenCCK\Domain\Repository\SkillRepository;
-use OpenCCK\Domain\Skill\Skill;
-use OpenCCK\Domain\Skill\SkillVersion;
+use Amp\TimeoutCancellation;
+use Closure;
+use InvalidArgumentException;
+use Mercurius\Messenger\IncomingMessage;
+use OpenCCK\App\Skill\SkillImporter;
+use OpenCCK\App\Skill\SkillLibrary;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Project\Project;
+use OpenCCK\Domain\Repository\SkillUsageRepository;
 
 use function Mercurius\I18n\t;
 
 /**
- * The owner manages the catalog from the chat: the list, a skill's text, turning it on and off, its versions and a
- * rollback.
+ * The owner's `/skills` and `/skill`: the skills of this chat — built-in, the owner's folder and the active project's —
+ * with how often each was opened; `/skill <name>` shows one, `pin`/`unpin` keep it off the list of stale ones,
+ * `/skill import <url> [project]` brings one into the owner's or the project's folder.
  *
- * spec: BRIEF.md#скиллы-и-mcp — list, enable, disable from the channel, the owner only
+ * spec: BRIEF.md#скиллы-и-mcp — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillCommands {
-    /** a skill not opened for this many days is a candidate for the archive, unless pinned */
+    /** a skill not opened for this many days is a candidate for removal, unless pinned */
     public const STALE_DAYS = 30;
 
+    /** @param Closure(string, string, string): ?Project $projectOf the active project of a chat and topic */
     public function __construct(
-        private readonly SkillRepository $skills,
-        private readonly ?\OpenCCK\App\Skill\SkillImporter $importer = null,
-        private readonly ?\OpenCCK\Domain\Repository\SkillUsageRepository $usage = null,
+        private readonly SkillLibrary $library,
+        private readonly Closure $projectOf,
+        private readonly ?SkillImporter $importer = null,
+        private readonly ?SkillUsageRepository $usage = null,
     ) {}
+
+    public function list(Principal $who, IncomingMessage $message): string {
+        $catalog = $this->library->catalog($who, $this->project($message));
+        if ($catalog === []) {
+            return t('service.skill_commands.skillov_net_poprosite_menya_predlozhit');
+        }
+        $stats = $this->usage?->stats() ?? [];
+        $lines = [];
+        foreach ($catalog as $name => $skill) {
+            $lines[] = sprintf('%s [%s]%s: %s', $name, $skill['where'], self::usage($name, $stats), $skill['description']);
+        }
+        return t('service.skill_commands.skilly') . implode("\n", $lines) . t('service.skill_commands.usage_files');
+    }
+
+    public function skill(Principal $who, IncomingMessage $message, string $argument): string {
+        $parts = preg_split('~\s+~', trim($argument)) ?: [];
+        $name = $parts[0] ?? '';
+        $action = $parts[1] ?? 'show';
+        $project = $this->project($message);
+        if ($name === 'import' && $this->importer !== null) {
+            $where = ($parts[2] ?? '') === 'project' ? 'project' : 'mine';
+            $target = $this->library->target($who, $project, $where);
+            if ($target === null) {
+                return t('tool.skill_save.no_project');
+            }
+            try {
+                [$bundle, $findings] = $this->importer->fetch($parts[1] ?? '', new TimeoutCancellation(60));
+                $dir = $this->library->write($bundle, $target, new TimeoutCancellation(30));
+            } catch (InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return sprintf(t('tool.skill_import.done'), $bundle->name, $dir, $bundle->files === [] ? '—' : implode(', ', array_keys($bundle->files)), $findings === [] ? t('skill.import.clean') : implode("\n", array_slice($findings, 0, 10)));
+        }
+        if ($action === 'pin' || $action === 'unpin') {
+            if ($this->usage === null) {
+                return t('service.skill_commands.skill_imya_show_on_off_2');
+            }
+            $this->usage->pin($name, $action === 'pin');
+            return sprintf($action === 'pin' ? t('service.skill_commands.pinned_now') : t('service.skill_commands.unpinned_now'), $name);
+        }
+        $skill = $this->library->view($who, $project, $name, null, new TimeoutCancellation(30));
+        if ($skill === null) {
+            return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
+        }
+        return $name . "\n\n" . $skill['text'] . ($skill['files'] === [] ? '' : "\n\n" . implode("\n", array_map(static fn(string $f): string => '- ' . $f, $skill['files'])));
+    }
+
+    private function project(IncomingMessage $message): ?Project {
+        return ($this->projectOf)($message->channel, $message->chatId, MessageMeta::topicKey($message));
+    }
 
     /**
      * How a skill is used: openings, stale or pinned.
      *
-     * spec: BRIEF.md#самоулучшение-решено-2026-11-18
      * ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — active → stale → archived, pinned opts out;
-     *      here the owner archives (turns off) by hand, the list only marks the candidates
+     *      here the list only marks the candidates, removing a skill is removing its folder
      * @param array<string, array{views: int, last: ?int, pinned: bool}> $stats
      */
     private static function usage(string $name, array $stats): string {
@@ -46,64 +104,5 @@ final class SkillCommands {
             return ' · ' . t('service.skill_commands.stale');
         }
         return $s['views'] > 0 ? ' · ' . sprintf(t('service.skill_commands.views'), $s['views']) : '';
-    }
-
-    public function list(): string {
-        $all = $this->skills->all();
-        if ($all === []) {
-            return t('service.skill_commands.skillov_net_poprosite_menya_predlozhit');
-        }
-        $stats = $this->usage?->stats() ?? [];
-        return t('service.skill_commands.skilly') . implode("\n", array_map(static fn(Skill $s): string => sprintf(
-            '%s v%d — %s%s%s',
-            $s->name,
-            $s->version,
-            match ($s->status) {
-                Skill::ACTIVE => t('service.skill_commands.vklyuchen'),
-                Skill::DISABLED => t('service.skill_commands.vyklyuchen'),
-                default => t('service.skill_commands.zhdet_odobreniya'),
-            },
-            self::usage($s->name, $stats),
-            $s->description === '' ? '' : ': ' . $s->description,
-        ), $all)) . t('service.skill_commands.skill_imya_show_on_off');
-    }
-
-    public function skill(string $argument): string {
-        $parts = preg_split('~\s+~', trim($argument)) ?: [];
-        $name = $parts[0] ?? '';
-        $action = $parts[1] ?? 'show';
-        if ($name === 'import' && $this->importer !== null) {
-            // spec: BRIEF.md#скиллы-и-mcp — /skill import <url> [reason]: an ordinary SKILL.md of another agent
-            try {
-                $version = $this->importer->import($parts[1] ?? '', implode(' ', array_slice($parts, 2)), null, new \Amp\TimeoutCancellation(60));
-                return sprintf(t('skill.import.proposed'), $version->name, $version->version);
-            } catch (\InvalidArgumentException $e) {
-                return $e->getMessage();
-            }
-        }
-        $skill = $this->skills->find($name);
-        if ($skill === null) {
-            return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
-        }
-        return match ($action) {
-            'show' => sprintf("%s v%d (%s)\n%s\n\n%s", $skill->name, $skill->version, $skill->status, $skill->description, $skill->body === '' ? t('service.skill_commands.esche_ne_odobren') : $skill->body),
-            'on' => $this->skills->setStatus($name, Skill::ACTIVE) ? sprintf(t('service.skill_commands.skill_vklyuchen'), $name) : t('service.skill_commands.snachala_odobrite_versiyu_skilla'),
-            'off' => $this->skills->setStatus($name, Skill::DISABLED) ? sprintf(t('service.skill_commands.skill_vyklyuchen'), $name) : t('service.skill_commands.nechego_vyklyuchat'),
-            'pin' => $this->pin($name, true),
-            'unpin' => $this->pin($name, false),
-            'history' => t('service.skill_commands.prinyatye_versii') . implode("\n", array_map(static fn(SkillVersion $v): string => sprintf('v%d — %s', $v->version, $v->description), $this->skills->history($name))),
-            'rollback' => ($rolled = $this->skills->rollback($name, (int) ($parts[2] ?? 0))) === null
-                ? t('service.skill_commands.takoy_prinyatoy_versii_net_skill') . $name . ' history'
-                : sprintf(t('service.skill_commands.skill_otkatan_k_versii'), $name, $rolled->version),
-            default => t('service.skill_commands.skill_imya_show_on_off_2'),
-        };
-    }
-
-    private function pin(string $name, bool $pinned): string {
-        if ($this->usage === null) {
-            return t('service.skill_commands.skill_imya_show_on_off_2');
-        }
-        $this->usage->pin($name, $pinned);
-        return sprintf($pinned ? t('service.skill_commands.pinned_now') : t('service.skill_commands.unpinned_now'), $name);
     }
 }

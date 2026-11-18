@@ -55,11 +55,6 @@ final class PostgresProjectRepository implements ProjectRepository {
         return $found;
     }
 
-    public function setSkill(int $id, string $skill): ?Project {
-        $row = $this->db->execute('UPDATE projects SET skill = ?, updated_at = now() WHERE id = ? RETURNING ' . self::PROJECT, [$skill, $id])->fetchRow();
-        return $row === null ? null : self::project($row);
-    }
-
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project {
         $row = $this->db->execute(
             'UPDATE projects SET goal = coalesce(?, goal), status = coalesce(?, status), card = coalesce(?, card), updated_at = now() WHERE id = ? RETURNING ' . self::PROJECT,

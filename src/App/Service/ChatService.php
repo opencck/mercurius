@@ -235,7 +235,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/skills', '/skill'], true) && $this->skills !== null) {
-            $this->reply($message, !$principal->isOwner() ? t(self::OWNER_ONLY) : ($command === '/skills' ? $this->skills->list() : $this->skills->skill(substr($text, strlen($command)))));
+            $this->reply($message, !$principal->isOwner() ? t(self::OWNER_ONLY) : ($command === '/skills' ? $this->skills->list($principal, $message) : $this->skills->skill($principal, $message, substr($text, strlen($command)))));
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {

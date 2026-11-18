@@ -67,9 +67,16 @@ final class FakeSandbox implements Sandbox, SandboxEnv {
 
     public function list(int $principalId, SandboxLimits $limits, string $path, int $depth, Cancellation $cancellation): array {
         $this->record(sprintf('list %d %s %d', $principalId, $path, $depth));
+        // paths relative to the listed directory, as the executor's find -printf %P gives them
+        $prefix = trim($path, '/') === '.' || trim($path, '/') === '' ? '' : trim($path, '/') . '/';
         $entries = [];
         foreach ($this->files[$principalId] ?? [] as $name => $content) {
-            $entries[] = ['path' => $name, 'type' => 'file', 'size' => strlen($content)];
+            if ($prefix === '' || str_starts_with($name, $prefix)) {
+                $entries[] = ['path' => substr($name, strlen($prefix)), 'type' => 'file', 'size' => strlen($content)];
+            }
+        }
+        if ($prefix !== '' && $entries === []) {
+            throw new SandboxFailure('Не удалось прочитать каталог ' . $path);
         }
         return $entries;
     }

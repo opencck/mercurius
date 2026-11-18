@@ -101,10 +101,7 @@ use OpenCCK\App\Service\McpCommands;
 use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\Infrastructure\Repository\PostgresSkillRepository;
 use OpenCCK\App\Service\SkillCommands;
-use OpenCCK\App\Skill\SkillCatalog;
-use OpenCCK\App\Agent\Tool\SkillProposeTool;
 use OpenCCK\App\Agent\Tool\SkillViewTool;
-use OpenCCK\App\Agent\SkillCards;
 use OpenCCK\Infrastructure\Browser\BrowserClient;
 use OpenCCK\App\Agent\Tool\BrowserTool;
 use OpenCCK\App\Web\TextExtractor;
@@ -573,25 +570,43 @@ $tools->register(new FileWriteTool($serverConsole, new CommandClassifier()));
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
 
-// spec: BRIEF.md#скиллы-и-mcp — the catalog of skills: index in the prompt, bodies on demand, changes by the owner
-$skillRepository = new PostgresSkillRepository($db);
-$skillCatalog = new SkillCatalog($skillRepository);
-$skillCards = new SkillCards($skillRepository, $channel, $telegram->ownerId);
-$scheduler->useSkills($skillCatalog);
+// spec: BRIEF.md#скиллы-и-mcp — skills are files: built-in ones (submodules in skills/), the participant's folder and the
+// active project's folder in the sandbox; the index is in the prompt, the texts on demand
+$skillProjects = new PostgresProjectRepository($db);
+$skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
+    \OpenCCK\App\Skill\BuiltinSkills::load(PATH_ROOT . '/skills', $logger),
+    $sandbox,
+    static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+        $principal = $principals->find($principalId);
+        return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+    },
+    static fn(): ?int => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId)?->id,
+    $logger,
+);
+$scheduler->useSkills($skillLibrary);
+// spec: BRIEF.md#скиллы-и-mcp — a project named by the agent (a private chat about it), else the conversation's active one
+$skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $skillProjects): ?\OpenCCK\Domain\Project\Project {
+    if ($name !== null && trim($name) !== '') {
+        return $skillProjects->byName(trim($name), \OpenCCK\Domain\Project\Project::scopeOf($who));
+    }
+    $meta = $conversations->meta($conversationId);
+    return $meta === null ? null : $skillProjects->active($meta->channel, $meta->chatId, $meta->threadId);
+};
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
-$tools->register(new SkillViewTool($skillCatalog, $skillUsage));
-$tools->register(new SkillProposeTool($skillCatalog, $skillCards, $skillRepository));
-// spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — built-in skills (submodules in skills/) come into the catalog at the start
-(new \OpenCCK\App\Skill\BuiltinSkills($skillCatalog, $skillRepository, $logger))->sync(PATH_ROOT . '/skills');
+$tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage));
+$tools->register(new \OpenCCK\App\Agent\Tool\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
-$skillImporter = new \OpenCCK\App\Skill\SkillImporter(
-    [new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)],
-    $skillCatalog,
-    $skillRepository,
-    $skillCards,
-);
-$tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter));
+$skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)]);
+$tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
+// skills of the earlier catalog in the base move once into the owner's folder of skills
+\Amp\async(static function () use ($skillLibrary, $principals, $telegram, $db, $logger): void {
+    \Amp\delay(20);
+    $owner = $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId);
+    if ($owner !== null) {
+        (new \OpenCCK\App\Skill\SkillMigration(new PostgresSkillRepository($db), $skillLibrary, $logger))->toFolder($owner);
+    }
+});
 
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
@@ -670,7 +685,7 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
-$scheduler->useProjects(new ProjectContext($projectRepository, $skillCatalog));
+$scheduler->useProjects(new ProjectContext($projectRepository));
 // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
 $promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
@@ -679,7 +694,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\TraceReviewTool(new \OpenCCK\Infras
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $skillCatalog));
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
 $tools->register(new \OpenCCK\App\Agent\Tool\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $telegram->ownerId, $logger);
@@ -825,12 +840,12 @@ $chat = new ChatService(
     $scheduler,
     $channel,
     $approvals,
-    new TraceReports(new PostgresTraceReportRepository($db), $traces),
+    new TraceReports(new PostgresTraceReportRepository($db), $traces, $peerRepository),
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
-    new SkillCommands($skillRepository, $skillImporter, $skillUsage),
+    new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $skillUsage),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
@@ -875,7 +890,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvement
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
@@ -943,6 +958,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\SelfInfoTool([
         return \Mercurius\I18n\t('self.modules') . "\n" . ($lines === [] ? '—' : implode("\n", $lines));
     },
     'limits' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.limits') . "\n" . ($c->policy === null ? '—' : json_encode($c->policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
+    'skills' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.skills'),
     'self_improvement' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.self_improvement'),
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
 ]));

@@ -81,6 +81,16 @@ final class SkillBundle {
         return new self($name, self::oneLine($meta['description'] ?? ''), trim($body), $files, $skipped, $source, $revision);
     }
 
+    /**
+     * The name, the one-line description and the text of a SKILL.md, for the index and for reading.
+     *
+     * @return array{name: string, description: string, body: string}
+     */
+    public static function head(string $skillMd): array {
+        [$meta, $body] = self::frontmatter($skillMd);
+        return ['name' => strtolower(trim($meta['name'] ?? '')), 'description' => self::oneLine($meta['description'] ?? ''), 'body' => trim($body)];
+    }
+
     /** A clean relative path; null for what never ships (dotfiles, bytecode); an escape is refused. */
     private static function path(string $path): ?string {
         $path = str_replace('\\', '/', $path);

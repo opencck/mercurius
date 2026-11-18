@@ -5,37 +5,30 @@ declare(strict_types=1);
 namespace OpenCCK\App\Skill;
 
 use InvalidArgumentException;
-use OpenCCK\Domain\Repository\SkillRepository;
-use OpenCCK\Domain\Skill\Skill;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Built-in skills ship with the code: each is a repository, a submodule in `skills/<name>/` with an ordinary
- * SKILL.md and its files. At the start every one goes into the catalog as an active version without a card: it was
- * reviewed like the code it ships with. A changed skill becomes a new version (history and rollback stay), an
- * unchanged one is left alone; the repository's README, licence and CI are not part of the skill.
+ * Built-in skills ship with the code: each is a repository, a submodule in `skills/<name>/` with an ordinary SKILL.md
+ * and its files — the same format as a skill in a sandbox folder or one imported from GitHub or an archive. They are
+ * read at the start and served as they are, everywhere; nothing is copied, so updating the code brings no conflicts:
+ * a changed copy lives in a folder of the participant or the project and wins over the built-in one by its name.
+ * The repository's README, licence and CI are not part of the skill.
  *
- * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — every built-in skill is its own repository, a submodule in skills/
+ * spec: BRIEF.md#скиллы-и-mcp — built-in skills plus the folders of the participant and the project
  * ref: references/hermes-agent/optional-skills/software-development/hermes-agent-skill-authoring/SKILL.md@e96221fa:L16-L22
- *      — hermes ships skills in its repository tree; here each in a repository of its own
+ *      — hermes ships skills in its repository tree; here each in a repository of its own, a submodule
  */
 final class BuiltinSkills {
     /** files of the repository, not of the skill */
     private const NOT_SKILL = ['README.md', 'README.ru.md', 'LICENSE', 'composer.json', 'composer.lock', 'package.json'];
 
-    public function __construct(
-        private readonly SkillCatalog $catalog,
-        private readonly SkillRepository $skills,
-        private readonly LoggerInterface $logger = new NullLogger(),
-    ) {}
-
-    /** @return list<string> the skills that got a new version */
-    public function sync(string $directory): array {
+    /** @return array<string, SkillBundle> name => skill */
+    public static function load(string $directory, LoggerInterface $logger = new NullLogger()): array {
         if (!is_dir($directory)) {
             return [];
         }
-        $changed = [];
+        $skills = [];
         $entries = scandir($directory);
         foreach ($entries === false ? [] : $entries as $entry) {
             $root = $directory . '/' . $entry;
@@ -45,28 +38,17 @@ final class BuiltinSkills {
             try {
                 $bundle = SkillBundle::fromFiles(self::read($root), 'builtin:' . $entry, '');
             } catch (InvalidArgumentException $e) {
-                $this->logger->warning('Built-in skill is not a skill', ['skill' => $entry, 'error' => $e->getMessage()]);
+                $logger->warning('Built-in skill is not a skill', ['skill' => $entry, 'error' => $e->getMessage()]);
                 continue;
             }
-            $current = $this->skills->find($bundle->name);
-            if ($current !== null && $current->status === Skill::DISABLED) {
-                continue; // the owner turned it off: a start does not turn it on again
-            }
-            if ($current !== null && $current->status !== Skill::DRAFT && $current->body === $bundle->body
-                && $current->description === $bundle->description && $this->skills->files($bundle->name) == $bundle->files) {
-                continue;
-            }
-            $version = $this->catalog->propose($bundle->name, $bundle->description, $bundle->body, 'built-in skill', null, 'builtin');
-            $this->skills->attachFiles($version->id, $bundle->files);
-            $this->skills->accept($version->id);
-            $changed[] = $bundle->name;
-            $this->logger->info('Built-in skill updated', ['skill' => $bundle->name, 'version' => $version->version]);
+            $skills[$bundle->name] = $bundle;
         }
-        return $changed;
+        ksort($skills);
+        return $skills;
     }
 
     /** @return array<string, string> path inside the skill => bytes */
-    private static function read(string $root): array {
+    public static function read(string $root): array {
         $files = [];
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
         /** @var \SplFileInfo $file */

@@ -40,8 +40,25 @@ final class ArchiveSkillSource implements SkillSource {
         if ($response->getStatus() !== 200) {
             throw new InvalidArgumentException(sprintf(t('skill.import.http_failed'), $response->getStatus(), $url));
         }
-        $entries = preg_match('~\.zip(?:\?|$)~i', $url) === 1 ? self::zip($bytes) : self::tar($bytes);
-        return SkillBundle::fromFiles(self::skillDirectory($entries), trim($url), hash('sha256', $bytes));
+        return self::bundle($bytes, $url, trim($url));
+    }
+
+    /** The archive's file name tells zip from tar.gz; too big, not an archive or no SKILL.md — refused. */
+    public static function supportsName(string $name): bool {
+        return preg_match('~\.(?:zip|tar\.gz|tgz)$~i', trim($name)) === 1;
+    }
+
+    /**
+     * A skill from the bytes of an archive the agent already has (sent to the chat, made in the sandbox).
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function bundle(string $bytes, string $name, string $source): SkillBundle {
+        if (strlen($bytes) > self::MAX_ARCHIVE) {
+            throw new InvalidArgumentException(t('skill.import.bad_archive'));
+        }
+        $entries = preg_match('~\.zip(?:\?|$)~i', $name) === 1 ? self::zip($bytes) : self::tar($bytes);
+        return SkillBundle::fromFiles(self::skillDirectory($entries), $source, hash('sha256', $bytes));
     }
 
     /** @return array<string, string> */
