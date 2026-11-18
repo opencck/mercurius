@@ -155,10 +155,10 @@ final class Files implements FileStore {
             throw new SandboxError(t('sandbox.files.ispolnitel_ne_nastroen'), 500);
         }
         return $this->proc->run(
-            $this->runner->argv($principalId, $limits, $command, $this->workspace->home($principalId)),
+            $this->runner->argv($principalId, $limits, $this->workspace->home($principalId)),
             $this->workspace->home($principalId),
             self::TIMEOUT,
-            $stdin,
+            CommandRunner::input($command, $stdin),
             new NullCancellation(),
         );
     }

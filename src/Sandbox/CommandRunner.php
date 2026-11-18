@@ -53,8 +53,8 @@ final class CommandRunner implements Runner {
             // With an environment of its own the command gets it from the process, not from `env -i` arguments, which
             // other users could read in /proc.
             $result = $env === []
-                ? $this->proc->run($this->argv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation)
-                : $this->proc->run($this->streamArgv($principalId, $limits, $command, $cwd), $this->workspace->home($principalId), $timeoutSeconds, $stdin, $cancellation, $this->baseEnv($principalId) + $env);
+                ? $this->proc->run($this->argv($principalId, $limits, $cwd), $this->workspace->home($principalId), $timeoutSeconds, self::input($command, $stdin), $cancellation)
+                : $this->proc->run($this->streamArgv($principalId, $limits, $cwd), $this->workspace->home($principalId), $timeoutSeconds, self::input($command, $stdin), $cancellation, $this->baseEnv($principalId) + $env);
         } finally {
             $this->running[$principalId]--;
         }
@@ -97,8 +97,8 @@ final class CommandRunner implements Runner {
      *
      * @return list<string>
      */
-    public function streamArgv(int $principalId, SandboxLimits $limits, string $command, string $cwd): array {
-        $argv = $this->argv($principalId, $limits, $command, $cwd);
+    public function streamArgv(int $principalId, SandboxLimits $limits, string $cwd): array {
+        $argv = $this->argv($principalId, $limits, $cwd);
         $env = array_search('env', $argv, true);
         $setsid = array_search('setsid', $argv, true);
         if (!is_int($env) || !is_int($setsid)) {
@@ -108,10 +108,26 @@ final class CommandRunner implements Runner {
     }
 
     /**
+     * What the shell of the wrapper reads first: the command up to a NUL, then the stdin of the command itself. The
+     * command is not an argument: arguments of every process are seen by other users in /proc.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin
+     * @throws SandboxError a command with a NUL in it
+     */
+    public static function input(string $command, ?string $stdin = null): string {
+        if (str_contains($command, "\0")) {
+            throw new SandboxError(t('sandbox.command_runner.nul'), 400);
+        }
+        return $command . "\0" . ($stdin ?? '');
+    }
+
+    /**
+     * The wrapper: the participant's shell reads the command from its stdin (see input()), enters $cwd and runs it.
+     *
      * @param string $cwd directory the participant's shell enters before the command (umask 077: new files are private)
      * @return list<string>
      */
-    public function argv(int $principalId, SandboxLimits $limits, string $command, string $cwd): array {
+    public function argv(int $principalId, SandboxLimits $limits, string $cwd): array {
         $uid = (string) $this->workspace->uid($principalId);
         return [
             'prlimit',
@@ -129,7 +145,7 @@ final class CommandRunner implements Runner {
             'LANG=C.UTF-8',
             'setsid', '--wait',
             'bash', '-c', t('sandbox.command_runner.umask_077_cd_1_echo'),
-            'mercurius', $cwd, $command,
+            'mercurius', $cwd,
         ];
     }
 }

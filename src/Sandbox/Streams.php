@@ -53,10 +53,11 @@ final class Streams {
         $this->sessions[$id] = new StreamSession(
             $id,
             $principalId,
-            $this->runner->streamArgv($principalId, $limits, $command, $cwd),
+            $this->runner->streamArgv($principalId, $limits, $cwd),
             $this->workspace->home($principalId),
             $base + $env,
             self::BUFFER_BYTES,
+            prelude: CommandRunner::input($command),
         );
         return $id;
     }

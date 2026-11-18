@@ -50,6 +50,20 @@ final class CommandRunnerTest extends SandboxTestCase {
         self::assertStringNotContainsString('SANDBOX_TOKEN', $this->runner->run(7, self::limits(), 'env', $this->workspace->home(7), 10, null, new \Amp\NullCancellation(), ['A_B' => '1'])->stdout);
     }
 
+    public function testTheTextOfACommandIsNotInTheArgumentsOtherUsersSee(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin, not as an argument
+        $result = $this->sh(7, 'echo marker-of-the-command; tr "\0" " " < /proc/$$/cmdline');
+        self::assertSame(0, $result->exitCode, $result->stderr);
+        [$said, $cmdline] = explode("\n", $result->stdout, 2) + [1 => ''];
+        self::assertSame('marker-of-the-command', $said);
+        self::assertStringNotContainsString('marker-of-the-command', $cmdline);
+
+        $fed = $this->runner->run(7, self::limits(), 'cat', $this->workspace->home(7), 10, 'what the command reads', new \Amp\NullCancellation());
+        self::assertSame('what the command reads', $fed->stdout, 'the stdin of a command is still its own');
+        $this->expectException(SandboxError::class);
+        $this->runner->run(7, self::limits(), "echo a\0b", $this->workspace->home(7), 10, null, new \Amp\NullCancellation());
+    }
+
     public function testTimeoutKillsBackgroundProcesses(): void {
         $result = $this->sh(7, 'sleep 300 & nohup sleep 301 >/dev/null 2>&1 & sleep 302', 1);
 

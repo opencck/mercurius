@@ -43,11 +43,16 @@ final class StreamSession {
         array $env,
         int $bufferBytes,
         private readonly ProcessTree $tree = new ProcessTree(),
+        /** what the process reads first: the command for the wrapper's shell */
+        string $prelude = '',
     ) {
         $this->lastUsed = microtime(true);
         $this->stdout = new StreamBuffer($bufferBytes);
         $this->stderr = new OutputWindow(4_000, 12_000);
         $this->process = Process::start($argv, $cwd, $env);
+        if ($prelude !== '') {
+            $this->process->getStdin()->write($prelude);
+        }
         $proc = $this->process;
         $stdout = $this->stdout;
         $stderr = $this->stderr;
