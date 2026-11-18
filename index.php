@@ -940,10 +940,18 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
     $promptNotes,
     $channel,
     $telegram->ownerId,
-    $promptGate(...),
+    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the owner may switch off the check of a prompt change by the set
+    \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'IMPROVE_GATE') === '0'
+        ? static fn(string $current, string $candidate): \OpenCCK\App\Improve\GateVerdict => new \OpenCCK\App\Improve\GateVerdict(true, \Mercurius\I18n\t('improve.gate_off'))
+        : $promptGate(...),
     static fn(string $key, string $value): string => $settingsService->set($apiOwner, $key, $value),
     $logger,
     background: true,
+    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — self-modification may be allowed for good, kept as a grant
+    granted: static fn(string $key): bool => $approvalStore->hasGrant($apiOwner->id, $key),
+    grant: static function (string $key) use ($approvalStore, $apiOwner): void {
+        $approvalStore->addGrant($apiOwner->id, $key);
+    },
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvements));
 $chat->useImprovements($improvements);

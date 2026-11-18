@@ -48,13 +48,29 @@ final class Improvements implements CallbackHandler {
         private readonly LoggerInterface $logger = new NullLogger(),
         /** the evaluation runs in the background; tests wait for it */
         private readonly bool $background = false,
+        /** @var (Closure(string): bool)|null whether the owner allowed a kind of change for good (`self-improve:<kind>`) */
+        private readonly ?Closure $granted = null,
+        /** @var (Closure(string): void)|null keeps such a grant */
+        private readonly ?Closure $grant = null,
     ) {}
+
+    /** The kinds of change the owner may allow for good: an idea changes nothing, there is nothing to allow. */
+    private const GRANTABLE = ['prompt', 'setting', 'role', 'skill'];
 
     /** Keeps a proposal and shows it to the owner; the number of the proposal. */
     public function propose(string $kind, string $title, string $text, string $reason, ?string $key = null): int {
         $id = $this->store->propose($kind, mb_substr(trim($title), 0, 120), mb_substr(trim($text), 0, PromptNotes::MAX), mb_substr(trim($reason), 0, 1000), $key);
-        $this->card($id, $kind, $title, $text, $reason, $key);
         $this->logger->info('Improvement proposed', ['id' => $id, 'kind' => $kind]);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a kind the owner allowed for good goes without a card
+        if (in_array($kind, self::GRANTABLE, true) && $this->granted !== null && ($this->granted)('self-improve:' . $kind)) {
+            $proposal = $this->store->find($id);
+            if ($proposal !== null) {
+                $this->tell(sprintf(t('improve.by_grant'), $id, $proposal['title']));
+                $this->accept($proposal, null);
+            }
+            return $id;
+        }
+        $this->card($id, $kind, $title, $text, $reason, $key);
         return $id;
     }
 
@@ -75,14 +91,18 @@ final class Improvements implements CallbackHandler {
         };
         $card = sprintf(t('improve.card'), $id, t('improve.kind.' . $kind), $title, SecretMasker::mask(mb_substr($body, 0, 2500)), SecretMasker::mask($reason))
             . ($kind === 'prompt' ? "\n\n" . t('improve.card_prompt') : '');
-        $this->channel->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [[
+        $row = [
             new Button(t('improve.accept'), sprintf('%s:%d:a', self::PREFIX, $id)),
             new Button(t('improve.reject'), sprintf('%s:%d:r', self::PREFIX, $id)),
-        ]]));
+        ];
+        if (in_array($kind, self::GRANTABLE, true) && $this->grant !== null) {
+            $row[] = new Button(t('improve.always'), sprintf('%s:%d:g', self::PREFIX, $id));
+        }
+        $this->channel->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [$row]));
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if (preg_match('~^im:(\d+):([ar])$~', $callback->data, $m) !== 1) {
+        if (preg_match('~^im:(\d+):([arg])$~', $callback->data, $m) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
@@ -100,20 +120,41 @@ final class Improvements implements CallbackHandler {
             }
             return;
         }
-        $next = $proposal['kind'] === 'prompt' ? 'checking' : 'accepted';
-        if (!$this->store->move($id, ['proposed'], $next)) {
-            $this->channel->answerCallback($callback->callbackId, t('improve.decided'));
+        if (!$this->accept($proposal, $callback)) {
             return;
         }
-        $this->channel->answerCallback($callback->callbackId, $proposal['kind'] === 'prompt' ? t('improve.checking') : t('improve.accepted'));
-        if ($callback->messageId !== null) {
-            $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('improve.closed'), $id, $proposal['title'], $proposal['kind'] === 'prompt' ? t('improve.checking') : t('improve.accepted')));
+        if ($m[2] === 'g' && $this->grant !== null && in_array($proposal['kind'], self::GRANTABLE, true)) {
+            ($this->grant)('self-improve:' . $proposal['kind']);
+        }
+    }
+
+    /**
+     * Takes a proposal: a prompt change goes to the check of the set, a setting is set, an idea is kept.
+     *
+     * @param array{id: int, kind: string, title: string, body: string, reason: string, key: ?string, status: string} $proposal
+     * @param IncomingCallback|null $callback the press of the owner; null — taken by a grant for good
+     */
+    private function accept(array $proposal, ?IncomingCallback $callback): bool {
+        $id = $proposal['id'];
+        $next = $proposal['kind'] === 'prompt' ? 'checking' : 'accepted';
+        if (!$this->store->move($id, ['proposed'], $next)) {
+            if ($callback !== null) {
+                $this->channel->answerCallback($callback->callbackId, t('improve.decided'));
+            }
+            return false;
+        }
+        if ($callback !== null) {
+            $this->channel->answerCallback($callback->callbackId, $proposal['kind'] === 'prompt' ? t('improve.checking') : t('improve.accepted'));
+            if ($callback->messageId !== null) {
+                $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('improve.closed'), $id, $proposal['title'], $proposal['kind'] === 'prompt' ? t('improve.checking') : t('improve.accepted')));
+            }
         }
         match ($proposal['kind']) {
             'prompt' => $this->background ? async(fn() => $this->checkPrompt($proposal)) : $this->checkPrompt($proposal),
             'setting' => $this->applySetting($proposal),
             default => $this->tell(sprintf(t('improve.idea_kept'), $id)),
         };
+        return true;
     }
 
     /** @param array{id: int, kind: string, title: string, body: string, reason: string, key: ?string, status: string} $proposal */

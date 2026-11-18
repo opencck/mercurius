@@ -117,6 +117,44 @@ final class ImprovementsTest extends AsyncTestCase {
         self::assertSame([], $this->gated);
     }
 
+    /** @return array{string, string}|null the setting set last */
+    private function lastSetting(): ?array {
+        return $this->settingsSet === [] ? null : $this->settingsSet[count($this->settingsSet) - 1];
+    }
+
+    public function testTheOwnerAllowsAKindOfChangeForGood(): void {
+        /** @var \ArrayObject<int, string> $grants */
+        $grants = new \ArrayObject();
+        $improvements = new Improvements(
+            $this->store,
+            $this->notes,
+            $this->channel,
+            '42',
+            fn(string $current, string $candidate): GateVerdict => new GateVerdict(true, 'ок', ['overall' => 0.9]),
+            function (string $key, string $value): string {
+                $this->settingsSet[] = [$key, $value];
+                return 'сохранено';
+            },
+            granted: static fn(string $key): bool => in_array($key, $grants->getArrayCopy(), true),
+            grant: static function (string $key) use ($grants): void {
+                $grants->append($key);
+            },
+        );
+        $first = $improvements->propose('setting', 'Дешевле сжатие', 'a/one', 'дорого', 'LLM_CHEAP_MODEL');
+        $buttons = array_map(static fn($b): string => $b->data, (array_values(array_filter($this->channel->buttons))[0] ?? [[]])[0]);
+        self::assertContains(sprintf('im:%d:g', $first), $buttons, 'the card offers to allow this kind for good');
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — self-modification may be allowed for good
+        $this->press($improvements, $first, 'g');
+        self::assertSame(['self-improve:setting'], $grants->getArrayCopy());
+        self::assertSame(['LLM_CHEAP_MODEL', 'a/one'], $this->lastSetting());
+
+        $cards = count(array_filter($this->channel->buttons));
+        $improvements->propose('setting', 'Ещё дешевле', 'a/two', 'ещё дороже', 'LLM_CHEAP_MODEL');
+        self::assertSame(['LLM_CHEAP_MODEL', 'a/two'], $this->lastSetting(), 'the next one goes by the grant');
+        self::assertSame($cards, count(array_filter($this->channel->buttons)), 'with a notice, not a card');
+    }
+
     public function testAnUndecidedProposalIsShownAgain(): void {
         $improvements = $this->improvements();
         $improvements->propose('idea', 'Первая', 'текст', 'почему');
