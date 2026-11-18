@@ -582,17 +582,21 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
-$proposals->onForget(static function (Fact $fact) use ($transcript, $experience, $traces): void {
+$consolidationJournal = new PostgresConsolidationJournal($db);
+$proposals->onForget(static function (Fact $fact) use ($transcript, $experience, $traces, $consolidationJournal): void {
     $line = sprintf('[#%d] %s', $fact->id, $fact->text);
     $transcript->redact($line, sprintf('[#%d] (забыто)', $fact->id));
     $traces->redactPayloads($line, sprintf('[#%d] (забыто)', $fact->id));
     $experience->redact($fact->text, '(забыто)');
+    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — and the copies of it: arguments of calls and nightly reports
+    $transcript->redactCalls($fact->text, '(забыто)');
+    $consolidationJournal->redact($fact->text, '(забыто)');
 });
 // spec: BRIEF.md#консолидация-dreaming — the nightly check: code only, the owner decides
 $consolidation = new Consolidation(
     $memoryStore,
     $proposals,
-    new PostgresConsolidationJournal($db),
+    $consolidationJournal,
     $memoryCards->show(...),
     static function (string $text) use ($channel, $telegram): void {
         $channel->send(new OutgoingMessage($telegram->ownerId, $text));

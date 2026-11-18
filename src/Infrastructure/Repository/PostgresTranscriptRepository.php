@@ -157,6 +157,30 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $this->db->execute('UPDATE messages SET compact_content = ? WHERE id = ?', [$content, $messageId]);
     }
 
+    public function redactCalls(string $text, string $replacement): int {
+        if ($text === '') {
+            return 0;
+        }
+        // the arguments are JSON: the text is replaced as JSON writes it
+        $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $from = substr(json_encode($text, $flags), 1, -1);
+        $to = substr(json_encode($replacement, $flags), 1, -1);
+        $changed = 0;
+        foreach ($this->db->execute(
+            'UPDATE messages SET tool_calls = replace(tool_calls::text, ?, ?)::jsonb WHERE tool_calls IS NOT NULL AND strpos(tool_calls::text, ?) > 0 RETURNING id',
+            [$from, $to, $from],
+        ) as $row) {
+            $changed++;
+        }
+        foreach ($this->db->execute(
+            'UPDATE tool_calls SET arguments = replace(arguments::text, ?, ?)::jsonb WHERE strpos(arguments::text, ?) > 0 RETURNING id',
+            [$from, $to, $from],
+        ) as $row) {
+            $changed++;
+        }
+        return $changed;
+    }
+
     public function redact(string $text, string $replacement): int {
         if ($text === '') {
             return 0;

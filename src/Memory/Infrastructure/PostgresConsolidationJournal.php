@@ -29,6 +29,23 @@ final class PostgresConsolidationJournal implements ConsolidationJournal {
         ];
     }
 
+    public function redact(string $text, string $replacement): int {
+        if ($text === '') {
+            return 0;
+        }
+        $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $from = substr(json_encode($text, $flags), 1, -1);
+        $to = substr(json_encode($replacement, $flags), 1, -1);
+        $changed = 0;
+        foreach ($this->db->execute(
+            'UPDATE memory_consolidations SET report = replace(report::text, ?, ?)::jsonb WHERE strpos(report::text, ?) > 0 RETURNING id',
+            [$from, $to, $from],
+        ) as $row) {
+            $changed++;
+        }
+        return $changed;
+    }
+
     public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void {
         $this->db->execute(
             'INSERT INTO memory_consolidations (status, facts, chars, duration_ms, report) VALUES (?, ?, ?, ?, ?::jsonb)',

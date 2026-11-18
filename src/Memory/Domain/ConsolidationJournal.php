@@ -25,4 +25,7 @@ interface ConsolidationJournal {
      * Whether a finding may be shown now: not shown within the pause. When it may, it counts as shown from now.
      */
     public function notice(string $kind, int $a, int $b, int $pauseDays): bool;
+
+    /** Replaces a text in every stored report (a forgotten fact); returns the reports changed. */
+    public function redact(string $text, string $replacement): int;
 }

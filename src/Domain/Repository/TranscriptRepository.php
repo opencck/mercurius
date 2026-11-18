@@ -63,6 +63,9 @@ interface TranscriptRepository {
     /** Replaces a text in every stored message (a forgotten fact); returns the messages changed. */
     public function redact(string $text, string $replacement): int;
 
+    /** Replaces a text in the arguments of every stored tool call (a forgotten fact proposed by a tool); returns how many changed. */
+    public function redactCalls(string $text, string $replacement): int;
+
     /** @return list<string> user messages of the conversation with $afterId < id <= $uptoId, in order */
     public function userMessages(int $conversationId, int $afterId, int $uptoId): array;
 

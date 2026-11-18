@@ -96,6 +96,33 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         $this->compact[$messageId] = $content;
     }
 
+    public function redactCalls(string $text, string $replacement): int {
+        $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $from = substr(json_encode($text, $flags), 1, -1);
+        $to = substr(json_encode($replacement, $flags), 1, -1);
+        $changed = 0;
+        $rows = [];
+        foreach ($this->messages as $row) {
+            $m = $row['message'];
+            $calls = [];
+            $touched = false;
+            foreach ($m->toolCalls as $call) {
+                if ($text !== '' && str_contains($call->argumentsJson, $from)) {
+                    $call = new \Mercurius\Llm\ToolCall($call->id, $call->name, str_replace($from, $to, $call->argumentsJson));
+                    $touched = true;
+                }
+                $calls[] = $call;
+            }
+            if ($touched) {
+                $row['message'] = new Message($m->role, $m->content, $calls, $m->toolCallId);
+                $changed++;
+            }
+            $rows[] = $row;
+        }
+        $this->messages = $rows;
+        return $changed;
+    }
+
     public function redact(string $text, string $replacement): int {
         $changed = 0;
         $messages = [];

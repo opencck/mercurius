@@ -28,6 +28,21 @@ final class InMemoryConsolidationJournal implements ConsolidationJournal {
         return null;
     }
 
+    public function redact(string $text, string $replacement): int {
+        $changed = 0;
+        $passes = [];
+        foreach ($this->passes as $pass) {
+            $report = array_map(static fn(string $line): string => str_replace($text, $replacement, $line), $pass['report']);
+            if ($text !== '' && $report !== $pass['report']) {
+                $pass['report'] = $report;
+                $changed++;
+            }
+            $passes[] = $pass;
+        }
+        $this->passes = $passes;
+        return $changed;
+    }
+
     public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void {
         $this->passes[] = ['at' => ($this->now)(), 'facts' => $facts, 'chars' => $chars, 'status' => $status, 'report' => $report];
     }

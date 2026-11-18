@@ -165,6 +165,22 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(ToolCallStatus::AwaitingApproval, $this->transcript->pendingCalls($id)[0]->status);
     }
 
+    public function testAForgottenFactLeavesTheArgumentsOfCalls(): void {
+        $id = $this->startRun();
+        $fact = 'у Пети аллергия на "орехи"';
+        $args = ['text' => $fact, 'scope' => 'owner'];
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [new StoredToolCall('m1', 0, 'memory_propose', $args, json_encode($args, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), DangerClass::Write, ToolCallStatus::Done)]);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in tool arguments
+        self::assertGreaterThan(0, $this->transcript->redactCalls($fact, '(забыто)'));
+        $calls = array_merge(...array_map(static fn(\Mercurius\Llm\Message $m): array => $m->toolCalls, $this->transcript->runMessages($id)));
+        self::assertNotSame([], $calls);
+        foreach ($calls as $call) {
+            self::assertStringNotContainsString('аллергия', $call->argumentsJson);
+            self::assertStringContainsString('(забыто)', $call->argumentsJson);
+        }
+    }
+
     public function testUnfinishedListsRunningRuns(): void {
         $id = $this->startRun();
 
