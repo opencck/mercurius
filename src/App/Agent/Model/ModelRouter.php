@@ -34,7 +34,7 @@ final class ModelRouter {
     ) {}
 
     public function choose(?int $conversationId, string $text, ?Cancellation $cancellation = null): ModelRef {
-        [$class, $method, $reason] = $this->classifier->classify($text, $cancellation);
+        [$class, $method, $reason] = $this->classifier->classify($text, $cancellation, $conversationId);
         $role = $class === RequestClass::Complex ? ModelRole::STRONG : ModelRole::MAIN;
         $model = $this->roles->model($role);
         $info = $this->catalog->find($model);

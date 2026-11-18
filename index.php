@@ -285,8 +285,9 @@ $llm = new ProviderRouter($clients, $modelCatalog);
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $llmSettings->providers());
 $modelRoles->seed();
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
+$llmCalls = new PostgresLlmCallRepository($db);
 $modelRouter = new ModelRouter(
-    new RequestClassifier($llm, static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP), $logger),
+    new RequestClassifier($llm, static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP), $logger, calls: $llmCalls),
     $modelRoles,
     $modelCatalog,
     $routingDecisions,
@@ -421,7 +422,6 @@ $tracer = new Tracer($traces, $modelCatalog, $logger);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
 $approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger, $tracer);
-$llmCalls = new PostgresLlmCallRepository($db);
 // spec: BRIEF.md#входящие-вложения — vision, speech and video models through the models' HTTP client (VLESS when set);
 // an own endpoint's key is the vault secret media-endpoint-<name>
 $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(

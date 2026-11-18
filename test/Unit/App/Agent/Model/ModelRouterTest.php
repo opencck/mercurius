@@ -69,6 +69,18 @@ final class ModelRouterTest extends AsyncTestCase {
         self::assertLessThan(1.0, microtime(true) - $started);
     }
 
+    public function testTheCallOfTheClassifierIsCountedInTheCallsOfModels(): void {
+        $this->llm = new ScriptedLlm([ScriptedLlm::text('normal')]);
+        $calls = new \OpenCCK\Test\Support\InMemoryLlmCallRepository();
+        $classifier = new RequestClassifier($this->llm, static fn(): string => 'openrouter:cheap/model', new NullLogger(), calls: $calls);
+
+        $classifier->classify(str_repeat('Расскажи подробнее про настройку nginx. ', 8), conversationId: 5);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
+        self::assertCount(1, $calls->calls);
+        self::assertSame(['classify', 5, 'openrouter:cheap/model'], [$calls->calls[0]->purpose, $calls->calls[0]->conversationId, $calls->calls[0]->model]);
+    }
+
     public function testUnclearTextAsksTheCheapModel(): void {
         $this->llm = new ScriptedLlm([ScriptedLlm::text('normal')]);
 

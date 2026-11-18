@@ -40,10 +40,15 @@ final class RequestClassifier {
         private readonly Closure $cheapModel,
         private readonly LoggerInterface $logger,
         private readonly float $timeout = 8.0,
+        /** where calls of models are counted; null — not counted */
+        private readonly ?\OpenCCK\Domain\Repository\LlmCallRepository $calls = null,
     ) {}
 
-    /** @return array{RequestClass, string, string} class, method (heuristic, model, fallback), reason */
-    public function classify(string $text, ?Cancellation $cancellation = null): array {
+    /**
+     * @param int|null $conversationId the conversation the call is counted on
+     * @return array{RequestClass, string, string} class, method (heuristic, model, fallback), reason
+     */
+    public function classify(string $text, ?Cancellation $cancellation = null, ?int $conversationId = null): array {
         $text = trim($text);
         $length = mb_strlen($text);
         if (str_starts_with($text, '/')) {
@@ -59,9 +64,11 @@ final class RequestClassifier {
             return [RequestClass::Short, 'heuristic', sprintf(t('model.request_classifier.korotkiy_zapros_simvolov'), $length)];
         }
         $limit = new TimeoutCancellation($this->timeout);
+        $model = ($this->cheapModel)();
+        $started = microtime(true);
         try {
             $response = $this->llm->complete(new ChatRequest(
-                ($this->cheapModel)(),
+                $model,
                 [Message::system(\Mercurius\I18n\t(self::PROMPT)), Message::user(SecretMasker::mask(mb_substr($text, 0, 4000)))],
                 [],
                 300,
@@ -70,15 +77,48 @@ final class RequestClassifier {
             if ($cancellation?->isRequested() === true) {
                 throw $e;
             }
+            $this->count($conversationId, $model, 'timeout', $started, null);
             $this->logger->warning('Request classification timed out');
             return [RequestClass::Normal, 'fallback', t('model.request_classifier.klassifikator_ne_uspel_otvetit')];
         } catch (Throwable $e) {
+            $this->count($conversationId, $model, 'error', $started, null);
             $this->logger->warning('Request classification failed', ['error' => $e::class]);
             return [RequestClass::Normal, 'fallback', t('model.request_classifier.klassifikator_ne_otvetil')];
         }
+        $this->count($conversationId, $model, null, $started, $response);
         $class = RequestClass::tryFrom(strtolower(trim($response->text, " \t\n\r.\"'«»")));
         return $class === null
             ? [RequestClass::Normal, 'fallback', t('model.request_classifier.klassifikator_otvetil_ne_po_formatu')]
             : [$class, 'model', t('model.request_classifier.otsenka_deshevoy_modeli')];
+    }
+
+    /**
+     * The call of the cheap model goes into the calls of models: its tokens and money are counted like any other.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
+     */
+    private function count(?int $conversationId, string $model, ?string $error, float $started, ?\Mercurius\Llm\ChatResponse $response): void {
+        if ($this->calls === null) {
+            return;
+        }
+        $usage = $response?->usage;
+        try {
+            $this->calls->record(new \OpenCCK\Domain\Entity\LlmCallRecord(
+                conversationId: $conversationId,
+                purpose: 'classify',
+                model: $model,
+                finishReason: $response?->finishReason->value,
+                errorKind: $error,
+                inputTokens: max(0, $usage->inputTokens ?? 0),
+                outputTokens: max(0, $usage->outputTokens ?? 0),
+                cacheReadTokens: max(0, $usage->cacheReadTokens ?? 0),
+                cacheWriteTokens: max(0, $usage->cacheWriteTokens ?? 0),
+                reasoningTokens: max(0, $usage->reasoningTokens ?? 0),
+                costUsd: $usage?->costUsd,
+                durationMs: max(0, (int) round((microtime(true) - $started) * 1000.0)),
+            ));
+        } catch (Throwable $e) {
+            $this->logger->error('Could not record model usage', ['error' => $e::class]);
+        }
     }
 }
