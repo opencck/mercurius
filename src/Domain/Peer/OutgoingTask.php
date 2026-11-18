@@ -20,5 +20,7 @@ final class OutgoingTask {
         public readonly string $task,
         public readonly string $state,
         public readonly ?string $result,
+        /** the run that gave the task; a task of a neighbour's task waits for it */
+        public readonly ?int $leaderRun = null,
     ) {}
 }

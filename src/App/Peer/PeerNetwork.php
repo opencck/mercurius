@@ -40,6 +40,8 @@ final class PeerNetwork {
     private const RETRY_MAX = 300.0;
     /** @var array<string, array{fails: int, next: float}> failed tries by neighbour */
     private array $retries = [];
+    /** @var (Closure(OutgoingTask): void)|null told when a task ends; the A2A server continues a task that waited for it */
+    private ?Closure $finished = null;
 
     public function __construct(
         private readonly PeerRepository $peers,
@@ -64,6 +66,14 @@ final class PeerNetwork {
         /** @var (Closure(int): ?\OpenCCK\Domain\Agent\SandboxLimits)|null the sandbox limits of a participant */
         private readonly ?Closure $limitsOf = null,
     ) {}
+
+    /**
+     * spec: BRIEF.md#сеть-агентов — results go up the chain: a task of a neighbour that waited for this one goes on
+     * @param Closure(OutgoingTask): void $finished
+     */
+    public function onFinished(Closure $finished): void {
+        $this->finished = $finished;
+    }
 
     /**
      * Opens a connection to the neighbour now (or finds a live one): tasks then go over it both ways.
@@ -410,6 +420,13 @@ final class PeerNetwork {
         // The next turn of the conversation sees the reply as data, not instructions.
         $conversation = $this->conversations->openConversation($out->principalId, $out->channel, $out->chatId);
         $this->transcript->appendUser($conversation, null, UntrustedWrapper::wrap('agent:' . $out->peer, sprintf(t('peer.peer_network.itog_zadachi_sosedu'), $out->id, $out->peer, $label, $answer)));
+        if ($this->finished !== null) {
+            try {
+                ($this->finished)(new OutgoingTask($out->id, $out->peer, $out->remoteId, $out->principalId, $out->channel, $out->chatId, $out->task, $state, $answer, $out->leaderRun));
+            } catch (Throwable $e) {
+                $this->logger->error('A2A chain not continued', ['task' => $out->id, 'error' => $e::class]);
+            }
+        }
     }
 
     public function text(): string {

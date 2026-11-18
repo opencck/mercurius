@@ -229,6 +229,10 @@ final class AgentNetworkTest extends AsyncTestCase {
         $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
         $leaderPeers = new InMemoryPeerRepository();
         $network = $this->network($leaderPeers, $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $ended = [];
+        $network->onFinished(static function (\OpenCCK\Domain\Peer\OutgoingTask $out) use (&$ended): void {
+            $ended[] = $out;
+        });
 
         $added = $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
         self::assertStringContainsString($this->followerKey->fingerprint(), $added, 'the owner sees the key to compare');
@@ -248,6 +252,8 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('📨 Агент «follower», задача #1', $sent);
         self::assertStringContainsString('Париж', $sent);
         self::assertSame(A2aTask::COMPLETED, $leaderPeers->outgoing[1]->state ?? null);
+        self::assertCount(1, $ended, 'the server of the leader learns the task ended');
+        self::assertSame(1, $ended[0]->leaderRun);
         $first = array_key_first($this->followerPeers->tasks);
         self::assertNotNull($first);
         self::assertSame([self::LEADER, self::FOLLOWER], $this->followerPeers->tasks[$first]->path, 'the chain carries both instances');
@@ -257,6 +263,41 @@ final class AgentNetworkTest extends AsyncTestCase {
         $impostor = $tool->execute(['peer' => 'follower', 'task' => 'ещё вопрос'], new ToolContext(1, $conversation, $owner, new NullCancellation()));
         self::assertTrue($impostor->isError);
         self::assertStringContainsString('не ключом этого соседа', $impostor->content);
+    }
+
+    public function testATaskThatDelegatedFurtherWaitsForTheAnswerAndThenSumsUp(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::text('Спросил соседа C, жду ответа.'), ScriptedLlm::text('Итог: по данным C — Париж.')]);
+        $llm->delay = 0.02;
+        $this->follower($llm);
+        $answer = $this->send('msg-chain', 'Какая столица Франции? Узнай у C.', [], 'ctx-chain');
+        $taskId = self::text($answer, 'result', 'task', 'id');
+        $task = $this->followerPeers->task($taskId);
+        self::assertNotNull($task);
+        self::assertNotNull($task->runId);
+        // The run gives a task to C while it works: the task of the leader waits for C.
+        $chat = 'a2a-' . $task->principalId . '-ctx-chain';
+        $out = $this->followerPeers->addOutgoing('c', 'remote-1', $task->principalId, A2aServer::CHANNEL, $chat, 'столица Франции', A2aTask::WORKING, $task->runId);
+        delay(0.1);
+        self::assertSame(A2aTask::WORKING, $this->followerPeers->task($taskId)?->state, 'the run ended, but C has not answered yet');
+
+        // C answers: the reply is in the conversation, a new run sums up and the leader's task is completed with it.
+        $this->followerPeers->finishOutgoing($out->id, A2aTask::COMPLETED, 'Париж');
+        $conversation = $this->follower->conversations->openConversation($task->principalId, A2aServer::CHANNEL, $chat);
+        $this->follower->transcript->appendUser($conversation, null, 'Итог задачи #1 соседу «c»: Париж');
+        $this->server->chainAnswered($this->followerPeers->outgoing[$out->id]);
+        delay(0.1);
+        $done = $this->followerPeers->task($taskId);
+        self::assertNotNull($done);
+        self::assertSame(A2aTask::COMPLETED, $done->state);
+        self::assertSame('Итог: по данным C — Париж.', $done->result);
+        $last = end($llm->requests);
+        self::assertNotFalse($last);
+        self::assertStringContainsString('Париж', json_encode($last->messages, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), 'the summing run sees the answer of C');
+
+        // An answer of C for a task that already ended changes nothing.
+        $this->server->chainAnswered($this->followerPeers->outgoing[$out->id]);
+        delay(0.05);
+        self::assertSame('Итог: по данным C — Париж.', $this->followerPeers->task($taskId)?->result);
     }
 
     public function testTheLeadersTraceShowsTheRemoteRunAndItsSpend(): void {

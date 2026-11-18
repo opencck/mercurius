@@ -787,6 +787,7 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
 );
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
+    $peerNetwork->onFinished($a2aServer->chainAnswered(...));
 }
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));

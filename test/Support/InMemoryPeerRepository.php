@@ -184,7 +184,7 @@ final class InMemoryPeerRepository implements PeerRepository {
     public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask {
         $id = count($this->outgoing) + 1;
         $this->spend[$id] = ['leader' => $leaderRun, 'run' => null, 'tokens' => 0, 'usd' => null];
-        return $this->outgoing[$id] = new OutgoingTask($id, $peer, $remoteId, $principalId, $channel, $chatId, $task, $state, null);
+        return $this->outgoing[$id] = new OutgoingTask($id, $peer, $remoteId, $principalId, $channel, $chatId, $task, $state, null, $leaderRun);
     }
 
     public function openOutgoing(int $limit): array {
@@ -208,6 +208,6 @@ final class InMemoryPeerRepository implements PeerRepository {
 
     public function finishOutgoing(int $id, string $state, ?string $result): void {
         $o = $this->outgoing[$id];
-        $this->outgoing[$id] = new OutgoingTask($o->id, $o->peer, $o->remoteId, $o->principalId, $o->channel, $o->chatId, $o->task, $state, $result);
+        $this->outgoing[$id] = new OutgoingTask($o->id, $o->peer, $o->remoteId, $o->principalId, $o->channel, $o->chatId, $o->task, $state, $result, $o->leaderRun);
     }
 }

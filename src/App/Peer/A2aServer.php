@@ -19,6 +19,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Peer\A2aTask;
+use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PeerRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
@@ -80,6 +81,8 @@ final class A2aServer implements JobRuns {
     private array $hits = [];
     /** @var array<string, DeferredCancellation> */
     private array $cancels = [];
+    /** @var array<int, true> runs whose neighbours answered while the run still worked: they sum up when it ends */
+    private array $answered = [];
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
 
@@ -465,9 +468,75 @@ final class A2aServer implements JobRuns {
             if ($current !== null && $current->terminal()) {
                 return;
             }
+            // spec: BRIEF.md#сеть-агентов — a task given further down the chain: the leader gets the sum, not «I asked»
+            if ($this->waiting($final->id)) {
+                return;
+            }
+            if (isset($this->answered[$final->id])) {
+                unset($this->answered[$final->id]);
+                if ($this->sumUp($task, $agent, $final->id)) {
+                    return;
+                }
+            }
             [$state, $text] = $this->outcome($final);
             $this->peers->updateTask($task->id, $state, null, $text);
         });
+    }
+
+    /**
+     * A neighbour answered a task that a task of this server gave it. When every task of that run has ended, a new run
+     * in the same conversation reads the answers (they are already there as data) and its answer completes the task of
+     * the leader. While the run still works, it sums up when it ends.
+     *
+     * spec: BRIEF.md#сеть-агентов — results go up the chain A→B→C
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L379-L396 (_watchdog_loop) — hermes has no
+     *      chains; a task left waiting is failed by the same sweep of stale tasks here
+     */
+    public function chainAnswered(OutgoingTask $out): void {
+        if ($out->leaderRun === null || $out->channel !== self::CHANNEL) {
+            return;
+        }
+        $task = $this->peers->taskByRun($out->leaderRun);
+        if ($task === null || $task->terminal() || $this->waiting($out->leaderRun)) {
+            return;
+        }
+        $agent = $this->principals->find($task->principalId);
+        if ($agent === null) {
+            return;
+        }
+        if (isset($this->cancels[$task->id])) {
+            $this->answered[$out->leaderRun] = true;
+            return;
+        }
+        if (!$this->sumUp($task, $agent, $out->leaderRun)) {
+            $this->answered[$out->leaderRun] = true;
+        }
+    }
+
+    /** Whether a run still waits for tasks it gave to neighbours. */
+    private function waiting(int $runId): bool {
+        foreach ($this->peers->outgoingOfRun($runId) as $out) {
+            if (!in_array($out['state'], A2aTask::TERMINAL, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A new run that reads the answers of the neighbours and gives the result of the task; false when it did not start. */
+    private function sumUp(A2aTask $task, Principal $agent, int $runId): bool {
+        $previous = $this->runs->find($runId);
+        if ($previous === null) {
+            return false;
+        }
+        $run = $this->runs->start($previous->conversationId, $agent->id, $this->model, $this->policies->forPrincipal($agent)->run);
+        if ($run === null) {
+            return false;
+        }
+        $this->transcript->appendUser($previous->conversationId, $run->id, sprintf(t('peer.a2a_server.chain_answered'), self::INPUT_REQUIRED_MARKER));
+        $this->peers->updateTask($task->id, A2aTask::WORKING, $run->id, null);
+        $this->launch($this->peers->task($task->id) ?? $task, $agent, $run);
+        return true;
     }
 
     /** @return array{string, string} */

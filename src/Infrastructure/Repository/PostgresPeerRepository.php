@@ -15,7 +15,7 @@ use UnexpectedValueException;
 
 final class PostgresPeerRepository implements PeerRepository {
     private const TASK = 'id, principal_id, context_id, message_id, state, run_id, result, depth, path::text AS path';
-    private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result';
+    private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result, leader_run_id';
     private const REQUEST = 'id, fingerprint, name, url, transport, status';
     private const OPEN = "('TASK_STATE_SUBMITTED', 'TASK_STATE_WORKING')";
 
@@ -274,6 +274,7 @@ final class PostgresPeerRepository implements PeerRepository {
             self::str($row, 'task'),
             self::str($row, 'state'),
             isset($row['result']) && is_string($row['result']) ? $row['result'] : null,
+            isset($row['leader_run_id']) && is_int($row['leader_run_id']) ? $row['leader_run_id'] : null,
         );
     }
 
