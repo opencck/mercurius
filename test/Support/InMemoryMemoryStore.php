@@ -160,9 +160,9 @@ final class InMemoryMemoryStore implements MemoryStore {
         return isset($this->tombstones[$fingerprint]);
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
         $id = $this->nextProposal++;
-        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId);
+        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId, $aboutPerson);
     }
 
     public function proposal(int $id): ?Proposal {
@@ -174,7 +174,7 @@ final class InMemoryMemoryStore implements MemoryStore {
         if ($p === null || $p->status !== Proposal::PENDING) {
             return null;
         }
-        return $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, $status, $p->principalId, $p->runId);
+        return $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, $status, $p->principalId, $p->runId, $p->aboutPerson);
     }
 
     public function setCard(int $id, string $chatId, string $messageId): void {
@@ -184,7 +184,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function linkProposal(int $proposalId, int $factId): void {
         $p = $this->proposals[$proposalId] ?? null;
         if ($p !== null) {
-            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId);
+            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId, $p->aboutPerson);
         }
     }
 
@@ -202,7 +202,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function reopen(int $id): void {
         $p = $this->proposals[$id] ?? null;
         if ($p !== null && $p->status === Proposal::APPROVED) {
-            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId);
+            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId, $p->aboutPerson);
         }
     }
 

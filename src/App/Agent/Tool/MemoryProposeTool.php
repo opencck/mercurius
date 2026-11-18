@@ -45,6 +45,7 @@ final class MemoryProposeTool implements Tool {
                 'fact_id' => ['type' => 'integer', 'minimum' => 1],
                 'text' => ['type' => 'string', 'maxLength' => Proposals::SUMMARY_MAX],
                 'reason' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 500],
+                'about_person' => ['type' => 'boolean', 'description' => t('tool.memory_propose.about_person')],
             ],
             'required' => ['kind', 'reason'],
             'additionalProperties' => false,
@@ -76,6 +77,7 @@ final class MemoryProposeTool implements Tool {
                 $this->audience->scopes($context->principal, $context->conversationId),
                 $context->principal->id,
                 $context->runId,
+                ($args['about_person'] ?? false) === true,
             );
         } catch (InvalidArgumentException $e) {
             return ToolResult::error($e->getMessage());

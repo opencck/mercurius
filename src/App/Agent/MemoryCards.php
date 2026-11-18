@@ -146,7 +146,8 @@ final class MemoryCards implements CallbackHandler {
             $this->place($proposal->scope),
             $text,
             SecretMasker::mask($proposal->reason),
-        );
+        ) . ($proposal->aboutPerson ? "
+" . t('agent.memory_cards.about_person') : '');
     }
 
     private function who(?int $principalId): string {

@@ -138,4 +138,14 @@ final class ProposalsTest extends TestCase {
             }
         }
     }
+    public function testAFactAboutAPersonGoesOnlyToTheOwnersMemoryAndIsMarked(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
+        $proposal = $this->proposals->propose(Proposal::ADD, null, 'У Пети аллергия на орехи', 'рассказал владелец', ['chat:t:1', 'owner'], 7, 3, true);
+        self::assertSame('owner', $proposal->scope, 'not the first readable scope: the owner\'s');
+        self::assertTrue($proposal->aboutPerson);
+        self::assertTrue($this->store->proposal($proposal->id)?->aboutPerson);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->proposals->propose(Proposal::ADD, null, 'У Пети аллергия на орехи', 'рассказал участник', ['chat:t:1'], 9, 4, true);
+    }
 }

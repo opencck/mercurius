@@ -95,7 +95,7 @@ interface MemoryStore {
 
     public function forgotten(string $fingerprint): bool;
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId): Proposal;
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal;
 
     public function proposal(int $id): ?Proposal;
 

@@ -53,15 +53,20 @@ final class Proposals {
 
     /**
      * @param list<string> $readable the audience's scopes; a new fact goes to the first of them
+     * @param bool $aboutPerson the fact is about another person: only the owner's memory takes it
      * @throws InvalidArgumentException with the reason to show the model
      */
-    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId): Proposal {
+    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
             throw new InvalidArgumentException(t('app.proposals.zdes_pamyat_nedostupna'));
         }
-        $scope = $readable[0];
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
+        if ($aboutPerson && !in_array(Audience::OWNER, $readable, true)) {
+            throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
+        }
+        $scope = $aboutPerson ? Audience::OWNER : $readable[0];
         switch ($kind) {
             case Proposal::ADD:
                 $this->check($text, ContentScreen::FACT_MAX);
@@ -75,6 +80,9 @@ final class Proposals {
                     throw new InvalidArgumentException(t('app.proposals.takogo_fakta_zdes_net'));
                 }
                 $scope = $fact->scope;
+                if ($aboutPerson && $scope !== Audience::OWNER) {
+                    throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
+                }
                 if ($kind === Proposal::CHANGE) {
                     $this->check($text, ContentScreen::FACT_MAX);
                     $this->notForgotten($text);
@@ -97,7 +105,7 @@ final class Proposals {
         if ($reason === '') {
             throw new InvalidArgumentException(t('app.proposals.nuzhna_prichina_vladelets_reshaet_po'));
         }
-        return $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId);
+        return $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson);
     }
 
     /**

@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  */
 final class PostgresMemoryStore implements MemoryStore {
     private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated';
-    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id';
+    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -250,10 +250,10 @@ final class PostgresMemoryStore implements MemoryStore {
         return $this->db->execute('SELECT 1 AS found FROM fact_tombstones WHERE hmac = ?', [$fingerprint])->fetchRow() !== null;
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
         $row = $this->db->execute(
-            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::PROPOSAL,
-            [$kind, $factId, $scope, $text, $reason, $principalId, $runId],
+            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id, about_person) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::PROPOSAL,
+            [$kind, $factId, $scope, $text, $reason, $principalId, $runId, $aboutPerson],
         )->fetchRow() ?? throw new UnexpectedValueException('Proposal was not created');
         return self::proposal_($row);
     }
@@ -379,6 +379,7 @@ final class PostgresMemoryStore implements MemoryStore {
             self::str($row, 'status'),
             isset($row['principal_id']) ? self::int($row, 'principal_id') : null,
             isset($row['run_id']) ? self::int($row, 'run_id') : null,
+            ($row['about_person'] ?? false) === true,
         );
     }
 
