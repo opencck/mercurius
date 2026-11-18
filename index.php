@@ -499,6 +499,8 @@ $loop = new AgentLoop(
     $logger,
     approvals: $approvalStore,
     gate: $approvals,
+    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — tool results are bounded by the window of the model
+    budget: \OpenCCK\App\Agent\Tool\ResultBudget::forWindow($llmSettings->contextWindow),
     // Context compaction: the window and the cheap model come from the settings until the model catalog.
     compactor: new ContextCompactor(
         $llm,

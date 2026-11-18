@@ -54,6 +54,7 @@ final class AgentStack {
         ?ModelRouter $router = null,
         ?TraceReports $reports = null,
         AgentEvents $events = new NullEvents(),
+        ?\OpenCCK\App\Agent\Tool\ResultBudget $budget = null,
     ) {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
@@ -64,7 +65,7 @@ final class AgentStack {
         $this->channel = new FakeChannel(max(1, $maxMessageLength));
         $this->approvals = new InMemoryApprovalRepository();
         $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800);
-        $loop = $this->loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService);
+        $loop = $this->loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService, budget: $budget);
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), $limits);
         $this->scheduler = new RunScheduler(
             $loop,

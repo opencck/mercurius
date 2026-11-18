@@ -581,4 +581,21 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame([['q' => 'x']], $tool->calls);
         self::assertSame(LlmRole::Tool, $llm->requests[0]->messages[3]->role);
     }
+
+    public function testEightBigReadsOfOneTurnFitAThirdOfTheWindow(): void {
+        $calls = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $calls[] = new ToolCall('r' . $i, 'read', '{"q":"' . $i . '"}');
+        }
+        $stack = new \OpenCCK\Test\Support\AgentStack(new ScriptedLlm([ScriptedLlm::calls(...$calls), ScriptedLlm::text('Прочитал.')]), budget: \OpenCCK\App\Agent\Tool\ResultBudget::forWindow(4_000));
+        $stack->registry->register(new \OpenCCK\Test\Support\FakeTool('read', handler: static fn(array $args): \OpenCCK\App\Agent\Tool\ToolResult => \OpenCCK\App\Agent\Tool\ToolResult::ok(str_repeat('строка файла ', 1_500))));
+
+        $stack->say('прочитай восемь файлов');
+        $stack->scheduler->awaitIdle();
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the results of a turn take at most 30% of the window
+        $tools = array_filter($stack->llm->requests[1]->messages, static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool);
+        self::assertCount(8, $tools);
+        self::assertLessThanOrEqual(16_000, array_sum(array_map(static fn($m): int => mb_strlen($m->content), $tools)));
+    }
 }

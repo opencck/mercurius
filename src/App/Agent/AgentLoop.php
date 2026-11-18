@@ -124,11 +124,16 @@ final class AgentLoop {
         private readonly AgentEvents $events = new NullEvents(),
         private readonly ?FallbackModels $fallback = null,
         private readonly ?SpendGuard $spend = null,
+        /** how much of the window tool results may take; null — by the default window of 131072 tokens */
+        ?\OpenCCK\App\Agent\Tool\ResultBudget $budget = null,
     ) {
+        $this->budget = $budget ?? \OpenCCK\App\Agent\Tool\ResultBudget::forWindow(131_072);
         $this->validator = new ToolCallValidator($registry);
         $this->planner = new BatchPlanner();
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
+
+    private readonly \OpenCCK\App\Agent\Tool\ResultBudget $budget;
 
     /** Runs until the run ends; on shutdown returns the run still running, to resume after restart. */
     public function run(Run $run, ParticipantPolicy $policy, Principal $principal, RunObserver $observer, Cancellation $cancellation): Run {
@@ -539,6 +544,7 @@ final class AgentLoop {
         $lastId = $calls === [] ? null : $calls[array_key_last($calls)]->call->id;
         $halted = false;
         $warn = false;
+        $turnUsed = 0;
         foreach ($this->planner->segments($calls) as $segment) {
             if ($halted) {
                 foreach ($segment as $call) {
@@ -559,7 +565,20 @@ final class AgentLoop {
                     ? \Amp\Future::complete($admission)
                     : async(fn(): ToolResult => $this->runCall($state, $call, $admission === 'granted' || $admission === 'approved'));
             }
+            /** @var array<int, ToolResult> $results */
             $results = await($futures);
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the results of a turn take at most 30% of the window:
+            //       the largest are spilled to a file (else cut) until the turn fits
+            $room = new \OpenCCK\App\Agent\Tool\ResultBudget($this->budget->perResult, max(1, $this->budget->perTurn - $turnUsed));
+            $contents = array_map(static fn(ToolResult $r): string => $r->content, $results);
+            $fitted = $room->fit($contents, fn(string $content, int $index): string => $this->executor->shrink($content, $this->contextOf($state, $segment[$index])));
+            foreach ($fitted as $index => $content) {
+                $result = $results[$index] ?? null;
+                if ($result instanceof ToolResult && $content !== $result->content) {
+                    $results[$index] = new ToolResult($content, $result->isError);
+                }
+                $turnUsed += mb_strlen($content);
+            }
             if ($admission === 'granted') {
                 $first = $results[0] ?? null;
                 if ($first instanceof ToolResult) {
@@ -660,15 +679,19 @@ final class AgentLoop {
         $timeout = $call->tool instanceof LongRunning
             ? max(1, min($call->tool->timeout(), $remaining))
             : max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
-        $context = new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id, $approved);
+        $context = $this->contextOf($state, $call, $approved);
         $started = ($this->clock)();
-        $result = $this->executor->run($call, $context, $timeout);
+        $result = $this->executor->run($call, $context, $timeout, $this->budget->perResult);
         $this->events->toolFinished($state->run->id, $call->call->name, $call->args, $result, ($this->clock)() - $started);
         if ($call->tool instanceof RequestsAccess && !$result->isError) {
             // the owner gave the tool: it is offered from the next turn of this very run
             $state->policy = $state->policy->withTool($call->tool->grantedTool($call->args ?? []));
         }
         return $result;
+    }
+
+    private function contextOf(RunState $state, ValidatedCall $call, bool $approved = false): ToolContext {
+        return new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id, $approved);
     }
 
     private function writeResult(RunState $state, ValidatedCall $call, ToolResult $result): void {

@@ -37,8 +37,11 @@ final class ToolExecutor {
         private readonly ?\OpenCCK\App\Agent\Sandbox\Checkpoints $checkpoints = null,
     ) {}
 
-    /** @param positive-int $timeoutSeconds */
-    public function run(ValidatedCall $call, ToolContext $context, int $timeoutSeconds): ToolResult {
+    /**
+     * @param positive-int $timeoutSeconds
+     * @param positive-int|null $maxChars the ceiling of this result in the context (by the window of the model); null — the default
+     */
+    public function run(ValidatedCall $call, ToolContext $context, int $timeoutSeconds, ?int $maxChars = null): ToolResult {
         if ($call->error !== null || $call->tool === null || $call->args === null) {
             return ToolResult::error($call->error ?? t('tool.tool_executor.vyzov_ne_proshel_proverku'));
         }
@@ -67,7 +70,8 @@ final class ToolExecutor {
 
         // PostgreSQL text cannot hold NUL, and a fetched body may contain it.
         $content = str_replace("\0", "\u{FFFD}", $result->content);
-        $content = $tool instanceof Unspillable ? $this->truncate($content) : ($this->spill($content, $context) ?? $this->truncate($content));
+        $limit = $maxChars ?? $this->maxResultChars;
+        $content = $tool instanceof Unspillable ? $this->truncate($content, $limit) : ($this->spill($content, $context, $limit) ?? $this->truncate($content, $limit));
         if ($tool->untrusted()) {
             $content = UntrustedWrapper::wrap($name, $content);
         }
@@ -83,10 +87,20 @@ final class ToolExecutor {
      *      maybe_persist_tool_result) — persist instead of cutting, preview with the path; the threshold is fixed here
      *      until the model catalogue gives the window size
      */
-    private function spill(string $content, ToolContext $context): ?string {
+    /**
+     * Makes a result small for the budget of the turn: its file and a preview, or a cut to the preview when there is
+     * no sandbox.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the results of a turn fit 30% of the window
+     */
+    public function shrink(string $content, ToolContext $context): string {
+        return $this->spill($content, $context, $this->previewChars) ?? $this->truncate($content, $this->previewChars);
+    }
+
+    private function spill(string $content, ToolContext $context, int $limit): ?string {
         $length = mb_strlen($content);
         $limits = $context->policy?->sandbox;
-        if ($length <= $this->maxResultChars || $this->sandbox === null || $limits === null) {
+        if ($length <= $limit || $this->sandbox === null || $limits === null) {
             return null;
         }
         $callId = preg_replace('/[^A-Za-z0-9_-]/', '_', $context->callId) ?? '';
@@ -102,12 +116,12 @@ final class ToolExecutor {
             . sprintf(t('tool.tool_executor.polnyy_rezultat_simvolov_sohranen_chitay'), $length, $path);
     }
 
-    private function truncate(string $content): string {
+    private function truncate(string $content, int $limit): string {
         $length = mb_strlen($content);
-        if ($length <= $this->maxResultChars) {
+        if ($length <= $limit) {
             return $content;
         }
-        return mb_substr($content, 0, $this->maxResultChars)
-            . sprintf(t('tool.tool_executor.obrezano_pokazano_iz_simvolov'), $this->maxResultChars, $length);
+        return mb_substr($content, 0, $limit)
+            . sprintf(t('tool.tool_executor.obrezano_pokazano_iz_simvolov'), $limit, $length);
     }
 }
