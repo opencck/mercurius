@@ -89,6 +89,9 @@ final class MemoryProposeTool implements Tool {
         if (!$this->cards->show($proposal)) {
             return ToolResult::error(sprintf(t('tool.memory_propose.predlozhenie_sohraneno_no_kartochku_vlad'), $proposal->id));
         }
+        if ($proposal->kind === \OpenCCK\Memory\Domain\Proposal::ADD && $proposal->factId !== null) {
+            return ToolResult::ok(sprintf(t('tool.memory_propose.written'), $proposal->factId));
+        }
         return ToolResult::ok(sprintf(t('tool.memory_propose.predlozhenie_otpravleno_vladeltsu_pamyat'), $proposal->id));
     }
 }

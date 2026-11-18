@@ -43,14 +43,15 @@ final class MemoryCommandsTest extends AsyncTestCase {
         $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Сервер pve-01 в Хельсинки', ['pve-01'], 0.8, Fact::OWNER_SAID, null);
         $this->store->addFact('principal:9', Fact::KNOWLEDGE, 'Чужой факт', ['чуж'], 0.8, Fact::OWNER_SAID, null);
         $this->store->setCore('profile', 'Любит короткие ответы');
-        $this->proposals->propose(Proposal::ADD, null, 'Кофе без сахара', 'сказал', ['owner'], null, null);
+        // a new fact is written at once: what waits is a change
+        $this->proposals->propose(Proposal::CHANGE, $fact->id, 'Кофе без сахара', 'сказал', ['owner'], null, null);
 
         $this->chat->handle($this->stack->message('/memory'));
 
         $reply = $this->lastReply();
         self::assertStringContainsString(sprintf('#%d Сервер pve-01 в Хельсинки', $fact->id), $reply);
         self::assertStringContainsString('Любит короткие ответы', $reply);
-        self::assertStringContainsString('№1 add: Кофе без сахара', $reply);
+        self::assertStringContainsString('№1 change: Кофе без сахара', $reply);
         self::assertStringNotContainsString('Чужой факт', $reply);
     }
 

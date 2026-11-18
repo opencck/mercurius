@@ -950,7 +950,7 @@ $chat->useImprovements($improvements);
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

@@ -30,6 +30,8 @@ use function Mercurius\I18n\t;
  */
 final class MemoryCards implements CallbackHandler {
     public const PREFIX = 'mp';
+    /** the button that forgets a fact the agent wrote itself */
+    public const FORGET = 'mf';
 
     public function __construct(
         private readonly Proposals $proposals,
@@ -50,7 +52,12 @@ final class MemoryCards implements CallbackHandler {
         if ($who !== null) {
             $chatId = $this->principals->externalId($who, 'telegram') ?? $this->ownerChatId;
         }
-        $result = $this->channel->send(new OutgoingMessage($chatId, $this->card($proposal, true), buttons: [[
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a fact the agent wrote itself comes as a notice the owner
+        //       may undo with one press; anything else waits for the owner's decision
+        $written = $proposal->kind === Proposal::ADD && $proposal->status === Proposal::APPROVED && $proposal->factId !== null;
+        $result = $this->channel->send(new OutgoingMessage($chatId, $written ? t('agent.memory_cards.written') . "\n" . $this->card($proposal) : $this->card($proposal, true), buttons: [$written ? [
+            new Button(t('agent.memory_cards.forget'), sprintf('%s:%d:f', self::FORGET, $proposal->factId)),
+        ] : [
             new Button(t('agent.memory_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $proposal->id)),
             new Button(t('agent.memory_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $proposal->id)),
         ]]));
@@ -63,6 +70,10 @@ final class MemoryCards implements CallbackHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
+        if (preg_match('/^mf:(\d+):f$/', $callback->data, $forget) === 1) {
+            $this->forgetWritten($callback, (int) $forget[1]);
+            return;
+        }
         if (preg_match('/^mp:(\d+):([ar])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
@@ -97,6 +108,23 @@ final class MemoryCards implements CallbackHandler {
         }
         $principal = $this->principals->find((int) $m[1]);
         return $principal === null || $principal->isOwner() ? null : $principal->id;
+    }
+
+    /** The owner undoes a fact the agent wrote: it is forgotten, as by /forget. */
+    private function forgetWritten(IncomingCallback $callback, int $factId): void {
+        $presser = $this->principals->findByIdentity($callback->channel, $callback->userId);
+        $scope = $this->store->fact($factId)?->scope;
+        // the owner forgets any fact; a participant — one of their own memory
+        $mine = $presser !== null && $scope === \OpenCCK\Memory\App\Audience::principal($presser->id);
+        if ($presser === null || (!$presser->isOwner() && !$mine)) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
+            return;
+        }
+        $done = $this->proposals->forget($factId);
+        $this->channel->answerCallback($callback->callbackId, $done ? t('agent.memory_cards.forgotten') : t('agent.memory_cards.uzhe_resheno'));
+        if ($done && $callback->messageId !== null) {
+            $this->channel->edit($callback->chatId, $callback->messageId, t('agent.memory_cards.forgotten'));
+        }
     }
 
     /** The owner decides any proposal; a participant only one of their own memory. */

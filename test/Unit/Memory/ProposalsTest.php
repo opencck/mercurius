@@ -22,31 +22,19 @@ final class ProposalsTest extends TestCase {
         $this->proposals = new Proposals($this->store, new TextAnalyzer(), new ContentScreen(), 'test-key');
     }
 
-    public function testApprovedAdditionBecomesAConfirmedFact(): void {
+    public function testANewFactIsWrittenByTheAgentAtOnce(): void {
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'Владелец пьёт кофе без сахара', 'сказал сам', ['owner', 'chat:t:1'], 7, 3);
 
-        self::assertSame(Proposal::PENDING, $proposal->status);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the agent writes new facts itself, the owner corrects after
+        self::assertSame(Proposal::APPROVED, $proposal->status);
         self::assertSame('owner', $proposal->scope, 'a new fact goes to the first readable scope');
-        self::assertSame([], $this->store->facts, 'nothing is stored before the owner decides');
-
-        $decided = $this->proposals->decide($proposal->id, true);
-
-        self::assertNotNull($decided);
-        self::assertSame(Proposal::APPROVED, $decided->proposal->status);
-        self::assertTrue($decided->applied);
         $fact = $this->store->recent(['owner'], 1)[0] ?? null;
         self::assertNotNull($fact);
+        self::assertSame($fact->id, $proposal->factId);
         self::assertSame('Владелец пьёт кофе без сахара', $fact->text);
-        self::assertSame(Fact::OWNER_CONFIRMED, $fact->provenance);
+        self::assertSame(Fact::AGENT, $fact->provenance, 'the agent wrote it, the owner did not confirm it');
         self::assertContains((new TextAnalyzer())->keys('кофе')[0], $fact->keys);
-        self::assertNull($this->proposals->decide($proposal->id, false), 'decided once');
-    }
-
-    public function testRejectedAdditionStoresNothing(): void {
-        $proposal = $this->proposals->propose(Proposal::ADD, null, 'Факт', 'причина', ['owner'], null, null);
-
-        self::assertSame(Proposal::REJECTED, $this->proposals->decide($proposal->id, false)?->proposal->status);
-        self::assertSame([], $this->store->facts);
+        self::assertNull($this->proposals->decide($proposal->id, false), 'nothing left to decide');
     }
 
     public function testScreenedTextIsRefusedAtOnce(): void {
@@ -90,7 +78,8 @@ final class ProposalsTest extends TestCase {
     }
 
     public function testForgettingTellsListenersAndBlocksPendingProposals(): void {
-        $pending = $this->proposals->propose(Proposal::ADD, null, 'Код от сейфа у мамы', 'r', ['owner'], null, null);
+        // a proposal of the same text still pending (made before new facts were written at once)
+        $pending = $this->store->propose(Proposal::ADD, null, 'owner', 'Код от сейфа у мамы', 'r', null, null);
         $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Код от сейфа у мамы', ['код'], 0.8, Fact::OWNER_SAID, null);
         $this->store->setCard($pending->id, '42', '7');
         $seen = [];

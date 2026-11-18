@@ -30,6 +30,8 @@ final class Proposals {
     public const SUMMARY_MAX = 4000;
     /** Trust of a fact the owner accepted. */
     private const CONFIRMED_TRUST = 0.8;
+    /** a fact the agent wrote itself: below what the owner confirmed */
+    private const AGENT_TRUST = 0.6;
 
     /** @var list<Closure(Fact, list<array{string, string}>): void> */
     private array $forgetListeners = [];
@@ -105,7 +107,14 @@ final class Proposals {
         if ($reason === '') {
             throw new InvalidArgumentException(t('app.proposals.nuzhna_prichina_vladelets_reshaet_po'));
         }
-        return $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson);
+        $proposal = $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson);
+        if ($kind !== Proposal::ADD) {
+            return $proposal;
+        }
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the agent writes a new fact itself and the owner corrects
+        //       after; a change or a removal of a fact still waits for the owner's card
+        $written = $this->decide($proposal->id, true, true);
+        return $written === null ? $proposal : ($this->store->proposal($proposal->id) ?? $written->proposal);
     }
 
     /**
@@ -113,7 +122,8 @@ final class Proposals {
      * A text forgotten since the proposal was made is rejected instead. If applying fails, the proposal goes back to
      * pending and the error goes on, so the owner can press again.
      */
-    public function decide(int $id, bool $approve): ?Decision {
+    /** @param bool $byAgent the agent accepted its own new fact: it is kept as the agent's, not as confirmed */
+    public function decide(int $id, bool $approve, bool $byAgent = false): ?Decision {
         $pending = $this->store->proposal($id);
         if ($approve && $pending !== null && in_array($pending->kind, [Proposal::ADD, Proposal::CHANGE], true)
             && $this->store->forgotten($this->fingerprint($pending->text))) {
@@ -128,7 +138,7 @@ final class Proposals {
             return new Decision($proposal, false, t('app.proposals.otkloneno'));
         }
         try {
-            $applied = $this->apply($proposal);
+            $applied = $this->apply($proposal, $byAgent);
         } catch (Throwable $e) {
             $this->store->reopen($proposal->id);
             throw $e;
@@ -136,10 +146,12 @@ final class Proposals {
         return new Decision($proposal, $applied, $applied ? t('app.proposals.prinyato_pamyat_izmenena') : t('app.proposals.prinyato_no_menyat_uzhe_nechego'));
     }
 
-    private function apply(Proposal $proposal): bool {
+    private function apply(Proposal $proposal, bool $byAgent = false): bool {
         switch ($proposal->kind) {
             case Proposal::ADD:
-                $fact = $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::CONFIRMED_TRUST, Fact::OWNER_CONFIRMED, $proposal->runId);
+                $fact = $byAgent
+                    ? $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::AGENT_TRUST, Fact::AGENT, $proposal->runId)
+                    : $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::CONFIRMED_TRUST, Fact::OWNER_CONFIRMED, $proposal->runId);
                 $this->store->linkProposal($proposal->id, $fact->id);
                 return true;
             case Proposal::CHANGE:

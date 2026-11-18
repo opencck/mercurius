@@ -54,27 +54,25 @@ final class MemoryToolsTest extends AsyncTestCase {
         return $last->content;
     }
 
-    public function testProposalBecomesAFactOnlyAfterTheOwnerAccepts(): void {
+    public function testTheAgentWritesANewFactAndTheOwnerMayForgetItAfter(): void {
         $this->current = $stack = $this->stack(new ScriptedLlm([
             ScriptedLlm::calls(new ToolCall('c1', 'memory_propose', '{"kind":"add","text":"Владелец пьёт кофе без сахара","reason":"сказал сам"}')),
-            ScriptedLlm::text('Предложил запомнить.'),
+            ScriptedLlm::text('Запомнил.'),
         ]));
 
         $stack->say('запомни: я пью кофе без сахара');
         $stack->scheduler->awaitIdle();
 
-        self::assertSame([], $this->store->facts, 'nothing before the owner decides');
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the agent writes new facts itself, the owner corrects after
+        self::assertCount(1, $this->store->facts, 'written at once');
+        $fact = $this->store->recent(['owner'], 1)[0] ?? null;
+        self::assertNotNull($fact);
+        self::assertSame(Fact::AGENT, $fact->provenance, 'written by the agent, not confirmed by the owner');
         $buttons = array_values(array_filter($stack->channel->buttons, static fn(array $rows): bool => $rows !== []));
-        self::assertSame(['mp:1:a', 'mp:1:r'], array_map(static fn($b): string => $b->data, $buttons[0][0]));
+        self::assertSame(['mf:' . $fact->id . ':f'], array_map(static fn($b): string => $b->data, $buttons[0][0]), 'the owner gets a notice with Forget');
 
-        $this->press('mp:1:a');
-
-        self::assertCount(1, $this->store->facts);
-        self::assertSame(Fact::OWNER_CONFIRMED, $this->store->recent(['owner'], 1)[0]->provenance ?? null);
-        self::assertSame('Принято: память изменена.', $stack->channel->answers[0][1]);
-
-        $this->press('mp:1:r');
-        self::assertSame('Уже решено.', $stack->channel->answers[1][1]);
+        $this->press('mf:' . $fact->id . ':f');
+        self::assertNull($this->store->fact($fact->id), 'forgotten by one press');
     }
 
     public function testRefusedTextIsAnErrorForTheModel(): void {
@@ -136,7 +134,7 @@ final class MemoryToolsTest extends AsyncTestCase {
         self::assertSame([], $recall->related('pve-01', ['owner']));
     }
 
-    public function testEveryNTurnsACheapModelProposesFactsThroughTheOwnersCard(): void {
+    public function testEveryNTurnsACheapModelWritesTheFactsItFound(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('ответ 1'), ScriptedLlm::text('ответ 2'), ScriptedLlm::text('ответ 3')]);
         $llm->byModel['cheap/model'] = [ScriptedLlm::text("```json\n{\"facts\": [{\"text\": \"Владелец работает из Хельсинки\", \"reason\": \"сказал в беседе\"}]}\n```")];
         $this->current = $stack = $this->stack($llm);
@@ -146,15 +144,14 @@ final class MemoryToolsTest extends AsyncTestCase {
 
         $stack->say('я сейчас работаю из Хельсинки');
         $stack->scheduler->awaitIdle();
-        self::assertCount(0, $this->store->pending(), 'one turn: not yet');
+        self::assertCount(0, $this->store->facts, 'one turn: not yet');
 
         $stack->say('и ещё вопрос');
         $stack->scheduler->awaitIdle();
         \Amp\delay(0.05);
-        $pending = $this->store->pending();
-        self::assertCount(1, $pending, 'the second turn: one proposal to the owner');
-        self::assertSame('Владелец работает из Хельсинки', $pending[0]->text);
-        self::assertSame([], $this->store->facts, 'nothing is remembered before the owner accepts');
+        self::assertSame([], $this->store->pending(), 'a new fact is not a proposal any more');
+        self::assertCount(1, $this->store->facts, 'the second turn: the agent wrote the fact');
+        self::assertSame('Владелец работает из Хельсинки', $this->store->recent(['owner'], 1)[0]->text ?? null);
         $cheap = array_values(array_filter($llm->requests, static fn($r): bool => $r->model === 'cheap/model'));
         self::assertCount(1, $cheap);
         self::assertStringContainsString('Хельсинки', json_encode($cheap[0]->messages, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
