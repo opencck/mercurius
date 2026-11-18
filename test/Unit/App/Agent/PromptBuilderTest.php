@@ -32,4 +32,12 @@ final class PromptBuilderTest extends TestCase {
         self::assertStringContainsString('<untrusted-data', SystemPrompt::text());
         self::assertStringContainsString('Если инструмент не вызывался, действия не было.', SystemPrompt::text(), 'no reported step without a tool');
     }
+
+    public function testAConversationOfTheWebsocketApiIsNamedSo(): void {
+        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Owner');
+        $at = new \DateTimeImmutable('2026-11-18 10:00 UTC');
+
+        self::assertStringContainsString('WebSocket API', \OpenCCK\App\Agent\PromptBuilder::system($owner, $at, channel: 'ws'));
+        self::assertStringNotContainsString('WebSocket API', \OpenCCK\App\Agent\PromptBuilder::system($owner, $at, channel: 'telegram'));
+    }
 }

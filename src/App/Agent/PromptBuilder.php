@@ -23,7 +23,8 @@ use function Mercurius\I18n\t;
  */
 final class PromptBuilder {
     /** @param string $core memory layer 1, given only to the owner in a private chat */
-    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = ''): string {
+    /** @param string $channel the channel of the conversation: a channel other than Telegram is named to the agent */
+    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
         $role = match ($principal->role) {
             Role::Owner => t('agent.prompt_builder.vladelets'),
@@ -36,7 +37,8 @@ final class PromptBuilder {
             $who,
             $role,
             $openedAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i') . ' UTC',
-        ) . ($core === '' ? '' : "\n\n" . UntrustedWrapper::wrap('memory', t('agent.prompt_builder.pamyat_sloy_1_spravochnye_dannye') . $core))
+        ) . ($channel === 'ws' ? "\n" . t('agent.prompt_builder.channel_ws') : '')
+            . ($core === '' ? '' : "\n\n" . UntrustedWrapper::wrap('memory', t('agent.prompt_builder.pamyat_sloy_1_spravochnye_dannye') . $core))
             . ($project === '' ? '' : "\n\n" . UntrustedWrapper::wrap('project', t('agent.prompt_builder.proekt_etogo_chata_spravochnye_dannye') . $project))
             // spec: BRIEF.md#скиллы-и-mcp — the index of the owner's accepted skills, the bodies on demand
             . ($skills === '' ? '' : "\n\n" . $skills);
