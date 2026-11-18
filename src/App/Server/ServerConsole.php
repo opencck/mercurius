@@ -119,7 +119,7 @@ final class ServerConsole {
             return [false, SecretMasker::mask($e->getMessage())];
         }
         $journalled = $this->journal($record + ['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs]);
-        return [true, $this->report($result, $timeout, $journalled)];
+        return [true, $this->report($result, $timeout, $journalled, $connection)];
     }
 
     /**
@@ -160,7 +160,7 @@ final class ServerConsole {
             return [false, SecretMasker::mask($e->getMessage())];
         }
         $journalled = $this->journal($record + ['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs]);
-        return [$result->exitCode === 0, $this->report($result, $timeout, $journalled)];
+        return [$result->exitCode === 0, $this->report($result, $timeout, $journalled, $connection)];
     }
 
     /**
@@ -206,16 +206,32 @@ final class ServerConsole {
     }
 
     /**
-     * A command that starts with sudo gets the login password on stdin: sudo -S reads it there, the prompt is empty.
-     * Only a password login has a password to give.
+     * A command of one part that starts with sudo gets the login password — for sudo alone: `sudo -S -v` reads it on
+     * stdin and opens the sudo ticket, then the command runs by that ticket (`sudo -n`) with nothing on its stdin. A
+     * command of several parts (`;`, `&&`, `|`, a substitution, a second line) gets no password: the other parts would
+     * read it. Only a password login has a password to give.
      *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the password of sudo reaches no command
      * @return array{string, ?string} the command and its stdin
      */
     private function sudo(string $command, Classification $class, Connection $connection): array {
         if ($class->class !== Classification::PRIVILEGED || $connection->kind !== 'password' || preg_match('~^\s*sudo\s+(?!-S\b)~', $command) !== 1) {
             return [$command, null];
         }
-        return [preg_replace('~^\s*sudo\s+~', "sudo -S -p '' ", $command) ?? $command, $connection->credential . "\n"];
+        if (preg_match('~[;&|\n\r`]|\$\(~', $command) === 1) {
+            return [$command, null];
+        }
+        $rest = preg_replace('~^\s*sudo\s+~', '', $command) ?? $command;
+        return ["sudo -S -p '' -v && sudo -n " . $rest . ' < /dev/null', $connection->credential . "\n"];
+    }
+
+    /** The output without the login password, in the spellings a command could print it in. */
+    private static function hide(string $text, ?Connection $connection): string {
+        if ($connection === null || $connection->kind !== 'password' || strlen($connection->credential) < 4) {
+            return $text;
+        }
+        $secret = $connection->credential;
+        return str_replace(array_values(array_unique([$secret, base64_encode($secret), rtrim(base64_encode($secret), '='), bin2hex($secret), strtoupper(bin2hex($secret))])), '***', $text);
     }
 
     /** @param array{principal: ?int, run: ?int, server: string, command: string, class: string, event: string, exit: ?int, ms: ?int, error: ?string} $record */
@@ -229,7 +245,7 @@ final class ServerConsole {
         }
     }
 
-    private function report(RemoteResult $result, int $timeout, bool $journalled): string {
+    private function report(RemoteResult $result, int $timeout, bool $journalled, ?Connection $connection = null): string {
         $parts = [sprintf(
             t('server.server_console.kod_vyhoda_ms'),
             $result->exitCode === null ? t('server.server_console.net') : (string) $result->exitCode,
@@ -237,10 +253,10 @@ final class ServerConsole {
             $result->exitCode === RemoteResult::TIMED_OUT ? sprintf(t('server.server_console.ostanovlena_po_taymautu_s'), $timeout) : '',
         )];
         if ($result->stdout !== '') {
-            $parts[] = "stdout:\n" . SecretMasker::mask($result->stdout);
+            $parts[] = "stdout:\n" . SecretMasker::mask(self::hide($result->stdout, $connection));
         }
         if ($result->stderr !== '') {
-            $parts[] = "stderr:\n" . SecretMasker::mask($result->stderr);
+            $parts[] = "stderr:\n" . SecretMasker::mask(self::hide($result->stderr, $connection));
         }
         if ($result->truncated) {
             $parts[] = sprintf(t('server.server_console.vyvod_obrezan_do_bayt'), self::OUTPUT_MAX);

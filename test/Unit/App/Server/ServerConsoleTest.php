@@ -165,6 +165,24 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame([], $this->ran);
     }
 
+    public function testThePasswordOfSudoReachesNoOtherCommandAndIsMaskedInTheOutput(): void {
+        foreach (['sudo -V; cat', 'sudo id && cat', 'sudo id | cat', "sudo id
+cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
+            $this->stdin = [];
+            $this->console()->run($this->owner, null, 'web', $command, 30, new NullCancellation());
+            self::assertNotContains("hunter2-long-pass
+", $this->stdin, $command . ': a command of more than one part gets no password');
+        }
+
+        $this->answer = new RemoteResult(0, "hunter2-long-pass
+" . base64_encode('hunter2-long-pass') . "
+" . bin2hex('hunter2-long-pass'), '', false, 5);
+        [, $shown] = $this->console()->run($this->owner, null, 'web', 'sudo cat /etc/x', 30, new NullCancellation());
+        self::assertStringNotContainsString('hunter2', $shown);
+        self::assertStringNotContainsString(base64_encode('hunter2-long-pass'), $shown);
+        self::assertStringNotContainsString(bin2hex('hunter2-long-pass'), $shown);
+    }
+
     public function testTheToolAsksTheOwnerForChangesOnly(): void {
         $tool = new SshRunTool($this->console());
 
@@ -177,7 +195,8 @@ final class ServerConsoleTest extends AsyncTestCase {
     public function testSudoGetsTheLoginPasswordOnStdin(): void {
         $this->console()->run($this->owner, null, 'web', 'sudo systemctl restart nginx', 30, new NullCancellation());
 
-        self::assertSame("sudo -S -p '' systemctl restart nginx", $this->ran[0][2]);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the password goes to sudo alone, never to the command
+        self::assertSame("sudo -S -p '' -v && sudo -n systemctl restart nginx < /dev/null", $this->ran[0][2]);
         self::assertSame("hunter2-long-pass
 ", $this->stdin[0]);
         self::assertStringNotContainsString('hunter2', $this->audit->records[0]['command'], 'the journal keeps the command as asked');
