@@ -30,7 +30,9 @@ final class GitTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'git';
     private const READS = ['status', 'log', 'diff', 'show', 'blame', 'ls-files', 'ls-remote', 'rev-parse', 'describe', 'shortlog', 'grep'];
     /** options that make git start a program the command names */
-    private const REFUSED = '~^(-c|--config-env|--exec-path|--upload-pack|--receive-pack|--exec|-u)(=|$)|^-c.~';
+    private const REFUSED = '~^(-c|--config-env|--exec-path|--upload-pack|--receive-pack|--exec)(=|$)|^-c.~';
+    /** commands where -u is --upload-pack: a short cluster with u (-u sh, -ush, -qush) starts a program there */
+    private const UPLOAD_PACK = ['clone', 'fetch', 'pull', 'ls-remote'];
 
     /** @param positive-int $defaultTimeout */
     public function __construct(
@@ -84,8 +86,12 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         if ($list === []) {
             return ToolResult::error(t('tool.git.bad'));
         }
+        // Any word so far may be the command (git -C dir clone …): when one of them could be, -u is refused.
+        $fetches = false;
         foreach ($list as $arg) {
-            if (preg_match(self::REFUSED, $arg) === 1) {
+            $fetches = $fetches || in_array($arg, self::UPLOAD_PACK, true);
+            $uploadPack = $fetches && preg_match('~^-[^-]*u~', $arg) === 1;
+            if ($uploadPack || preg_match(self::REFUSED, $arg) === 1) {
                 return ToolResult::error(sprintf(t('tool.git.refused'), $arg));
             }
         }

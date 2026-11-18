@@ -75,9 +75,17 @@ final class GitToolTest extends AsyncTestCase {
         self::assertFalse($quoted->isError);
         self::assertSame(["exec 1 git 'commit' '-m' 'it'\''s; env' @. t120"], $this->sandbox->calls);
 
-        foreach ([['-c', 'core.sshCommand=sh'], ['fetch', '--upload-pack=sh'], ['push', '--receive-pack', 'x'], ['--exec-path=/tmp', 'status'], ['--config-env=a=B', 'status']] as $args) {
+        foreach ([['-c', 'core.sshCommand=sh'], ['fetch', '--upload-pack=sh'], ['push', '--receive-pack', 'x'], ['--exec-path=/tmp', 'status'], ['--config-env=a=B', 'status'], ['clone', '-u', 'sh', 'x'], ['clone', '-ush', 'x'], ['fetch', '-qush'], ['ls-remote', '-u', 'sh', 'x'], ['-C', 'repo', 'clone', '-ush', 'x']] as $args) {
             self::assertTrue($tool->execute(['args' => $args, 'secret' => 'github', 'origin' => 'https://github.com'], $this->context())->isError, implode(' ', $args));
         }
+
+        // -u of push and add sets the upstream or stages tracked files: nothing runs, the agent may use it
+        $this->sandbox->calls = [];
+        foreach ([['push', '-u', 'origin', 'main'], ['add', '-u']] as $args) {
+            $result = $tool->execute(['args' => $args], $this->context());
+            self::assertFalse($result->isError, implode(' ', $args) . ': ' . $result->content);
+        }
+        self::assertCount(2, $this->sandbox->calls);
     }
 
     public function testAnotherParticipantDoesNotGetTheOwnersSecret(): void {
