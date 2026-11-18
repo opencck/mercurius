@@ -578,7 +578,8 @@ $skillRepository = new PostgresSkillRepository($db);
 $skillCatalog = new SkillCatalog($skillRepository);
 $skillCards = new SkillCards($skillRepository, $channel, $telegram->ownerId);
 $scheduler->useSkills($skillCatalog);
-$tools->register(new SkillViewTool($skillCatalog));
+$skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
+$tools->register(new SkillViewTool($skillCatalog, $skillUsage));
 $tools->register(new SkillProposeTool($skillCatalog, $skillCards));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
@@ -827,7 +828,7 @@ $chat = new ChatService(
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
-    new SkillCommands($skillRepository, $skillImporter),
+    new SkillCommands($skillRepository, $skillImporter, $skillUsage),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation

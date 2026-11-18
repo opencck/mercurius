@@ -19,7 +19,11 @@ use function Mercurius\I18n\t;
 final class SkillViewTool implements Tool {
     public const NAME = 'skill_view';
 
-    public function __construct(private readonly SkillCatalog $catalog) {}
+    public function __construct(
+        private readonly SkillCatalog $catalog,
+        /** openings are counted for the review and for cleaning the index; null — not counted */
+        private readonly ?\OpenCCK\Domain\Repository\SkillUsageRepository $usage = null,
+    ) {}
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.skill_view.zagruzhaet_tekst_skilla_iz_kataloga') . t('tool.skill_view.file_path_about'), [
@@ -50,6 +54,12 @@ final class SkillViewTool implements Tool {
         $body = $this->catalog->body($name);
         if ($body === null) {
             return ToolResult::error(sprintf(t('tool.skill_view.aktivnogo_skilla_net'), $name));
+        }
+        // ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — a counter bump is best effort and never
+        //      breaks the call; here in the base instead of a sidecar file
+        try {
+            $this->usage?->touch($name);
+        } catch (\Throwable) {
         }
         // ref: references/hermes-agent/tools/skills_tool.py@e96221fa:L634 (skill_view) — name plus file_path reads a file of the skill;
         //      here files live with the version in the base, not in a directory

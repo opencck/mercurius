@@ -129,4 +129,29 @@ final class SkillsTest extends AsyncTestCase {
         self::assertSame('v1', $this->catalog->body('nginx'));
         self::assertSame(Skill::ACTIVE, $this->repo->find('nginx')?->status);
     }
+
+    public function testUsageIsCountedAndAnUnusedSkillIsMarkedForTheOwner(): void {
+        $this->accepted('nginx', 'Настройка nginx', 'v1');
+        $this->accepted('backup', 'Резервные копии', 'v1');
+        $usage = new \OpenCCK\Test\Support\InMemorySkillUsageRepository();
+        $view = new \OpenCCK\App\Agent\Tool\SkillViewTool($this->catalog, $usage);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Owner'), new \Amp\NullCancellation());
+
+        $view->execute(['name' => 'nginx'], $context);
+        $view->execute(['name' => 'nginx'], $context);
+        $view->execute(['name' => 'nope'], $context);
+        self::assertSame(2, $usage->stats()['nginx']['views'] ?? null);
+        self::assertArrayNotHasKey('nope', $usage->stats(), 'a missing skill is not counted');
+
+        $usage->viewedAt['backup'] = time() - 40 * 86400;
+        $commands = new SkillCommands($this->repo, usage: $usage);
+        $list = $commands->list();
+        self::assertStringContainsString('nginx v1 — включён · открыт 2', $list);
+        self::assertStringContainsString('backup v1 — включён · давно не открывался', $list);
+
+        self::assertStringContainsString('закреплён', $commands->skill('backup pin'));
+        self::assertStringNotContainsString('давно не открывался', $commands->list(), 'a pinned skill is never stale');
+        $commands->skill('backup unpin');
+        self::assertStringContainsString('давно не открывался', $commands->list());
+    }
 }
