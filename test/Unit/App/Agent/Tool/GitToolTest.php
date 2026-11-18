@@ -49,8 +49,10 @@ final class GitToolTest extends AsyncTestCase {
         $result = $tool->execute(['args' => ['push', 'origin', 'master'], 'cwd' => 'app', 'secret' => 'github', 'origin' => 'https://github.com/opencck/x.git'], $this->context());
 
         self::assertFalse($result->isError, $result->content);
-        self::assertSame(["exec 1 git 'push' 'origin' 'master' @app t120"], $this->sandbox->calls);
+        self::assertSame(["exec 1 git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c credential.helper= -c http.followRedirects=false 'push' 'origin' 'master' @app t120"], $this->sandbox->calls);
         self::assertSame('1', $this->sandbox->env['GIT_CONFIG_COUNT']);
+        self::assertSame('1', $this->sandbox->env['GIT_CONFIG_NOSYSTEM']);
+        self::assertSame('/dev/null', $this->sandbox->env['GIT_CONFIG_GLOBAL']);
         self::assertSame('http.https://github.com/.extraheader', $this->sandbox->env['GIT_CONFIG_KEY_0']);
         self::assertSame('Authorization: basic ' . base64_encode('x-access-token:' . self::TOKEN), $this->sandbox->env['GIT_CONFIG_VALUE_0']);
         self::assertSame('0', $this->sandbox->env['GIT_TERMINAL_PROMPT']);
@@ -102,6 +104,33 @@ final class GitToolTest extends AsyncTestCase {
 
         self::assertTrue($tool->execute(['args' => ['pull'], 'secret' => 'github', 'origin' => 'http://github.com'], $this->context())->isError);
         self::assertTrue($tool->execute(['args' => ['pull'], 'secret' => 'github'], $this->context())->isError, 'a secret needs an origin');
+    }
+
+    public function testASecretAlwaysWaitsForTheOwnerAndTheGrantNamesTheSecretAndTheOrigin(): void {
+        $tool = $this->tool();
+        $read = ['args' => ['ls-remote', 'https://evil.example/x.git'], 'secret' => 'github', 'origin' => 'https://evil.example'];
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a call with a secret is always a card: the pair secret + address
+        self::assertSame(DangerClass::Irreversible, $tool->danger($read), 'a read with a secret is not a read');
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['args' => ['fetch'], 'secret' => 'github', 'origin' => 'https://github.com']));
+        self::assertSame('git-secret:github https://evil.example', $tool->grantKey($read));
+        self::assertSame('git-secret:github https://github.com', $tool->grantKey(['args' => ['push'], 'secret' => 'github', 'origin' => 'https://GitHub.com/opencck/x.git']));
+        self::assertStringContainsString('https://evil.example', $tool->describe($read), 'the card shows the host');
+    }
+
+    public function testWithASecretOnlyNetworkCommandsRunAndNoSettingIsRevealed(): void {
+        $tool = $this->tool();
+        $this->vault->put('setting.OPENROUTER_API_KEY', 'token', 'sk-or-v1-secret', $this->owner);
+        $with = ['secret' => 'github', 'origin' => 'https://github.com'];
+
+        foreach ([['grep', '-Oenv | base64 > t #', 'x'], ['status'], ['-C', 'repo', 'push'], ['submodule', 'foreach', 'git push'], ['diff', '--output=x']] as $args) {
+            self::assertTrue($tool->execute(['args' => $args] + $with, $this->context())->isError, implode(' ', $args));
+        }
+        self::assertTrue($tool->execute(['args' => ['fetch'], 'secret' => 'setting.OPENROUTER_API_KEY', 'origin' => 'https://github.com'], $this->context())->isError, 'settings of the agent are not tokens');
+        self::assertSame([], $this->sandbox->calls);
+        foreach ([['clone', 'https://github.com/o/r.git'], ['fetch'], ['pull'], ['push', 'origin', 'main'], ['ls-remote', 'origin']] as $args) {
+            self::assertFalse($tool->execute(['args' => $args] + $with, $this->context())->isError, implode(' ', $args));
+        }
     }
 
     public function testDangerFollowsTheCommand(): void {

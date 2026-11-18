@@ -25,6 +25,12 @@ use function Mercurius\I18n\t;
  *      one-shot extraheader of the origin in GIT_CONFIG_*; here the token is the owner's secret, not a found login
  * ref: references/hermes-agent/hermes_cli/_subprocess_compat.py@e96221fa:L290-L300 — no prompts; we keep the
  *      repository's hooks (the participant's own) and refuse only options that start other programs
+ *
+ * With a secret the call is never a plain read or write: the owner sees the secret and the address on a card, and a
+ * grant names that pair — a page the agent read must not be able to send a token to a host of its choice. Only the
+ * network commands run with it, and without the settings and hooks of the participant: a program git starts would
+ * see the header in its environment. Hermes adds the header and nothing more.
+ * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a call with a secret is always a card with the pair secret + address
  */
 final class GitTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'git';
@@ -33,6 +39,12 @@ final class GitTool extends SandboxTool implements GrantKeyed {
     private const REFUSED = '~^(-c|--config-env|--exec-path|--upload-pack|--receive-pack|--exec)(=|$)|^-c.~';
     /** commands where -u is --upload-pack: a short cluster with u (-u sh, -ush, -qush) starts a program there */
     private const UPLOAD_PACK = ['clone', 'fetch', 'pull', 'ls-remote'];
+    /** the only commands a secret is given to: they talk to the origin and nothing else */
+    private const NETWORK = ['clone', 'fetch', 'pull', 'push', 'ls-remote'];
+    /** settings the participant's config could use to start a program next to the header, or to follow it elsewhere */
+    private const HARDENED = ['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'credential.helper=', 'http.followRedirects=false'];
+    /** secrets of the agent's own settings (`/set`): never a token for git */
+    private const SETTING_PREFIX = 'setting.';
 
     /** @param positive-int $defaultTimeout */
     public function __construct(
@@ -61,6 +73,9 @@ final class GitTool extends SandboxTool implements GrantKeyed {
     }
 
     public function danger(array $args): DangerClass {
+        if (self::secretOf($args) !== null) {
+            return DangerClass::Irreversible;
+        }
         $list = self::args($args);
         if ((new CommandClassifier())->classify(self::command($list))->danger === DangerClass::Irreversible) {
             return DangerClass::Irreversible;
@@ -69,12 +84,18 @@ final class GitTool extends SandboxTool implements GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
+        $secret = self::secretOf($args);
+        if ($secret !== null) {
+            $origin = self::origin(Args::string($args, 'origin') ?? '');
+            return $origin === null ? null : sprintf('git-secret:%s %s', $secret, $origin);
+        }
         return (new CommandClassifier())->classify(self::command(self::args($args)))->key;
     }
 
     public function describe(array $args): string {
-        $secret = Args::string($args, 'secret');
-        return 'git ' . implode(' ', self::args($args)) . ($secret === null ? '' : ' (' . t('tool.git.with') . ' ' . $secret . ')');
+        $secret = self::secretOf($args);
+        $origin = self::origin(Args::string($args, 'origin') ?? '') ?? (Args::string($args, 'origin') ?? '?');
+        return 'git ' . implode(' ', self::args($args)) . ($secret === null ? '' : ' (' . t('tool.git.with') . ' ' . $secret . ' → ' . $origin . ')');
     }
 
     public function timeout(): int {
@@ -97,8 +118,15 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         }
         $env = ['GIT_TERMINAL_PROMPT' => '0'];
         $hidden = [];
-        $secret = Args::string($args, 'secret');
-        if ($secret !== null && $secret !== '') {
+        $hardened = [];
+        $secret = self::secretOf($args);
+        if ($secret !== null) {
+            if (!in_array($list[0], self::NETWORK, true)) {
+                return ToolResult::error(sprintf(t('tool.git.secret_commands'), implode(', ', self::NETWORK)));
+            }
+            if (str_starts_with(strtolower($secret), self::SETTING_PREFIX)) {
+                return ToolResult::error(sprintf(t('tool.git.no_secret'), $secret));
+            }
             $origin = self::origin(Args::string($args, 'origin') ?? '');
             if ($origin === null) {
                 return ToolResult::error(t('tool.git.origin_bad'));
@@ -113,14 +141,17 @@ final class GitTool extends SandboxTool implements GrantKeyed {
                 'GIT_CONFIG_COUNT' => '1',
                 'GIT_CONFIG_KEY_0' => 'http.' . $origin . '/.extraheader',
                 'GIT_CONFIG_VALUE_0' => 'Authorization: basic ' . $basic,
+                'GIT_CONFIG_NOSYSTEM' => '1',
+                'GIT_CONFIG_GLOBAL' => '/dev/null',
             ];
             $hidden = [$token, $basic];
+            $hardened = self::HARDENED;
         }
         $outcome = $this->env->execEnv(
             $context->principal->id,
             $limits,
             $context->callId,
-            self::command($list),
+            self::command($list, $hardened),
             Args::string($args, 'cwd') ?? '.',
             max(1, Args::int($args, 'timeout') ?? $this->defaultTimeout),
             $env,
@@ -151,9 +182,19 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         return array_values(array_filter($args['args'], 'is_string'));
     }
 
-    /** @param list<string> $list */
-    private static function command(array $list): string {
-        return 'git ' . implode(' ', array_map(static fn(string $a): string => "'" . str_replace("'", "'\\''", $a) . "'", $list));
+    /**
+     * @param list<string> $list
+     * @param list<string> $settings set by the tool itself before the command; the model's own -c is refused
+     */
+    private static function command(array $list, array $settings = []): string {
+        $prefix = implode('', array_map(static fn(string $setting): string => '-c ' . $setting . ' ', $settings));
+        return 'git ' . $prefix . implode(' ', array_map(static fn(string $a): string => "'" . str_replace("'", "'\\''", $a) . "'", $list));
+    }
+
+    /** @param array<string, mixed> $args */
+    private static function secretOf(array $args): ?string {
+        $secret = trim(Args::string($args, 'secret') ?? '');
+        return $secret === '' ? null : $secret;
     }
 
     /** https://host[:port] of an address, null for anything that is not https */

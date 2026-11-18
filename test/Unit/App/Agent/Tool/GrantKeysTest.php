@@ -41,7 +41,8 @@ final class GrantKeysTest extends TestCase {
         yield 'settings set' => [SettingsTool::class, ['action' => 'set', 'key' => 'AGENT_MAX_TURNS', 'value' => '40'], 'settings:set:AGENT_MAX_TURNS'];
         yield 'settings restart' => [SettingsTool::class, ['action' => 'restart'], 'settings:restart'];
         yield 'settings list' => [SettingsTool::class, ['action' => 'list'], null];
-        yield 'sql write on a server' => [SqlQueryTool::class, ['server' => 'DB', 'database' => 'shop', 'query' => 'update x', 'write' => true], 'sql-write:db:shop'];
+        yield 'sql write on a server' => [SqlQueryTool::class, ['server' => 'DB', 'engine' => 'postgres', 'user' => 'app', 'database' => 'shop', 'query' => 'update x', 'write' => true], 'sql-write:db:postgres:127.0.0.1:5432:app:shop:' . substr(hash('sha256', 'update x'), 0, 16)];
+        yield 'sql read with a secret' => [SqlQueryTool::class, ['server' => 'db', 'engine' => 'mysql', 'user' => 'app', 'database' => 'shop', 'secret' => 'pg', 'query' => 'select 1'], 'sql-read:db:mysql:127.0.0.1:3306:app:pg'];
         yield 'sql read' => [SqlQueryTool::class, ['server' => 'db', 'database' => 'shop', 'query' => 'select 1'], null];
     }
 
