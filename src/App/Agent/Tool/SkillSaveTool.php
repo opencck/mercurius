@@ -26,7 +26,7 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/tools/skill_manager_tool.py@e96221fa:L1-L7 — the agent creates and edits its skills as
  *      SKILL.md directories; here in the folder of whoever the skill is for
  */
-final class SkillSaveTool implements Tool {
+final class SkillSaveTool implements Tool, ChangesSandbox {
     public const NAME = 'skill_save';
     public const FILES_MAX = 10;
     public const FILE_CHARS = 50_000;

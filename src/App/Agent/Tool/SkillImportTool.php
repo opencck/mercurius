@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#скиллы-и-mcp — a skill from git or an archive, in the folder of the participant or the project
  */
-final class SkillImportTool implements Tool, ReadsOutside {
+final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
     public const NAME = 'skill_import';
 
     /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Principal): ?Project $projectOf the project of a conversation: one named, else the active one */

@@ -47,7 +47,7 @@ final class ToolExecutor {
         $timeout = new TimeoutCancellation($timeoutSeconds);
         // spec: BRIEF.md#планировщик-и-проекты — a snapshot before the first change a run makes in the working folder
         $limits = $context->policy?->sandbox;
-        if ($this->checkpoints !== null && $limits !== null && $tool instanceof SandboxTool && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
+        if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
             $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
         }
 

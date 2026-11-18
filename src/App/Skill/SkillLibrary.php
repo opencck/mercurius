@@ -131,7 +131,13 @@ final class SkillLibrary {
         }
         try {
             if ($file !== null) {
-                return ['text' => $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/' . $file, SkillBundle::MAX_FILE_BYTES, $cancellation), 'files' => []];
+                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — each file of a folder skill passes the check when read
+                $text = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/' . $file, SkillBundle::MAX_FILE_BYTES, $cancellation);
+                if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => "---\nname: x\n---\n", $file => $text], 'folder', '')))) {
+                    $this->logger->warning('A file of a folder skill is refused by the check', ['dir' => $skill['dir'], 'file' => $file]);
+                    return null;
+                }
+                return ['text' => $text, 'files' => []];
             }
             $raw = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/SKILL.md', SkillBundle::MAX_FILE_BYTES, $cancellation);
             // ref: references/hermes-agent/agent/skill_utils.py@e96221fa:L511-L515 — skills of a folder are a way to
@@ -218,9 +224,16 @@ final class SkillLibrary {
             }
             $folder = strtolower($m[1]);
             try {
-                $head = SkillBundle::head($this->sandbox->fetch($owner, $limits, $dir . '/' . $m[1] . '/SKILL.md', SkillBundle::MAX_FILE_BYTES, $cancellation));
+                $raw = $this->sandbox->fetch($owner, $limits, $dir . '/' . $m[1] . '/SKILL.md', SkillBundle::MAX_FILE_BYTES, $cancellation);
+                $head = SkillBundle::head($raw);
             } catch (Throwable $e) {
                 $this->logger->notice('A skill was not read', ['dir' => $dir . '/' . $m[1], 'error' => $e::class]);
+                continue;
+            }
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the description goes into the prompt: a dangerous skill
+            //       is not in the index at all
+            if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => $raw], 'folder', '')))) {
+                $this->logger->warning('A folder skill is left out of the index by the check', ['dir' => $dir . '/' . $m[1]]);
                 continue;
             }
             $name = $head['name'] !== '' ? $head['name'] : $folder;

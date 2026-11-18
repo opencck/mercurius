@@ -63,6 +63,37 @@ final class CheckpointsTest extends AsyncTestCase {
         self::assertLessThan($written, $first, 'the snapshot comes before the change');
     }
 
+    public function testASkillWrittenIntoTheFolderGetsASnapshotFirst(): void {
+        $checkpoints = new Checkpoints($this->sandbox);
+        $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
+        $save = new class implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\ChangesSandbox {
+            public function definition(): \Mercurius\Llm\ToolDefinition {
+                return new \Mercurius\Llm\ToolDefinition('skill_save', 'x', ['type' => 'object']);
+            }
+
+            public function danger(array $args): DangerClass {
+                return DangerClass::Write;
+            }
+
+            public function untrusted(): bool {
+                return false;
+            }
+
+            public function timeout(): int {
+                return 10;
+            }
+
+            public function execute(array $args, \OpenCCK\App\Agent\Tool\ToolContext $context): \OpenCCK\App\Agent\Tool\ToolResult {
+                return \OpenCCK\App\Agent\Tool\ToolResult::ok('saved');
+            }
+        };
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a snapshot before a skill is written
+        $executor->run(new ValidatedCall(new ToolCall('s1', 'skill_save', '{}'), $save, [], null, DangerClass::Write), self::context(), 10);
+
+        self::assertCount(1, array_filter($this->commands(), static fn(string $c): bool => str_contains($c, 'commit')));
+    }
+
     public function testReadsTakeNoSnapshot(): void {
         $checkpoints = new Checkpoints($this->sandbox);
         $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
