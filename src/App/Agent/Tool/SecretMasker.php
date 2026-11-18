@@ -12,11 +12,59 @@ namespace OpenCCK\App\Agent\Tool;
  * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 — hermes shows the command in full; we mask values
  */
 final class SecretMasker {
+    /** shorter values are too much like ordinary words to be replaced everywhere */
+    private const KNOWN_MIN = 8;
+    /** the newest known values are kept; the oldest go first */
+    private const KNOWN_MAX = 256;
+    /** @var array<string, string> exact values of secrets the agent holds (the vault's, the tokens of its settings), by themselves */
+    private static array $known = [];
+
+    /**
+     * An exact secret value: from now on it is masked wherever it shows up, whatever it looks like. Memory only.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — masks by the value of a secret, not only by its shape
+     * ref: references/hermes-agent/agent/redact_vault_values.py@e96221fa:L13-L40 — a bounded registry of exact values;
+     *      hermes keeps one per profile, here one per process
+     */
+    public static function remember(string $value): void {
+        $value = trim($value);
+        if (strlen($value) < self::KNOWN_MIN || isset(self::$known[$value])) {
+            return;
+        }
+        self::$known[$value] = $value;
+        if (count(self::$known) > self::KNOWN_MAX) {
+            unset(self::$known[array_key_first(self::$known)]);
+        }
+    }
+
     /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret… */
     private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth|authorization|cookie|session)[\w-]*)';
 
-    /** @return array<non-empty-string, string> */
-    private static function patterns(): array {
+    /**
+     * Whether a text carries a secret by its name or its shape: a long hex or base64 string alone is not taken as one
+     * (a hash of a commit, a picture) — the mask of output still hides those.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a message is deleted for a secret, not for a hash
+     */
+    public static function carriesSecret(string $text): bool {
+        foreach (self::patterns(false) as $pattern => $replacement) {
+            if (preg_match($pattern, $text) === 1) {
+                return true;
+            }
+        }
+        foreach (self::$known as $value) {
+            if (str_contains($text, $value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param bool $bare with the rules for a long hex or base64 string with no name around it
+     * @return array<non-empty-string, string>
+     */
+    private static function patterns(bool $bare = true): array {
         $name = self::SECRET_NAME;
         return [
             // URL credentials: https://user:password@host, and a long id as the user (vless://<uuid>@host)
@@ -34,16 +82,26 @@ final class SecretMasker {
             // within a few words — the eval caught a password said in Russian landing in a memory fact.
             '/((?:парол|токен|ключ\s+api|секретн\S*\s+ключ|pin|пин-?код)\S*[^\n:=]{0,40}?[:=]\s*)("[^"]*"|\S+)/iu' => '$1***',
             '/((?:парол|токен|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
+            // ref: references/hermes-agent/agent/redact.py@e96221fa:L620-L640 — a bot token and a PEM private key
+            '/(?<![A-Za-z_\d])(bot)?(\d{8,}):[-A-Za-z0-9_]{30,}/' => '$1$2:***',
+            '/-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/' => '[PRIVATE KEY]',
             '/\b(sk|pk|rk)-[A-Za-z0-9_-]{16,}/' => '$1-***',
             '/\b(ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/' => '$1_***',
             '/\bxox[abprs]-[A-Za-z0-9-]{10,}/' => 'xox***',
             '/\bAKIA[0-9A-Z]{16}\b/' => 'AKIA***',
+        ] + ($bare ? [
             '/\b[0-9a-f]{32,}\b/i' => '***',
             '/\b[A-Za-z0-9+\/]{40,}={0,2}/' => '***',
-        ];
+        ] : []);
     }
 
     public static function mask(string $text): string {
+        if (self::$known !== []) {
+            $values = array_values(self::$known);
+            // the longest first: a value inside another is not left half-shown
+            usort($values, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+            $text = str_replace($values, '***', $text);
+        }
         foreach (self::patterns() as $pattern => $replacement) {
             $text = preg_replace($pattern, $replacement, $text) ?? $text;
         }

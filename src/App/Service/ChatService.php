@@ -309,8 +309,11 @@ final class ChatService implements MessageHandler {
      * spec: BRIEF.md#фаза-7-по-частям — a secret that appeared in Telegram is deleted by the bot and kept in the vault
      */
     private function withoutSecrets(Principal $principal, IncomingMessage $message): IncomingMessage {
+        if (!SecretMasker::carriesSecret($message->text) || $this->servers === null) {
+            return $message;
+        }
         $masked = SecretMasker::mask($message->text);
-        if ($masked === $message->text || $this->servers === null) {
+        if ($masked === $message->text) {
             return $message;
         }
         $name = $message->isPrivateChat && $principal->role !== Role::Visitor ? $this->servers->stash($principal, $message->text, $message->messageId) : null;

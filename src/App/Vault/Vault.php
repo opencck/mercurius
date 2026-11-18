@@ -60,11 +60,19 @@ final class Vault {
      * The value, for code that uses it right now; null when there is no such secret or the reader may not have it.
      */
     public function reveal(string $name, Principal $reader): ?string {
-        return $this->open($this->secrets->find($name), $reader);
+        return self::known($this->open($this->secrets->find($name), $reader));
     }
 
     public function revealById(int $id, Principal $reader): ?string {
-        return $this->open($this->secrets->byId($id), $reader);
+        return self::known($this->open($this->secrets->byId($id), $reader));
+    }
+
+    /** A value that left the vault is masked wherever it shows up later (output, logs, traces). */
+    private static function known(?string $value): ?string {
+        if ($value !== null) {
+            \OpenCCK\App\Agent\Tool\SecretMasker::remember($value);
+        }
+        return $value;
     }
 
     /** @return list<array{name: string, kind: string}> what the reader may see, names and kinds only */

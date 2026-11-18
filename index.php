@@ -176,6 +176,12 @@ try {
 }
 
 date_default_timezone_set($config->timezone);
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the secrets of the settings are masked by their values everywhere
+foreach ($_ENV as $name => $value) {
+    if (is_string($value) && preg_match('~(TOKEN|_KEY|SECRET|PASSWORD|_HASH|_URI)$~', $name) === 1) {
+        SecretMasker::remember($value);
+    }
+}
 $logger = LoggerFactory::create($config->logLevel);
 // An error escaping a fiber is logged instead of stopping the whole process.
 EventLoop::setErrorHandler(static fn(Throwable $e) => $logger->error('Unhandled error in the event loop', ['error' => $e::class]));
