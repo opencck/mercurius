@@ -290,10 +290,12 @@ final class PeerNetwork {
             throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
         }
         $messageId = 'msg-' . bin2hex(random_bytes(8));
+        // the path of a task from a neighbour already ends with this instance: it is in the chain once
+        $path = end($path) === $this->self ? $path : [...$path, $this->self];
         $token = null;
         if ($link !== null) {
             try {
-                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self], $files)));
+                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::mask($task), $depth + 1, $path, $files)));
             } catch (\RuntimeException $e) {
                 throw new DomainException($e->getMessage());
             }
@@ -302,7 +304,7 @@ final class PeerNetwork {
         } else {
             $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
             $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
-            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, [...$path, $this->self], null, $files));
+            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, $path, null, $files));
         }
         $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);

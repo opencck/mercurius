@@ -299,6 +299,24 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertSame('Итог: по данным C — Париж.', $this->followerPeers->task($taskId)?->result);
     }
 
+    public function testATaskOfATaskCarriesEachInstanceOnceInItsPath(): void {
+        $this->follower(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $network = $this->network(new InMemoryPeerRepository(), $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+
+        // the run is a task that came from someone else: its stored path already ends with this instance
+        $network->delegate($owner, 'follower', 'Сделай', A2aServer::CHANNEL, 'a2a-1-ctx', 1, ['https://first.example', self::LEADER]);
+
+        $first = array_key_first($this->followerPeers->tasks);
+        self::assertNotNull($first);
+        self::assertSame(['https://first.example', self::LEADER, self::FOLLOWER], $this->followerPeers->tasks[$first]->path);
+        self::assertSame(2, $this->followerPeers->tasks[$first]->depth);
+    }
+
     public function testTheLeadersTraceShowsTheRemoteRunAndItsSpend(): void {
         $this->follower(new ScriptedLlm([ScriptedLlm::text('Готово.', 1200, 300)]));
         $leader = new AgentStack(new ScriptedLlm([]));
