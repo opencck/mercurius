@@ -240,7 +240,7 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      * @param list<array{name: string, bytes: string}> $files
      */
-    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = []): OutgoingTask {
+    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null): OutgoingTask {
         $peer = $this->peers->peer($peerName);
         // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
@@ -264,8 +264,9 @@ final class PeerNetwork {
         }
         $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
-        $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state);
+        $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state, $leaderRun);
         if (in_array($state, A2aTask::TERMINAL, true)) {
+            $this->spend($out, $remote);
             $this->finish($out, $state, A2aClient::answer($remote), $this->answerFiles($out, $remote, $link, $peer, $token));
         }
         return $out;
@@ -285,6 +286,7 @@ final class PeerNetwork {
                 }
                 $state = A2aClient::state($task);
                 if (in_array($state, A2aTask::TERMINAL, true)) {
+                    $this->spend($out, $task);
                     $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, $link, null, null));
                 }
                 continue;
@@ -303,8 +305,26 @@ final class PeerNetwork {
             }
             $state = A2aClient::state($task);
             if (in_array($state, A2aTask::TERMINAL, true)) {
+                $this->spend($out, $task);
                 $this->finish($out, $state, A2aClient::answer($task), $this->answerFiles($out, $task, null, $peer, $token));
             }
+        }
+    }
+
+    /**
+     * What the neighbour said it spent on the task (`metadata.mercurius` of the task: its run, tokens, USD): kept with
+     * the task, so the leader's trace shows it in the same unit. A neighbour that says nothing spent unknown.
+     *
+     * spec: BRIEF.md#сеть-агентов — the spend of the follower in the leader's trace
+     * @param array<array-key, mixed> $task
+     */
+    private function spend(OutgoingTask $out, array $task): void {
+        $meta = isset($task['metadata']) && is_array($task['metadata']) && isset($task['metadata']['mercurius']) && is_array($task['metadata']['mercurius']) ? $task['metadata']['mercurius'] : [];
+        $run = isset($meta['run']) && is_int($meta['run']) ? $meta['run'] : null;
+        $tokens = isset($meta['tokens']) && is_int($meta['tokens']) ? max(0, $meta['tokens']) : 0;
+        $usd = isset($meta['usd']) && (is_float($meta['usd']) || is_int($meta['usd'])) ? max(0.0, (float) $meta['usd']) : null;
+        if ($run !== null || $tokens > 0 || $usd !== null) {
+            $this->peers->recordRemoteSpend($out->id, $run, $tokens, $usd);
         }
     }
 

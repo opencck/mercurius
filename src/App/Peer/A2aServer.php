@@ -111,6 +111,8 @@ final class A2aServer implements JobRuns {
         private readonly ?AgentRequests $requests = null,
         /** files between agents: uploads, references, answers; null — only bytes in parts, up to 5 MB */
         private readonly ?A2aFiles $files = null,
+        /** @var (Closure(int): ?float)|null the cost of a run in USD, for the leader's trace; null — not reported */
+        private readonly ?Closure $costOf = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -525,6 +527,11 @@ final class A2aServer implements JobRuns {
             $view['status']['message'] = ['role' => 'ROLE_AGENT', 'messageId' => $task->id . '-result', 'parts' => $parts];
             if ($task->state === A2aTask::COMPLETED) {
                 $view['artifacts'] = [['artifactId' => $task->id . '-answer', 'parts' => $parts]];
+            }
+            // spec: BRIEF.md#сеть-агентов — the leader learns the run and what it cost, in tokens and USD
+            if ($task->runId !== null) {
+                $run = $this->runs->find($task->runId);
+                $view['metadata'] = ['mercurius' => ['run' => $task->runId, 'tokens' => $run === null ? 0 : $run->tokensUsed, 'usd' => $this->costOf === null ? null : ($this->costOf)($task->runId)]];
             }
         }
         return $view;

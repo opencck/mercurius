@@ -79,7 +79,14 @@ interface PeerRepository {
 
     public function removePeer(string $name): bool;
 
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state): OutgoingTask;
+    /** @param int|null $leaderRun the run that gave the task, for its trace */
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask;
+
+    /** What the neighbour reported it spent on the task: its run, tokens and cost in USD. */
+    public function recordRemoteSpend(int $id, ?int $remoteRun, int $tokens, ?float $usd): void;
+
+    /** @return list<array{peer: string, remote: string, state: string, run: ?int, tokens: int, usd: ?float}> the tasks a run gave */
+    public function outgoingOfRun(int $runId): array;
 
     /** @return list<OutgoingTask> */
     public function openOutgoing(int $limit): array;

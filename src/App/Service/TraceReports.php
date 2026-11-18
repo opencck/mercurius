@@ -23,6 +23,8 @@ final class TraceReports {
     public function __construct(
         private readonly TraceReportRepository $figures,
         private readonly TraceRepository $traces,
+        /** tasks a run gave to neighbours and what they spent; null — no network of agents */
+        private readonly ?\OpenCCK\Domain\Repository\PeerRepository $peers = null,
     ) {}
 
     public function usage(int $days): string {
@@ -182,6 +184,11 @@ final class TraceReports {
                 $line .= ' — ' . $span->error;
             }
             $lines[] = $line;
+        }
+        // spec: BRIEF.md#сеть-агентов — the spend of the neighbours in the same unit as the own steps
+        foreach ($this->peers?->outgoingOfRun($runId) ?? [] as $remote) {
+            $cost += $remote['usd'] ?? 0.0;
+            $lines[] = sprintf(t('service.trace_reports.remote'), $remote['peer'], $remote['remote'], $remote['run'] === null ? '?' : '#' . $remote['run'], $remote['state'], $remote['tokens'], $remote['usd'] === null ? '?' : self::usd($remote['usd']));
         }
         $lines[] = '';
         $lines[] = t('service.trace_reports.stoimost_shagov') . self::usd($cost);

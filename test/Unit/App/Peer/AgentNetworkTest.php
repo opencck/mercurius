@@ -259,6 +259,35 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('не ключом этого соседа', $impostor->content);
     }
 
+    public function testTheLeadersTraceShowsTheRemoteRunAndItsSpend(): void {
+        $this->follower(new ScriptedLlm([ScriptedLlm::text('Готово.', 1200, 300)]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $leaderPeers = new InMemoryPeerRepository();
+        $network = $this->network($leaderPeers, $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+        $conversation = $leader->conversations->openConversation($owner->id, 'telegram', '7');
+
+        $result = (new PeerDelegateTool($network, $leaderPeers, $leader->conversations))->execute(['peer' => 'follower', 'task' => 'Сделай'], new ToolContext(41, $conversation, $owner, new NullCancellation()));
+        self::assertFalse($result->isError, $result->content);
+        delay(0.05);
+        $network->poll();
+
+        $spent = $leaderPeers->outgoingOfRun(41);
+        self::assertCount(1, $spent, 'the task is known by the leader\'s run');
+        self::assertNotNull($spent[0]['run'], 'the number of the remote run came back');
+        self::assertSame(1500, $spent[0]['tokens'], 'the follower\'s tokens');
+
+        $trace = new \OpenCCK\Test\Support\InMemoryTraceRepository();
+        $trace->spans[] = new \OpenCCK\Domain\Agent\TraceSpan(41, null, \OpenCCK\Domain\Agent\TraceSpan::RUN, 'agent', new \DateTimeImmutable(), 10, 'ok', costUsd: 0.01);
+        $text = (string) (new \OpenCCK\App\Service\TraceReports(new \OpenCCK\Test\Support\FakeTraceReports(), $trace, $leaderPeers))->trace(41);
+        self::assertStringContainsString('follower', $text);
+        self::assertStringContainsString('#' . $spent[0]['run'], $text, 'the remote run number');
+        self::assertStringContainsString('1500', $text);
+    }
+
     public function testFilesGoAheadOfTheTaskAndComeBackWithTheAnswer(): void {
         $this->follower(new ScriptedLlm([ScriptedLlm::text('Отчёт готов, файл приложен.')]));
         $leader = new AgentStack(new ScriptedLlm([]));

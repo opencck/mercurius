@@ -174,10 +174,10 @@ final class PostgresPeerRepository implements PeerRepository {
         return $this->db->execute('DELETE FROM peers WHERE name = ? RETURNING name', [$name])->fetchRow() !== null;
     }
 
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state): OutgoingTask {
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask {
         $row = $this->db->execute(
-            'INSERT INTO a2a_outgoing (peer, remote_id, principal_id, channel, chat_id, task, state) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::OUT,
-            [$peer, $remoteId, $principalId, $channel, $chatId, $task, $state],
+            'INSERT INTO a2a_outgoing (peer, remote_id, principal_id, channel, chat_id, task, state, leader_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::OUT,
+            [$peer, $remoteId, $principalId, $channel, $chatId, $task, $state, $leaderRun],
         )->fetchRow();
         return self::outRow($row ?? throw new UnexpectedValueException('Outgoing task was not created'));
     }
@@ -186,6 +186,28 @@ final class PostgresPeerRepository implements PeerRepository {
         $found = [];
         foreach ($this->db->execute('SELECT ' . self::OUT . ' FROM a2a_outgoing WHERE state IN ' . self::OPEN . ' ORDER BY id LIMIT ?', [$limit]) as $row) {
             $found[] = self::outRow($row);
+        }
+        return $found;
+    }
+
+    public function recordRemoteSpend(int $id, ?int $remoteRun, int $tokens, ?float $usd): void {
+        $this->db->execute('UPDATE a2a_outgoing SET remote_run = ?, remote_tokens = ?, remote_usd = ? WHERE id = ?', [$remoteRun, $tokens, $usd, $id]);
+    }
+
+    public function outgoingOfRun(int $runId): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT peer, remote_id, state, remote_run, remote_tokens, remote_usd FROM a2a_outgoing WHERE leader_run_id = ? ORDER BY id', [$runId]) as $row) {
+            $run = $row['remote_run'] ?? null;
+            $tokens = $row['remote_tokens'] ?? 0;
+            $usd = $row['remote_usd'] ?? null;
+            $found[] = [
+                'peer' => self::str($row, 'peer'),
+                'remote' => self::str($row, 'remote_id'),
+                'state' => self::str($row, 'state'),
+                'run' => is_int($run) ? $run : null,
+                'tokens' => is_int($tokens) ? $tokens : 0,
+                'usd' => is_float($usd) ? $usd : (is_int($usd) ? (float) $usd : null),
+            ];
         }
         return $found;
     }

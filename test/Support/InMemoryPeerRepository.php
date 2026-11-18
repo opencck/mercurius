@@ -178,13 +178,32 @@ final class InMemoryPeerRepository implements PeerRepository {
         return $found;
     }
 
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state): OutgoingTask {
+    /** @var array<int, array{leader: ?int, run: ?int, tokens: int, usd: ?float}> */
+    public array $spend = [];
+
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask {
         $id = count($this->outgoing) + 1;
+        $this->spend[$id] = ['leader' => $leaderRun, 'run' => null, 'tokens' => 0, 'usd' => null];
         return $this->outgoing[$id] = new OutgoingTask($id, $peer, $remoteId, $principalId, $channel, $chatId, $task, $state, null);
     }
 
     public function openOutgoing(int $limit): array {
         return array_slice(array_values(array_filter($this->outgoing, static fn(OutgoingTask $o): bool => in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true))), 0, $limit);
+    }
+
+    public function recordRemoteSpend(int $id, ?int $remoteRun, int $tokens, ?float $usd): void {
+        $this->spend[$id] = ['leader' => $this->spend[$id]['leader'] ?? null, 'run' => $remoteRun, 'tokens' => $tokens, 'usd' => $usd];
+    }
+
+    public function outgoingOfRun(int $runId): array {
+        $found = [];
+        foreach ($this->outgoing as $id => $o) {
+            $s = $this->spend[$id] ?? null;
+            if ($s !== null && $s['leader'] === $runId) {
+                $found[] = ['peer' => $o->peer, 'remote' => $o->remoteId, 'state' => $o->state, 'run' => $s['run'], 'tokens' => $s['tokens'], 'usd' => $s['usd']];
+            }
+        }
+        return $found;
     }
 
     public function finishOutgoing(int $id, string $state, ?string $result): void {

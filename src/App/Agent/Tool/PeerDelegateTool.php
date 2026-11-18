@@ -79,7 +79,7 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         try {
             // spec: BRIEF.md#между-агентами — files of the sandbox go with the task
             $files = SandboxFiles::read($this->sandbox, $args, $context);
-            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files);
+            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files, $context->runId);
         } catch (DomainException | RuntimeException $e) {
             return ToolResult::error($e->getMessage());
         }
