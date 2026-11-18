@@ -173,7 +173,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
             $changed++;
         }
         foreach ($this->db->execute(
-            'UPDATE tool_calls SET arguments = replace(arguments::text, ?, ?)::jsonb WHERE strpos(arguments::text, ?) > 0 RETURNING id',
+            'UPDATE tool_calls SET arguments = replace(arguments::text, ?, ?)::jsonb WHERE strpos(arguments::text, ?) > 0 RETURNING call_id',
             [$from, $to, $from],
         ) as $row) {
             $changed++;
