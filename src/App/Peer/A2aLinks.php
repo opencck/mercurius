@@ -66,6 +66,17 @@ final class A2aLinks {
         return null;
     }
 
+    /** Closes every connection with the agent of this key; how many were closed. */
+    public function closeKey(string $fingerprint): int {
+        $closed = 0;
+        foreach ($this->links as $id => $link) {
+            if ($link['fingerprint'] === $fingerprint && $this->close($id)) {
+                ++$closed;
+            }
+        }
+        return $closed;
+    }
+
     public function close(int $id): bool {
         $link = $this->links[$id] ?? null;
         if ($link === null) {

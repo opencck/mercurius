@@ -83,7 +83,7 @@ final class PeerNetwork {
      * @param array<array-key, mixed> $params
      */
     public function noticed(string $from, string $method, array $params): void {
-        $id = isset($params['id']) && is_string($params['id']) ? $params['id'] : '';
+        $id = A2aClient::taskId($params) ?? '';
         if ($method !== 'TaskStatusUpdate' || $id === '') {
             return;
         }
@@ -238,8 +238,22 @@ final class PeerNetwork {
         return ($this->keys ?? throw new DomainException(t('peer.agent_keys.bad_name')))->get($key);
     }
 
+    /** Revokes the key of an agent and closes the connections it has open with this one. */
     public function revoke(string $name): bool {
-        return $this->peers->revokeKey($name);
+        $fingerprints = [];
+        foreach ($this->peers->keys() as $key) {
+            if ($key['name'] === $name && !$key['revoked']) {
+                $fingerprints[] = $key['fingerprint'];
+            }
+        }
+        if (!$this->peers->revokeKey($name)) {
+            return false;
+        }
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
+        foreach ($fingerprints as $fingerprint) {
+            $this->links?->closeKey($fingerprint);
+        }
+        return true;
     }
 
     public function fingerprint(): string {
@@ -258,7 +272,7 @@ final class PeerNetwork {
             throw new DomainException(sprintf(t('peer.peer_network.sekreta_net_secret_token_soseda'), $secret, $secret));
         }
         try {
-            $card = $this->client->card($url);
+            $card = $this->client->provenCard($url);
         } catch (Throwable $e) {
             throw new DomainException(t('peer.peer_network.kartochku_soseda_ne_poluchit') . $e->getMessage());
         }
@@ -306,7 +320,7 @@ final class PeerNetwork {
             $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
             $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::mask($task), $depth + 1, $path, null, $files));
         }
-        $remoteId = isset($remote['id']) && is_string($remote['id']) ? $remote['id'] : throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
+        $remoteId = A2aClient::taskId($remote) ?? throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state, $leaderRun);
         if (in_array($state, A2aTask::TERMINAL, true)) {
@@ -438,7 +452,7 @@ final class PeerNetwork {
         try {
             return $call($peer);
         } catch (A2aMoved) {
-            $card = $this->client->card($peer->url);
+            $card = $this->client->provenCard($peer->url);
             if (A2aClient::cardKey($card) !== $peer->publicKey) {
                 throw new DomainException(t('peer.a2a_client.otvet_podpisan_ne_klyuchom_etogo'));
             }
@@ -530,7 +544,17 @@ final class PeerNetwork {
     }
 
     /**
-     * Keeps the files of an answer in inbox/<task>/ of the sandbox of the one who gave the task; returns the lines for
+     * The folder for the files of an answer: inbox/<neighbour>-<our number of the task>. Our own number, not the one
+     * the neighbour gave: what the neighbour says is never made a path here.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
+     */
+    public static function inboxOf(OutgoingTask $out): string {
+        return 'inbox/' . $out->peer . '-' . $out->id;
+    }
+
+    /**
+     * Keeps the files of an answer in inbox/<neighbour>-<task>/ of the sandbox of the one who gave the task; returns the lines for
      * the conversation ('' — no files).
      *
      * @param list<array{name: string, bytes: string}> $files
@@ -542,7 +566,7 @@ final class PeerNetwork {
         $limits = $this->limitsOf === null ? null : ($this->limitsOf)($out->principalId);
         $lines = [];
         foreach ($files as $file) {
-            $path = 'inbox/' . $out->remoteId . '/' . \OpenCCK\App\Agent\Media\MediaNames::clean($file['name']);
+            $path = self::inboxOf($out) . '/' . \OpenCCK\App\Agent\Media\MediaNames::clean($file['name']);
             $kept = false;
             if ($this->sandbox !== null && $limits !== null) {
                 try {

@@ -99,6 +99,27 @@ final class A2aClient {
     }
 
     /**
+     * The card of the agent at this address, with proof that it holds the key of the card: it signs a random number
+     * of ours together with its address. A card copied from another agent, or fetched from it on our behalf, fails.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a neighbour is added only when its card proves the key
+     * @return array<array-key, mixed>
+     * @throws RuntimeException the card does not prove its key
+     */
+    public function provenCard(string $base, ?Cancellation $cancellation = null): array {
+        $nonce = bin2hex(random_bytes(16));
+        $card = $this->request(new Request(rtrim($base, '/') . '/.well-known/agent-card.json?nonce=' . $nonce), $cancellation);
+        $key = self::cardKey($card);
+        $proof = isset($card['mercurius']) && is_array($card['mercurius']) && isset($card['mercurius']['proof']) && is_string($card['mercurius']['proof'])
+            ? $card['mercurius']['proof']
+            : '';
+        if ($key === null || !AgentIdentity::verify($key, AgentIdentity::cardProofData($nonce, $base), $proof)) {
+            throw new RuntimeException(t('peer.a2a_client.card_not_proven'));
+        }
+        return $card;
+    }
+
+    /**
      * @param list<string> $path
      * @param list<array{name: string, bytes: string}> $files
      * @return array<array-key, mixed> the task
@@ -213,7 +234,7 @@ final class A2aClient {
         foreach ($this->about() as $claim => $value) {
             $request->setHeader('x-a2a-' . $claim, $value);
         }
-        $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData($method, is_string($path) ? $path : '/', $timestamp, $nonce, $body)));
+        $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData($method, is_string($path) ? $path : '/', $timestamp, $nonce, $body, $peer->url)));
         return [$request, $nonce];
     }
 
@@ -264,6 +285,21 @@ final class A2aClient {
         return $key === null || AgentIdentity::fingerprintOf($key) === null ? null : $key;
     }
 
+    /**
+     * The number a neighbour gave its task, when it is a plain number of letters, digits and - _ . : (up to 100), not a
+     * path; null otherwise. The number is the neighbour's word: it is only shown and asked back, never made a path.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
+     * @param array<array-key, mixed> $task
+     */
+    public static function taskId(array $task): ?string {
+        if (!isset($task['id']) || !is_string($task['id'])) {
+            return null;
+        }
+        $id = $task['id'];
+        return preg_match('~^[\w.:-]{1,100}$~D', $id) === 1 && !str_contains($id, '..') ? $id : null;
+    }
+
     /** @param array<array-key, mixed> $task */
     public static function state(array $task): string {
         return isset($task['status']) && is_array($task['status']) && isset($task['status']['state']) && is_string($task['status']['state']) ? $task['status']['state'] : '';
@@ -299,7 +335,7 @@ final class A2aClient {
         foreach ($this->about() as $claim => $value) {
             $request->setHeader('x-a2a-' . $claim, $value);
         }
-        $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData('POST', is_string($path) ? $path : '/a2a', $timestamp, $nonce, $body)));
+        $request->setHeader('x-a2a-signature', $identity->sign(AgentIdentity::requestData('POST', is_string($path) ? $path : '/a2a', $timestamp, $nonce, $body, $peer->url)));
         $data = $this->request($request, $cancellation, $peer->publicKey, $nonce);
         if (isset($data['error']) && is_array($data['error'])) {
             $message = isset($data['error']['message']) && is_string($data['error']['message']) ? $data['error']['message'] : 'error';
@@ -331,7 +367,7 @@ final class A2aClient {
         } catch (Throwable $e) {
             throw new RuntimeException(t('peer.a2a_client.sosed_ne_otvetil') . (new \ReflectionClass($e))->getShortName() . ').');
         }
-        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint, $peer->name, $peer->url), $this->about());
+        $socket = A2aSocket::open($channel, $identity, $peer->publicKey, 10.0, $this->serveFor === null ? null : ($this->serveFor)($peerFingerprint, $peer->name, $peer->url), $this->about(), $url);
         $this->links?->add(A2aLinks::OUT, $peer->name, $peerFingerprint, $socket);
         return $this->sockets[$slot] = $socket;
     }

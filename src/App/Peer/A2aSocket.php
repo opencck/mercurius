@@ -28,6 +28,14 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
  */
 final class A2aSocket {
+    /**
+     * The version of the handshake: 2 — both signatures name the address dialed. An agent of another version is
+     * turned away with this said, not with a signature that does not match.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+     */
+    public const VERSION = 2;
+
     private int $nextId = 1;
     /** @var array<int, DeferredFuture<array<array-key, mixed>>> */
     private array $pending = [];
@@ -64,13 +72,15 @@ final class A2aSocket {
      * @param (\Closure(array<array-key, mixed>): array<string, mixed>)|null $serve answers requests of the neighbour
      * @param array{name?: string, url?: string} $about what this agent tells of itself: a neighbour that does not know
      *        it yet shows this to its owner
+     * @param string $audience the address this agent dialed: both signatures of the handshake name it, so a handshake
+     *        relayed by another instance does not hold at either end
      * @throws RuntimeException the neighbour refused, or it is not who its pinned key says
      */
-    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0, ?\Closure $serve = null, array $about = []): self {
+    public static function open(A2aChannel $channel, AgentIdentity $me, string $peerKey, float $timeout = 10.0, ?\Closure $serve = null, array $about = [], string $audience = ''): self {
         $deadline = new TimeoutCancellation($timeout);
         $nonce = bin2hex(random_bytes(16));
         try {
-            $channel->send(json_encode(['type' => 'hello', 'key' => $me->publicKey, 'nonce' => $nonce] + $about, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            $channel->send(json_encode(['type' => 'hello', 'version' => self::VERSION, 'key' => $me->publicKey, 'nonce' => $nonce] + $about, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             $challenge = self::frame($channel->receive($deadline));
             if (($challenge['type'] ?? null) === 'denied') {
                 throw new RuntimeException(t('peer.a2a_client.sosed_ne_pustil') . self::reason($challenge));
@@ -79,10 +89,10 @@ final class A2aSocket {
             $signature = isset($challenge['signature']) && is_string($challenge['signature']) ? $challenge['signature'] : '';
             $peerFingerprint = AgentIdentity::fingerprintOf($peerKey) ?? '';
             if (($challenge['type'] ?? null) !== 'challenge' || $serverNonce === ''
-                || !AgentIdentity::verify($peerKey, AgentIdentity::wsServerData($nonce, $serverNonce, $me->fingerprint()), $signature)) {
+                || !AgentIdentity::verify($peerKey, AgentIdentity::wsServerData($nonce, $serverNonce, $me->fingerprint(), $audience), $signature)) {
                 throw new RuntimeException(t('peer.a2a_client.otvet_podpisan_ne_klyuchom_etogo'));
             }
-            $channel->send(json_encode(['type' => 'auth', 'signature' => $me->sign(AgentIdentity::wsClientData($serverNonce, $nonce, $peerFingerprint))], JSON_THROW_ON_ERROR));
+            $channel->send(json_encode(['type' => 'auth', 'signature' => $me->sign(AgentIdentity::wsClientData($serverNonce, $nonce, $peerFingerprint, $audience))], JSON_THROW_ON_ERROR));
             $ready = self::frame($channel->receive($deadline));
             if (($ready['type'] ?? null) !== 'ready') {
                 throw new RuntimeException(t('peer.a2a_client.sosed_ne_pustil') . self::reason($ready));

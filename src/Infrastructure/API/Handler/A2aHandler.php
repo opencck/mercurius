@@ -23,7 +23,9 @@ final class A2aHandler implements RequestHandler {
 
     public function handleRequest(Request $request): Response {
         if ($request->getMethod() === 'GET') {
-            return self::json(200, $this->server->card(), []);
+            parse_str($request->getUri()->getQuery(), $query);
+            $nonce = isset($query['nonce']) && is_string($query['nonce']) ? $query['nonce'] : null;
+            return self::json(200, $this->server->card($nonce), []);
         }
         try {
             $request->getBody()->increaseSizeLimit(self::BODY_MAX);

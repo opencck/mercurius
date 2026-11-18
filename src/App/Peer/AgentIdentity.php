@@ -100,8 +100,40 @@ final class AgentIdentity {
     }
 
     /** What is signed in a request: method, path, time, a one-time number and the hash of the body. */
-    public static function requestData(string $method, string $path, string $timestamp, string $nonce, string $body): string {
-        return implode("\n", ['a2a-request', strtoupper($method), $path, $timestamp, $nonce, hash('sha256', $body)]);
+    /**
+     * @param string $audience the address of the instance the request is for: a request signed for one instance is
+     *        no good at another (a neighbour that got it cannot replay it elsewhere)
+     */
+    public static function requestData(string $method, string $path, string $timestamp, string $nonce, string $body, string $audience): string {
+        return implode("\n", ['a2a-request', self::audience($audience), strtoupper($method), $path, $timestamp, $nonce, hash('sha256', $body)]);
+    }
+
+    /**
+     * The address an instance answers at, in one spelling: scheme, host in lower case, a port only when it is not
+     * the default. ws and wss are http and https — the same instance takes both.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — signatures between agents name the address they are for
+     */
+    public static function audience(string $url): string {
+        $parts = parse_url(trim($url));
+        if (!is_array($parts) || !isset($parts['host'])) {
+            return '';
+        }
+        $scheme = match (strtolower($parts['scheme'] ?? 'https')) {
+            'ws', 'http' => 'http',
+            default => 'https',
+        };
+        $port = $parts['port'] ?? null;
+        $default = $scheme === 'http' ? 80 : 443;
+        return $scheme . '://' . strtolower($parts['host']) . ($port === null || $port === $default ? '' : ':' . $port);
+    }
+
+    /**
+     * What an agent signs in its card when asked with a random number: proof that whoever answers at this address
+     * holds the key of the card. Without it a card could carry the key of someone else.
+     */
+    public static function cardProofData(string $nonce, string $audience): string {
+        return implode("\n", ['a2a-card', self::audience($audience), $nonce]);
     }
 
     /** What is signed in an answer: bound to the request by its one-time number. */
@@ -115,15 +147,15 @@ final class AgentIdentity {
      *
      * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
      */
-    public static function wsServerData(string $clientNonce, string $serverNonce, string $clientFingerprint): string {
+    public static function wsServerData(string $clientNonce, string $serverNonce, string $clientFingerprint, string $audience): string {
         return implode("
-", ['a2a-ws-server', $clientNonce, $serverNonce, $clientFingerprint]);
+", ['a2a-ws-server', self::audience($audience), $clientNonce, $serverNonce, $clientFingerprint]);
     }
 
     /** What the leader signs: the follower's random number first — the phrase it has to prove its key on. */
-    public static function wsClientData(string $serverNonce, string $clientNonce, string $serverFingerprint): string {
+    public static function wsClientData(string $serverNonce, string $clientNonce, string $serverFingerprint, string $audience): string {
         return implode("
-", ['a2a-ws-client', $serverNonce, $clientNonce, $serverFingerprint]);
+", ['a2a-ws-client', self::audience($audience), $serverNonce, $clientNonce, $serverFingerprint]);
     }
 
     /** An output of OpenSSL: the analysers type its by-reference results differently. */

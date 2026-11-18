@@ -19,7 +19,9 @@ final class A2aWire implements DelegateHttpClient {
 
     public function request(Request $request, Cancellation $cancellation): Response {
         if ($request->getMethod() === 'GET' && !str_starts_with($request->getUri()->getPath(), '/a2a/files')) {
-            return new Response('1.1', 200, null, [], json_encode($this->server->card(), JSON_THROW_ON_ERROR), $request);
+            parse_str($request->getUri()->getQuery(), $query);
+            $nonce = isset($query['nonce']) && is_string($query['nonce']) ? $query['nonce'] : null;
+            return new Response('1.1', 200, null, [], json_encode($this->server->card($nonce), JSON_THROW_ON_ERROR), $request);
         }
         $path = $request->getUri()->getPath();
         if (str_starts_with($path, '/a2a/files')) {

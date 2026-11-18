@@ -169,7 +169,7 @@ final class A2aServer implements JobRuns {
         $signature = $headers['x-a2a-signature'] ?? '';
         $fingerprint = $key === false ? null : AgentIdentity::fingerprintOf($key);
         if ($key === false || $fingerprint === null || preg_match('~^[A-Za-z0-9_-]{16,64}$~', $nonce) !== 1 || !ctype_digit($timestamp)
-            || !AgentIdentity::verify($key, AgentIdentity::requestData($method, $path, $timestamp, $nonce, $body), $signature)) {
+            || !AgentIdentity::verify($key, AgentIdentity::requestData($method, $path, $timestamp, $nonce, $body, $this->self), $signature)) {
             return [null, 401, 'the request is not signed by an agent key'];
         }
         if (abs(($this->now)()->getTimestamp() - (int) $timestamp) > self::CLOCK_SKEW) {
@@ -202,7 +202,15 @@ final class A2aServer implements JobRuns {
             }
             [$agent, $fingerprint] = $known;
             // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — the connection goes both ways and is listed
-            $socket = A2aSocket::accepted($channel, fn(array $request): array => $this->handle($agent, $request, 'ws')[1]);
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the key is checked on every request, not only at the
+            //       handshake: a key revoked while the connection is open stops working on it at once
+            $socket = A2aSocket::accepted($channel, function (array $request) use ($agent, $fingerprint, $channel): array {
+                if ($this->peers->principalByFingerprint($fingerprint) !== $agent->id) {
+                    $channel->close();
+                    return ['jsonrpc' => '2.0', 'id' => $request['id'] ?? null, 'error' => ['code' => -32001, 'message' => 'the key of this agent was revoked']];
+                }
+                return $this->handle($agent, $request, 'ws')[1];
+            });
             $this->links?->add(A2aLinks::IN, $agent->displayName ?? ('#' . $agent->id), $fingerprint, $socket);
             $socket->join();
         } catch (Throwable $e) {
@@ -224,6 +232,10 @@ final class A2aServer implements JobRuns {
         $key = isset($hello['key']) && is_string($hello['key']) ? $hello['key'] : '';
         $clientNonce = isset($hello['nonce']) && is_string($hello['nonce']) ? $hello['nonce'] : '';
         $fingerprint = AgentIdentity::fingerprintOf($key);
+        if (($hello['type'] ?? null) === 'hello' && ($hello['version'] ?? null) !== A2aSocket::VERSION) {
+            $this->deny($channel, 'handshake version ' . A2aSocket::VERSION . ' is expected: update the agent');
+            return null;
+        }
         if (($hello['type'] ?? null) !== 'hello' || $fingerprint === null || preg_match('~^[A-Za-z0-9_-]{16,64}$~', $clientNonce) !== 1) {
             $this->deny($channel, 'a hello with a P-256 key and a random number was expected');
             return null;
@@ -233,11 +245,11 @@ final class A2aServer implements JobRuns {
             'type' => 'challenge',
             'nonce' => $serverNonce,
             'key' => $this->identity->publicKey,
-            'signature' => $this->identity->sign(AgentIdentity::wsServerData($clientNonce, $serverNonce, $fingerprint)),
+            'signature' => $this->identity->sign(AgentIdentity::wsServerData($clientNonce, $serverNonce, $fingerprint, $this->self)),
         ], JSON_THROW_ON_ERROR));
         $auth = self::frame($channel->receive($deadline));
         $signature = isset($auth['signature']) && is_string($auth['signature']) ? $auth['signature'] : '';
-        if (($auth['type'] ?? null) !== 'auth' || !AgentIdentity::verify($key, AgentIdentity::wsClientData($serverNonce, $clientNonce, $this->identity->fingerprint()), $signature)) {
+        if (($auth['type'] ?? null) !== 'auth' || !AgentIdentity::verify($key, AgentIdentity::wsClientData($serverNonce, $clientNonce, $this->identity->fingerprint(), $this->self), $signature)) {
             $this->deny($channel, 'the random number is not signed by the key of the hello');
             return null;
         }
@@ -299,8 +311,15 @@ final class A2aServer implements JobRuns {
         return (preg_replace('~^http~', 'ws', rtrim($this->self, '/')) ?? $this->self) . '/a2a/ws';
     }
 
-    /** @return array<string, mixed> the A2A v1.0 agent card */
-    public function card(): array {
+    /**
+     * @param string|null $nonce a random number of the one who asks: the card then carries its signature by this
+     *        agent's key and address — proof that the key is ours, not copied from someone else's card
+     * @return array<string, mixed> the A2A v1.0 agent card
+     */
+    public function card(?string $nonce = null): array {
+        $proof = $nonce !== null && preg_match('~^[A-Za-z0-9_-]{16,64}$~', $nonce) === 1
+            ? ['proof' => $this->identity->sign(AgentIdentity::cardProofData($nonce, $this->self))]
+            : [];
         $url = rtrim($this->self, '/') . '/a2a';
         return [
             'name' => $this->name,
@@ -316,7 +335,7 @@ final class A2aServer implements JobRuns {
             'securitySchemes' => ['bearer' => ['type' => 'http', 'scheme' => 'bearer']],
             'security' => [['bearer' => []]],
             // Requests and answers are signed by ECDSA P-256 keys; the leader pins this key when it adds the agent.
-            'mercurius' => ['publicKey' => $this->identity->publicKey, 'fingerprint' => $this->identity->fingerprint(), 'signing' => 'x-a2a-signature']
+            'mercurius' => ['publicKey' => $this->identity->publicKey, 'fingerprint' => $this->identity->fingerprint(), 'signing' => 'x-a2a-signature'] + $proof
                 // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — the transport this agent takes
                 + ($this->transport === 'ws' ? ['transport' => 'ws', 'ws' => $this->socketUrl()] : ['transport' => 'http']),
         ];

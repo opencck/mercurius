@@ -91,7 +91,7 @@ final class AgentNetworkTest extends AsyncTestCase {
      * @param array<string, mixed> $call
      * @return array{Principal|null, int, string}
      */
-    private function authenticate(array $call, ?AgentIdentity $key = null, string $token = self::ENTRANCE, ?string $nonce = null, ?int $at = null): array {
+    private function authenticate(array $call, ?AgentIdentity $key = null, string $token = self::ENTRANCE, ?string $nonce = null, ?int $at = null, string $audience = self::FOLLOWER): array {
         $key ??= $this->leaderKey;
         $body = json_encode($call, JSON_THROW_ON_ERROR);
         $timestamp = (string) ($at ?? time());
@@ -101,7 +101,7 @@ final class AgentNetworkTest extends AsyncTestCase {
             'x-a2a-key' => base64_encode($key->publicKey),
             'x-a2a-timestamp' => $timestamp,
             'x-a2a-nonce' => $nonce,
-            'x-a2a-signature' => $key->sign(AgentIdentity::requestData('POST', '/a2a', $timestamp, $nonce, $body)),
+            'x-a2a-signature' => $key->sign(AgentIdentity::requestData('POST', '/a2a', $timestamp, $nonce, $body, $audience)),
         ], 'POST', '/a2a', $body);
     }
 
@@ -166,6 +166,55 @@ final class AgentNetworkTest extends AsyncTestCase {
 
         self::assertTrue($this->followerPeers->revokeKey('leader'));
         self::assertSame(403, $this->authenticate($call)[1], 'a revoked agent no longer connects');
+    }
+
+    public function testTheNumberOfATaskANeighbourGivesIsANumberNotAPath(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
+        self::assertSame('task-8cb1b5099f171751', A2aClient::taskId(['id' => 'task-8cb1b5099f171751']));
+        foreach (['../scripts', 'a/b', '..', '', str_repeat('x', 101), "a\nb"] as $id) {
+            self::assertNull(A2aClient::taskId(['id' => $id]), $id);
+        }
+        self::assertNull(A2aClient::taskId(['id' => 42]));
+        $out = new \OpenCCK\Domain\Peer\OutgoingTask(7, 'doorotar', '../x', 1, 'telegram', '1', 't', A2aTask::WORKING, null);
+        self::assertSame('inbox/doorotar-7', PeerNetwork::inboxOf($out), 'the path comes from our own number of the task');
+    }
+
+    public function testARequestSignedForAnotherInstanceIsRefused(): void {
+        $this->follower(new ScriptedLlm([]));
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a signed request names the instance it is for
+        [$agent, $status] = $this->authenticate(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'GetTask', 'params' => []], audience: 'https://other.example');
+        self::assertNull($agent);
+        self::assertSame(401, $status);
+        [$agent] = $this->authenticate(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'GetTask', 'params' => []], audience: self::FOLLOWER . '/');
+        self::assertNotNull($agent, 'the same address in another spelling is the same instance');
+    }
+
+    public function testANeighbourIsAddedOnlyWhenItsCardProvesTheKey(): void {
+        $this->follower(new ScriptedLlm([]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('m-entrance', 'token', self::ENTRANCE, $owner);
+        // M answers at its own address with the card of the follower: the key of someone else, asked on M's behalf
+        $server = $this->server;
+        $relay = new class($server) implements \Amp\Http\Client\DelegateHttpClient {
+            public function __construct(private readonly A2aServer $server) {}
+
+            public function request(\Amp\Http\Client\Request $request, \Amp\Cancellation $cancellation): \Amp\Http\Client\Response {
+                parse_str($request->getUri()->getQuery(), $query);
+                $nonce = isset($query['nonce']) && is_string($query['nonce']) ? $query['nonce'] : null;
+                return new \Amp\Http\Client\Response('1.1', 200, null, [], json_encode($this->server->card($nonce), JSON_THROW_ON_ERROR), $request);
+            }
+        };
+        $network = new PeerNetwork(new InMemoryPeerRepository(), $leader->principals, $vault, new A2aClient(new HttpClient($relay, []), $this->leaderKey), $leader->conversations, $leader->transcript, $leader->channel, self::LEADER, new NullLogger(), $this->leaderKey, static fn(): Principal => $owner);
+
+        try {
+            $network->add($owner, 'm', 'https://m.example', 'm-entrance');
+            self::fail('a card with a key proven for another address was taken');
+        } catch (\DomainException $e) {
+            self::assertStringContainsString('ключ', $e->getMessage());
+        }
     }
 
     public function testATaskOfANeighbourRunsUnderItsOwnAgentAndAnswersWithoutSecrets(): void {

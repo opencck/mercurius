@@ -126,6 +126,33 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame([], $a['stack']->channel->texts('send'));
     }
 
+    public function testARevokedKeyStopsWorkingOnTheOpenConnectionAndTheConnectionCloses(): void {
+        $a = $this->agents['a'];
+        $b = $this->agents['b'];
+        $a['network']->open('b');
+        $a['network']->delegate($a['owner'], 'b', 'Посчитай', 'telegram', 'a', 0, []);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key does not work on a connection already open
+        $b['peers']->revokeKey('agent-a');
+        $refused = null;
+        try {
+            $a['network']->delegate($a['owner'], 'b', 'Ещё', 'telegram', 'a', 0, []);
+        } catch (\RuntimeException|\DomainException $e) {
+            $refused = $e->getMessage();
+        }
+        self::assertNotNull($refused, 'a revoked agent gave a task over its open connection');
+
+        delay(0.02);
+        self::assertSame([], $b['links']->all(), 'the connection of a revoked key is closed');
+
+        $b['peers']->restoreKey($a['key']->fingerprint());
+        $a['network']->open('b');
+        self::assertNotSame([], $b['links']->all());
+        self::assertTrue($b['network']->revoke('agent-a'));
+        delay(0.02);
+        self::assertSame([], $b['links']->all(), '/peer revoke closes the connections of that key');
+    }
+
     public function testALiveConnectionIsUsedInsteadOfAnotherAndCanBeClosed(): void {
         $a = $this->agents['a'];
         $a['network']->open('b');

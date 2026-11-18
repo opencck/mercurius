@@ -29,6 +29,7 @@ use function Amp\delay;
  * leader signs it, and the follower signs the leader's number back; then plain JSON-RPC of A2A.
  */
 final class A2aSocketTest extends AsyncTestCase {
+    private const FOLLOWER = 'https://follower.example';
     private A2aServer $server;
     private AgentIdentity $leaderKey;
     private AgentIdentity $followerKey;
@@ -66,7 +67,7 @@ final class A2aSocketTest extends AsyncTestCase {
     public function testAKnownAgentProvesItsKeyAndHandsOverATask(): void {
         [$end] = $this->connection();
 
-        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey);
+        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER);
         $sent = $socket->request('SendMessage', ['message' => ['messageId' => 'm1', 'parts' => [['text' => 'Столица Франции?']]]]);
         $id = self::field($sent, 'task', 'id');
         self::assertNotSame('', $id);
@@ -87,7 +88,7 @@ final class A2aSocketTest extends AsyncTestCase {
 
     public function testFilesOfANeighbourAreKeptInItsAgentsSandbox(): void {
         [$end] = $this->connection();
-        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey);
+        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER);
 
         $sent = $socket->request('SendMessage', \OpenCCK\App\Peer\A2aClient::message('m-files', 'Посмотри QR', 0, [], [['name' => 'qr.png', 'bytes' => 'QRPNG'], ['name' => '../../etc/passwd', 'bytes' => 'x']]));
 
@@ -100,12 +101,43 @@ final class A2aSocketTest extends AsyncTestCase {
         self::assertSame(['inbox/' . $task . '/qr.png', 'inbox/' . $task . '/_.._etc_passwd'], $kept, 'a name is a name, not a path');
         $socket->close();
     }
+    public function testAHandshakeRelayedThroughAnotherInstanceDoesNotOpen(): void {
+        // M publishes the follower's key in its card; the leader dials M, and M passes every frame to the follower
+        [$leaderEnd, $relayFromLeader] = InProcessA2aChannel::pair();
+        [$relayToFollower] = $this->connection();
+        $pump = static function (InProcessA2aChannel $from, InProcessA2aChannel $to): void {
+            while (($frame = $from->receive()) !== null) {
+                try {
+                    $to->send($frame);
+                } catch (RuntimeException) {
+                    return;
+                }
+            }
+            $to->close();
+        };
+        async(static fn() => $pump($relayFromLeader, $relayToFollower))->ignore();
+        async(static fn() => $pump($relayToFollower, $relayFromLeader))->ignore();
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the handshake names the address the leader dialed
+        try {
+            A2aSocket::open($leaderEnd, $this->leaderKey, $this->followerKey->publicKey, audience: 'https://m.example');
+            self::fail('a relayed handshake opened a connection');
+        } catch (RuntimeException $e) {
+            self::assertNotSame('', $e->getMessage());
+        }
+        delay(0.05);
+        self::assertSame([], array_filter(
+            $relayToFollower->sent,
+            static fn(string $f): bool => str_contains($f, '"SendMessage"'),
+        ), 'nothing was sent as the leader');
+    }
+
     public function testAnUnknownKeyIsDeniedWithItsFingerprint(): void {
         [$end, $follower] = $this->connection();
         $stranger = AgentIdentity::generate();
 
         try {
-            A2aSocket::open($end, $stranger, $this->followerKey->publicKey);
+            A2aSocket::open($end, $stranger, $this->followerKey->publicKey, audience: self::FOLLOWER);
             self::fail('a stranger got in');
         } catch (RuntimeException $e) {
             self::assertStringContainsString($stranger->fingerprint(), $e->getMessage(), 'its owner can let it in by this fingerprint');
@@ -118,7 +150,7 @@ final class A2aSocketTest extends AsyncTestCase {
         [$end] = $this->connection();
         $stranger = AgentIdentity::generate();
         try {
-            A2aSocket::open($end, $stranger, $this->followerKey->publicKey, about: ['name' => 'claude-tester', 'url' => 'https://tester.example']);
+            A2aSocket::open($end, $stranger, $this->followerKey->publicKey, about: ['name' => 'claude-tester', 'url' => 'https://tester.example'], audience: self::FOLLOWER);
             self::fail('a stranger got in');
         } catch (RuntimeException $e) {
             self::assertStringContainsString('waits for the decision', $e->getMessage());
@@ -131,7 +163,7 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->requests->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'cb', '42', '42', 'Owner', null, 'pa:1:u', 'u1'));
 
         [$again] = $this->connection();
-        $socket = A2aSocket::open($again, $stranger, $this->followerKey->publicKey);
+        $socket = A2aSocket::open($again, $stranger, $this->followerKey->publicKey, audience: self::FOLLOWER);
         self::assertTrue($socket->alive());
         $socket->close();
     }
@@ -145,7 +177,7 @@ final class A2aSocketTest extends AsyncTestCase {
             'x-a2a-key' => base64_encode($stranger->publicKey),
             'x-a2a-timestamp' => $time,
             'x-a2a-nonce' => $nonce,
-            'x-a2a-signature' => $stranger->sign(AgentIdentity::requestData('POST', '/a2a', $time, $nonce, '{}')),
+            'x-a2a-signature' => $stranger->sign(AgentIdentity::requestData('POST', '/a2a', $time, $nonce, '{}', self::FOLLOWER)),
             'x-a2a-name' => 'Http Agent',
             'x-a2a-url' => 'https://http-agent.example',
         ], 'POST', '/a2a', '{}');
@@ -157,12 +189,12 @@ final class A2aSocketTest extends AsyncTestCase {
 
     public function testAForeignSignatureIsNotAProof(): void {
         [$end, $follower] = $this->connection();
-        $end->send((string) json_encode(['type' => 'hello', 'key' => $this->leaderKey->publicKey, 'nonce' => str_repeat('a', 32)]));
+        $end->send((string) json_encode(['type' => 'hello', 'version' => A2aSocket::VERSION, 'key' => $this->leaderKey->publicKey, 'nonce' => str_repeat('a', 32)]));
         /** @var mixed $challenge */
         $challenge = self::decoded($end->receive());
         self::assertSame('challenge', self::field($challenge, 'type'));
 
-        $forged = AgentIdentity::generate()->sign(AgentIdentity::wsClientData(self::field($challenge, 'nonce'), str_repeat('a', 32), $this->followerKey->fingerprint()));
+        $forged = AgentIdentity::generate()->sign(AgentIdentity::wsClientData(self::field($challenge, 'nonce'), str_repeat('a', 32), $this->followerKey->fingerprint(), self::FOLLOWER));
         $end->send((string) json_encode(['type' => 'auth', 'signature' => $forged]));
 
         self::assertSame('denied', self::field(self::decoded($end->receive()), 'type'));
@@ -170,9 +202,22 @@ final class A2aSocketTest extends AsyncTestCase {
         self::assertTrue($follower->isClosed());
     }
 
+    public function testAHandshakeOfAnOlderVersionIsDeniedWithItsReason(): void {
+        [$end, $follower] = $this->connection();
+        $end->send((string) json_encode(['type' => 'hello', 'key' => $this->leaderKey->publicKey, 'nonce' => str_repeat('a', 32)]));
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the handshake changed; an agent of an older version is told so
+        /** @var mixed $denied */
+        $denied = self::decoded($end->receive());
+        self::assertSame('denied', self::field($denied, 'type'));
+        self::assertStringContainsString('version', self::field($denied, 'reason'));
+        delay(0.01);
+        self::assertTrue($follower->isClosed());
+    }
+
     public function testARecordedHandshakeCannotBeReplayed(): void {
         [$first] = $this->connection();
-        A2aSocket::open($first, $this->leaderKey, $this->followerKey->publicKey)->close();
+        A2aSocket::open($first, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER)->close();
         $hello = $first->sent[0] ?? '';
         $auth = $first->sent[1] ?? '';
 
@@ -190,7 +235,7 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('не ключом этого соседа');
 
-        A2aSocket::open($end, $this->leaderKey, AgentIdentity::generate()->publicKey);
+        A2aSocket::open($end, $this->leaderKey, AgentIdentity::generate()->publicKey, audience: self::FOLLOWER);
     }
 
     public function testSilenceDuringTheHandshakeClosesTheConnection(): void {
