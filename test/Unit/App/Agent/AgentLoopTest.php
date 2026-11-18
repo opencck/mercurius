@@ -441,6 +441,30 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringContainsString('лимит расхода', (string) $this->observer->final);
     }
 
+    public function testAParticipantsOwnDailyCapStopsOnlyTheirRuns(): void {
+        $this->registry->register(new FakeTool('t'));
+        $llm = new ScriptedLlm([ScriptedLlm::text('ответ владельцу')]);
+        // $0.6 spent today in conversations of participant 5; their cap is $0.5, the agent has no cap.
+        $this->calls->spentBy[5] = 0.6;
+        $guard = new \OpenCCK\App\Agent\SpendGuard($this->calls, 0.0, 0.0, new \Psr\Log\NullLogger());
+        $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, spend: $guard);
+        $capped = ParticipantPolicy::fromArray(['daily_spend_usd' => 0.5], new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true));
+        self::assertSame(0.5, $capped->dailySpendUsd);
+        self::assertSame(0.5, $capped->capTo(new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true))->dailySpendUsd, 'the owner has no cap of their own');
+        self::assertSame(0.5, $capped->toArray()['daily_spend_usd']);
+
+        $user = new \OpenCCK\Domain\Entity\Principal(5, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::User, 'Вася');
+        $conversation = $this->conversations->openConversation(5, 'telegram', '5');
+        $run = $this->runs->start($conversation, 5, 'm', new RunLimits(30, 100_000, 900, 120));
+        self::assertNotNull($run);
+        $stopped = $loop->run($run, $capped, $user, $this->observer, new NullCancellation());
+        self::assertSame(StopReason::SpendCap, $stopped->stopReason);
+        self::assertSame([], $llm->requests);
+
+        $owners = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+        self::assertSame(StopReason::Answered, $owners->stopReason, 'the cap of one participant does not stop others');
+    }
+
     public function testTokenBudgetStopsBeforeModelCall(): void {
         $llm = new ScriptedLlm([ScriptedLlm::text('итог')]);
 

@@ -14,4 +14,7 @@ use DateTimeImmutable;
 interface SpendRepository {
     /** USD of all model calls since the moment: runs, workers, background work, compaction. */
     public function spentSince(DateTimeImmutable $since): float;
+
+    /** USD of the model calls in the conversations of one participant since the moment. */
+    public function spentBy(int $principalId, DateTimeImmutable $since): float;
 }

@@ -173,7 +173,7 @@ final class AgentLoop {
                 return $reason;
             }
             // Before compaction: its summary call costs money too.
-            $over = $this->spend?->exceeded();
+            $over = $this->spend?->exceeded($state->run->principalId, $state->policy->dailySpendUsd);
             if ($over !== null) {
                 $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
                 return StopReason::SpendCap;

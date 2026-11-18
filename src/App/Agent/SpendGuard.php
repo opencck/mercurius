@@ -28,13 +28,25 @@ final class SpendGuard {
         private readonly LoggerInterface $logger,
     ) {}
 
-    /** Why no more model calls may start now; null while within the caps. */
-    public function exceeded(): ?string {
-        if ($this->dailyCap <= 0.0 && $this->monthlyCap <= 0.0) {
+    /**
+     * Why no more model calls may start now; null while within the caps.
+     *
+     * @param float $participantCap USD a UTC day of this participant may cost (their policy); 0 — no cap of their own
+     *
+     * spec: BRIEF.md#несколько-пользователей — each participant has their own spend and cap
+     */
+    public function exceeded(?int $principalId = null, float $participantCap = 0.0): ?string {
+        if ($this->dailyCap <= 0.0 && $this->monthlyCap <= 0.0 && ($participantCap <= 0.0 || $principalId === null)) {
             return null;
         }
         try {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            if ($principalId !== null && $participantCap > 0.0) {
+                $own = $this->spend->spentBy($principalId, $now->setTime(0, 0));
+                if ($own >= $participantCap) {
+                    return sprintf(t('agent.spend_guard.participant_cap'), $participantCap, $own);
+                }
+            }
             if ($this->dailyCap > 0.0) {
                 $day = $this->spend->spentSince($now->setTime(0, 0));
                 if ($day >= $this->dailyCap) {

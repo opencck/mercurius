@@ -28,6 +28,8 @@ final class ParticipantPolicy {
         public readonly bool $readOnly = false,
         /** irreversible calls may run (by approval or a saved grant); a worker never has this right */
         public readonly bool $irreversible = true,
+        /** USD a UTC day of this participant may cost; 0 — no cap of their own (spec: BRIEF.md#несколько-пользователей) */
+        public readonly float $dailySpendUsd = 0.0,
     ) {}
 
     /** The same policy with one more tool; every tool already — the same. */
@@ -35,7 +37,7 @@ final class ParticipantPolicy {
         if ($this->tools === null || in_array($name, $this->tools, true) || $name === '') {
             return $this;
         }
-        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible);
+        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd);
     }
 
     public function allowsTool(string $name): bool {
@@ -50,7 +52,12 @@ final class ParticipantPolicy {
             default => array_values(array_intersect($this->tools, $owner->tools)),
         };
         $sandbox = $owner->sandbox === null ? null : ($this->sandbox?->min($owner->sandbox) ?? $owner->sandbox);
-        return new self($tools, $this->run->min($owner->run), $sandbox, $this->mayRequestApproval && $owner->mayRequestApproval);
+        $cap = match (true) {
+            $owner->dailySpendUsd <= 0.0 => $this->dailySpendUsd,
+            $this->dailySpendUsd <= 0.0 => $owner->dailySpendUsd,
+            default => min($this->dailySpendUsd, $owner->dailySpendUsd),
+        };
+        return new self($tools, $this->run->min($owner->run), $sandbox, $this->mayRequestApproval && $owner->mayRequestApproval, dailySpendUsd: $cap);
     }
 
     /**
@@ -60,7 +67,7 @@ final class ParticipantPolicy {
      * @throws InvalidArgumentException on unknown keys or bad values
      */
     public static function fromArray(array $overrides, self $base): self {
-        $known = ['tools' => true, 'may_request_approval' => true, 'sandbox' => true] + self::RUN_KEYS;
+        $known = ['tools' => true, 'may_request_approval' => true, 'sandbox' => true, 'daily_spend_usd' => true] + self::RUN_KEYS;
         foreach (array_keys($overrides) as $key) {
             if (!isset($known[$key])) {
                 throw new InvalidArgumentException(sprintf('Unknown policy key "%s"', $key));
@@ -83,7 +90,16 @@ final class ParticipantPolicy {
             self::pick($overrides, 'tool_timeout', $base->run->toolTimeout),
         );
 
-        return new self($tools, $run, $sandbox, $approval);
+        $cap = $base->dailySpendUsd;
+        if (array_key_exists('daily_spend_usd', $overrides)) {
+            $value = $overrides['daily_spend_usd'];
+            if (!(is_int($value) || is_float($value)) || $value < 0 || $value > 10_000) {
+                throw new InvalidArgumentException('daily_spend_usd must be a number of USD from 0 (no cap) to 10000');
+            }
+            $cap = (float) $value;
+        }
+
+        return new self($tools, $run, $sandbox, $approval, dailySpendUsd: $cap);
     }
 
     /** @return array<string, mixed> every value, in the form fromArray() accepts */
@@ -95,6 +111,7 @@ final class ParticipantPolicy {
             'run_timeout' => $this->run->runTimeout,
             'tool_timeout' => $this->run->toolTimeout,
             'may_request_approval' => $this->mayRequestApproval,
+            'daily_spend_usd' => $this->dailySpendUsd,
         ];
         if ($this->sandbox !== null) {
             $array['sandbox'] = [

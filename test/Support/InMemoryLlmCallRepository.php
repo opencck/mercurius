@@ -15,6 +15,13 @@ final class InMemoryLlmCallRepository implements LlmCallRepository, \OpenCCK\Dom
         $this->calls[] = $call;
     }
 
+    /** @var array<int, float> what each participant spent today, set by a test */
+    public array $spentBy = [];
+
+    public function spentBy(int $principalId, \DateTimeImmutable $since): float {
+        return $this->spentBy[$principalId] ?? 0.0;
+    }
+
     /** Every recorded call counts as recent. */
     public function spentSince(\DateTimeImmutable $since): float {
         return array_sum(array_map(static fn(LlmCallRecord $c): float => $c->costUsd ?? 0.0, $this->calls));

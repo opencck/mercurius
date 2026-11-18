@@ -26,6 +26,16 @@ final class PostgresLlmCallRepository implements LlmCallRepository, SpendReposit
         );
     }
 
+    public function spentBy(int $principalId, DateTimeImmutable $since): float {
+        $row = $this->db->execute(
+            'SELECT coalesce(sum(c.cost_usd), 0)::float8 AS spent FROM llm_calls c JOIN conversations v ON v.id = c.conversation_id
+             WHERE v.principal_id = ? AND c.created_at >= to_timestamp(?)',
+            [$principalId, $since->getTimestamp()],
+        )->fetchRow();
+        $spent = $row['spent'] ?? 0.0;
+        return is_float($spent) ? $spent : 0.0;
+    }
+
     public function spentSince(DateTimeImmutable $since): float {
         $row = $this->db->execute('SELECT coalesce(sum(cost_usd), 0)::float8 AS spent FROM llm_calls WHERE created_at >= to_timestamp(?)', [$since->getTimestamp()])->fetchRow();
         $spent = $row['spent'] ?? 0.0;
