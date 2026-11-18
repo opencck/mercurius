@@ -94,7 +94,7 @@ final class A2aServer implements JobRuns {
         private readonly PolicyService $policies,
         private readonly string $model,
         /** this instance in a chain: its public address */
-        private readonly string $self,
+        public readonly string $self,
         private readonly string $name,
         private readonly string $description,
         private readonly LoggerInterface $logger,

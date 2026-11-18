@@ -40,4 +40,15 @@ final class PromptBuilderTest extends TestCase {
         self::assertStringContainsString('WebSocket API', \OpenCCK\App\Agent\PromptBuilder::system($owner, $at, channel: 'ws'));
         self::assertStringNotContainsString('WebSocket API', \OpenCCK\App\Agent\PromptBuilder::system($owner, $at, channel: 'telegram'));
     }
+
+    public function testTheAgentKnowsHowANeighbourConnectsToIt(): void {
+        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Owner');
+        $about = sprintf(\Mercurius\I18n\t('agent.prompt_builder.instance_a2a'), 'https://agent.example', 'wss://agent.example/a2a/ws');
+
+        $prompt = \OpenCCK\App\Agent\PromptBuilder::system($owner, new \DateTimeImmutable('2026-11-18 10:00 UTC'), instance: $about);
+
+        self::assertStringContainsString('https://agent.example/.well-known/agent-card.json', $prompt);
+        self::assertStringContainsString('/peer add', $prompt);
+        self::assertStringContainsString('A2A_TOKEN', $prompt, 'where the token is, not the token');
+    }
 }

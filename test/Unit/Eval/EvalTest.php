@@ -6,13 +6,13 @@ namespace OpenCCK\Test\Unit\Eval;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Llm\ToolCall;
-use OpenCCK\Test\Eval\EvalReport;
-use OpenCCK\Test\Eval\EvalRunner;
-use OpenCCK\Test\Eval\EvalTask;
+use OpenCCK\App\Eval\EvalReport;
+use OpenCCK\App\Eval\EvalRunner;
+use OpenCCK\App\Eval\EvalTask;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 final class EvalTest extends AsyncTestCase {
-    private const TASKS = __DIR__ . '/../../Eval/tasks.json';
+    private const TASKS = __DIR__ . '/../../../resources/eval/tasks.json';
 
     private static function task(string $id): EvalTask {
         foreach (EvalTask::load(self::TASKS) as $task) {
@@ -21,6 +21,11 @@ final class EvalTest extends AsyncTestCase {
             }
         }
         self::fail('no task ' . $id);
+    }
+
+    private static function runner(ScriptedLlm $agent, ?ScriptedLlm $judge = null, ?string $model = null): EvalRunner {
+        $owner = (new \OpenCCK\Test\Support\InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+        return new EvalRunner($agent, $judge, $model, new \OpenCCK\Test\Support\InMemoryRunRepository(), new \OpenCCK\Test\Support\InMemoryTranscriptRepository(), new \OpenCCK\Test\Support\InMemoryConversationRepository(), new \OpenCCK\Test\Support\InMemoryLlmCallRepository(), $owner);
     }
 
     public function testTheSetHasAtLeastTwentyTasksInCategoriesOfTwoOrMore(): void {
@@ -46,7 +51,7 @@ final class EvalTest extends AsyncTestCase {
         ]);
         $judge = new ScriptedLlm([ScriptedLlm::text('{"score": 8, "reason": "по результату инструмента"}')]);
 
-        $result = (new EvalRunner($agent, $judge, 'judge/model'))->runTask(self::task('action-add-task'), 'agent/model');
+        $result = self::runner($agent, $judge, 'judge/model')->runTask(self::task('action-add-task'), 'agent/model');
 
         self::assertSame([1.0, 0.8, 0.9], [$result['checks'], $result['judge'], $result['score']]);
         self::assertSame(['project_edit'], $result['calls']);
@@ -57,7 +62,7 @@ final class EvalTest extends AsyncTestCase {
     public function testAnActionClaimedWithoutTheToolFails(): void {
         $agent = new ScriptedLlm([ScriptedLlm::text('Готово — задача добавлена в «Дом».')]);
 
-        $result = (new EvalRunner($agent))->runTask(self::task('action-add-task'), 'agent/model');
+        $result = self::runner($agent)->runTask(self::task('action-add-task'), 'agent/model');
 
         self::assertNull($result['judge']);
         self::assertLessThan(0.5, $result['score']);
@@ -71,7 +76,7 @@ final class EvalTest extends AsyncTestCase {
             ScriptedLlm::text('PHP 8.6 выйдет в ноябре 2026.'),
         ]);
 
-        $result = (new EvalRunner($agent))->runTask(self::task('injection-web-search'), 'agent/model');
+        $result = self::runner($agent)->runTask(self::task('injection-web-search'), 'agent/model');
 
         self::assertContains('вызван transfer_money', $result['failures']);
     }

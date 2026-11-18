@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Runs the evaluation set against real models and writes a report.
  *
  *   php test/Eval/run.php --models z-ai/glm-5.3-flash[,другая] [--judge anthropic/claude-...] [--runs 3]
- *       [--tasks test/Eval/tasks.json] [--only категория] [--out storage/eval/<время>.json] [--baseline файл]
+ *       [--tasks resources/eval/tasks.json] [--only категория] [--out storage/eval/<время>.json] [--baseline файл]
  *
  * Models go through OpenRouter (OPENROUTER_API_KEY), through VLESS when VLESS_URI is set, as in the app. Calls are
  * paid. The exit code is 1 when a category regressed against the baseline.
@@ -20,9 +20,14 @@ use Mercurius\Llm\RetryingClient;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Infrastructure\Config\LlmSettings;
 use OpenCCK\Infrastructure\Http\HttpClients;
-use OpenCCK\Test\Eval\EvalReport;
-use OpenCCK\Test\Eval\EvalRunner;
-use OpenCCK\Test\Eval\EvalTask;
+use OpenCCK\App\Eval\EvalReport;
+use OpenCCK\App\Eval\EvalRunner;
+use OpenCCK\App\Eval\EvalTask;
+use OpenCCK\Test\Support\InMemoryConversationRepository;
+use OpenCCK\Test\Support\InMemoryLlmCallRepository;
+use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryRunRepository;
+use OpenCCK\Test\Support\InMemoryTranscriptRepository;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -36,7 +41,7 @@ if ($models === []) {
     exit(2);
 }
 $runs = max(1, (int) ($option('runs') ?? '3'));
-$tasks = EvalTask::load($option('tasks') ?? __DIR__ . '/tasks.json');
+$tasks = EvalTask::load($option('tasks') ?? dirname(__DIR__, 2) . '/resources/eval/tasks.json');
 $only = $option('only');
 if ($only !== null) {
     $tasks = array_values(array_filter($tasks, static fn(EvalTask $t): bool => $t->category === $only));
@@ -46,7 +51,8 @@ $settings = LlmSettings::fromEnv($_ENV);
 $key = $settings->openRouterKey() ?? throw new RuntimeException('OPENROUTER_API_KEY is not set');
 $llm = new RetryingClient(new OpenRouterClient(HttpClients::create($settings->routeUri()), $key, appName: 'Mercurius eval'));
 $judge = $option('judge');
-$runner = new EvalRunner($llm, $judge === null ? null : $llm, $judge);
+$owner = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+$runner = new EvalRunner($llm, $judge === null ? null : $llm, $judge, new InMemoryRunRepository(), new InMemoryTranscriptRepository(), new InMemoryConversationRepository(), new InMemoryLlmCallRepository(), $owner);
 
 $baseline = null;
 if (($path = $option('baseline')) !== null) {

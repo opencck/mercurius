@@ -76,6 +76,8 @@ final class RunScheduler {
     private ?BackgroundDelegations $background = null;
     private ?MemoryContext $memory = null;
     private ?ProjectContext $projects = null;
+    private ?\OpenCCK\App\Improve\PromptNotes $notes = null;
+    private string $instance = '';
     private ?SkillCatalog $skills = null;
     /** @var array<int, array<string, int>> conversation => the skills its prompt was built with */
     private array $skillSnapshots = [];
@@ -401,6 +403,16 @@ final class RunScheduler {
     }
 
     /** The active project of a chat goes into the prompt of its new conversations. */
+    /** spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the active notes the owner accepted come into new prompts */
+    /** spec: BRIEF.md#сеть-агентов — the agent knows its own address and how a neighbour connects to it */
+    public function useInstance(string $about): void {
+        $this->instance = $about;
+    }
+
+    public function useNotes(\OpenCCK\App\Improve\PromptNotes $notes): void {
+        $this->notes = $notes;
+    }
+
     public function useProjects(ProjectContext $projects): void {
         $this->projects = $projects;
     }
@@ -436,6 +448,16 @@ final class RunScheduler {
     }
 
     /** spec: BRIEF.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
+    /** The active notes the owner accepted ('' when none); the prompt text kept with the conversation records them. */
+    private function notes(): string {
+        try {
+            return $this->notes?->active() ?? '';
+        } catch (Throwable $e) {
+            $this->logger->warning('Prompt notes were not read', ['error' => $e::class]);
+            return '';
+        }
+    }
+
     private function core(Principal $principal, int $conversationId): string {
         if ($this->memory === null || !$this->audience()->isPrivate($conversationId)) {
             return '';
@@ -510,7 +532,8 @@ final class RunScheduler {
                     $this->logger->warning('Skills index is not available', ['error' => $e::class]);
                 }
             }
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills, $meta->channel), $model, SystemPrompt::VERSION);
+            $notes = $this->notes();
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills, $meta->channel, $notes, $this->instance), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policies->forPrincipal($principal);

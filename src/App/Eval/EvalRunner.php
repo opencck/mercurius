@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenCCK\Test\Eval;
+namespace OpenCCK\App\Eval;
 
 use Amp\NullCancellation;
 use DateTimeImmutable;
@@ -19,16 +19,18 @@ use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Test\Support\InMemoryConversationRepository;
-use OpenCCK\Test\Support\InMemoryLlmCallRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
-use OpenCCK\Test\Support\InMemoryRunRepository;
-use OpenCCK\Test\Support\InMemoryTranscriptRepository;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Repository\ConversationRepository;
+use OpenCCK\Domain\Repository\LlmCallRepository;
+use OpenCCK\Domain\Repository\RunRepository;
+use OpenCCK\Domain\Repository\TranscriptRepository;
 use Throwable;
 
 /**
  * Runs the evaluation set: each task in a fresh agent with its own fake tools, through the real loop and prompt,
- * then checks by code and a judge of another model family.
+ * then checks by code and a judge of another model family. The stores come from outside: in memory for the command
+ * line, the database of the app when the owner's acceptance of a prompt change runs the set (each task in a
+ * conversation of its own, channel `eval`).
  *
  * spec: BRIEF.md#границы-самоулучшения — at least 20 tasks by categories, at least 3 runs, a judge of another
  *       family, the prompt version recorded
@@ -41,14 +43,20 @@ final class EvalRunner {
 
     public function __construct(
         private readonly LlmClient $llm,
-        private readonly ?LlmClient $judgeLlm = null,
-        private readonly ?string $judgeModel = null,
+        private readonly ?LlmClient $judgeLlm,
+        private readonly ?string $judgeModel,
+        private readonly RunRepository $runs,
+        private readonly TranscriptRepository $transcript,
+        private readonly ConversationRepository $conversations,
+        private readonly LlmCallRepository $calls,
+        /** the owner the tasks run as */
+        private readonly Principal $owner,
     ) {}
 
     /**
      * @return array{task: string, category: string, score: float, checks: ?float, judge: ?float, tokens: int, calls: list<string>, answer: string, failures: list<string>, reason: string}
      */
-    public function runTask(EvalTask $task, string $model): array {
+    public function runTask(EvalTask $task, string $model, string $promptNotes = ''): array {
         $registry = new ToolRegistry();
         foreach ($task->tools as $tool) {
             $registry->register(new EvalTool(
@@ -61,19 +69,21 @@ final class EvalRunner {
                 $tool['untrusted'],
             ));
         }
-        $runs = new InMemoryRunRepository();
-        $transcript = new InMemoryTranscriptRepository();
-        $conversations = new InMemoryConversationRepository();
-        $principals = new InMemoryPrincipalRepository();
-        $loop = new AgentLoop($this->llm, $runs, $transcript, $conversations, new InMemoryLlmCallRepository(), $registry, new ToolExecutor(), 2000, null, 10);
-        $owner = $principals->ensureOwner('telegram', '42', 'Владелец');
+        $runs = $this->runs;
+        $transcript = $this->transcript;
+        $conversations = $this->conversations;
+        $loop = new AgentLoop($this->llm, $runs, $transcript, $conversations, $this->calls, $registry, new ToolExecutor(), 2000, null, 10);
+        $owner = $this->owner;
         $limits = new RunLimits(8, 80_000, 240, 30);
-        $conversation = $conversations->openConversation($owner->id, 'eval', $task->id);
-        $conversations->setMeta($conversation, PromptBuilder::system($owner, new DateTimeImmutable()), $model, SystemPrompt::VERSION);
+        // a conversation of its own every time: no history of an earlier run of the task gets in
+        $chat = $task->id . '-' . bin2hex(random_bytes(4));
+        $conversation = $conversations->openConversation($owner->id, 'eval', $chat);
+        $conversations->setMeta($conversation, PromptBuilder::system($owner, new DateTimeImmutable(), notes: $promptNotes), $model, SystemPrompt::VERSION);
         $run = $runs->start($conversation, $owner->id, $model, $limits) ?? throw new \RuntimeException('run did not start');
         $transcript->appendUser($conversation, $run->id, $task->prompt);
         try {
             $final = $loop->run($run, new ParticipantPolicy(null, $limits, null, false), $owner, new SilentObserver(), new NullCancellation());
+            $conversations->close('eval', $chat);
         } catch (Throwable $e) {
             return ['task' => $task->id, 'category' => $task->category, 'score' => 0.0, 'checks' => 0.0, 'judge' => null, 'tokens' => 0, 'calls' => [], 'answer' => '', 'failures' => ['run crashed: ' . $e::class], 'reason' => ''];
         }

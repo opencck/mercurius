@@ -30,11 +30,17 @@ final class Initiative {
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
 
-    /** @param (Closure(): DateTimeImmutable)|null $now */
+    /**
+     * @param (Closure(): DateTimeImmutable)|null $now
+     * @param string $title the job's title, by which it is found again ('self-review' for the review of traces)
+     * @param string $promptKey the text of its task in the catalog of texts
+     */
     public function __construct(
         private readonly JobRepository $jobs,
         private readonly DateTimeZone $zone,
         ?Closure $now = null,
+        private readonly string $title = self::TITLE,
+        private readonly string $promptKey = 'job.initiative.prompt',
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -47,7 +53,7 @@ final class Initiative {
         $schedule = trim($schedule);
         $job = null;
         foreach ($this->jobs->list($owner->id) as $candidate) {
-            if ($candidate->title === self::TITLE && $candidate->status !== Job::DONE) {
+            if ($candidate->title === $this->title && $candidate->status !== Job::DONE) {
                 $job = $candidate;
                 break;
             }
@@ -68,7 +74,7 @@ final class Initiative {
         }
         $next = $parsed->next(($this->now)(), $this->zone, true);
         if ($job === null) {
-            $this->jobs->create($owner->id, 'telegram', $chatId, self::TITLE, t('job.initiative.prompt'), (string) $parsed, $next);
+            $this->jobs->create($owner->id, 'telegram', $chatId, $this->title, t($this->promptKey), (string) $parsed, $next);
             return true;
         }
         if ($job->schedule !== (string) $parsed || $job->status !== Job::ACTIVE) {

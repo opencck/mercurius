@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenCCK\Test\Eval;
+namespace OpenCCK\App\Eval;
 
 use Mercurius\Llm\ToolDefinition;
 use OpenCCK\App\Agent\Tool\Tool;

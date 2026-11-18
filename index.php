@@ -664,6 +664,11 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
 $projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository, $skillCatalog));
+// spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
+$improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
+$promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
+$scheduler->useNotes($promptNotes);
+$tools->register(new \OpenCCK\App\Agent\Tool\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db)));
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
@@ -834,12 +839,36 @@ $chat = new ChatService(
     $attachmentIntake,
     $policies,
     new \OpenCCK\App\Service\ApiKeyCommands($apiKeys, $principals),
+    new \OpenCCK\App\Service\PromptCommands($promptNotes),
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
 $apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
-$presses = new CallbackRouter($channel, $telegram->ownerId, ['ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id]);
+$evalJudge = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_JUDGE_MODEL') ?? '';
+$evalRuns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_RUNS');
+$promptGate = new \OpenCCK\App\Improve\PromptGate(
+    new \OpenCCK\App\Eval\EvalRunner($llm, $evalJudge === '' ? null : $llm, $evalJudge === '' ? null : $evalJudge, $runs, $transcript, $conversations, $llmCalls, $apiOwner),
+    \OpenCCK\App\Eval\EvalTask::load(PATH_ROOT . '/resources/eval/tasks.json'),
+    $llmSettings->model,
+    $evalRuns !== null && ctype_digit($evalRuns) ? (int) $evalRuns : 3,
+    $evalJudge !== '',
+);
+$improvements = new \OpenCCK\App\Improve\Improvements(
+    $improvementRepository,
+    $promptNotes,
+    $channel,
+    $telegram->ownerId,
+    $promptGate(...),
+    static fn(string $key, string $value): string => $settingsService->set($apiOwner, $key, $value),
+    $logger,
+    background: true,
+);
+$tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvements));
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
+    $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
+}
+$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
@@ -870,6 +899,15 @@ if ($a2aServer !== null) {
             clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $a2aParser),
         )];
     }
+}
+
+// spec: BRIEF.md#сеть-агентов — the agent can tell how another agent connects to it; the entrance token stays in .env
+if ($a2aServer !== null) {
+    $selfBase = rtrim($a2aServer->self, '/');
+    $selfHost = parse_url($selfBase, PHP_URL_HOST);
+    $scheduler->useInstance(sprintf(\Mercurius\I18n\t('agent.prompt_builder.instance_a2a'), $selfBase, $a2aServer->transport === 'http' ? 'POST ' . $selfBase . '/a2a' : 'wss://' . (is_string($selfHost) ? $selfHost : '') . '/a2a/ws'));
+} else {
+    $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.instance_no_a2a'));
 }
 
 // spec: BRIEF.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket

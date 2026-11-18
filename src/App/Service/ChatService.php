@@ -70,6 +70,8 @@ final class ChatService implements MessageHandler {
         private readonly ?\OpenCCK\App\Service\PolicyService $policies = null,
         /** keys of the WebSocket API; null — no such channel */
         private readonly ?ApiKeyCommands $apiKeys = null,
+        /** versions of the notes to the prompt; null — no self-improvement */
+        private readonly ?PromptCommands $prompt = null,
     ) {}
 
     /** The run that wrote the agent's message this one answers; null when it is not known. */
@@ -199,6 +201,11 @@ final class ChatService implements MessageHandler {
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
             });
+            return;
+        }
+        if ($command === '/prompt' && $this->prompt !== null) {
+            // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — versions of the notes and a rollback, the owner only
+            $this->reply($message, $principal->isOwner() ? $this->prompt->handle(substr($text, strlen($command))) : t(self::OWNER_ONLY));
             return;
         }
         if ($command === '/apikey' && $this->apiKeys !== null) {

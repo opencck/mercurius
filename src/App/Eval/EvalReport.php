@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OpenCCK\Test\Eval;
+namespace OpenCCK\App\Eval;
 
 /**
  * Scores by category with their noise, and the comparison with a baseline: a category regresses when its mean falls
