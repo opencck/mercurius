@@ -196,7 +196,9 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
         $this->console()->run($this->owner, null, 'web', 'sudo systemctl restart nginx', 30, new NullCancellation());
 
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the password goes to sudo alone, never to the command
-        self::assertSame("sudo -S -p '' -v && sudo -n systemctl restart nginx < /dev/null", $this->ran[0][2]);
+        self::assertSame("sudo -S -p '' sh -c 'systemctl restart nginx < /dev/null'", $this->ran[0][2]);
+        $this->console()->run($this->owner, null, 'web', "sudo echo 'a b'", 30, new NullCancellation());
+        self::assertSame("sudo -S -p '' sh -c 'echo '\''a b'\'' < /dev/null'", $this->ran[1][2], 'quotes of the command are kept');
         self::assertSame("hunter2-long-pass
 ", $this->stdin[0]);
         self::assertStringNotContainsString('hunter2', $this->audit->records[0]['command'], 'the journal keeps the command as asked');

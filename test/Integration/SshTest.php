@@ -85,9 +85,9 @@ final class SshTest extends AsyncTestCase {
     public function testThePasswordOfSudoOpensTheTicketAndReachesNoCommand(): void {
         $connection = new Connection($this->trusted(), self::PASSWORD, 'password');
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the way ServerConsole runs `sudo id -u` and `sudo cat`
-        $id = (new AmpSshShell())->run($connection, "sudo -S -p '' -v && sudo -n id -u < /dev/null", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");
+        $id = (new AmpSshShell())->run($connection, "sudo -S -p '' sh -c 'id -u < /dev/null'", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");
         self::assertSame("0\n", $id->stdout, $id->stderr);
-        $cat = (new AmpSshShell())->run($connection, "sudo -S -p '' -v && sudo -n cat < /dev/null", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");
+        $cat = (new AmpSshShell())->run($connection, "sudo -S -p '' sh -c 'cat < /dev/null'", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");
         self::assertSame(0, $cat->exitCode, $cat->stderr);
         self::assertStringNotContainsString(self::PASSWORD, $cat->stdout, 'the command does not read the password');
     }

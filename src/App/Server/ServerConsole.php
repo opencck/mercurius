@@ -206,9 +206,8 @@ final class ServerConsole {
     }
 
     /**
-     * A command of one part that starts with sudo gets the login password — for sudo alone: `sudo -S -v` reads it on
-     * stdin and opens the sudo ticket, then the command runs by that ticket (`sudo -n`) with nothing on its stdin. A
-     * command of several parts (`;`, `&&`, `|`, a substitution, a second line) gets no password: the other parts would
+     * A command of one part that starts with sudo gets the login password — for sudo alone: `sudo -S` reads it on
+     * stdin, the command runs in `sh -c` with its own stdin from /dev/null. A command of several parts (`;`, `&&`, `|`, a substitution, a second line) gets no password: the other parts would
      * read it. Only a password login has a password to give.
      *
      * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the password of sudo reaches no command
@@ -221,8 +220,11 @@ final class ServerConsole {
         if (preg_match('~[;&|\n\r`]|\$\(~', $command) === 1) {
             return [$command, null];
         }
+        // sudo reads the password from the stdin of the session; the command inside gets /dev/null as its own, so it
+        // cannot read the password even when sudo does not ask for it (a ticket, NOPASSWD). A ticket of `sudo -v` is
+        // no way: without a terminal the next sudo does not see it (checked on the SSH test server).
         $rest = preg_replace('~^\s*sudo\s+~', '', $command) ?? $command;
-        return ["sudo -S -p '' -v && sudo -n " . $rest . ' < /dev/null', $connection->credential . "\n"];
+        return ["sudo -S -p '' sh -c '" . str_replace("'", "'\\''", $rest . ' < /dev/null') . "'", $connection->credential . "\n"];
     }
 
     /** The output without the login password, in the spellings a command could print it in. */
