@@ -134,6 +134,8 @@ final class AgentLoop {
     }
 
     private readonly \OpenCCK\App\Agent\Tool\ResultBudget $budget;
+    /** results shorter than this are kept whole even when repeated: a reference would not be shorter */
+    private const SAME_RESULT_MIN = 500;
 
     /** Runs until the run ends; on shutdown returns the run still running, to resume after restart. */
     public function run(Run $run, ParticipantPolicy $policy, Principal $principal, RunObserver $observer, Cancellation $cancellation): Run {
@@ -595,6 +597,16 @@ final class AgentLoop {
                 $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content));
                 $halted = $halted || $verdict === GuardVerdict::Halt;
                 $warn = $warn || $verdict === GuardVerdict::Warn;
+                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference to the first
+                if (!$result->isError && mb_strlen($result->content) >= self::SAME_RESULT_MIN) {
+                    $hash = hash('sha256', $result->content);
+                    $first = $state->seenResults[$hash] ?? null;
+                    if ($first === null) {
+                        $state->seenResults[$hash] = $call->call->id;
+                    } else {
+                        $result = new ToolResult(sprintf(t('agent.agent_loop.same_result'), $first), false);
+                    }
+                }
                 if ($call->call->id === $lastId) {
                     $result = $this->withNotes($state, $result, $warn || $halted);
                 }

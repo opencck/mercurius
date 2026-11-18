@@ -43,6 +43,8 @@ final class RunState {
     /** The model after a switch on failure; null — the run's own. */
     public ?string $model = null;
     public bool $switched = false;
+    /** @var array<string, string> the hash of a long result => the call that gave it first in this run */
+    public array $seenResults = [];
     /** the last model call failed with this kind */
     public ?\Mercurius\Llm\ErrorKind $lastError = null;
     /** clock value up to which active time is saved */

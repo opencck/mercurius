@@ -56,7 +56,7 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         $this->conversations = new InMemoryConversationRepository();
         $this->conversations->openConversation(1, 'test', '1');
         $this->registry = new ToolRegistry();
-        $this->registry->register(new FakeTool('read', handler: static fn(array $args, ToolContext $c): ToolResult => ToolResult::ok(str_repeat('r', 5000))));
+        $this->registry->register(new FakeTool('read', handler: static fn(array $args, ToolContext $c): ToolResult => ToolResult::ok(str_repeat('r', 5000) . ' #' . bin2hex(random_bytes(4)))));
     }
 
     private static function call(string $id, string $thought = ''): ChatResponse {

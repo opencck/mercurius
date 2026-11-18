@@ -615,4 +615,23 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertCount(8, $tools);
         self::assertLessThanOrEqual(16_000, array_sum(array_map(static fn($m): int => mb_strlen($m->content), $tools)));
     }
+
+    public function testASecondIdenticalResultIsAReferenceToTheFirst(): void {
+        $stack = new \OpenCCK\Test\Support\AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('r1', 'read', '{"q":"1"}')),
+            ScriptedLlm::calls(new ToolCall('r2', 'read', '{"q":"2"}')),
+            ScriptedLlm::text('Готово.'),
+        ]));
+        $stack->registry->register(new \OpenCCK\Test\Support\FakeTool('read', handler: static fn(array $args): \OpenCCK\App\Agent\Tool\ToolResult => \OpenCCK\App\Agent\Tool\ToolResult::ok(str_repeat('тот же длинный текст ', 100))));
+
+        $stack->say('прочитай дважды');
+        $stack->scheduler->awaitIdle();
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference, not a copy
+        $tools = array_values(array_filter($stack->llm->requests[2]->messages, static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool));
+        self::assertCount(2, $tools);
+        self::assertStringContainsString('тот же длинный текст', $tools[0]->content);
+        self::assertStringNotContainsString('тот же длинный текст', $tools[1]->content);
+        self::assertStringContainsString('r1', $tools[1]->content, 'the reference names the first call');
+    }
 }
