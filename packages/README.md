@@ -26,7 +26,7 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 |--------|---------|--------|-----------|---------|------------|
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `cc4c9a9` | 2026-11-17 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `479b35c` | 2026-11-18 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `429aa10` | 2026-11-18 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `2bf1a94` | 2026-11-18 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `f110a21` | 2026-11-18 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `7e43a9f` | 2026-11-18 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `1406472` | 2026-11-18 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
@@ -42,6 +42,12 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-18 — browser: внутренние адреса IPv4 в записи IPv6
+
+- `mercurius-browser` `2bf1a94`: страж адресов пропускал `http://[::ffff:169.254.169.254]/`, `[::ffff:127.0.0.1]`,
+  NAT64 и `fec0::` — разбор URL переписывает адрес в шестнадцатеричную запись, а проверка ждала запись с точками
+  (найдено сверкой роадмапа). Теперь адрес разбирается в 16 байт и сверяется с сетями, как `AddressGuard` приложения.
 
 ### 2026-11-18 — i18n: ключи агентов в списке участников
 
