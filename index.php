@@ -905,14 +905,44 @@ if ($a2aServer !== null) {
     }
 }
 
-// spec: BRIEF.md#сеть-агентов — the agent can tell how another agent connects to it; the entrance token stays in .env
+// spec: BRIEF.md#знания-агента-о-себе — the prompt holds one line, the details come from self_info by topic
 if ($a2aServer !== null) {
     $selfBase = rtrim($a2aServer->self, '/');
     $selfHost = parse_url($selfBase, PHP_URL_HOST);
-    $scheduler->useInstance(sprintf(\Mercurius\I18n\t('agent.prompt_builder.instance_a2a'), $selfBase, $a2aServer->transport === 'http' ? 'POST ' . $selfBase . '/a2a' : 'wss://' . (is_string($selfHost) ? $selfHost : '') . '/a2a/ws'));
+    $networkText = sprintf(\Mercurius\I18n\t('agent.prompt_builder.instance_a2a'), $selfBase, $a2aServer->transport === 'http' ? 'POST ' . $selfBase . '/a2a' : 'wss://' . (is_string($selfHost) ? $selfHost : '') . '/a2a/ws');
 } else {
-    $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.instance_no_a2a'));
+    $networkText = \Mercurius\I18n\t('agent.prompt_builder.instance_no_a2a');
 }
+$scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.self_info'));
+$tools->register(new \OpenCCK\App\Agent\Tool\SelfInfoTool([
+    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText,
+    'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config): string {
+        $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);
+        return sprintf(\Mercurius\I18n\t('self.channels'), is_string($host) ? 'wss://' . $host . '/api/ws' : '—');
+    },
+    'commands' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t(ChatService::GREETING),
+    'tools' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($tools): string {
+        if ($c->policy === null) {
+            return '—';
+        }
+        $lines = [];
+        foreach ($tools->definitions($c->policy) as $definition) {
+            $first = preg_split('~(?<=[.!?])\s~u', $definition->description, 2)[0] ?? $definition->description;
+            $lines[] = '- ' . $definition->name . ': ' . mb_substr($first, 0, 160);
+        }
+        return \Mercurius\I18n\t('self.tools') . "\n" . implode("\n", $lines);
+    },
+    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules): string {
+        $lines = [];
+        foreach ($serviceModules->states() as $name => $up) {
+            $lines[] = '- ' . $name . ': ' . ($up ? \Mercurius\I18n\t('self.modules.up') : \Mercurius\I18n\t('self.modules.down'));
+        }
+        return \Mercurius\I18n\t('self.modules') . "\n" . ($lines === [] ? '—' : implode("\n", $lines));
+    },
+    'limits' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.limits') . "\n" . ($c->policy === null ? '—' : json_encode($c->policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
+    'self_improvement' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.self_improvement'),
+    'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
+]));
 
 // spec: BRIEF.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
 $apiSocket = new \OpenCCK\Infrastructure\API\Handler\ApiSocketHandler(new \OpenCCK\App\Api\ApiGateway($wsChannel, $apiKeys, static fn(\Mercurius\Messenger\IncomingMessage $m): bool => $dispatcher->dispatch($m), static function (\Mercurius\Messenger\IncomingCallback $c) use ($dispatcher): void {
