@@ -92,6 +92,10 @@ final class ApprovalServiceTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status, 'no 30-minute wait for a card nobody sees');
         self::assertSame(0, $this->push->runs);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the model hears not to try again: a new card would not arrive either
+        $said = implode("
+", array_map(static fn($m): string => $m->content, array_filter($this->stack->llm->requests[1]->messages ?? [], static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool)));
+        self::assertStringContainsString('Не повторяй', $said);
     }
 
     public function testActionThatCouldNotBeShownCanOnlyBeRefused(): void {

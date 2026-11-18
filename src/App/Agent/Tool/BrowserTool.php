@@ -46,6 +46,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         private readonly ?\OpenCCK\App\Agent\Media\MediaPrefs $prefs = null,
         /** @var (\Closure(int): ?int)|null the active project of a conversation; null — profiles are the participant's only */
         private readonly ?\Closure $projectOf = null,
+        /** BROWSER_CONFIRM: clicks and sending forms wait for the owner's card; off by default */
+        private readonly bool $confirm = false,
     ) {}
 
     /**
@@ -88,8 +90,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
     public function danger(array $args): DangerClass {
         return match (Args::string($args, 'action')) {
             'open' => $this->internalHost($args) === null ? DangerClass::Read : DangerClass::Irreversible,
-            'click' => DangerClass::Irreversible,
-            'type' => ($args['submit'] ?? false) === true ? DangerClass::Irreversible : DangerClass::Write,
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — clicks and sending forms go without a card unless the owner
+            //       turned confirmations on (BROWSER_CONFIRM): an accepted risk of the owner
+            'click' => $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
+            'type' => ($args['submit'] ?? false) === true && $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
             'close' => DangerClass::Write,
             // spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17 — reading a copy is a read, acting waits for a card
             'script' => self::scriptMode(Args::string($args, 'path') ?? '') === 'act' ? DangerClass::Irreversible : DangerClass::Read,

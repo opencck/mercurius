@@ -69,14 +69,21 @@ final class BrowserToolTest extends AsyncTestCase {
         return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
     }
 
-    public function testActingWaitsForTheOwnerReadingDoesNot(): void {
+    public function testActingWaitsForTheOwnerOnlyWhenTheOwnerAskedForIt(): void {
         $tool = $this->tool(new FakeHttpClient());
 
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — browser confirmations are off by default (BROWSER_CONFIRM)
         self::assertSame(DangerClass::Read, $tool->danger(['action' => 'open', 'url' => 'https://example.com']));
         self::assertSame(DangerClass::Read, $tool->danger(['action' => 'read']));
         self::assertSame(DangerClass::Write, $tool->danger(['action' => 'type', 'ref' => 1, 'text' => 'x']));
-        self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'type', 'ref' => 1, 'text' => 'x', 'submit' => true]));
-        self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'click', 'ref' => 3]));
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'type', 'ref' => 1, 'text' => 'x', 'submit' => true]));
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'click', 'ref' => 3]));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'open', 'url' => 'http://nas.home.lan/']), 'an internal address still asks');
+
+        $careful = new BrowserTool(new BrowserClient(new HttpClient(new FakeHttpClient(), []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', confirm: true);
+        self::assertSame(DangerClass::Irreversible, $careful->danger(['action' => 'type', 'ref' => 1, 'text' => 'x', 'submit' => true]));
+        self::assertSame(DangerClass::Irreversible, $careful->danger(['action' => 'click', 'ref' => 3]));
+        self::assertSame(DangerClass::Write, $careful->danger(['action' => 'type', 'ref' => 1, 'text' => 'x']));
     }
 
     public function testAPageComesBackWithItsElements(): void {

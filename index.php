@@ -467,6 +467,8 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
             $meta = $conversations->meta($conversationId);
             return $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId)?->id;
         },
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — browser confirmations are off unless the owner turns them on
+        \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_CONFIRM') === '1',
     ));
 }
 if ($sandbox !== null) {
