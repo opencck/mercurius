@@ -100,6 +100,46 @@ final class WorkerRunner {
 
     private ?ExperienceRepository $experience = null;
 
+    /**
+     * Tools a worker may get unless the owner set another list (`AGENT_WORKER_TOOLS`): reading, working in the sandbox,
+     * the web and the servers. A tool that is not here — a new one too — a worker does not get.
+     */
+    public const ALLOWED = [
+        'read_file', 'list_files', 'write_file', 'run_command', 'git', 'checkpoint', 'http_request', 'web_search', 'web_read',
+        'browser', 'documents', 'media', 'skill_view', 'self_info', 'servers', 'ssh_run', 'sql_query', 'file_write', 'tcp_probe',
+    ];
+    /** @var list<string>|null names a worker may get, `name*` for a prefix; null — no list (tests) */
+    private ?array $allowed = null;
+
+    /**
+     * The white list of tools for workers; which of them a worker gets, the orchestrator decides.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list the owner may change
+     * @param list<string> $names
+     */
+    public function allowOnly(array $names): void {
+        $this->allowed = array_values(array_filter(array_map('trim', $names), static fn(string $n): bool => $n !== ''));
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<string> those of the names the white list has
+     */
+    public function onTheList(array $names): array {
+        if ($this->allowed === null) {
+            return $names;
+        }
+        $allowed = $this->allowed;
+        return array_values(array_filter($names, static function (string $name) use ($allowed): bool {
+            foreach ($allowed as $rule) {
+                if ($rule === $name || (str_ends_with($rule, '*') && str_starts_with($name, substr($rule, 0, -1)))) {
+                    return true;
+                }
+            }
+            return false;
+        }));
+    }
+
     /** Each part that ran is recorded as experience: what was asked, which model did it, how it went. */
     public function useExperience(ExperienceRepository $experience): void {
         $this->experience = $experience;
@@ -286,7 +326,7 @@ final class WorkerRunner {
     /** @return list<string> the tools the worker gets: asked for, allowed to the orchestrator, existing, not forbidden */
     private function tools(ToolContext $parent, WorkerTask $task): array {
         $tools = [];
-        foreach (array_unique($task->tools) as $name) {
+        foreach ($this->onTheList(array_values(array_unique($task->tools))) as $name) {
             if (in_array($name, self::FORBIDDEN, true) || $this->registry->get($name) === null) {
                 continue;
             }

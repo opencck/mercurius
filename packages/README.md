@@ -43,6 +43,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 
 ## Журнал
 
+### 2026-11-18 — i18n: белый список воркера
+
+- `mercurius-i18n` `4262bb3`: описание настройки `AGENT_WORKER_TOOLS`.
+
 ### 2026-11-18 — media-video: только файлы
 
 - `mercurius-media-video` `7be2f90`: `ffmpeg` и `ffprobe` читают вход с `-protocol_whitelist file` — плейлист внутри

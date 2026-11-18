@@ -517,6 +517,8 @@ $loop = new AgentLoop(
 );
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)), $agentSettings->maxWorkersPerRun);
+// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list
+$workers->allowOnly(explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_WORKER_TOOLS') ?? implode(',', WorkerRunner::ALLOWED)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
 $tools->register(new WorkerReportTool($runs, $transcript));

@@ -33,6 +33,7 @@ use function Amp\delay;
  * orchestrator's budget; the orchestrator gets a short report.
  */
 final class DelegateTaskToolTest extends AsyncTestCase {
+    private WorkerRunner $runner;
     private ModelRoles $roles;
     private InMemoryModelStores $stores;
     private InMemoryExperienceRepository $experience;
@@ -54,6 +55,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             new ModelSelector($stores, $this->roles, $stores, new NullLogger()),
         );
         $runner->useExperience($this->experience = new InMemoryExperienceRepository());
+        $this->runner = $runner;
         $stack->registry->register(new DelegateTaskTool($runner));
         return $stack;
     }
@@ -109,6 +111,23 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             ScriptedLlm::text('итог'),
         ]);
         $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(['read'], array_map(static fn($t): string => $t->name, $llm->requests[1]->tools));
+    }
+
+    public function testAWorkerGetsOnlyToolsOfTheWhiteList(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'прочитай', 'tools' => ['read', 'push']]]),
+            ScriptedLlm::text('готово'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list, a new one is closed
+        $this->runner->allowOnly(['read', 'mcp__*']);
+        self::assertSame(['read', 'mcp__mail__send'], $this->runner->onTheList(['read', 'push', 'mcp__mail__send']));
 
         $stack->say('задача');
         $stack->scheduler->awaitIdle();
