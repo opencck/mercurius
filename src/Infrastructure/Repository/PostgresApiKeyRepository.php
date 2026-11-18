@@ -20,6 +20,16 @@ final class PostgresApiKeyRepository implements ApiKeyRepository {
         return self::int($row ?? [], 'principal_id');
     }
 
+    public function idOf(string $hash): ?int {
+        $row = $this->db->execute('SELECT id FROM api_keys WHERE hash = ? AND revoked_at IS NULL', [$hash])->fetchRow();
+        return self::int($row ?? [], 'id');
+    }
+
+    public function holder(int $id): ?int {
+        $row = $this->db->execute('SELECT principal_id FROM api_keys WHERE id = ? AND revoked_at IS NULL', [$id])->fetchRow();
+        return self::int($row ?? [], 'principal_id');
+    }
+
     public function active(): array {
         $keys = [];
         foreach ($this->db->query('SELECT id, principal_id, name, extract(epoch FROM created_at)::bigint AS created, extract(epoch FROM used_at)::bigint AS used FROM api_keys WHERE revoked_at IS NULL ORDER BY id') as $row) {

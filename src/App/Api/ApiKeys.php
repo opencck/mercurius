@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Api;
 
+use Closure;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Repository\ApiKeyRepository;
@@ -23,6 +24,9 @@ use function Mercurius\I18n\t;
  */
 final class ApiKeys {
     public const PREFIX = 'mk_';
+
+    /** @var list<Closure(int): void> */
+    private array $revoked = [];
 
     public function __construct(
         private readonly ApiKeyRepository $keys,
@@ -46,12 +50,46 @@ final class ApiKeys {
         return $principal !== null && $principal->status === PrincipalStatus::Active ? $principal : null;
     }
 
+    /**
+     * The participant of a key and the number of the key: a connection keeps the number, so a revoke reaches it.
+     *
+     * @return array{Principal, int}|null
+     */
+    public function session(#[SensitiveParameter] string $authorization): ?array {
+        $principal = $this->authenticate($authorization);
+        if ($principal === null || preg_match('~^Bearer\s+(' . self::PREFIX . '[0-9a-f]{48})$~', trim($authorization), $m) !== 1) {
+            return null;
+        }
+        $id = $this->keys->idOf(hash('sha256', $m[1]));
+        return $id === null ? null : [$principal, $id];
+    }
+
+    /** Whether the key still works for this participant and the participant is still active. */
+    public function alive(int $keyId, int $principalId): bool {
+        if ($this->keys->holder($keyId) !== $principalId) {
+            return false;
+        }
+        return $this->principals->find($principalId)?->status === PrincipalStatus::Active;
+    }
+
+    /** @param Closure(int): void $revoked gets the number of a key the owner revoked */
+    public function onRevoke(Closure $revoked): void {
+        $this->revoked[] = $revoked;
+    }
+
     public function principals(): PrincipalRepository {
         return $this->principals;
     }
 
     public function revoke(int $id): bool {
-        return $this->keys->revoke($id);
+        if (!$this->keys->revoke($id)) {
+            return false;
+        }
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
+        foreach ($this->revoked as $revoked) {
+            $revoked($id);
+        }
+        return true;
     }
 
     /** The keys that work, without the keys themselves. */

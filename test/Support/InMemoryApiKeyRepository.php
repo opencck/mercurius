@@ -26,6 +26,20 @@ final class InMemoryApiKeyRepository implements ApiKeyRepository {
         return null;
     }
 
+    public function idOf(string $hash): ?int {
+        foreach ($this->keys as $id => $key) {
+            if ($key['hash'] === $hash && !$key['revoked']) {
+                return $id;
+            }
+        }
+        return null;
+    }
+
+    public function holder(int $id): ?int {
+        $key = $this->keys[$id] ?? null;
+        return $key === null || $key['revoked'] ? null : $key['principal'];
+    }
+
     public function active(): array {
         $out = [];
         foreach ($this->keys as $key) {

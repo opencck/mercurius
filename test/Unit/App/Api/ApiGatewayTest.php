@@ -70,6 +70,39 @@ final class ApiGatewayTest extends AsyncTestCase {
         self::assertNull($this->keys->authenticate('Bearer ' . $key), 'a revoked key');
     }
 
+    public function testARevokedKeyClosesItsOpenConnectionsAndTheNextFrameIsNotTaken(): void {
+        $gateway = $this->gateway(new WebsocketChannel());
+        $user = $this->principals->createVisitor('telegram', '77', 'Вася');
+        $this->principals->decideVisitor($user->id, Role::User, PrincipalStatus::Active);
+        $first = $this->keys->session('Bearer ' . $this->keys->issue($user, 'laptop'));
+        $second = $this->keys->session('Bearer ' . $this->keys->issue($user, 'phone'));
+        self::assertNotNull($first);
+        self::assertNotNull($second);
+        $closed = new \ArrayObject();
+        $laptop = $gateway->open($first[0], new RecordingConnection(), $first[1], static function () use ($closed): void {
+            $closed->append('laptop');
+        });
+        $phone = $gateway->open($second[0], new RecordingConnection(), $second[1], static function () use ($closed): void {
+            $closed->append('phone');
+        });
+
+        $gateway->frame($laptop, '{"type":"message","text":"раз"}');
+        self::assertCount(1, $this->messages);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key stops working on a connection already open
+        self::assertTrue($this->keys->revoke($first[1]));
+        self::assertSame(['laptop'], $closed->getArrayCopy(), 'the connections of that key close, the others stay');
+        $gateway->frame($laptop, '{"type":"message","text":"два"}');
+        self::assertCount(1, $this->messages, 'a frame after the revoke is not taken');
+
+        $gateway->frame($phone, '{"type":"message","text":"три"}');
+        self::assertCount(2, $this->messages);
+        $this->principals->setRole($user->id, Role::User, PrincipalStatus::Rejected);
+        $gateway->frame($phone, '{"type":"message","text":"четыре"}');
+        self::assertCount(2, $this->messages, 'a participant who is no longer active is not heard');
+        self::assertSame(['laptop', 'phone'], $closed->getArrayCopy());
+    }
+
     public function testFramesOfAClientReachTheAgentAsItsParticipant(): void {
         $channel = new WebsocketChannel();
         $gateway = $this->gateway($channel);

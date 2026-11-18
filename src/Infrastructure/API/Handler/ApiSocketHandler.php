@@ -35,11 +35,12 @@ final class ApiSocketHandler implements WebsocketAcceptor, WebsocketClientHandle
 
     public function handleClient(WebsocketClient $client, Request $request, Response $response): void {
         // the key is checked again: it may have been revoked between the handshake and now
-        $principal = $this->gateway->keys->authenticate($request->getHeader('authorization') ?? '');
-        if ($principal === null) {
+        $found = $this->gateway->keys->session($request->getHeader('authorization') ?? '');
+        if ($found === null) {
             $client->close();
             return;
         }
+        [$principal, $apiKey] = $found;
         $session = $this->gateway->open($principal, new class ($client) implements Connection {
             public function __construct(private readonly WebsocketClient $client) {}
 
@@ -51,6 +52,8 @@ final class ApiSocketHandler implements WebsocketAcceptor, WebsocketClientHandle
                     return false;
                 }
             }
+        }, $apiKey, static function () use ($client): void {
+            $client->close();
         });
         try {
             while (($message = $client->receive()) !== null) {
