@@ -18,6 +18,8 @@ use Psr\Log\NullLogger;
  * by the code of the new release.
  *
  * spec: BRIEF.md#решено-в-фазе-12 — an update keeps the data and the memory; migrations only add to the schema
+ *
+ * @group integration
  */
 final class UpgradeTest extends AsyncTestCase {
     /** The last migration of the release before 2026-11-18 (installs of 2026-11-17 stopped at it). */

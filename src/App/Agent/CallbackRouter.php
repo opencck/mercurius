@@ -28,10 +28,13 @@ final class CallbackRouter implements CallbackHandler {
         private readonly string $ownerUserId,
         private readonly array $handlers,
         private readonly array $otherOwnerIds = [],
+        /** @var list<string> prefixes whose handlers take presses of participants too and check the right themselves */
+        private readonly array $openPrefixes = [],
     ) {}
 
     public function handleCallback(IncomingCallback $callback): void {
-        if ($callback->userId !== $this->ownerUserId && !in_array($callback->userId, $this->otherOwnerIds, true)) {
+        $open = in_array(explode(':', $callback->data, 2)[0], $this->openPrefixes, true);
+        if (!$open && $callback->userId !== $this->ownerUserId && !in_array($callback->userId, $this->otherOwnerIds, true)) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
         }

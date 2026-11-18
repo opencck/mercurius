@@ -641,7 +641,11 @@ $jobWatchText = new TextExtractor();
 // spec: BRIEF.md#планировщик-и-проекты — initiative messages: a daily cap of reports the owner did not ask for now
 $proactivePerDay = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_PER_DAY');
 $proactiveBudget = new \OpenCCK\App\Job\ProactiveBudget($proactivePerDay !== null && ctype_digit($proactivePerDay) ? (int) $proactivePerDay : 6, $ownerZone);
-$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
+// spec: BRIEF.md#несколько-пользователей — a participant's own time zone and quiet hours for their jobs
+$participantPrefs = new \OpenCCK\Infrastructure\Repository\PostgresParticipantPrefRepository($db);
+$participantClock = new \OpenCCK\App\Job\ParticipantClock($participantPrefs, $ownerZone, $quietHours);
+$tools->register(new \OpenCCK\App\Agent\Tool\MyPreferencesTool($participantPrefs, $participantClock));
+$jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, clock: $participantClock, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
     $request = new \Amp\Http\Client\Request($url);
     $request->setTransferTimeout(30);
     $request->setBodySizeLimit(2_000_000);
@@ -868,7 +872,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvement
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id]);
+$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, SkillCards::PREFIX => $skillCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

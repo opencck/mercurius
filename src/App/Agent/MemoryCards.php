@@ -40,8 +40,17 @@ final class MemoryCards implements CallbackHandler {
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
+    /**
+     * spec: BRIEF.md#несколько-пользователей — a fact of a participant's own memory is theirs to approve: the card goes
+     * to their private chat; everything else goes to the owner
+     */
     public function show(Proposal $proposal): bool {
-        $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, $this->card($proposal, true), buttons: [[
+        $chatId = $this->ownerChatId;
+        $who = $this->ownerOf($proposal);
+        if ($who !== null) {
+            $chatId = $this->principals->externalId($who, 'telegram') ?? $this->ownerChatId;
+        }
+        $result = $this->channel->send(new OutgoingMessage($chatId, $this->card($proposal, true), buttons: [[
             new Button(t('agent.memory_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $proposal->id)),
             new Button(t('agent.memory_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $proposal->id)),
         ]]));
@@ -49,7 +58,7 @@ final class MemoryCards implements CallbackHandler {
             $this->logger->warning('Memory card was not delivered', ['proposal' => $proposal->id]);
             return false;
         }
-        $this->store->setCard($proposal->id, $this->ownerChatId, $result->messageId);
+        $this->store->setCard($proposal->id, $chatId, $result->messageId);
         return true;
     }
 
@@ -59,6 +68,10 @@ final class MemoryCards implements CallbackHandler {
             return;
         }
         $approve = $match[2] === 'a';
+        if (!$this->mayDecide($callback, (int) $match[1])) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
+            return;
+        }
         try {
             $decision = $this->proposals->decide((int) $match[1], $approve);
         } catch (Throwable $e) {
@@ -75,6 +88,25 @@ final class MemoryCards implements CallbackHandler {
             $this->channel->edit($callback->chatId, $callback->messageId, $this->card($decision->proposal) . "\n\n" . $decision->outcome);
         }
         $this->logger->info('Memory proposal decided', ['proposal' => $decision->proposal->id, 'kind' => $decision->proposal->kind, 'approved' => $approve, 'applied' => $decision->applied]);
+    }
+
+    /** The participant whose own memory a proposal is about; null — the owner's or a chat's memory. */
+    private function ownerOf(Proposal $proposal): ?int {
+        if (preg_match('~^principal:(\d+)$~', $proposal->scope, $m) !== 1) {
+            return null;
+        }
+        $principal = $this->principals->find((int) $m[1]);
+        return $principal === null || $principal->isOwner() ? null : $principal->id;
+    }
+
+    /** The owner decides any proposal; a participant only one of their own memory. */
+    private function mayDecide(IncomingCallback $callback, int $id): bool {
+        $presser = $this->principals->findByIdentity($callback->channel, $callback->userId);
+        if ($presser !== null && $presser->isOwner()) {
+            return true;
+        }
+        $proposal = $this->store->proposal($id);
+        return $presser !== null && $proposal !== null && $this->ownerOf($proposal) === $presser->id;
     }
 
     /**

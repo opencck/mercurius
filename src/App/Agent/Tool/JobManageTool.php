@@ -86,7 +86,7 @@ final class JobManageTool implements Tool {
         }
         if (!$job->byEvent()) {
             try {
-                $next = Schedule::parse($job->schedule)->next(new DateTimeImmutable(), $this->scheduler->zone());
+                $next = Schedule::parse($job->schedule)->next(new DateTimeImmutable(), $this->scheduler->zone($job->principalId));
             } catch (InvalidArgumentException) {
                 $next = null;
             }
@@ -121,7 +121,7 @@ final class JobManageTool implements Tool {
             $job->title,
             $when,
             $job->status === Job::ACTIVE ? t('tool.job_manage.vklyucheno') : t('tool.job_manage.na_pauze'),
-            $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zone())->format('Y-m-d H:i'),
+            $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zone($job->principalId))->format('Y-m-d H:i'),
             $job->runs,
         );
     }

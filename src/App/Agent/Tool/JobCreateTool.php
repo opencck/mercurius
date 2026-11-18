@@ -74,7 +74,7 @@ final class JobCreateTool implements Tool {
         } catch (InvalidArgumentException $e) {
             return ToolResult::error($e->getMessage());
         }
-        $first = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone(), true);
+        $first = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone($context->principal->id), true);
         $byEvent = (string) $schedule === Schedule::EVENT;
         if ($first === null && !$byEvent) {
             return ToolResult::error(t('tool.job_create.eto_vremya_uzhe_proshlo'));
@@ -100,7 +100,7 @@ final class JobCreateTool implements Tool {
             $job->id,
             $job->title,
             $schedule->describe(),
-            $first->setTimezone($this->scheduler->zone())->format('Y-m-d H:i T'),
+            $first->setTimezone($this->scheduler->zone($context->principal->id))->format('Y-m-d H:i T'),
         ));
     }
 }

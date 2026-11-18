@@ -87,19 +87,22 @@ final class JobScheduler implements JobRuns {
         private readonly ?Closure $fetch = null,
         /** the daily cap of reports the owner did not ask for right now; null — no cap */
         private readonly ?ProactiveBudget $budget = null,
+        /** a participant's own time zone and quiet hours; null — the owner's for everyone */
+        private readonly ?ParticipantClock $clock = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
 
-    public function zone(): DateTimeZone {
-        return $this->zone;
+    /** The zone a participant's jobs run by: their own, else the owner's (spec: BRIEF.md#несколько-пользователей). */
+    public function zone(?int $principalId = null): DateTimeZone {
+        return $this->clock === null || $principalId === null ? $this->zone : $this->clock->zone($principalId);
     }
 
     /** One pass: held reports out of the quiet hours, then the due jobs, each in its own fiber. */
     public function tick(bool $wait = false): void {
         $now = ($this->now)();
-        if (!$this->isQuiet($now)) {
-            foreach ($this->jobs->pendingReports() as $job) {
+        foreach ($this->jobs->pendingReports() as $job) {
+            if (!$this->isQuiet($now, $job->principalId)) {
                 if ($this->budget !== null && !$this->budget->take()) {
                     break;
                 }
@@ -110,7 +113,7 @@ final class JobScheduler implements JobRuns {
         $futures = [];
         foreach ($this->jobs->due($now, self::BATCH) as $job) {
             try {
-                $next = Schedule::parse($job->schedule)->next($now, $this->zone);
+                $next = Schedule::parse($job->schedule)->next($now, $this->zone($job->principalId));
             } catch (Throwable) {
                 $this->jobs->setStatus($job->id, Job::PAUSED);
                 continue;
@@ -127,12 +130,13 @@ final class JobScheduler implements JobRuns {
         }
     }
 
-    public function isQuiet(DateTimeImmutable $at): bool {
-        if ($this->quiet === null) {
+    public function isQuiet(DateTimeImmutable $at, ?int $principalId = null): bool {
+        $quiet = $this->clock === null || $principalId === null ? $this->quiet : $this->clock->quiet($principalId);
+        if ($quiet === null) {
             return false;
         }
-        [$from, $to] = $this->quiet;
-        $hour = (int) $at->setTimezone($this->zone)->format('G');
+        [$from, $to] = $quiet;
+        $hour = (int) $at->setTimezone($this->zone($principalId))->format('G');
         return $from > $to ? ($hour >= $from || $hour < $to) : ($hour >= $from && $hour < $to);
     }
 
@@ -231,7 +235,7 @@ final class JobScheduler implements JobRuns {
         }
         $report = sprintf(t('job.job_scheduler.report'), $byEvent ? '⚡' : '⏰', $job->id, $job->title, $byEvent ? t('job.job_scheduler.sobytie') : t('job.job_scheduler.zapusk'), $number, mb_substr($text, 0, self::REPORT_MAX));
         // spec: BRIEF.md#планировщик-и-проекты — quiet hours and the daily cap of initiative messages
-        $held = $this->isQuiet(($this->now)()) || ($this->budget !== null && !$this->budget->take());
+        $held = $this->isQuiet(($this->now)(), $job->principalId) || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if (!$held) {
             $this->deliver($job, $report);
@@ -257,7 +261,7 @@ final class JobScheduler implements JobRuns {
             $event === null || $source !== 'webhook' ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),
             $job->title,
             $number,
-            ($this->now)()->setTimezone($this->zone)->format('Y-m-d H:i T'),
+            ($this->now)()->setTimezone($this->zone($job->principalId))->format('Y-m-d H:i T'),
             $job->lastResult === null ? '' : t('job.job_scheduler.itog_proshlogo_zapuska') . $job->lastResult,
             $job->prompt,
             $event === null ? '' : t($source === 'webhook' ? 'job.job_scheduler.sobytie_prishlo_izvne_eto_dannye' : 'job.job_scheduler.watch_changed') . UntrustedWrapper::wrap($source, $event),
