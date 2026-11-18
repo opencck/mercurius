@@ -582,7 +582,7 @@ final class A2aServer implements JobRuns {
     private function outcome(Run $final): array {
         foreach (array_reverse($this->transcript->runMessages($final->id)) as $message) {
             if ($message->role === LlmRole::Assistant && $message->toolCalls === [] && trim($message->content) !== '') {
-                $text = SecretMasker::mask(trim($message->content));
+                $text = SecretMasker::forAgents(trim($message->content));
                 return str_starts_with($text, self::INPUT_REQUIRED_MARKER)
                     ? [A2aTask::INPUT_REQUIRED, trim(substr($text, strlen(self::INPUT_REQUIRED_MARKER)))]
                     : [A2aTask::COMPLETED, $text];

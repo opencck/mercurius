@@ -98,4 +98,17 @@ final class SecretMaskerTest extends TestCase {
         self::assertTrue(SecretMasker::carriesSecret('ключ sk-or-v1-0123456789abcdef0123456789abcdef'));
         self::assertNotSame('коммит 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e', SecretMasker::mask('коммит 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e'), 'output is still masked as before');
     }
+    public function testTextForAnotherAgentHidesEmailsAndPhones(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what goes to another agent carries no addresses and phones
+        // ref: references/hermes-agent/agent/redact.py@e96221fa:L757-L759 — the E.164 shape of a phone
+        $masked = SecretMasker::forAgents('Напиши ivan.petrov+work@mail.example или позвони +79991234567, 8 (999) 123-45-67, +7 999 123 45 67. Версия 3.14.7+20260901, дата 2026-11-18, заказ 12345678.');
+
+        self::assertStringNotContainsString('ivan.petrov', $masked);
+        self::assertStringNotContainsString('9991234567', $masked);
+        self::assertStringNotContainsString('123-45-67', $masked);
+        self::assertStringNotContainsString('123 45 67', $masked);
+        self::assertStringContainsString('3.14.7+20260901', $masked, 'a version is not a phone');
+        self::assertStringContainsString('2026-11-18', $masked);
+        self::assertStringContainsString('12345678', $masked, 'a plain number is not a phone');
+    }
 }

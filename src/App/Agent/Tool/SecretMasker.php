@@ -37,6 +37,21 @@ final class SecretMasker {
         }
     }
 
+    /**
+     * Text for another agent: secrets masked, and the personal data of people too — e-mail addresses and phone
+     * numbers. The other agent works for someone else.
+     *
+     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what goes to another agent carries no addresses and phones
+     * ref: references/hermes-agent/agent/redact.py@e96221fa:L757-L759 — E.164 without a word or dot glued before the
+     *      plus (a version like 3.14.7+20260901 stays); here also the spaced Russian form, +7 or 8 with brackets
+     */
+    public static function forAgents(string $text): string {
+        $text = self::mask($text);
+        $text = preg_replace('~[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}~', '[email]', $text) ?? $text;
+        $text = preg_replace('~(?<![0-9A-Za-z_.])\+[1-9]\d{6,14}(?![A-Za-z0-9])~', '[phone]', $text) ?? $text;
+        return preg_replace('~(?<![\w+.])(?:\+7|8)[\s(-]*\d{3}[\s)-]*\d{3}[\s-]?\d{2}[\s-]?\d{2}(?!\d)~u', '[phone]', $text) ?? $text;
+    }
+
     /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret… */
     private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth|authorization|cookie|session)[\w-]*)';
 
