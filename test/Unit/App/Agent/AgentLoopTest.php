@@ -425,6 +425,23 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('failure', $stores->decisions[0]->method);
     }
 
+    public function testARefusalOfTheContentFilterDoesNotSwitchTheModel(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $roles = new \OpenCCK\App\Agent\Model\ModelRoles($stores, $stores);
+        $roles->seed();
+        $main = (string) $roles->model(\OpenCCK\Domain\Agent\ModelRole::MAIN);
+        $llm = new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::ContentFilter, 'refused')]);
+        $llm->byModel[$main] = [ScriptedLlm::text('ответ другой модели')];
+        $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10,
+            fallback: new \OpenCCK\App\Agent\Model\FallbackModels($roles, $stores, $stores, new \Psr\Log\NullLogger()));
+
+        $run = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a content filter is a verdict on the request, not a broken model
+        self::assertSame(StopReason::ModelFailed, $run->stopReason);
+        self::assertCount(1, $llm->requests, 'not asked again of another model');
+    }
+
     public function testSpendCapStopsBeforeTheNextModelCall(): void {
         $this->registry->register(new FakeTool('t'));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 't', '{"q":"1"}')), ScriptedLlm::text('не должно быть')]);

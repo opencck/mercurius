@@ -230,7 +230,9 @@ final class AgentLoop {
                     continue;
                 }
                 // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
-                if ($this->fallback !== null && !$state->switched) {
+                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
+                //       model works; another model would only be asked to say the same
+                if ($this->fallback !== null && !$state->switched && $state->lastError !== ErrorKind::ContentFilter) {
                     $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId);
                     if ($next !== null) {
                         $state->switched = true;
