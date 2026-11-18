@@ -154,6 +154,30 @@ final class HttpRequestToolTest extends AsyncTestCase {
         self::assertArrayNotHasKey('cookie', $this->http->headers[4], 'another participant does not get it');
     }
 
+    public function testTheCsrfTokenOfAPageGoesWithTheNextChangeToItsHost(): void {
+        $page = '<html><head><meta name="csrf-token" content="QEfxnI5p0aVt2LkD8sWm3Rq7YbNc1XoZeUhJ4gTXCsQ" /></head></html>';
+        $this->http = new FakeHttpClient([
+            'https://example.com/panel/' => [200, ['content-type' => 'text/html', 'set-cookie' => '3x-ui=SESSION; Path=/panel/'], $page],
+            'https://example.com/panel/login' => [200, ['content-type' => 'application/json'], '{"success":true}'],
+            'https://other.com/login' => [200, [], 'ok'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']));
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a model shortens long strings when it copies them, so the
+        //       token of a page is not left to it: the code sends it with the next change to that host
+        $tool->execute(['url' => 'https://example.com/panel/'], self::context());
+        $tool->execute(['url' => 'https://example.com/panel/login', 'method' => 'POST', 'body' => '{}'], self::context());
+        self::assertSame('QEfxnI5p0aVt2LkD8sWm3Rq7YbNc1XoZeUhJ4gTXCsQ', $this->http->headers[1]['x-csrf-token'] ?? null);
+        self::assertSame('3x-ui=SESSION', $this->http->headers[1]['cookie'] ?? null, 'the token travels with the session it belongs to');
+
+        $tool->execute(['url' => 'https://example.com/panel/login', 'method' => 'POST', 'headers' => ['X-CSRF-Token' => 'mine'], 'body' => '{}'], self::context());
+        self::assertSame('mine', $this->http->headers[2]['x-csrf-token'] ?? null, 'a token the model gave is kept');
+        $tool->execute(['url' => 'https://example.com/panel/', 'method' => 'GET'], self::context());
+        self::assertArrayNotHasKey('x-csrf-token', $this->http->headers[3], 'a read does not need it');
+        $tool->execute(['url' => 'https://other.com/login', 'method' => 'POST', 'body' => '{}'], self::context());
+        self::assertArrayNotHasKey('x-csrf-token', $this->http->headers[4], 'another host does not get it');
+    }
+
     public function testCookiesOfAProjectAreSharedByItsParticipants(): void {
         $this->http = new FakeHttpClient([
             'http://example.com/login' => [200, ['set-cookie' => 'sid=PROJECTSESSION; Max-Age=3600'], 'ok'],

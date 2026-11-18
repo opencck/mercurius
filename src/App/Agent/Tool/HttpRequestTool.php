@@ -27,6 +27,10 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
     private const MAX_BODY = 1_048_576;
     /** {{secret:name}} in the body or a header value: the code puts the value in, the model never sees it */
     private const PLACEHOLDER = '~\{\{secret:([^{}\s]{1,100})\}\}~';
+    /** where the token of a page's forms is kept next to the cookies of its host */
+    private const CSRF = 'csrf:';
+    /** <meta name="csrf-token" content="…"> — the convention of 3x-ui, Laravel, Rails */
+    private const CSRF_META = '~<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\'<>\s]{8,512})["\']~i';
     /** how long a cookie without its own expiry, or with a longer one, is kept */
     private const COOKIE_DAYS = 30;
 
@@ -236,6 +240,14 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             if ($jar !== [] && !$request->hasHeader('cookie')) {
                 $request->setHeader('cookie', implode('; ', array_map(static fn(string $n, string $v): string => $n . '=' . $v, array_keys($jar), $jar)));
             }
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a model shortens a long token when it copies it
+            //       (QEfxnI…XCsQ), so the token a page of this host gave goes with a change by the code itself
+            if (!in_array($method, ['GET', 'HEAD'], true) && !$request->hasHeader('x-csrf-token')) {
+                $csrf = $this->cookies->cookies($scope, self::CSRF . $host)['token'] ?? null;
+                if ($csrf !== null) {
+                    $request->setHeader('x-csrf-token', $csrf);
+                }
+            }
             $request->setBodySizeLimit(PHP_INT_MAX);
             $response = $http->request($request, $context->cancellation);
             foreach ($response->getHeaderArray('set-cookie') as $line) {
@@ -253,7 +265,11 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             }
 
             $text = sprintf("HTTP %d\ncontent-type: %s\n\n", $response->getStatus(), $response->getHeader('content-type') ?? '');
-            $answer = $text . $this->readBody($response->getBody(), $context);
+            $read = $this->readBody($response->getBody(), $context);
+            if (preg_match(self::CSRF_META, $read, $token) === 1) {
+                $this->cookies->keep($scope, self::CSRF . $host, 'token', html_entity_decode($token[1], ENT_QUOTES | ENT_HTML5), time() + self::COOKIE_DAYS * 86400);
+            }
+            $answer = $text . $read;
             return ToolResult::ok(self::mask($answer, $values));
         }
         return ToolResult::error(sprintf(t('tool.http_request.slishkom_mnogo_perenapravleniy_bolshe'), self::MAX_REDIRECTS));
