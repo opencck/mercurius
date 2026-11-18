@@ -165,10 +165,14 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
         $from = substr(json_encode($text, $flags), 1, -1);
         $to = substr(json_encode($replacement, $flags), 1, -1);
+        // in messages the arguments of a call are a JSON string inside JSON: written escaped once more
+        $from2 = substr(json_encode($from, $flags), 1, -1);
+        $to2 = substr(json_encode($to, $flags), 1, -1);
         $changed = 0;
         foreach ($this->db->execute(
-            'UPDATE messages SET tool_calls = replace(tool_calls::text, ?, ?)::jsonb WHERE tool_calls IS NOT NULL AND strpos(tool_calls::text, ?) > 0 RETURNING id',
-            [$from, $to, $from],
+            'UPDATE messages SET tool_calls = replace(replace(tool_calls::text, ?, ?), ?, ?)::jsonb
+             WHERE tool_calls IS NOT NULL AND (strpos(tool_calls::text, ?) > 0 OR strpos(tool_calls::text, ?) > 0) RETURNING id',
+            [$from2, $to2, $from, $to, $from2, $from],
         ) as $row) {
             $changed++;
         }
