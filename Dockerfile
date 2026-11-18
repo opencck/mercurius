@@ -29,6 +29,7 @@ COPY index.php ./
 COPY src ./src
 COPY migrations ./migrations
 COPY resources ./resources
+COPY skills ./skills
 COPY bin/doctor.php ./bin/doctor.php
 
 ARG APP_VERSION=dev

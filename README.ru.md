@@ -35,7 +35,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 1. Клонировать код и сабмодули пакетов (референсы для запуска не нужны):
    ```sh
    git clone https://github.com/opencck/mercurius.git && cd mercurius
-   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n skills/skill-creator
    ```
 2. Скопировать `.env.example` в `.env` (права `600`) и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`
    (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (хватит одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
@@ -57,6 +57,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: страницы, нажатия, скрипты, скриншоты |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | кадры и звук видео для моделей, которые видео не смотрят |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | текст офисных документов и PDF; новые docx, xlsx, pptx |
+| [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | встроенный скилл: как агент создаёт и дорабатывает свои скиллы (грузится при старте, без сервиса) |
 | [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовый ящик по IMAP и SMTP |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | файлы до 2000 МБ в Telegram |
 

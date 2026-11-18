@@ -154,4 +154,21 @@ final class SkillsTest extends AsyncTestCase {
         $commands->skill('backup unpin');
         self::assertStringContainsString('давно не открывался', $commands->list());
     }
+
+    public function testAProposedSkillCarriesItsFiles(): void {
+        $channel = new \OpenCCK\Test\Support\FakeChannel(4096);
+        $tool = new SkillProposeTool($this->catalog, new \OpenCCK\App\Agent\SkillCards($this->repo, $channel, '42'), $this->repo);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::Owner, 'Owner'), new \Amp\NullCancellation());
+
+        $result = $tool->execute(['name' => 'deploy', 'description' => 'Выкладка сервиса', 'body' => "Шаги — в references/steps.md.", 'reason' => 'повторяется', 'files' => ['references/steps.md' => "1. git pull\n2. up"]], $context);
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertStringContainsString('references/steps.md', $channel->texts('send')[0] ?? '', 'the owner sees the files');
+        $version = array_slice($this->repo->versions, -1)[0] ?? null;
+        self::assertNotNull($version);
+        self::assertSame(['references/steps.md' => "1. git pull\n2. up"], $this->repo->versionFiles($version->id));
+
+        self::assertTrue($tool->execute(['name' => 'x', 'description' => 'x', 'body' => 'x', 'reason' => 'x', 'files' => ['../etc/passwd' => 'x']], $context)->isError, 'a path out of the skill');
+        self::assertTrue($tool->execute(['name' => 'x', 'description' => 'x', 'body' => 'x', 'reason' => 'x', 'files' => ['a.md' => 'token=ghp_abcdefghijklmnopqrstuvwxyz0123']], $context)->isError, 'a secret in a file');
+    }
 }

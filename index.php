@@ -580,7 +580,9 @@ $skillCards = new SkillCards($skillRepository, $channel, $telegram->ownerId);
 $scheduler->useSkills($skillCatalog);
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $tools->register(new SkillViewTool($skillCatalog, $skillUsage));
-$tools->register(new SkillProposeTool($skillCatalog, $skillCards));
+$tools->register(new SkillProposeTool($skillCatalog, $skillCards, $skillRepository));
+// spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — built-in skills (submodules in skills/) come into the catalog at the start
+(new \OpenCCK\App\Skill\BuiltinSkills($skillCatalog, $skillRepository, $logger))->sync(PATH_ROOT . '/skills');
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
 $skillImporter = new \OpenCCK\App\Skill\SkillImporter(

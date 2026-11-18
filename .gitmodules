@@ -67,3 +67,7 @@
 [submodule "services/telegram-bot-api"]
 	path = services/telegram-bot-api
 	url = https://github.com/opencck/mercurius-telegram-bot-api.git
+[submodule "skills/skill-creator"]
+	path = skills/skill-creator
+	url = https://github.com/opencck/mercurius-skill-creator.git
+	branch = master
