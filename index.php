@@ -1084,8 +1084,18 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
         $approvalStore->addGrant($apiOwner->id, $key);
     },
 );
+// spec: BRIEF.md#самоулучшение-решено-2026-11-18 — a proposal a restart left in checking goes back to the owner
+\Revolt\EventLoop::defer(static function () use ($improvements, $logger): void {
+    try {
+        $improvements->recover();
+    } catch (\Throwable $e) {
+        $logger->warning('Proposals left in checking were not recovered', ['error' => $e::class]);
+    }
+});
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($improvements));
 $chat->useImprovements($improvements);
+// spec: BRIEF.md#самоулучшение-решено-2026-11-18 — /models: the roles, their history and a rollback
+$chat->useModelRoles($modelRoles);
 // spec: BRIEF.md#несколько-пользователей — the owner passes ownership on by /owner and a card
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);

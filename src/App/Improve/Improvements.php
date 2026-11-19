@@ -75,6 +75,37 @@ final class Improvements implements CallbackHandler {
         return $id;
     }
 
+    /**
+     * At start: a proposal a restart left in checking goes back to proposed, and the owner is told and gets its card
+     * again; the number of such proposals.
+     *
+     * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — nothing stays in checking after a restart
+     */
+    public function recover(): int {
+        $ids = $this->store->checking();
+        foreach ($ids as $id) {
+            if (!$this->store->move($id, ['checking'], 'proposed', 'checking interrupted by a restart')) {
+                continue;
+            }
+            $proposal = $this->store->find($id);
+            $this->tell(sprintf(t('improve.recovered'), $id, $proposal['title'] ?? ''));
+            if ($proposal !== null) {
+                $this->card($id, $proposal['kind'], $proposal['title'], $proposal['body'], $proposal['reason'], $proposal['key']);
+            }
+            $this->logger->notice('Improvement left in checking goes back to the owner', ['id' => $id]);
+        }
+        return count($ids);
+    }
+
+    /**
+     * Titles the owner rejected lately; a proposal with one of them, word for word, is not made again.
+     *
+     * @return list<string>
+     */
+    public function rejectedTitles(): array {
+        return $this->store->rejectedTitles(10);
+    }
+
     /** Shows the proposals the owner has not decided again, with their buttons; the number of cards sent. */
     public function showOpen(): int {
         $open = $this->store->open();

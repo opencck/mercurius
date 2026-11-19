@@ -98,6 +98,31 @@ final class ChatService implements MessageHandler {
 
     /** the owner's list of roles: /roles and /role */
     private ?RoleCatalog $roles = null;
+    private ?\OpenCCK\App\Agent\Model\ModelRoles $modelRoles = null;
+
+    /** spec: BRIEF.md#самоулучшение-решено-2026-11-18 — /models: roles, their history and a rollback */
+    public function useModelRoles(\OpenCCK\App\Agent\Model\ModelRoles $roles): void {
+        $this->modelRoles = $roles;
+    }
+
+    /** /models — the roles and their latest changes; /models rollback <number> — a role back to that record. */
+    private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Principal $who, string $argument): string {
+        $parts = preg_split('/\s+/', trim($argument)) ?: [];
+        if (($parts[0] ?? '') === 'rollback') {
+            return $roles->rollback((int) ltrim($parts[1] ?? '0', '#'), $who);
+        }
+        $lines = [];
+        foreach ($roles->all() as $role) {
+            $lines[] = sprintf('%s: %s (%s)', $role->role, $role->model, $role->setBy);
+        }
+        $history = $roles->history(10);
+        $lines[] = '';
+        $lines[] = $history === [] ? t('model.model_roles.history_empty') : t('model.model_roles.history');
+        foreach ($history as $record) {
+            $lines[] = sprintf('#%d %s → %s · %s · %s', $record['id'], $record['role'], $record['model'], gmdate('Y-m-d H:i', $record['at']), mb_substr($record['reason'], 0, 120));
+        }
+        return implode("\n", $lines);
+    }
 
     public function useRoles(RoleCatalog $roles): void {
         $this->roles = $roles;
@@ -217,6 +242,10 @@ final class ChatService implements MessageHandler {
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
+            return;
+        }
+        if ($command === '/models' && $this->modelRoles !== null) {
+            $this->reply($message, $principal->isOwner() ? $this->modelsCommand($this->modelRoles, $principal, substr($text, strlen($command))) : t(self::OWNER_ONLY));
             return;
         }
         if (in_array($command, ['/settings', '/set', '/restart'], true) && $this->settings !== null) {

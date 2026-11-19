@@ -22,6 +22,7 @@ final class PostgresModelStoreTest extends ModelStoreContract {
         $this->db = TestDatabase::connect();
         // One role table for the whole agent: each test starts from an empty one.
         $this->db->query('TRUNCATE model_roles');
+        $this->db->query('TRUNCATE model_role_history');
         $this->catalog = new PostgresModelCatalogRepository($this->db);
         $this->roles = new PostgresModelRoleRepository($this->db);
         $this->decisions = new PostgresRoutingDecisionRepository($this->db);

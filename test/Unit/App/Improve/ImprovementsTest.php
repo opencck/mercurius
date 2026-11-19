@@ -197,6 +197,32 @@ final class ImprovementsTest extends AsyncTestCase {
         self::assertStringContainsString('tools: 0.60 → 0.55', $report);
     }
 
+    public function testAProposalLeftInCheckingByARestartWaitsForTheOwnerAgain(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — a restart in the middle of the gate leaves nothing in checking
+        $id = $this->store->propose('prompt', 'Короче', 'Отвечай короче.', 'длинные ответы', null);
+        $this->store->move($id, ['proposed'], 'checking');
+
+        self::assertSame(1, $this->improvements()->recover());
+
+        self::assertSame('proposed', $this->store->find($id)['status'] ?? null);
+        self::assertStringContainsString('#' . $id, implode("\n", $this->channel->texts('send')), 'the owner is told and gets the card again');
+        self::assertSame(0, $this->improvements()->recover());
+    }
+
+    public function testARejectedTitleIsNotProposedAgainWordForWord(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent sees what was refused and does not repeat it
+        $id = $this->store->propose('prompt', 'Короче отвечать', 'Отвечай короче.', 'длинные ответы', null);
+        $this->store->move($id, ['proposed'], 'rejected');
+        $tool = new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($this->improvements());
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $this->owner, new \Amp\NullCancellation());
+
+        $again = $tool->execute(['kind' => 'prompt', 'title' => ' короче  ОТВЕЧАТЬ ', 'text' => 'Отвечай короче.', 'reason' => 'снова'], $context);
+
+        self::assertTrue($again->isError);
+        self::assertStringContainsString('Короче отвечать', $again->content, 'the refused titles are shown');
+        self::assertFalse($tool->execute(['kind' => 'prompt', 'title' => 'Списки вместо абзацев', 'text' => 'Пиши списками.', 'reason' => 'читать легче'], $context)->isError);
+    }
+
     public function testOnlyTheOwnerProposesAndASecretIsNotAProposal(): void {
         $tool = new ImprovementProposeTool($this->improvements());
         $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');

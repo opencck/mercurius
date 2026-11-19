@@ -79,4 +79,15 @@ abstract class ModelStoreContract extends AsyncTestCase {
         self::assertSame('openrouter:y/cheap', (string) $all[ModelRole::CHEAP]->model);
         self::assertSame('дешевле при том же качестве', $all[ModelRole::CHEAP]->reason);
     }
+
+    public function testEveryAcceptedChangeGoesIntoTheHistory(): void {
+        $this->roles->set(ModelRole::STRONG, ModelRef::parse('x/strong'), 'выбрал владелец', ModelRole::SET_BY_OWNER, 1);
+        $this->roles->set(ModelRole::STRONG, ModelRef::parse('y/strong'), 'агенту кажется лучше', ModelRole::SET_BY_AGENT);
+
+        $history = $this->roles->history(5);
+        self::assertSame('openrouter:x/strong', (string) ($history[0]['model'] ?? ''), 'a refused change is not history');
+        self::assertSame('выбрал владелец', $history[0]['reason'] ?? null);
+        self::assertSame(1, $history[0]['by'] ?? null);
+        self::assertSame(ModelRole::STRONG, $history[0]['role']);
+    }
 }

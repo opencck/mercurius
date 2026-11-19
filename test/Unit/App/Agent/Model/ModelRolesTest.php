@@ -44,6 +44,24 @@ final class ModelRolesTest extends AsyncTestCase {
         return (new SetModelRoleTool($this->roles))->execute($args, new ToolContext(1, 1, $by, new NullCancellation()));
     }
 
+    public function testEveryChangeOfARoleIsKeptAndOneIsRolledBack(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the history of model roles with a rollback (decision В8)
+        $this->roles->set('cheap', 'openrouter:x/tools', 'дешевле и с инструментами', $this->user, false);
+        $this->roles->set('cheap', 'openrouter:x/other', 'проверяем другую модель', $this->owner, false);
+
+        $history = $this->roles->history(10);
+        self::assertSame(['openrouter:x/other', 'openrouter:x/tools'], array_map(static fn(array $h): string => (string) $h['model'], array_slice($history, 0, 2)));
+        self::assertSame('проверяем другую модель', $history[0]['reason'] ?? null);
+        self::assertSame(1, $history[0]['by'] ?? null);
+
+        $first = $history[1]['id'] ?? 0;
+        self::assertStringContainsString('#' . $first, $this->roles->rollback($first, $this->user), 'only the owner rolls back');
+        self::assertSame('openrouter:x/other', (string) $this->roles->model('cheap'));
+        $this->roles->rollback($first, $this->owner);
+        self::assertSame('openrouter:x/tools', (string) $this->roles->model('cheap'), 'the role has the model of that record again');
+        self::assertCount(3, $this->roles->history(10), 'the rollback is a change too');
+    }
+
     public function testSeedValuesComeFirst(): void {
         self::assertSame('openrouter:z-ai/glm-5.3-flash', (string) $this->roles->model(ModelRole::MAIN));
         self::assertSame('openrouter:openai/gpt-5.6-luna', (string) $this->roles->model(ModelRole::CHEAP));

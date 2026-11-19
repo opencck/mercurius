@@ -94,6 +94,37 @@ final class ModelRoles {
     }
 
     /**
+     * The latest changes of the models of roles, newest first.
+     *
+     * @return list<array{id: int, role: string, model: ModelRef, reason: string, setBy: string, by: ?int, at: int}>
+     */
+    public function history(int $limit): array {
+        return $this->roles->history($limit);
+    }
+
+    /**
+     * Brings a role back to the model of record $id; the owner's. Says what was done or why not.
+     *
+     * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the history of model roles with a rollback (decision В8)
+     */
+    public function rollback(int $id, Principal $by): string {
+        if (!$by->isOwner()) {
+            return sprintf(t('model.model_roles.rollback_owner_only'), $id);
+        }
+        foreach ($this->roles->history(200) as $record) {
+            if ($record['id'] === $id) {
+                try {
+                    $this->set($record['role'], (string) $record['model'], sprintf(t('model.model_roles.rollback_reason'), $id), $by, false);
+                } catch (DomainException $e) {
+                    return $e->getMessage();
+                }
+                return sprintf(t('model.model_roles.rolled_back'), $record['role'], (string) $record['model'], $id);
+            }
+        }
+        return sprintf(t('model.model_roles.no_record'), $id);
+    }
+
+    /**
      * Puts a model into a role. A fix (owner only) stops anyone else from changing the role later. The open
      * conversations of the role move to the new model from their next run.
      *

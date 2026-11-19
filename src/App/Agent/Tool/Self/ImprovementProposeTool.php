@@ -83,6 +83,14 @@ final class ImprovementProposeTool implements Tool {
                 return ToolResult::error($problem);
             }
         }
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — what the owner rejected is not proposed again word for word
+        $normal = static fn(string $s): string => mb_strtolower(trim(preg_replace('~\s+~u', ' ', $s) ?? $s));
+        $rejected = $this->improvements->rejectedTitles();
+        foreach ($rejected as $old) {
+            if ($normal($old) === $normal($title)) {
+                return ToolResult::error(sprintf(t('tool.improvement_propose.rejected_before'), implode('; ', array_map(static fn(string $t): string => '«' . $t . '»', $rejected))));
+            }
+        }
         $id = $this->improvements->propose($kind, $title, $kind === 'setting' ? trim($text) : $text, $reason, $key);
         return ToolResult::ok(sprintf(t('tool.improvement_propose.done'), $id));
     }

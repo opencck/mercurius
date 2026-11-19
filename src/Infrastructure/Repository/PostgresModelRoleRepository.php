@@ -38,7 +38,49 @@ final class PostgresModelRoleRepository implements ModelRoleRepository {
              RETURNING role",
             [$role, $model->provider, $model->model, $reason, $setBy, $principalId, $byOwner],
         )->fetchRow();
+        if ($row !== null) {
+            $this->db->execute(
+                'INSERT INTO model_role_history (role, provider, model, reason, set_by, principal_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [$role, $model->provider, $model->model, $reason, $setBy, $principalId],
+            );
+        }
         return $row !== null;
+    }
+
+    public function history(int $limit): array {
+        $out = [];
+        foreach ($this->db->execute(
+            'SELECT id, role, provider, model, reason, set_by, principal_id, extract(epoch FROM created_at)::bigint AS at FROM model_role_history ORDER BY id DESC LIMIT ?',
+            [$limit],
+        ) as $row) {
+            $id = self::intOf($row, 'id');
+            $role = self::textOf($row, 'role');
+            $provider = self::textOf($row, 'provider');
+            $model = self::textOf($row, 'model');
+            if ($id === null || $role === '' || $provider === '' || $model === '') {
+                continue;
+            }
+            $out[] = [
+                'id' => $id,
+                'role' => $role,
+                'model' => new ModelRef($provider, $model),
+                'reason' => self::textOf($row, 'reason'),
+                'setBy' => self::textOf($row, 'set_by'),
+                'by' => self::intOf($row, 'principal_id'),
+                'at' => self::intOf($row, 'at') ?? 0,
+            ];
+        }
+        return $out;
+    }
+
+    /** @param array<array-key, mixed> $row */
+    private static function textOf(array $row, string $key): string {
+        return isset($row[$key]) && is_string($row[$key]) ? $row[$key] : '';
+    }
+
+    /** @param array<array-key, mixed> $row */
+    private static function intOf(array $row, string $key): ?int {
+        return isset($row[$key]) && is_int($row[$key]) ? $row[$key] : null;
     }
 
     public function seed(array $models, string $reason): void {

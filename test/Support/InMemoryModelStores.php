@@ -68,7 +68,15 @@ final class InMemoryModelStores implements ModelCatalogRepository, ModelRoleRepo
             return false;
         }
         $this->roles[$role] = new ModelRole($role, $model, $reason, $setBy, $principalId);
+        array_unshift($this->roleHistory, ['id' => count($this->roleHistory) + 1, 'role' => $role, 'model' => $model, 'reason' => $reason, 'setBy' => $setBy, 'by' => $principalId, 'at' => time()]);
         return true;
+    }
+
+    /** @var list<array{id: int, role: string, model: ModelRef, reason: string, setBy: string, by: ?int, at: int}> */
+    public array $roleHistory = [];
+
+    public function history(int $limit): array {
+        return array_slice($this->roleHistory, 0, $limit);
     }
 
     public function seed(array $models, string $reason): void {
