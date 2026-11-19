@@ -132,14 +132,14 @@ final class SkillLibrary {
         try {
             if ($file !== null) {
                 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — each file of a folder skill passes the check when read
-                $text = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/' . $file, SkillBundle::MAX_FILE_BYTES, $cancellation);
+                $text = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/' . $file, SkillBundle::READ_BYTES, $cancellation);
                 if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => "---\nname: x\n---\n", $file => $text], 'folder', '')))) {
                     $this->logger->warning('A file of a folder skill is refused by the check', ['dir' => $skill['dir'], 'file' => $file]);
                     return null;
                 }
                 return ['text' => $text, 'files' => []];
             }
-            $raw = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/SKILL.md', SkillBundle::MAX_FILE_BYTES, $cancellation);
+            $raw = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/SKILL.md', SkillBundle::READ_BYTES, $cancellation);
             // ref: references/hermes-agent/agent/skill_utils.py@e96221fa:L511-L515 — skills of a folder are a way to
             //      inject instructions; hermes loads project ones only from trusted roots, here every folder skill is
             //      checked like an imported one when it is read, and a dangerous one is not given
@@ -224,7 +224,7 @@ final class SkillLibrary {
             }
             $folder = strtolower($m[1]);
             try {
-                $raw = $this->sandbox->fetch($owner, $limits, $dir . '/' . $m[1] . '/SKILL.md', SkillBundle::MAX_FILE_BYTES, $cancellation);
+                $raw = $this->sandbox->fetch($owner, $limits, $dir . '/' . $m[1] . '/SKILL.md', SkillBundle::READ_BYTES, $cancellation);
                 $head = SkillBundle::head($raw);
             } catch (Throwable $e) {
                 $this->logger->notice('A skill was not read', ['dir' => $dir . '/' . $m[1], 'error' => $e::class]);

@@ -24,7 +24,8 @@ final class GitHubSkillSource implements SkillSource {
     private const API = 'https://api.github.com/repos/';
     private const RAW = 'https://raw.githubusercontent.com/';
 
-    public function __construct(private readonly HttpClient $http) {}
+    /** @param int $maxFiles the owner's cap on the files of a skill (SKILL_MAX_FILES); 0 — none */
+    public function __construct(private readonly HttpClient $http, private readonly int $maxFiles = 0) {}
 
     public function supports(string $url): bool {
         return self::parse($url) !== null;
@@ -59,18 +60,17 @@ final class GitHubSkillSource implements SkillSource {
             }
             /** @var mixed $path */
             $path = $entry['path'] ?? null;
-            if (is_string($path) && str_starts_with($path, $prefix)) {
+            // dotfiles and bytecode never ship: they are not downloaded or counted (hermes _skip_bundle_file)
+            if (is_string($path) && str_starts_with($path, $prefix) && preg_match('~(^|/)(\.[^/]*|__pycache__)(/|$)|\.pyc$~', substr($path, strlen($prefix))) !== 1) {
                 $paths[] = $path;
             }
         }
-        if (count($paths) > SkillBundle::MAX_FILES) {
-            throw new InvalidArgumentException(sprintf(t('skill.bundle.too_many'), SkillBundle::MAX_FILES));
-        }
+        SkillBundle::checkCount(count($paths), $this->maxFiles);
         $files = [];
         foreach ($paths as $path) {
             $files[substr($path, strlen($prefix))] = $this->body(self::RAW . $repo . '/' . $sha . '/' . implode('/', array_map('rawurlencode', explode('/', $path))), $cancellation);
         }
-        return SkillBundle::fromFiles($files, sprintf('https://github.com/%s/tree/%s%s', $repo, $sha, $dir === '' ? '' : '/' . $dir), $sha);
+        return SkillBundle::fromFiles($files, sprintf('https://github.com/%s/tree/%s%s', $repo, $sha, $dir === '' ? '' : '/' . $dir), $sha, $this->maxFiles);
     }
 
     /** @return array{string, string, string}|null owner/repo, ref, directory */
@@ -88,11 +88,12 @@ final class GitHubSkillSource implements SkillSource {
         return is_array($data) ? $data : [];
     }
 
-    private function body(string $url, Cancellation $cancellation, string $accept = '*/*', int $limit = SkillBundle::MAX_FILE_BYTES + 1): string {
+    /** @param int $limit bytes of the body; 0 — no limit (files of a skill) */
+    private function body(string $url, Cancellation $cancellation, string $accept = '*/*', int $limit = 0): string {
         $request = new Request($url);
         $request->setHeader('Accept', $accept);
         $request->setHeader('User-Agent', 'mercurius-agent');
-        // the listing of a large repository is big; a file over the limit is refused by the bundle
+        // a skill has no size limit (owner's decision 2026-11-19); the listing is bounded
         $request->setBodySizeLimit($limit);
         $response = $this->http->request($request, $cancellation);
         $body = $response->getBody()->buffer($cancellation);

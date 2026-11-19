@@ -33,26 +33,33 @@ final class SkillBundleTest extends TestCase {
         self::assertSame(['assets/logo.png'], $bundle->skipped, 'binary files are not kept; dotfiles and bytecode are not even listed');
     }
 
-    public function testPathsOutsideTheSkillAndOversizedBundlesAreRefused(): void {
+    public function testPathsOutsideTheSkillAreRefused(): void {
         foreach ([
             ['SKILL.md' => self::SKILL, '../evil.sh' => 'x'],
             ['SKILL.md' => self::SKILL, '/etc/passwd' => 'x'],
             ['README.md' => 'no skill here'],
-            ['SKILL.md' => self::SKILL, 'big.md' => str_repeat('a', 256 * 1024 + 1)],
             ['SKILL.md' => "---\nname: Bad Name!\ndescription: x\n---\nbody"],
         ] as $i => $files) {
             try {
                 SkillBundle::fromFiles($files, 'test', '');
                 self::fail("case $i was accepted");
-            } catch (InvalidArgumentException) {
+            } catch (InvalidArgumentException $e) {
+                self::assertNotSame('', $e->getMessage());
             }
         }
-        $many = ['SKILL.md' => self::SKILL];
-        for ($i = 0; $i < 60; $i++) {
-            $many["references/r$i.md"] = 'x';
+    }
+
+    public function testThereIsNoLimitUnlessTheOwnerSetsOneOnTheNumberOfFiles(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — no limit on files or size by default; SKILL_MAX_FILES caps the number of files
+        $many = ['SKILL.md' => self::SKILL, 'big.md' => str_repeat('a', 6 * 1024 * 1024)];
+        for ($i = 0; $i < 140; $i++) {
+            $many["examples/e$i.html"] = 'x';
         }
+        self::assertCount(141, SkillBundle::fromFiles($many, 'test', '')->files);
+
         $this->expectException(InvalidArgumentException::class);
-        SkillBundle::fromFiles($many, 'test', '');
+        $this->expectExceptionMessage('50');
+        SkillBundle::fromFiles($many, 'test', '', 50);
     }
 
     public function testTheGuardFindsWhatAScriptMustNotDo(): void {

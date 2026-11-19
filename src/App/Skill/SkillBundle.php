@@ -16,12 +16,13 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents work here
  * ref: references/hermes-agent/tools/skills_hub_github.py@e96221fa:L190-L205 (_skip_bundle_file, _tree_members) —
  *      dotfiles, bytecode and __pycache__ never ship; a path leaving the skill rejects the bundle
- * ref: references/hermes-agent/tools/skills_guard.py@e96221fa:L614-L615 — 50 files, 256 KB a file, 5 MB in all
+ * ref: references/hermes-agent/tools/skills_guard.py@e96221fa:L614-L615 — hermes caps 50 files, 256 KB a file, 5 MB in
+ *      all; here no cap by default (owner's decision 2026-11-19: a skill of 140 files was refused), the owner may cap the
+ *      number of files with SKILL_MAX_FILES
  */
 final class SkillBundle {
-    public const MAX_FILES = 50;
-    public const MAX_FILE_BYTES = 256 * 1024;
-    public const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
+    /** how much of a skill file the agent reads at once: a reading limit, not an import one */
+    public const READ_BYTES = 256 * 1024;
 
     /**
      * @param array<string, string> $files relative path => text, without SKILL.md
@@ -39,33 +40,24 @@ final class SkillBundle {
 
     /**
      * @param array<string, string> $raw path inside the skill directory => bytes
-     * @throws InvalidArgumentException when it is not a skill or breaks a limit
+     * @param int $maxFiles the owner's cap on the number of files (SKILL_MAX_FILES); 0 — none
+     * @throws InvalidArgumentException when it is not a skill or has more files than the cap
      */
-    public static function fromFiles(array $raw, string $source, string $revision): self {
+    public static function fromFiles(array $raw, string $source, string $revision, int $maxFiles = 0): self {
         $files = [];
         $skipped = [];
-        $total = 0;
         foreach ($raw as $path => $bytes) {
             $path = self::path(self::key($path));
             if ($path === null) {
                 continue;
             }
-            if (strlen($bytes) > self::MAX_FILE_BYTES) {
-                throw new InvalidArgumentException(sprintf(t('skill.bundle.file_too_big'), $path, self::MAX_FILE_BYTES / 1024));
-            }
-            $total += strlen($bytes);
             if (str_contains($bytes, "\0") || !mb_check_encoding($bytes, 'UTF-8')) {
                 $skipped[] = $path;
                 continue;
             }
             $files[$path] = $bytes;
         }
-        if ($total > self::MAX_TOTAL_BYTES) {
-            throw new InvalidArgumentException(sprintf(t('skill.bundle.too_big'), self::MAX_TOTAL_BYTES / 1024 / 1024));
-        }
-        if (count($files) + count($skipped) > self::MAX_FILES) {
-            throw new InvalidArgumentException(sprintf(t('skill.bundle.too_many'), self::MAX_FILES));
-        }
+        self::checkCount(count($files) + count($skipped), $maxFiles);
         $skill = $files['SKILL.md'] ?? null;
         if ($skill === null) {
             throw new InvalidArgumentException(t('skill.bundle.no_skill_md'));
@@ -79,6 +71,19 @@ final class SkillBundle {
         ksort($files);
         sort($skipped);
         return new self($name, self::oneLine($meta['description'] ?? ''), trim($body), $files, $skipped, $source, $revision);
+    }
+
+    /**
+     * The owner's cap on the number of files of a skill; 0 — none.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — SKILL_MAX_FILES
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function checkCount(int $files, int $maxFiles): void {
+        if ($maxFiles > 0 && $files > $maxFiles) {
+            throw new InvalidArgumentException(sprintf(t('skill.bundle.too_many'), $maxFiles));
+        }
     }
 
     /**

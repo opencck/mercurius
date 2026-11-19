@@ -23,9 +23,8 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — a skill from git or an archive
  */
 final class ArchiveSkillSource implements SkillSource {
-    private const MAX_ARCHIVE = 5 * 1024 * 1024;
-
-    public function __construct(private readonly HttpClient $http) {}
+    /** @param int $maxFiles the owner's cap on the files of a skill (SKILL_MAX_FILES); 0 — none */
+    public function __construct(private readonly HttpClient $http, private readonly int $maxFiles = 0) {}
 
     public function supports(string $url): bool {
         return preg_match('~^https://\S+\.(?:zip|tar\.gz|tgz)(?:\?\S*)?$~i', trim($url)) === 1;
@@ -33,14 +32,15 @@ final class ArchiveSkillSource implements SkillSource {
 
     public function fetch(string $url, Cancellation $cancellation): SkillBundle {
         $request = new Request(trim($url));
-        $request->setBodySizeLimit(self::MAX_ARCHIVE);
+        // no size limit (owner's decision 2026-11-19)
+        $request->setBodySizeLimit(0);
         $request->setHeader('User-Agent', 'mercurius-agent');
         $response = $this->http->request($request, $cancellation);
         $bytes = $response->getBody()->buffer($cancellation);
         if ($response->getStatus() !== 200) {
             throw new InvalidArgumentException(sprintf(t('skill.import.http_failed'), $response->getStatus(), $url));
         }
-        return self::bundle($bytes, $url, trim($url));
+        return self::bundle($bytes, $url, trim($url), $this->maxFiles);
     }
 
     /** The archive's file name tells zip from tar.gz; too big, not an archive or no SKILL.md — refused. */
@@ -53,12 +53,9 @@ final class ArchiveSkillSource implements SkillSource {
      *
      * @throws InvalidArgumentException
      */
-    public static function bundle(string $bytes, string $name, string $source): SkillBundle {
-        if (strlen($bytes) > self::MAX_ARCHIVE) {
-            throw new InvalidArgumentException(t('skill.import.bad_archive'));
-        }
+    public static function bundle(string $bytes, string $name, string $source, int $maxFiles = 0): SkillBundle {
         $entries = preg_match('~\.zip(?:\?|$)~i', $name) === 1 ? self::zip($bytes) : self::tar($bytes);
-        return SkillBundle::fromFiles(self::skillDirectory($entries), $source, hash('sha256', $bytes));
+        return SkillBundle::fromFiles(self::skillDirectory($entries), $source, hash('sha256', $bytes), $maxFiles);
     }
 
     /** @return array<string, string> */
@@ -80,12 +77,11 @@ final class ArchiveSkillSource implements SkillSource {
                 $name = $stat === false ? null : $stat['name'];
                 /** @var mixed $size */
                 $size = $stat === false ? null : $stat['size'];
-                if (!is_string($name) || !is_int($size) || str_ends_with($name, '/') || $size > SkillBundle::MAX_FILE_BYTES) {
+                if (!is_string($name) || !is_int($size) || str_ends_with($name, '/')) {
                     continue;
                 }
                 $content = $zip->getFromIndex($i);
                 if (is_string($content)) {
-                    self::count($entries, $content);
                     $entries[$name] = $content;
                 }
             }
@@ -109,12 +105,11 @@ final class ArchiveSkillSource implements SkillSource {
             $root = 'phar://' . str_replace('\\', '/', $path) . '/';
             /** @var \PharFileInfo $info */
             foreach (new RecursiveIteratorIterator(new PharData($path)) as $info) {
-                if ($info->isLink() || !$info->isFile() || $info->getSize() > SkillBundle::MAX_FILE_BYTES) {
+                if ($info->isLink() || !$info->isFile()) {
                     continue;
                 }
                 $content = file_get_contents($info->getPathname());
                 if (is_string($content)) {
-                    self::count($entries, $content);
                     $entries[substr(str_replace('\\', '/', $info->getPathname()), strlen($root))] = $content;
                 }
             }
@@ -157,17 +152,6 @@ final class ArchiveSkillSource implements SkillSource {
             }
         }
         return $files;
-    }
-
-    /**
-     * An archive may hold far more than a skill: unpacking stops before the memory does, the bundle checks the rest.
-     *
-     * @param array<string, string> $entries
-     */
-    private static function count(array $entries, string $next): void {
-        if (count($entries) >= SkillBundle::MAX_FILES * 4 || array_sum(array_map('strlen', $entries)) + strlen($next) > SkillBundle::MAX_TOTAL_BYTES * 2) {
-            throw new InvalidArgumentException(sprintf(t('skill.bundle.too_big'), SkillBundle::MAX_TOTAL_BYTES / 1024 / 1024));
-        }
     }
 
     /** An array key as text: PHP turns a file named "1" into an integer key. */

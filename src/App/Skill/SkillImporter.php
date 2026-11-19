@@ -19,8 +19,11 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — a skill from git or an archive, in the folder of the participant or the project
  */
 final class SkillImporter {
-    /** @param list<SkillSource> $sources */
-    public function __construct(private readonly array $sources) {}
+    /**
+     * @param list<SkillSource> $sources
+     * @param int $maxFiles the owner's cap on the files of a skill (SKILL_MAX_FILES); 0 — none
+     */
+    public function __construct(private readonly array $sources, private readonly int $maxFiles = 0) {}
 
     /**
      * @return array{SkillBundle, list<string>} the skill and what the check found
@@ -58,7 +61,7 @@ final class SkillImporter {
         if (!ArchiveSkillSource::supportsName($fileName)) {
             throw new InvalidArgumentException(t('skill.import.unknown_source'));
         }
-        $bundle = ArchiveSkillSource::bundle($bytes, $fileName, 'file:' . basename($fileName));
+        $bundle = ArchiveSkillSource::bundle($bytes, $fileName, 'file:' . basename($fileName), $this->maxFiles);
         return [$bundle, self::check($bundle)];
     }
 

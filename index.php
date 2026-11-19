@@ -719,7 +719,9 @@ $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage))
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
-$skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)]);
+// spec: BRIEF.md#скиллы-и-mcp — no limit on a skill by default; the owner may cap its number of files
+$skillMaxFiles = max(0, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SKILL_MAX_FILES') ?? '0'));
+$skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp, $skillMaxFiles), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp, $skillMaxFiles)], $skillMaxFiles);
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
