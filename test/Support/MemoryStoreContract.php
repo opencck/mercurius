@@ -53,6 +53,19 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame([], $this->store->related([$this->scope], $probes, Hrr::RELATED_THRESHOLD, 10), 'the vector follows the new keys');
     }
 
+    public function testFactsUnderTheTrustThresholdAreListedWeakestFirst(): void {
+        // spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+        $weak = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабый', ['слаб'], 0.1, Fact::AGENT, null);
+        $weaker = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'слабее', ['слабе'], 0.05, Fact::AGENT, null);
+        $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'крепкий', ['крепк'], 0.9, Fact::AGENT, null);
+        $this->store->addFact('chat:other', Fact::KNOWLEDGE, 'чужой слабый', ['чуж'], 0.1, Fact::AGENT, null);
+
+        $faded = array_map(static fn(Fact $f): int => $f->id, $this->store->faded([$this->scope], 0.3, 10));
+
+        self::assertSame([$weaker->id, $weak->id], array_values(array_intersect($faded, [$weak->id, $weaker->id])));
+        self::assertCount(2, array_filter($this->store->faded([$this->scope], 0.3, 10), static fn(Fact $f): bool => in_array($f->text, ['слабый', 'слабее', 'крепкий', 'чужой слабый'], true)));
+    }
+
     public function testEachVersionKeepsWhoMadeIt(): void {
         // spec: BRIEF.md#факты — the source of a version
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['было'], 0.5, Fact::OWNER_SAID, null);

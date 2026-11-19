@@ -36,6 +36,8 @@ final class MemorySearchTool implements Tool {
             'properties' => [
                 'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 500],
                 'related' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 100],
+                // spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+                'faded' => ['type' => 'boolean', 'description' => t('tool.memory_search.faded')],
             ],
             'additionalProperties' => false,
         ]);
@@ -56,6 +58,13 @@ final class MemorySearchTool implements Tool {
     public function execute(array $args, ToolContext $context): ToolResult {
         $scopes = $this->audience->scopes($context->principal, $context->conversationId);
         $related = Args::string($args, 'related');
+        if (($args['faded'] ?? false) === true) {
+            if (!$context->principal->isOwner()) {
+                return ToolResult::error(t('tool.memory_search.faded'));
+            }
+            $faded = $this->recall->faded($scopes);
+            return ToolResult::ok($faded === [] ? t('tool.memory_search.faded_none') : implode("\n", array_map(static fn(\OpenCCK\Memory\Domain\Fact $f): string => sprintf('#%d %s (%.2f)', $f->id, $f->text, $f->trust), $faded)));
+        }
         if ($related === null && Args::string($args, 'query') === null) {
             return ToolResult::error(t('tool.memory_search.nuzhen_query_ili_related'));
         }

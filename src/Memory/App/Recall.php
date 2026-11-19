@@ -225,6 +225,18 @@ final class Recall {
     }
 
     /**
+     * Facts that fell under the trust threshold, weakest first: recall does not give them, the owner decides on them.
+     *
+     * spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+     *
+     * @param list<string> $scopes
+     * @return list<Fact>
+     */
+    public function faded(array $scopes, int $limit = 20): array {
+        return $this->store->faded($scopes, self::MIN_TRUST - 1e-9, $limit);
+    }
+
+    /**
      * Facts tied to a word or a name by HRR: as an entity or as a word of the content.
      *
      * ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L819-L839 (related) — the best of the entity and

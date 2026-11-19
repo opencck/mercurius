@@ -78,6 +78,14 @@ interface MemoryStore {
      */
     public function recent(array $scopes, int $limit): array;
 
+    /**
+     * Active facts whose trust fell under $below, weakest first: recall does not give them any more.
+     *
+     * @param list<string> $scopes
+     * @return list<Fact>
+     */
+    public function faded(array $scopes, float $below, int $limit): array;
+
     /** @param list<string> $keys a new version; null when the fact is gone */
     public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact;
 

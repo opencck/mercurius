@@ -109,6 +109,12 @@ final class InMemoryMemoryStore implements MemoryStore {
         return array_slice(array_values($found), 0, $limit);
     }
 
+    public function faded(array $scopes, float $below, int $limit): array {
+        $facts = array_values(array_filter($this->facts, static fn(Fact $f): bool => $f->active && in_array($f->scope, $scopes, true) && $f->trust < $below));
+        usort($facts, static fn(Fact $a, Fact $b): int => [$a->trust, $a->id] <=> [$b->trust, $b->id]);
+        return array_slice($facts, 0, $limit);
+    }
+
     public function versions(int $factId): array {
         return $this->history[$factId] ?? [];
     }

@@ -178,6 +178,17 @@ final class PostgresMemoryStore implements MemoryStore {
         return $facts;
     }
 
+    public function faded(array $scopes, float $below, int $limit): array {
+        $facts = [];
+        foreach ($this->db->execute(
+            "SELECT " . self::FACT . " FROM facts WHERE status = 'active' AND scope = ANY(?::text[]) AND trust < ? ORDER BY trust, id LIMIT ?",
+            [$scopes, $below, max(1, $limit)],
+        ) as $row) {
+            $facts[] = self::fact_($row);
+        }
+        return $facts;
+    }
+
     public function versions(int $factId): array {
         $rows = [];
         foreach ($this->db->execute('SELECT version, text, reason, source FROM fact_versions WHERE fact_id = ? ORDER BY version', [$factId]) as $row) {
