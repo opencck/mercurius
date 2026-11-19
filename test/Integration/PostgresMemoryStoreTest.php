@@ -32,7 +32,14 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
         $run = (new \OpenCCK\Infrastructure\Repository\PostgresRunRepository($this->db))->start($this->conversationId, $principal, 'openrouter:x/y', new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120));
 
         self::assertNotNull($run);
-        self::assertSame([['fact' => $fact->id, 'version' => $fact->version]], $this->store->receipt($run->id));
+        self::assertSame([['fact' => $fact->id, 'version' => $fact->version, 'helpful' => null]], $this->store->receipt($run->id));
+
+        // spec: BRIEF.md#память-слои — whether the answer was helped is marked on the recall, once
+        self::assertTrue($this->store->markHelpful($run->id, $fact->id, true));
+        self::assertFalse($this->store->markHelpful($run->id, $fact->id, false), 'once');
+        self::assertFalse($this->store->markHelpful($run->id, $fact->id + 1000, true), 'a fact the run was not given');
+        self::assertSame([['fact' => $fact->id, 'version' => $fact->version, 'helpful' => true]], $this->store->receipt($run->id));
+        self::assertSame(['recalled' => 1, 'helpful' => 1, 'unhelpful' => 0], $this->store->usage($fact->id));
     }
 
     protected function tearDown(): void {

@@ -194,10 +194,15 @@ final class MemoryCards implements CallbackHandler {
 
     /** Where the fact came from and on how many days the person said it — for a new or a changed fact. */
     private function origin(Proposal $proposal): string {
-        if (!in_array($proposal->kind, [Proposal::ADD, Proposal::CHANGE], true)) {
-            return '';
-        }
         $lines = '';
+        // spec: BRIEF.md#память-слои — how an existing fact served in answers, before it is changed or forgotten
+        if ($proposal->factId !== null && in_array($proposal->kind, [Proposal::CHANGE, Proposal::END, Proposal::FORGET], true)) {
+            $usage = $this->store->usage($proposal->factId);
+            $lines .= "\n" . sprintf(t('agent.memory_cards.usage'), $usage['recalled'], $usage['helpful'], $usage['unhelpful']);
+        }
+        if (!in_array($proposal->kind, [Proposal::ADD, Proposal::CHANGE], true)) {
+            return $lines;
+        }
         if ($proposal->provenance !== null && $proposal->provenance !== '') {
             $lines .= "\n" . sprintf(t('agent.memory_cards.provenance'), t('memory.provenance.' . $proposal->provenance));
         }

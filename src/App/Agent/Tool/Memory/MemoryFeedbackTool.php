@@ -80,6 +80,9 @@ final class MemoryFeedbackTool implements Tool {
         if ($trust === null) {
             return ToolResult::error(sprintf(t('tool.memory_feedback.not_found'), $id));
         }
+        // spec: BRIEF.md#память-слои — the recall journal keeps whether the answer was helped; a fact found by
+        //       memory_search was not recalled into the run and has no line to mark
+        $this->store->markHelpful($context->runId, $id, $useful);
         return ToolResult::ok(sprintf(t($trust < Recall::MIN_TRUST - 1e-9 ? 'tool.memory_feedback.sunk' : 'tool.memory_feedback.done'), $id, $trust));
     }
 }

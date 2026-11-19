@@ -369,11 +369,28 @@ final class PostgresMemoryStore implements MemoryStore {
 
     public function receipt(int $runId): array {
         $rows = [];
-        foreach ($this->db->execute('SELECT fact_id, version FROM memory_recalls WHERE run_id = ? ORDER BY id', [$runId]) as $row) {
+        foreach ($this->db->execute('SELECT fact_id, version, helpful FROM memory_recalls WHERE run_id = ? ORDER BY id', [$runId]) as $row) {
             $version = $row['version'] ?? null;
-            $rows[] = ['fact' => self::int($row, 'fact_id'), 'version' => is_int($version) ? $version : null];
+            $helpful = $row['helpful'] ?? null;
+            $rows[] = ['fact' => self::int($row, 'fact_id'), 'version' => is_int($version) ? $version : null, 'helpful' => is_bool($helpful) ? $helpful : null];
         }
         return $rows;
+    }
+
+    public function markHelpful(int $runId, int $factId, bool $helpful): bool {
+        $row = $this->db->execute(
+            'UPDATE memory_recalls SET helpful = ? WHERE id = (SELECT id FROM memory_recalls WHERE run_id = ? AND fact_id = ? AND helpful IS NULL ORDER BY id LIMIT 1) RETURNING id',
+            [$helpful, $runId, $factId],
+        )->fetchRow();
+        return $row !== null;
+    }
+
+    public function usage(int $factId): array {
+        $row = $this->db->execute(
+            'SELECT count(*) AS recalled, count(*) FILTER (WHERE helpful) AS helpful, count(*) FILTER (WHERE NOT helpful) AS unhelpful FROM memory_recalls WHERE fact_id = ?',
+            [$factId],
+        )->fetchRow() ?? [];
+        return ['recalled' => self::int($row, 'recalled'), 'helpful' => self::int($row, 'helpful'), 'unhelpful' => self::int($row, 'unhelpful')];
     }
 
     public function recalled(int $conversationId, int $window): array {

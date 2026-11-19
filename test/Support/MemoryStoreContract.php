@@ -66,6 +66,16 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertCount(2, array_filter($this->store->faded([$this->scope], 0.3, 10), static fn(Fact $f): bool => in_array($f->text, ['слабый', 'слабее', 'крепкий', 'чужой слабый'], true)));
     }
 
+    public function testUsageCountsTheRecallsOfAFact(): void {
+        // spec: BRIEF.md#память-слои — how often a fact went into answers
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Выдача', ['выдач'], 0.5, Fact::AGENT, null);
+
+        self::assertSame(['recalled' => 0, 'helpful' => 0, 'unhelpful' => 0], $this->store->usage($fact->id));
+        $this->store->markRecalled($this->conversationId, [$fact->id]);
+        $this->store->markRecalled($this->conversationId, [$fact->id]);
+        self::assertSame(2, $this->store->usage($fact->id)['recalled']);
+    }
+
     public function testFactsAreKeyedAgainWhenTheAnalyzerChanges(): void {
         // spec: BRIEF.md#анализ-текста — facts written before a new rule of the analyzer get its keys too
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Настроен VPN', ['настро', 'vpn'], 0.5, Fact::AGENT, null);

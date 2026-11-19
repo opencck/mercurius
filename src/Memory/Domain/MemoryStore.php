@@ -163,10 +163,25 @@ interface MemoryStore {
      *
      * spec: BRIEF.md#трассировка-и-метрики
      *
-     * @return list<array{fact: int, version: ?int}>
+     * @return list<array{fact: int, version: ?int, helpful: ?bool}>
      */
     public function receipt(int $runId): array;
 
     /** @return list<int> facts given in the conversation among its last $window recalls */
     public function recalled(int $conversationId, int $window): array;
+
+    /**
+     * Marks whether a fact the run was given helped its answer; once per recall. False when the run was not given the
+     * fact or the recall is marked already.
+     *
+     * spec: BRIEF.md#память-слои
+     */
+    public function markHelpful(int $runId, int $factId, bool $helpful): bool;
+
+    /**
+     * How a fact served: how many times it was given, and how many of those the agent marked as helping or not.
+     *
+     * @return array{recalled: int, helpful: int, unhelpful: int}
+     */
+    public function usage(int $factId): array;
 }

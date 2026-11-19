@@ -253,6 +253,27 @@ final class InMemoryMemoryStore implements MemoryStore {
         return [];
     }
 
+    /** @var array<string, bool> "run:fact" => helpful; any recalled fact counts as given to any run */
+    private array $marks = [];
+
+    public function markHelpful(int $runId, int $factId, bool $helpful): bool {
+        $key = $runId . ':' . $factId;
+        if (isset($this->marks[$key]) || !in_array($factId, array_map(static fn(array $r): int => $r[1], $this->recalls), true)) {
+            return false;
+        }
+        $this->marks[$key] = $helpful;
+        return true;
+    }
+
+    public function usage(int $factId): array {
+        $marks = array_filter($this->marks, static fn(string $key): bool => str_ends_with($key, ':' . $factId), ARRAY_FILTER_USE_KEY);
+        return [
+            'recalled' => count(array_filter($this->recalls, static fn(array $r): bool => $r[1] === $factId)),
+            'helpful' => count(array_filter($marks)),
+            'unhelpful' => count($marks) - count(array_filter($marks)),
+        ];
+    }
+
     public function recalled(int $conversationId, int $window): array {
         $mine = array_values(array_filter($this->recalls, static fn(array $r): bool => $r[0] === $conversationId));
         return array_values(array_unique(array_map(static fn(array $r): int => $r[1], array_slice($mine, -$window))));
