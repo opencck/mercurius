@@ -12,6 +12,13 @@ namespace OpenCCK\Domain\Server;
  */
 final class Server {
     public const NAME_PATTERN = '~^[\p{L}\p{N}][\p{L}\p{N}._-]{0,63}$~u';
+    public const HOST_PATTERN = '~^[A-Za-z0-9.:\-\[\]]+$~';
+    public const USER_PATTERN = '~^[A-Za-z0-9._-]+$~';
+
+    /** direct, vless, secret:<name> or via:<server> */
+    public static function validRoute(string $route): bool {
+        return $route === 'direct' || $route === 'vless' || preg_match('~^(secret|via):[\p{L}\p{N}][\p{L}\p{N}._-]{0,63}$~u', $route) === 1;
+    }
 
     public function __construct(
         public readonly int $id,

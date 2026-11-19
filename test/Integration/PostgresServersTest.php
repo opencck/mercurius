@@ -57,6 +57,11 @@ final class PostgresServersTest extends AsyncTestCase {
         self::assertNull($servers->decideHostKey($server->id, true), 'decided once');
         $servers->setPendingHostKey($server->id, 'SHA256:other');
         self::assertNull($servers->find($server->id)?->pendingHostKey, 'a trusted key is not replaced by a pending one');
+        // spec: BRIEF.md#фаза-7-по-частям — a changed field keeps the key, a new address forgets it
+        $changed = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(group: 'test', route: 'vless'));
+        self::assertSame(['test', 'vless', 'SHA256:first'], [$changed?->group, $changed?->route, $changed?->hostKey]);
+        $moved = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(host: '2001:db8::6', route: ''));
+        self::assertSame(['2001:db8::6', null, null], [$moved?->host, $moved?->route, $moved?->hostKey]);
         self::assertTrue($servers->remove($server->id));
         self::assertSame([], $servers->all());
     }

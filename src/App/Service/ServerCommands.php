@@ -72,6 +72,20 @@ final class ServerCommands {
         return $names === [] ? t('service.server_commands.sekretov_net_secret_imya_znachenie') : t('service.server_commands.sekrety_tolko_imena') . implode("\n", array_map(static fn(array $s): string => sprintf('%s — %s', $s['name'], $s['kind']), $names));
     }
 
+    /**
+     * "/server - <name>" removes a server from the registry; the owner typed it, so no card.
+     *
+     * spec: BRIEF.md#фаза-7-по-частям — the registry is changed in the dialogue
+     */
+    public function server(string $argument): string {
+        $argument = trim($argument);
+        if (!str_starts_with($argument, '- ') || trim(substr($argument, 2)) === '') {
+            return t('service.server_commands.server_usage');
+        }
+        $name = trim(substr($argument, 2));
+        return \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool::remove($this->servers, $name) ?? sprintf(t('service.server_commands.server_removed'), $name);
+    }
+
     public function servers(): string {
         $all = $this->servers->all();
         if ($all === []) {

@@ -32,4 +32,13 @@ interface ServerRepository {
     public function decideHostKey(int $id, bool $trust, ?string $fingerprint = null): ?Server;
 
     public function remove(int $id): bool;
+
+    /**
+     * Changes a server; a new host or port, or forgetting the key, drops the trusted and the pending host key.
+     *
+     * spec: BRIEF.md#фаза-7-по-частям — the registry is changed in the dialogue
+     *
+     * @throws \DomainException the new name is taken
+     */
+    public function update(int $id, \OpenCCK\Domain\Server\ServerChanges $changes): ?\OpenCCK\Domain\Server\Server;
 }

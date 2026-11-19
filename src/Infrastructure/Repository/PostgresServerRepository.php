@@ -70,6 +70,42 @@ final class PostgresServerRepository implements ServerRepository {
         return $this->db->execute('DELETE FROM servers WHERE id = ? RETURNING id', [$id])->fetchRow() !== null;
     }
 
+    public function update(int $id, \OpenCCK\Domain\Server\ServerChanges $changes): ?Server {
+        $server = $this->find($id);
+        if ($server === null) {
+            return null;
+        }
+        if ($changes->name !== null && mb_strtolower($changes->name) !== mb_strtolower($server->name) && $this->byName($changes->name) !== null) {
+            throw new DomainException(sprintf(t('repository.postgres_server.server_uzhe_est'), $changes->name));
+        }
+        $set = [];
+        $values = [];
+        foreach (['name' => $changes->name, 'host' => $changes->host, 'port' => $changes->port, 'username' => $changes->username,
+            'secret_id' => $changes->secretId, 'server_group' => $changes->group] as $column => $value) {
+            if ($value !== null) {
+                $set[] = $column . ' = ?';
+                $values[] = $value;
+            }
+        }
+        if ($changes->route !== null) {
+            $set[] = 'route = ?';
+            $values[] = $changes->route === '' ? null : $changes->route;
+        }
+        if ($changes->forgetsKey($server)) {
+            $set[] = 'host_key = NULL';
+            $set[] = 'pending_host_key = NULL';
+        }
+        if ($set === []) {
+            return $server;
+        }
+        try {
+            $row = $this->db->execute('UPDATE servers SET ' . implode(', ', $set) . ' WHERE id = ? RETURNING ' . self::COLUMNS, [...$values, $id])->fetchRow();
+        } catch (SqlQueryError) {
+            throw new DomainException(sprintf(t('repository.postgres_server.server_uzhe_est'), (string) $changes->name));
+        }
+        return $row === null ? null : self::server($row);
+    }
+
     /** @param array<string, mixed> $row */
     private static function server(array $row): Server {
         $id = $row['id'] ?? null;

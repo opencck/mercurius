@@ -684,6 +684,8 @@ $serverConsole = new ServerConsole(
 );
 $tools->register(new ServersTool($serverRepository));
 $tools->register(new ServerAddTool($serverRepository, $vault));
+$tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerEditTool($serverRepository, $vault));
+$tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool($serverRepository));
 $tools->register(new SshRunTool($serverConsole));
 $tools->register(new SqlQueryTool($serverConsole, $vault));
 $tools->register(new FileWriteTool($serverConsole, new CommandClassifier($sshNeverOff)));

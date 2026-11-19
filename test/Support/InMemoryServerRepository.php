@@ -52,6 +52,30 @@ final class InMemoryServerRepository implements ServerRepository {
         return $this->servers[$id] = new Server($s->id, $s->name, $s->host, $s->port, $s->username, $s->secretId, $s->group, $trust ? $s->pendingHostKey : $s->hostKey, null, $s->route);
     }
 
+    public function update(int $id, \OpenCCK\Domain\Server\ServerChanges $changes): ?Server {
+        $s = $this->servers[$id] ?? null;
+        if ($s === null) {
+            return null;
+        }
+        $other = $changes->name === null ? null : $this->byName($changes->name);
+        if ($other !== null && $other->id !== $id) {
+            throw new DomainException(sprintf('Сервер «%s» уже есть.', $changes->name ?? ''));
+        }
+        $forget = $changes->forgetsKey($s);
+        return $this->servers[$id] = new Server(
+            $id,
+            $changes->name ?? $s->name,
+            $changes->host ?? $s->host,
+            $changes->port ?? $s->port,
+            $changes->username ?? $s->username,
+            $changes->secretId ?? $s->secretId,
+            $changes->group ?? $s->group,
+            $forget ? null : $s->hostKey,
+            $forget ? null : $s->pendingHostKey,
+            $changes->route === null ? $s->route : ($changes->route === '' ? null : $changes->route),
+        );
+    }
+
     public function remove(int $id): bool {
         if (!isset($this->servers[$id])) {
             return false;
