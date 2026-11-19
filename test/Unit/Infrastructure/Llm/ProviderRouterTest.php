@@ -78,14 +78,22 @@ final class ProviderRouterTest extends AsyncTestCase {
     }
 
     public function testClaudeThroughOpenRouterAsksForPromptCaching(): void {
-        $openRouter = new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b')]);
+        $openRouter = new ScriptedLlm([ScriptedLlm::text('a'), ScriptedLlm::text('b'), ScriptedLlm::text('c')]);
         $router = new ProviderRouter(['openrouter' => $openRouter]);
+        $conversation = [Message::system('правила'), Message::user('x'), Message::assistant('y'), Message::user('z')];
 
-        $router->complete(new ChatRequest('anthropic/claude-opus-5', [Message::user('x')]));
-        $router->complete(new ChatRequest('z-ai/glm-5.3-flash', [Message::user('x')]));
+        $router->complete(new ChatRequest('anthropic/claude-opus-5', $conversation));
+        $router->complete(new ChatRequest('z-ai/glm-5.3-flash', $conversation));
+        $router->complete(new ChatRequest('anthropic/claude-opus-5', [Message::system('сожми'), Message::user('текст')]));
 
         self::assertSame(['type' => 'ephemeral'], $openRouter->requests[0]->extra['cache_control'] ?? null);
+        self::assertTrue($openRouter->requests[0]->messages[0]->cacheMark, 'the system prompt is a breakpoint of its own');
+        self::assertFalse($openRouter->requests[0]->messages[3]->cacheMark);
         self::assertArrayNotHasKey('cache_control', $openRouter->requests[1]->extra, 'others cache on their own');
+        self::assertFalse($openRouter->requests[1]->messages[0]->cacheMark);
+        // a one-shot call (no tools, no history) would only pay for a cache write nothing reads
+        self::assertArrayNotHasKey('cache_control', $openRouter->requests[2]->extra);
+        self::assertFalse($openRouter->requests[2]->messages[0]->cacheMark);
     }
 
     public function testUnknownProviderIsABadRequest(): void {
