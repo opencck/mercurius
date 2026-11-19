@@ -32,6 +32,15 @@ final class Recall {
     public const HRR_WEIGHT = 0.3;
     public const RELATED_LIMIT = 10;
     /**
+     * facts of a name the message mentions, found without shared words
+     *
+     * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L433 (_ENTITY_FACTS), L1406-L1415 — stream 3 of
+     *      prefetch: the top facts of the entities the message names, no word overlap needed, with the same de-dup and
+     *      repeat window; holographic keeps an index of entities, here a capitalized word inside a sentence (or an
+     *      identifier) is probed by HRR
+     */
+    public const ENTITY_FACTS = 2;
+    /**
      * A fact under this trust is not recalled: two «not useful» marks sink a fact the agent inferred.
      * ref: references/hermes-plugin-holographic/__init__.py@4a794f8:L761 — min_trust_threshold 0.3
      */
@@ -55,8 +64,98 @@ final class Recall {
      * @return list<Fact> best first, within the budget; marked as given when a conversation is named
      */
     public function find(string $message, array $scopes, ?int $conversationId = null, int $budget = self::BUDGET): array {
+        if ($scopes === []) {
+            return [];
+        }
+        $given = $conversationId === null ? [] : array_flip($this->store->recalled($conversationId, self::WINDOW));
+        $found = $this->byWords($message, $scopes, $given, $budget);
+        // spec: BRIEF.md#факты — and up to two facts of a name the message mentions, without shared words
+        $left = $budget - array_sum(array_map(static fn(Fact $f): int => mb_strlen(self::line($f)) + 1, $found));
+        $found = [...$found, ...$this->named($message, $scopes, $given, $found, $left)];
+        if ($conversationId !== null && $found !== []) {
+            // spec: BRIEF.md#трассировка-и-метрики — the version given goes into the receipt of recall
+            $versions = [];
+            foreach ($found as $fact) {
+                $versions[$fact->id] = $fact->version;
+            }
+            $this->store->markRecalled($conversationId, array_map(static fn(Fact $f): int => $f->id, $found), $versions);
+        }
+        return $found;
+    }
+
+    /**
+     * The facts a name of the message points to: a capitalized word inside a sentence or an identifier, probed by HRR;
+     * at most ENTITY_FACTS, most trusted first, not given already.
+     *
+     * @param list<string> $scopes
+     * @param array<int, int> $given
+     * @param list<Fact> $have
+     * @return list<Fact>
+     */
+    private function named(string $message, array $scopes, array $given, array $have, int $left): array {
+        $names = self::names($message);
+        if ($names === []) {
+            return [];
+        }
+        $taken = [];
+        foreach ($have as $fact) {
+            $taken[$fact->id] = true;
+        }
+        $candidates = [];
+        foreach ($names as $name) {
+            foreach ($this->related($name, $scopes, self::ENTITY_FACTS * 3) as $fact) {
+                if (!isset($taken[$fact->id]) && !isset($given[$fact->id])) {
+                    $candidates[$fact->id] = $fact;
+                }
+            }
+        }
+        usort($candidates, static fn(Fact $a, Fact $b): int => [$b->trust, $b->id] <=> [$a->trust, $a->id]);
+        $found = [];
+        foreach ($candidates as $fact) {
+            $length = mb_strlen(self::line($fact)) + 1;
+            if (count($found) >= self::ENTITY_FACTS || $length > $left) {
+                break;
+            }
+            $left -= $length;
+            $found[] = $fact;
+        }
+        return $found;
+    }
+
+    /**
+     * Names in a message: a word with a capital letter that does not open a sentence, an identifier (letters with
+     * digits or a dash, like pve-01), a word in quotes.
+     *
+     * @return list<string>
+     */
+    public static function names(string $message): array {
+        $names = [];
+        foreach (preg_split('/(?<=[.!?…])\s+|\n+/u', $message) ?: [] as $sentence) {
+            $words = preg_split('/[^\p{L}\p{N}-]+/u', trim($sentence), -1, PREG_SPLIT_NO_EMPTY);
+            $words = $words === false ? [] : $words;
+            foreach ($words as $i => $word) {
+                $capital = $i > 0 && mb_strlen($word) > 1 && mb_strtoupper(mb_substr($word, 0, 1)) === mb_substr($word, 0, 1) && preg_match('/^\p{Lu}/u', $word) === 1;
+                if ($capital || TextAnalyzer::isIdentifier(mb_strtolower($word))) {
+                    $names[] = $word;
+                }
+            }
+        }
+        if (preg_match_all('/[«"„]([^»"“]{2,40})[»"“]/u', $message, $quoted) > 0) {
+            $names = [...$names, ...$quoted[1]];
+        }
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * The facts the words of a message cover well enough, best first, within the budget.
+     *
+     * @param list<string> $scopes
+     * @param array<int, int> $given facts given in the conversation lately
+     * @return list<Fact>
+     */
+    private function byWords(string $message, array $scopes, array $given, int $budget): array {
         $keys = $this->analyzer->keys($message);
-        if ($keys === [] || $scopes === []) {
+        if ($keys === []) {
             return [];
         }
         $df = $this->store->frequencies($scopes, $keys);
@@ -72,7 +171,6 @@ final class Recall {
         }
         $unknown = count($keys) - count($weights);
         $sum = array_sum($weights) + (float) $unknown * min($weights);
-        $given = $conversationId === null ? [] : array_flip($this->store->recalled($conversationId, self::WINDOW));
         $now = ($this->now)();
 
         // array keys of numeric words come back as ints
@@ -122,14 +220,6 @@ final class Recall {
             }
             $left -= $length;
             $found[] = $fact;
-        }
-        if ($conversationId !== null && $found !== []) {
-            // spec: BRIEF.md#трассировка-и-метрики — the version given goes into the receipt of recall
-            $versions = [];
-            foreach ($found as $fact) {
-                $versions[$fact->id] = $fact->version;
-            }
-            $this->store->markRecalled($conversationId, array_map(static fn(Fact $f): int => $f->id, $found), $versions);
         }
         return $found;
     }

@@ -42,6 +42,18 @@ final class RecallTest extends TestCase {
         return array_map(static fn(Fact $f): string => $f->text, $facts);
     }
 
+    public function testANamedPersonBringsUpToTwoOfTheirFactsWithoutSharedWords(): void {
+        // spec: BRIEF.md#факты — up to two facts of a name the message mentions, as holographic does
+        $this->add('owner', 'Аня учится в пятом классе', 0.9);
+        $this->add('owner', 'Аня ходит на плавание', 0.8);
+        $this->add('owner', 'Аня любит рисовать', 0.7);
+
+        $found = self::texts($this->recall->find('Как дела у Ани?', ['owner'], 7));
+
+        self::assertSame(['Аня учится в пятом классе', 'Аня ходит на плавание'], $found, 'the two most trusted, though the name alone matches');
+        self::assertSame([], self::texts($this->recall->find('как дела у ани?', ['owner'], 8)), 'not a name in lower case');
+    }
+
     public function testRelatedFindsWhatIsTiedToAName(): void {
         $this->add('owner', 'Сервер pve-01 стоит в Хельсинки');
         $this->add('owner', 'На pve-01 диск NVMe на 2 ТБ');
