@@ -746,6 +746,7 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
     return $meta === null ? null : $skillProjects->active($meta->channel, $meta->chatId, $meta->threadId);
 };
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
+$skillLibrary->useUsage($skillUsage);
 $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
@@ -1002,7 +1003,7 @@ $chat = new ChatService(
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
-    new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $skillUsage),
+    new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $skillUsage, $checkpoints),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation

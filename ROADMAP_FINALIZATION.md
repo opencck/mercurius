@@ -744,7 +744,8 @@
 запрос к модели.
 
 **Ход работ Д10:** 2026-11-19 — раскладка `.mercurius/skills` у участника и проекта, перенос старых папок при
-старте с копией в `.mercurius/backup/` (`SkillFolders`). 2026-11-19 — не больше 20 снимков `.checkpoints/` (`Checkpoints::trimScript`).
+старте с копией в `.mercurius/backup/` (`SkillFolders`). 2026-11-19 — не больше 20 снимков `.checkpoints/` (`Checkpoints::trimScript`). 2026-11-19 — `/skill <имя> off`/`on` (миграция 0073) и `remove`
+через снимок.
 
 ## Фаза Д11 — Каналы, Telegram и планировщик
 

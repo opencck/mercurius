@@ -33,6 +33,7 @@ final class SkillCommands {
         private readonly Closure $projectOf,
         private readonly ?SkillImporter $importer = null,
         private readonly ?SkillUsageRepository $usage = null,
+        private readonly ?\OpenCCK\App\Agent\Sandbox\Checkpoints $checkpoints = null,
     ) {}
 
     public function list(Principal $who, IncomingMessage $message): string {
@@ -43,7 +44,8 @@ final class SkillCommands {
         $stats = $this->usage?->stats() ?? [];
         $lines = [];
         foreach ($catalog as $name => $skill) {
-            $lines[] = sprintf('%s [%s]%s: %s', $name, $skill['where'], self::usage($name, $stats), $skill['description']);
+            $off = ($stats[$name]['off'] ?? false) ? ' · ' . t('service.skill_commands.off') : '';
+            $lines[] = sprintf('%s [%s]%s%s: %s', $name, $skill['where'], self::usage($name, $stats), $off, $skill['description']);
         }
         return t('service.skill_commands.skilly') . implode("\n", $lines) . t('service.skill_commands.usage_files');
     }
@@ -66,6 +68,24 @@ final class SkillCommands {
                 return $e->getMessage();
             }
             return sprintf(t('tool.skill_import.done'), $bundle->name, $dir, $bundle->files === [] ? '—' : implode(', ', array_keys($bundle->files)), $findings === [] ? t('skill.import.clean') : implode("\n", array_slice($findings, 0, 10)));
+        }
+        // spec: BRIEF.md#скиллы-и-mcp — off hides a skill from the index, remove deletes its folder after a snapshot
+        if ($action === 'off' || $action === 'on') {
+            if ($this->usage === null) {
+                return t('service.skill_commands.skill_imya_show_on_off_2');
+            }
+            if (!isset($this->library->catalog($who, $project)[$name])) {
+                return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
+            }
+            $this->usage->turnOff($name, $action === 'off');
+            return sprintf($action === 'off' ? t('service.skill_commands.off_now') : t('service.skill_commands.on_now'), $name);
+        }
+        if ($action === 'remove') {
+            $checkpoints = $this->checkpoints;
+            $why = $this->library->remove($who, $project, $name, static function (int $owner, \OpenCCK\Domain\Agent\SandboxLimits $limits) use ($checkpoints, $name): void {
+                $checkpoints?->take($owner, $limits, 'before removing skill ' . $name, new TimeoutCancellation(60));
+            }, new TimeoutCancellation(60));
+            return $why ?? sprintf(t('service.skill_commands.removed_now'), $name);
         }
         if ($action === 'pin' || $action === 'unpin') {
             if ($this->usage === null) {
@@ -90,7 +110,7 @@ final class SkillCommands {
      *
      * ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — active → stale → archived, pinned opts out;
      *      here the list only marks the candidates, removing a skill is removing its folder
-     * @param array<string, array{views: int, last: ?int, pinned: bool}> $stats
+     * @param array<string, array{views: int, last: ?int, pinned: bool, off: bool}> $stats
      */
     private static function usage(string $name, array $stats): string {
         $s = $stats[$name] ?? null;

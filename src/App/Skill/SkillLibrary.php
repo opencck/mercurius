@@ -51,6 +51,35 @@ final class SkillLibrary {
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
+    private ?\OpenCCK\Domain\Repository\SkillUsageRepository $usage = null;
+
+    /** spec: BRIEF.md#скиллы-и-mcp — a skill turned off is left out of the index */
+    public function useUsage(\OpenCCK\Domain\Repository\SkillUsageRepository $usage): void {
+        $this->usage = $usage;
+    }
+
+    /**
+     * Removes a skill's folder after $before took a snapshot of the owner's working folder; null when removed, else why
+     * not. A built-in skill is in the code and can only be turned off.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — /skill <name> remove, through a snapshot
+     *
+     * @param Closure(int, SandboxLimits): void $before
+     */
+    public function remove(Principal $who, ?Project $project, string $name, Closure $before, Cancellation $cancellation): ?string {
+        $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
+        if ($skill === null) {
+            return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
+        }
+        $limits = $skill['owner'] === null ? null : ($this->limitsOf)($skill['owner']);
+        if ($skill['dir'] === null || $skill['owner'] === null || $limits === null || $this->sandbox === null) {
+            return sprintf(t('skill.library.builtin_off_only'), $name);
+        }
+        $before($skill['owner'], $limits);
+        $outcome = $this->sandbox->exec($skill['owner'], $limits, 'skill-remove-' . $skill['owner'], "rm -rf -- '" . str_replace("'", '', $skill['dir']) . "'", '.', 30, $cancellation);
+        return $outcome->exitCode === 0 ? null : trim($outcome->stderr);
+    }
+
     /** The folder of a project's skills, in the sandbox of the project's owner. */
     public static function projectDir(Project $project): string {
         return 'projects/' . $project->id . '/' . self::MINE;
@@ -104,11 +133,19 @@ final class SkillLibrary {
         if ($catalog === []) {
             return '';
         }
+        $off = [];
+        foreach ($this->usage?->stats() ?? [] as $name => $stat) {
+            if ($stat['off']) {
+                $off[$name] = true;
+            }
+        }
         $lines = [];
         foreach ($catalog as $name => $skill) {
-            $lines[] = sprintf('- %s: %s [%s]', $name, $skill['description'], $skill['where']);
+            if (!isset($off[$name])) {
+                $lines[] = sprintf('- %s: %s [%s]', $name, $skill['description'], $skill['where']);
+            }
         }
-        return t('skill.library.index') . "\n" . implode("\n", $lines);
+        return $lines === [] ? '' : t('skill.library.index') . "\n" . implode("\n", $lines);
     }
 
     /**

@@ -165,4 +165,29 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertStringNotContainsString('давно не открывался', $commands->list($this->owner, $message));
         self::assertStringContainsString('Заметки', $commands->list($this->owner, $message));
     }
+
+    public function testASkillIsTurnedOffAndRemovedAfterASnapshot(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — /skill <name> off hides it from the index, remove takes a snapshot first
+        $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
+        $usage = new InMemorySkillUsageRepository();
+        $library = $this->library();
+        $library->useUsage($usage);
+        $commands = new SkillCommands($library, fn(string $c, string $chat, string $t): ?Project => null, null, $usage, new \OpenCCK\App\Agent\Sandbox\Checkpoints($this->sandbox));
+        $message = new IncomingMessage('telegram', '42', '42', null, 'Owner', '/skill', '1', null, true, new DateTimeImmutable(), 'u1');
+
+        self::assertStringContainsString('выключен', $commands->skill($this->owner, $message, 'notes off'));
+        self::assertStringNotContainsString('notes', $library->index($this->owner, null), 'out of the index');
+        self::assertStringContainsString('выключен', $commands->list($this->owner, $message), 'still listed for the owner');
+        $commands->skill($this->owner, $message, 'notes on');
+        self::assertStringContainsString('notes', $library->index($this->owner, null));
+
+        self::assertStringContainsString('off', $commands->skill($this->owner, $message, 'deploy remove'), 'a built-in one is only turned off');
+        $commands->skill($this->owner, $message, 'notes remove');
+        $calls = implode("\n", $this->sandbox->calls);
+        $snapshot = strpos($calls, 'commit');
+        $removal = strpos($calls, "rm -rf -- '.mercurius/skills/notes'");
+        self::assertNotFalse($snapshot);
+        self::assertNotFalse($removal);
+        self::assertLessThan($removal, $snapshot, 'the snapshot first');
+    }
 }

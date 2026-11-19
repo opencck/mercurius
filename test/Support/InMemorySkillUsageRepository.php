@@ -13,6 +13,12 @@ final class InMemorySkillUsageRepository implements SkillUsageRepository {
     public array $viewedAt = [];
     /** @var array<string, bool> */
     public array $pinned = [];
+    /** @var array<string, bool> */
+    public array $off = [];
+
+    public function turnOff(string $name, bool $off): void {
+        $this->off[$name] = $off;
+    }
 
     public function touch(string $name): void {
         $this->views[$name] = ($this->views[$name] ?? 0) + 1;
@@ -21,8 +27,8 @@ final class InMemorySkillUsageRepository implements SkillUsageRepository {
 
     public function stats(): array {
         $out = [];
-        foreach (array_unique([...array_keys($this->views), ...array_keys($this->viewedAt), ...array_keys($this->pinned)]) as $name) {
-            $out[$name] = ['views' => $this->views[$name] ?? 0, 'last' => $this->viewedAt[$name] ?? null, 'pinned' => $this->pinned[$name] ?? false];
+        foreach (array_unique([...array_keys($this->views), ...array_keys($this->viewedAt), ...array_keys($this->pinned), ...array_keys($this->off)]) as $name) {
+            $out[$name] = ['views' => $this->views[$name] ?? 0, 'last' => $this->viewedAt[$name] ?? null, 'pinned' => $this->pinned[$name] ?? false, 'off' => $this->off[$name] ?? false];
         }
         return $out;
     }

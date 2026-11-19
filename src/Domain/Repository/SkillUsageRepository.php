@@ -13,8 +13,15 @@ interface SkillUsageRepository {
     /** One more opening of the skill now. */
     public function touch(string $name): void;
 
-    /** @return array<string, array{views: int, last: ?int, pinned: bool}> */
+    /** @return array<string, array{views: int, last: ?int, pinned: bool, off: bool}> */
     public function stats(): array;
 
     public function pin(string $name, bool $pinned): void;
+
+    /**
+     * Turns a skill off (out of the index, its files untouched) or on again.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — /skill <name> off
+     */
+    public function turnOff(string $name, bool $off): void;
 }
