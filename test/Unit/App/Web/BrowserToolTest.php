@@ -97,6 +97,26 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringNotContainsString('0123456789abcdef0123', $result->content);
     }
 
+    public function testAListIsPickedThePageScrollsAndGoesBackAndDialogsAreTold(): void {
+        // spec: BRIEF.md#интернет-и-браузер — select, scroll, back; a dialog of the page is dismissed and told
+        $page = json_encode(['url' => 'https://example.com/form', 'title' => 'Form', 'text' => 'ok', 'elements' => ['[1] select Город {msk=Москва | *spb=Санкт-Петербург}'], 'dialogs' => ['alert: Сессия истекла']], JSON_THROW_ON_ERROR);
+        $answer = [200, ['content-type' => 'application/json'], $page];
+        $http = new FakeHttpClient(['http://browser:3000/select' => $answer, 'http://browser:3000/scroll' => $answer, 'http://browser:3000/back' => $answer]);
+        $tool = $this->tool($http);
+
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'select', 'ref' => 1, 'value' => 'spb']));
+        self::assertSame(DangerClass::Read, $tool->danger(['action' => 'scroll']));
+        self::assertSame(DangerClass::Read, $tool->danger(['action' => 'back']));
+        $picked = $tool->execute(['action' => 'select', 'ref' => 1, 'value' => 'Санкт-Петербург'], self::context());
+        self::assertStringContainsString('*spb=Санкт-Петербург', $picked->content);
+        self::assertStringContainsString('alert: Сессия истекла', $picked->content);
+        self::assertFalse($tool->execute(['action' => 'scroll', 'direction' => 'bottom'], self::context())->isError);
+        self::assertFalse($tool->execute(['action' => 'back'], self::context())->isError);
+
+        self::assertStringContainsString('"value":"Санкт-Петербург"', (string) json_encode(json_decode($http->bodies[0], true), JSON_UNESCAPED_UNICODE));
+        self::assertStringContainsString('"direction":"bottom"', $http->bodies[1]);
+    }
+
     public function testARefusalAndAScreenshot(): void {
         $http = new FakeHttpClient([
             'http://browser:3000/navigate' => [403, [], '{"error":"адрес запрещён: внутренний адрес"}'],

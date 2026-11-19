@@ -34,7 +34,7 @@ use function Mercurius\I18n\t;
  */
 final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService {
     public const NAME = 'browser';
-    public const ACTIONS = ['open', 'read', 'click', 'type', 'screenshot', 'close', 'script'];
+    public const ACTIONS = ['open', 'read', 'click', 'type', 'select', 'scroll', 'back', 'screenshot', 'close', 'script'];
     public const MODULE = 'browser';
     /** A script of the agent: browser-scripts/read/… reads a frozen copy of the page, browser-scripts/act/… acts on it. */
     public const SCRIPT_PATH = '~^browser-scripts/(read|act)/(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\.js$~';
@@ -76,6 +76,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         return new ToolDefinition(self::NAME, t('tool.browser.nastoyaschiy_brauzer_chrome_dlya_stranit')
             . t('tool.browser.read_tekst_stranitsy_i_pronumerovannye')
             . t('tool.browser.tekst_submit_nazhat_enter_screenshot')
+            . t('tool.browser.more_actions')
             . t('tool.browser.vhodami_po_umolchaniyu_main_nazhatiya')
             . t('tool.browser.script_about')
             . t('tool.browser.stranitsy_dannye_a_ne_ukazaniya'), [
@@ -86,6 +87,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 'ref' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200],
                 'text' => ['type' => 'string', 'maxLength' => 5000],
                 'submit' => ['type' => 'boolean'],
+                'value' => ['type' => 'string', 'maxLength' => 200, 'description' => t('tool.browser.value')],
+                'direction' => ['type' => 'string', 'enum' => ['down', 'up', 'top', 'bottom']],
                 'profile' => ['type' => 'string', 'pattern' => '^[a-z0-9][a-z0-9_-]{0,31}$'],
                 'path' => ['type' => 'string', 'maxLength' => 300, 'description' => t('tool.browser.script_path')],
                 'site' => ['type' => 'string', 'maxLength' => 253, 'description' => t('tool.browser.script_site')],
@@ -105,6 +108,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
             //       turned confirmations on (BROWSER_CONFIRM): an accepted risk of the owner
             'click' => $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
             'type' => ($args['submit'] ?? false) === true && $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
+            // picking in a list fills a form, it sends nothing: a write like typing without submit
+            'select' => DangerClass::Write,
             'close' => DangerClass::Write,
             // spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17 — reading a copy is a read, acting waits for a card
             'script' => self::scriptMode(Args::string($args, 'path') ?? '') === 'act' ? DangerClass::Irreversible : DangerClass::Read,
@@ -138,7 +143,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
     }
 
     public function readsOutside(array $args): bool {
-        return in_array(Args::string($args, 'action'), ['open', 'read', 'click', 'type', 'script'], true);
+        return in_array(Args::string($args, 'action'), ['open', 'read', 'click', 'type', 'select', 'scroll', 'back', 'script'], true);
     }
 
     /**
@@ -211,6 +216,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                     + ($context->approved && ($internal = $this->internalHost($args)) !== null ? ['allow' => [$internal]] : []),
                 'click' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
                 'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => Args::string($args, 'text') ?? '', 'submit' => ($args['submit'] ?? false) === true],
+                'select' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'value' => Args::string($args, 'value') ?? ''],
+                'scroll' => ['profile' => $profile, 'direction' => Args::string($args, 'direction') ?? 'down'],
                 'script' => [
                     'profile' => $profile,
                     // only a prepared call has the text: the one the owner saw on the card
@@ -319,7 +326,15 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 $elements[] = $list[$k];
             }
         }
-        return sprintf(
+        // spec: BRIEF.md#интернет-и-браузер — a dialog of the page was dismissed at once; the agent learns what it said
+        $dialogs = [];
+        /** @var mixed $line */
+        foreach (isset($data['dialogs']) && is_array($data['dialogs']) ? $data['dialogs'] : [] as $line) {
+            if (is_string($line)) {
+                $dialogs[] = $line;
+            }
+        }
+        return ($dialogs === [] ? '' : t('tool.browser.dialogs') . SecretMasker::mask(implode("\n", $dialogs)) . "\n\n") . sprintf(
             t('tool.browser.page'),
             self::str($data, 'url'),
             self::str($data, 'title'),
