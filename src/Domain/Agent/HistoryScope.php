@@ -13,10 +13,15 @@ final class HistoryScope {
     private function __construct(
         public readonly ?string $channel,
         public readonly ?string $chatId,
+        /** @var list<int> participants whose conversations are left out of all: former owners */
+        public readonly array $hidden = [],
     ) {}
 
-    public static function all(): self {
-        return new self(null, null);
+    /**
+     * @param list<int> $hidden participants whose conversations stay out: former owners keep their private chats
+     */
+    public static function all(array $hidden = []): self {
+        return new self(null, null, $hidden);
     }
 
     public static function chat(string $channel, string $chatId): self {

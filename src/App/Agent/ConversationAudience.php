@@ -19,7 +19,11 @@ final class ConversationAudience {
     /** @var array<int, bool> conversation => private chat */
     private array $private = [];
 
-    public function __construct(private readonly ConversationRepository $conversations) {}
+    /** @param (\Closure(): list<int>)|null $formerOwners participants who owned the agent before: their conversations stay theirs */
+    public function __construct(
+        private readonly ConversationRepository $conversations,
+        private readonly ?\Closure $formerOwners = null,
+    ) {}
 
     public function remember(int $conversationId, bool $privateChat): void {
         $this->private[$conversationId] = $privateChat;
@@ -47,6 +51,6 @@ final class ConversationAudience {
         if ($meta === null) {
             return null;
         }
-        return $principal->isOwner() && $this->isPrivate($conversationId) ? HistoryScope::all() : HistoryScope::chat($meta->channel, $meta->chatId);
+        return $principal->isOwner() && $this->isPrivate($conversationId) ? HistoryScope::all($this->formerOwners === null ? [] : ($this->formerOwners)()) : HistoryScope::chat($meta->channel, $meta->chatId);
     }
 }

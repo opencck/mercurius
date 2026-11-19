@@ -29,6 +29,8 @@ final class Vault {
     public function __construct(
         private readonly SecretRepository $secrets,
         #[SensitiveParameter] ?string $key,
+        /** @var (\Closure(?int): bool)|null whose secrets the owner does not read: former owners keep theirs */
+        private readonly ?\Closure $hidden = null,
     ) {
         if ($key !== null && strlen($key) !== SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES) {
             throw new DomainException('SECRETS_KEY must be 32 bytes');
@@ -79,7 +81,7 @@ final class Vault {
     public function names(Principal $reader): array {
         $found = [];
         foreach ($this->secrets->all() as $secret) {
-            if ($reader->isOwner() || $secret['principal'] === $reader->id) {
+            if ($this->mayRead($secret['principal'], $reader)) {
                 $found[] = ['name' => $secret['name'], 'kind' => $secret['kind']];
             }
         }
@@ -88,7 +90,7 @@ final class Vault {
 
     public function remove(string $name, Principal $who): bool {
         $secret = $this->secrets->find($name);
-        if ($secret === null || (!$who->isOwner() && $secret['principal'] !== $who->id)) {
+        if ($secret === null || !$this->mayRead($secret['principal'], $who)) {
             return false;
         }
         return $this->secrets->delete($name);
@@ -98,9 +100,18 @@ final class Vault {
         return $this->secrets->find($name)['id'] ?? null;
     }
 
+    /**
+     * The author reads their secret; the owner reads everyone's but a former owner's.
+     *
+     * spec: BRIEF.md#несколько-пользователей — the personal stays with the former owner
+     */
+    private function mayRead(?int $author, Principal $reader): bool {
+        return $author === $reader->id || ($reader->isOwner() && ($this->hidden === null || !($this->hidden)($author)));
+    }
+
     /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null $secret */
     private function open(?array $secret, Principal $reader): ?string {
-        if ($secret === null || $this->key === null || (!$reader->isOwner() && $secret['principal'] !== $reader->id)) {
+        if ($secret === null || $this->key === null || !$this->mayRead($secret['principal'], $reader)) {
             return null;
         }
         // The name is bound as associated data: a ciphertext moved under another name does not open.

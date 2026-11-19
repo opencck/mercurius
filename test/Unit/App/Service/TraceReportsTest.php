@@ -97,6 +97,16 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString('exit 1', $text);
     }
 
+    public function testTheTraceOfARunOfAFormerOwnerIsNotShown(): void {
+        $this->traces->openRun(43, 'openrouter:x/model');
+        $this->traces->closeRun(43, TraceSpan::OK, 100, null);
+        $reports = new TraceReports($this->figures, $this->traces, hiddenRun: static fn(int $runId): bool => $runId === 43);
+
+        // spec: BRIEF.md#несколько-пользователей — the private chats of a former owner stay theirs
+        self::assertNull($reports->trace(43));
+        self::assertNotNull((new TraceReports($this->figures, $this->traces))->trace(43), 'shown without the rule');
+    }
+
     public function testUnknownTraceSaysSo(): void {
         $this->stack->say('/trace 999');
 

@@ -25,6 +25,8 @@ final class TraceReports {
         private readonly TraceRepository $traces,
         /** tasks a run gave to neighbours and what they spent; null — no network of agents */
         private readonly ?\OpenCCK\Domain\Repository\PeerRepository $peers = null,
+        /** @var (\Closure(int): bool)|null runs whose trace is not shown: those of former owners */
+        private readonly ?\Closure $hiddenRun = null,
     ) {}
 
     public function usage(int $days): string {
@@ -161,6 +163,10 @@ final class TraceReports {
 
     /** The steps of a run in order; null when the run has no trace. */
     public function trace(int $runId): ?string {
+        // spec: BRIEF.md#несколько-пользователей — the private chats of a former owner stay theirs
+        if ($this->hiddenRun !== null && ($this->hiddenRun)($runId)) {
+            return null;
+        }
         $spans = $this->traces->spans($runId);
         if ($spans === []) {
             return null;

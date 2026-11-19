@@ -36,6 +36,17 @@ final class VaultTest extends TestCase {
         self::assertSame([], $this->vault->names(new Principal(3, PrincipalKind::Human, Role::User, 'x')));
     }
 
+    public function testTheOwnerDoesNotReadTheSecretsOfAFormerOwner(): void {
+        // spec: BRIEF.md#несколько-пользователей — the personal stays with the former owner
+        $vault = new Vault($this->store, random_bytes(32), hidden: static fn(?int $author): bool => $author === 2);
+        $vault->put('panel', 'password', 'former-owner-pass', $this->user);
+
+        self::assertNull($vault->reveal('panel', $this->owner));
+        self::assertSame([], $vault->names($this->owner));
+        self::assertFalse($vault->remove('panel', $this->owner));
+        self::assertSame('former-owner-pass', $vault->reveal('panel', $this->user), 'the former owner keeps it');
+    }
+
     public function testACiphertextMovedUnderAnotherNameDoesNotOpen(): void {
         $this->vault->put('a', 'password', 'secret-a', $this->owner);
         $this->vault->put('b', 'password', 'secret-b', $this->owner);

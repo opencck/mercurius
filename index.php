@@ -197,7 +197,8 @@ $logger->info('Migrations checked', ['applied' => $applied]);
 $principals = new PostgresPrincipalRepository($db);
 // spec: BRIEF.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
 $ownerDirectory = new \OpenCCK\App\Service\OwnerDirectory($principals, TelegramChannel::NAME, $telegram->ownerId);
-$vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key());
+// spec: BRIEF.md#несколько-пользователей — the owner reads every secret but a former owner's
+$vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key(), hidden: $ownerDirectory->isFormerOwner(...));
 $restarter = new \OpenCCK\App\Settings\Restarter();
 $validateSettings = static function (array $env): ?string {
     try {
@@ -559,7 +560,7 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
 }
-$audience = new ConversationAudience($conversations);
+$audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...));
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
 if (!$memorySettings->hasSecret()) {
@@ -904,7 +905,7 @@ $chat = new ChatService(
     $scheduler,
     $channel,
     $approvals,
-    new TraceReports(new PostgresTraceReportRepository($db), $traces, $peerRepository),
+    new TraceReports(new PostgresTraceReportRepository($db), $traces, $peerRepository, static fn(int $runId): bool => $ownerDirectory->isFormerOwner($runs->find($runId)?->principalId)),
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),

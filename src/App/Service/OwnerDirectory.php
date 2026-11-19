@@ -15,6 +15,8 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
  */
 final class OwnerDirectory {
     private ?Principal $owner = null;
+    /** @var list<int>|null */
+    private ?array $former = null;
 
     public function __construct(
         private readonly PrincipalRepository $principals,
@@ -33,9 +35,23 @@ final class OwnerDirectory {
         return ($owner === null ? null : $this->principals->externalId($owner->id, $this->channel)) ?? $this->initialId;
     }
 
+    /**
+     * Participants who owned the agent before and do not now: their personal stays theirs.
+     *
+     * @return list<int>
+     */
+    public function formerOwners(): array {
+        return $this->former ??= array_keys($this->principals->formerOwners());
+    }
+
+    public function isFormerOwner(?int $principalId): bool {
+        return $principalId !== null && in_array($principalId, $this->formerOwners(), true);
+    }
+
     /** After ownership passed on: the next question reads the owner anew. */
     public function forget(): void {
         $this->owner = null;
+        $this->former = null;
     }
 
     /** A service built with a fixed chat (tests, a single owner) or with the directory. */

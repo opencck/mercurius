@@ -85,7 +85,8 @@ final class PostgresEpisodeRepository implements EpisodeRepository {
     /** @return array{string, list<string>} the condition on conversations c and its parameters */
     public static function scope(HistoryScope $scope): array {
         if ($scope->isAll()) {
-            return ['', []];
+            // spec: BRIEF.md#несколько-пользователей — the private chats of a former owner stay theirs
+            return $scope->hidden === [] ? ['', []] : [' AND c.principal_id <> ALL(?::bigint[])', ['{' . implode(',', $scope->hidden) . '}']];
         }
         return [' AND c.channel = ? AND c.chat_id = ?', [(string) $scope->channel, (string) $scope->chatId]];
     }
