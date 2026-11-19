@@ -197,23 +197,27 @@ final class TraceReports {
         $cost = 0.0;
         foreach ($spans as $span) {
             $cost += $span->costUsd ?? 0.0;
+            // spec: BRIEF.md#трассировка-и-метрики — nested traces: a worker's steps under its step, its spend in the sum
+            if ($span->kind === TraceSpan::WORKER) {
+                $lines[] = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0))
+                    . (isset($span->attrs['model']) && is_string($span->attrs['model']) ? ', ' . $span->attrs['model'] : '');
+                $child = isset($span->attrs['run']) && is_int($span->attrs['run']) ? $span->attrs['run'] : null;
+                foreach ($child === null ? [] : $this->traces->spans($child) as $step) {
+                    if ($step->kind === TraceSpan::RUN) {
+                        continue;
+                    }
+                    $cost += $step->costUsd ?? 0.0;
+                    $lines[] = '    ' . self::step($step);
+                }
+                continue;
+            }
             if ($span->kind === TraceSpan::RUN) {
                 // spec: BRIEF.md#выбор-моделей-под-задачу — why this model: every decision taken for the run
                 $why = array_map(static fn(array $d): string => sprintf(t('service.trace_reports.model_chosen'), $d['model'], $d['method'], $d['reason']), $this->figures->decisions($runId));
                 array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), ...$why, ...['']);
                 continue;
             }
-            $line = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0));
-            if ($span->inputTokens > 0 || $span->outputTokens > 0) {
-                $line .= sprintf(t('service.trace_reports.vhod_kesh_vyhod'), $span->inputTokens, $span->cacheReadTokens, $span->outputTokens);
-            }
-            if ($span->costUsd !== null) {
-                $line .= ', ' . self::usd($span->costUsd) . ($span->costStatus === TraceSpan::COST_ESTIMATED ? t('service.trace_reports.otsenka') : '');
-            }
-            if ($span->error !== null) {
-                $line .= ' — ' . $span->error;
-            }
-            $lines[] = $line;
+            $lines[] = self::step($span);
         }
         // spec: BRIEF.md#сеть-агентов — the spend of the neighbours in the same unit as the own steps
         foreach ($this->peers?->outgoingOfRun($runId) ?? [] as $remote) {
@@ -223,6 +227,21 @@ final class TraceReports {
         $lines[] = '';
         $lines[] = t('service.trace_reports.stoimost_shagov') . self::usd($cost);
         return implode("\n", $lines);
+    }
+
+    /** One step: kind, name, status, time, tokens, cost and error. */
+    private static function step(TraceSpan $span): string {
+        $line = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0));
+        if ($span->inputTokens > 0 || $span->outputTokens > 0) {
+            $line .= sprintf(t('service.trace_reports.vhod_kesh_vyhod'), $span->inputTokens, $span->cacheReadTokens, $span->outputTokens);
+        }
+        if ($span->costUsd !== null) {
+            $line .= ', ' . self::usd($span->costUsd) . ($span->costStatus === TraceSpan::COST_ESTIMATED ? t('service.trace_reports.otsenka') : '');
+        }
+        if ($span->error !== null) {
+            $line .= ' — ' . $span->error;
+        }
+        return $line;
     }
 
     private static function share(int $part, int $whole): string {

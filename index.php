@@ -589,6 +589,8 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
+// spec: BRIEF.md#трассировка-и-метрики — a worker is a step of its orchestrator's trace
+$workers->useEvents($tracer);
 // spec: BRIEF.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
 $workers->useContext($scheduler->workerContext(...));
 // spec: BRIEF.md#часть-1--синхронное-делегирование — reports share what is left of the orchestrator's window

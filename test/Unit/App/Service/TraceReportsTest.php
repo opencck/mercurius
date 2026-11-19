@@ -118,6 +118,22 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString('exit 1', $text);
     }
 
+    public function testTheStepsOfAWorkerGoUnderItsStep(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — nested traces
+        $run = $this->traces->openRun(42, 'openrouter:x/top');
+        $this->traces->record(new TraceSpan(42, $run, TraceSpan::WORKER, '#43', new DateTimeImmutable(), 2500, TraceSpan::OK, attrs: ['run' => 43, 'model' => 'openrouter:x/worker']));
+        $this->traces->closeRun(42, TraceSpan::OK, 3000, null);
+        $worker = $this->traces->openRun(43, 'openrouter:x/worker');
+        $this->traces->record(new TraceSpan(43, $worker, TraceSpan::TOOL, 'web_read', new DateTimeImmutable(), 800, TraceSpan::OK));
+        $this->traces->closeRun(43, TraceSpan::OK, 2500, null);
+
+        $this->stack->say('/trace 42');
+
+        $text = $this->lastText();
+        self::assertStringContainsString('worker #43', $text);
+        self::assertMatchesRegularExpression('/\n\s{4,}tool web_read/u', $text, 'the worker\'s steps are indented under it');
+    }
+
     public function testTheTraceOfARunOfAFormerOwnerIsNotShown(): void {
         $this->traces->openRun(43, 'openrouter:x/model');
         $this->traces->closeRun(43, TraceSpan::OK, 100, null);

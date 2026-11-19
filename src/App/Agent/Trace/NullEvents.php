@@ -18,5 +18,7 @@ final class NullEvents implements AgentEvents {
 
     public function approvalDecided(int $runId, string $tool, string $outcome, float $seconds): void {}
 
+    public function workerFinished(int $parentRunId, int $workerRunId, string $model, string $status, float $seconds): void {}
+
     public function runFinished(int $runId, string $status, ?string $reason, int $activeMs): void {}
 }

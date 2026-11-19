@@ -163,6 +163,17 @@ final class WorkerRunner {
         $this->context = $context;
     }
 
+    private ?\OpenCCK\App\Agent\Trace\AgentEvents $events = null;
+
+    /**
+     * Who hears that a worker ended: the trace writes it as a step of the orchestrator.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — nested traces
+     */
+    public function useEvents(\OpenCCK\App\Agent\Trace\AgentEvents $events): void {
+        $this->events = $events;
+    }
+
     /** @var (\Closure(string): ?int)|null the context window of a model, in tokens; null — not known */
     private ?\Closure $window = null;
 
@@ -621,6 +632,7 @@ final class WorkerRunner {
     private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null, string $prompt = '', bool $readOnly = false, ?int $conversation = null, ?string $message = null): WorkerReport {
         // '' — the worker's prompt in the agent's language
         $prompt = $prompt === '' ? \Mercurius\I18n\t(self::PROMPT) : $prompt;
+        $started = microtime(true);
         try {
             if ($existing !== null) {
                 $run = $this->runs->find($existing) ?? throw new DomainException(t('delegation.worker_runner.zapusk_vorkera_ne_nayden'));
@@ -671,7 +683,9 @@ final class WorkerRunner {
             }
             return new WorkerReport($index, $run->id ?? null, 'failed', $model, 0, $spent, '', t('delegation.worker_runner.vnutrennyaya_oshibka'), StopReason::InternalError);
         }
-        return $this->report($index, $final);
+        $report = $this->report($index, $final);
+        $this->events?->workerFinished($orchestrator->id, $final->id, $final->model, $report->status, microtime(true) - $started);
+        return $report;
     }
 
     private function report(int $index, Run $run): WorkerReport {

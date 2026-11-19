@@ -138,6 +138,22 @@ final class Tracer implements AgentEvents {
         });
     }
 
+    public function workerFinished(int $parentRunId, int $workerRunId, string $model, string $status, float $seconds): void {
+        $startedAt = self::startedAt($seconds);
+        $this->safely(function () use ($parentRunId, $workerRunId, $model, $status, $seconds, $startedAt): void {
+            $this->traces->record(new TraceSpan(
+                runId: $parentRunId,
+                parentId: $this->runSpan($parentRunId, ''),
+                kind: TraceSpan::WORKER,
+                name: '#' . $workerRunId,
+                startedAt: $startedAt,
+                durationMs: self::ms($seconds),
+                status: $status === 'done' ? TraceSpan::OK : ($status === 'stopped' ? TraceSpan::CANCELLED : TraceSpan::ERROR),
+                attrs: ['run' => $workerRunId, 'model' => $model, 'status' => $status],
+            ));
+        });
+    }
+
     public function runFinished(int $runId, string $status, ?string $reason, int $activeMs): void {
         $this->safely(function () use ($runId, $status, $reason, $activeMs): void {
             $this->traces->closeRun($runId, $status === 'done' ? TraceSpan::OK : ($status === 'stopped' ? TraceSpan::CANCELLED : TraceSpan::ERROR), $activeMs, $reason);

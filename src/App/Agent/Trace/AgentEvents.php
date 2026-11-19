@@ -32,6 +32,13 @@ interface AgentEvents {
     /** The owner decided on an approval (or it expired): approved, denied, expired. */
     public function approvalDecided(int $runId, string $tool, string $outcome, float $seconds): void;
 
+    /**
+     * A worker run of an orchestrator ended: done, failed, limit or stopped.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — nested traces
+     */
+    public function workerFinished(int $parentRunId, int $workerRunId, string $model, string $status, float $seconds): void;
+
     /** A run ended: done, failed or stopped. */
     public function runFinished(int $runId, string $status, ?string $reason, int $activeMs): void;
 }

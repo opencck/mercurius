@@ -134,6 +134,19 @@ final class TracerTest extends AsyncTestCase {
         self::assertSame(TraceSpan::OK, $this->traces->spans($final->id)[0]->status);
     }
 
+    public function testAWorkerIsAStepOfItsOrchestrator(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — nested traces: a worker step points at the worker's run
+        $orchestrator = $this->execute(new ScriptedLlm([self::priced('готово')]));
+        $tracer = new Tracer($this->traces, $this->catalog, new NullLogger());
+
+        $tracer->workerFinished($orchestrator->id, 77, 'openrouter:x/worker', 'done', 2.5);
+        $tracer->idle();
+
+        $worker = array_values(array_filter($this->traces->spans($orchestrator->id), static fn(TraceSpan $s): bool => $s->kind === TraceSpan::WORKER))[0] ?? null;
+        self::assertNotNull($worker);
+        self::assertSame(['#77', 2500, TraceSpan::OK, 77], [$worker->name, $worker->durationMs, $worker->status, $worker->attrs['run'] ?? null]);
+    }
+
     public function testEstimatedCostFromTheCatalog(): void {
         $this->catalog->replace('openrouter', [new ModelInfo('x/model', 'x', 100_000, 0.000001, 0.000002)]);
         $unpriced = new ChatResponse('готово', [], FinishReason::Stop, new Usage(1000, 100), 'x/model', 'gen');

@@ -87,11 +87,15 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             ScriptedLlm::text('Итог: 42'),
         ]);
         $stack = $this->stack($llm);
+        $events = new \OpenCCK\Test\Support\RecordingEvents();
+        $this->runner->useEvents($events);
 
         $stack->say('реши задачу');
         $stack->scheduler->awaitIdle();
 
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
+        // spec: BRIEF.md#трассировка-и-метрики — the worker is a step of its orchestrator's trace
+        self::assertContains('worker:1:2:done', $events->events);
         $worker = $stack->runs->find(2);
         self::assertNotNull($worker);
         self::assertSame(1, $worker->parentRunId);

@@ -34,6 +34,10 @@ final class RecordingEvents implements AgentEvents {
         $this->approvalSeconds[] = $seconds;
     }
 
+    public function workerFinished(int $parentRunId, int $workerRunId, string $model, string $status, float $seconds): void {
+        $this->events[] = 'worker:' . $parentRunId . ':' . $workerRunId . ':' . $status;
+    }
+
     public function runFinished(int $runId, string $status, ?string $reason, int $activeMs): void {
         $this->events[] = 'finished:' . $runId . ':' . $status;
     }

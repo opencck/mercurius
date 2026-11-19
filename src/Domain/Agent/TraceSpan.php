@@ -19,6 +19,8 @@ final class TraceSpan {
     public const APPROVAL = 'approval';
     public const COMPACTION = 'compaction';
     public const CLASSIFICATION = 'classification';
+    /** a worker run of this run; attrs.run is its id */
+    public const WORKER = 'worker';
 
     public const RUNNING = 'running';
     public const OK = 'ok';
