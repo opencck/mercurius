@@ -156,7 +156,7 @@ final class Tracer implements AgentEvents {
         if ($usage->costUsd !== null) {
             // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost; for the others the
             // model router puts in an estimate from catalog prices
-            return [$usage->costUsd, $ref->provider === ModelRef::OPENROUTER ? TraceSpan::COST_ACTUAL : TraceSpan::COST_ESTIMATED];
+            return [$usage->costUsd, TraceSpan::costStatusOf($model, $usage->costUsd)];
         }
         $estimate = $this->catalog->find($ref)?->estimateCost($usage);
         return $estimate === null ? [null, TraceSpan::COST_UNKNOWN] : [$estimate, TraceSpan::COST_ESTIMATED];

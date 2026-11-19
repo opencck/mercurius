@@ -31,6 +31,21 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         parent::tearDown();
     }
 
+    public function testACallKeepsHowSureItsCostIs(): void {
+        [, $conversationId] = TestDatabase::conversation($this->db);
+        $calls = new PostgresLlmCallRepository($this->db);
+        $calls->record(new LlmCallRecord($conversationId, 'agent', 'openai:cost-status', 'stop', null, 10, 1, 0, 0, 0, 0.001, 5));
+        $calls->record(new LlmCallRecord($conversationId, 'agent', 'z-ai/cost-status', 'stop', null, 10, 1, 0, 0, 0, 0.001, 5));
+
+        $statuses = [];
+        foreach ($this->db->execute("SELECT model, cost_status FROM llm_calls WHERE conversation_id = ? AND model LIKE '%cost-status' ORDER BY id", [$conversationId]) as $row) {
+            $model = $row['model'] ?? null;
+            $status = $row['cost_status'] ?? null;
+            $statuses[] = (is_string($model) ? $model : '') . '=' . (is_string($status) ? $status : '');
+        }
+        self::assertSame(['openai:cost-status=estimated', 'z-ai/cost-status=actual'], $statuses);
+    }
+
     public function testFiguresComeFromCallsAndRuns(): void {
         [$principalId, $conversationId] = TestDatabase::conversation($this->db);
         $run = (new PostgresRunRepository($this->db))->start($conversationId, $principalId, 'openrouter:report/model', new RunLimits(30, 1000, 900, 120));

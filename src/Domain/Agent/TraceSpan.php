@@ -49,4 +49,17 @@ final class TraceSpan {
         public readonly array $attrs = [],
         public readonly ?int $id = null,
     ) {}
+
+    /**
+     * How sure a cost of a call is: OpenRouter reports it, for other providers it is an estimate by catalog prices.
+     *
+     * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost
+     */
+    public static function costStatusOf(string $model, ?float $costUsd): string {
+        return match (true) {
+            $costUsd === null => self::COST_UNKNOWN,
+            ModelRef::parse($model)->provider === ModelRef::OPENROUTER => self::COST_ACTUAL,
+            default => self::COST_ESTIMATED,
+        };
+    }
 }

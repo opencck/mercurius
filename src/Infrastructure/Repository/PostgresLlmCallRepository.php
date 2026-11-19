@@ -16,12 +16,13 @@ final class PostgresLlmCallRepository implements LlmCallRepository, SpendReposit
     public function record(LlmCallRecord $call): void {
         $this->db->execute(
             'INSERT INTO llm_calls (conversation_id, purpose, model, finish_reason, error_kind, input_tokens, output_tokens,
-                cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_usd, duration_ms, run_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_usd, duration_ms, run_id, cost_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $call->conversationId, $call->purpose, $call->model, $call->finishReason, $call->errorKind,
                 $call->inputTokens, $call->outputTokens, $call->cacheReadTokens, $call->cacheWriteTokens,
                 $call->reasoningTokens, $call->costUsd, $call->durationMs, $call->runId,
+                \OpenCCK\Domain\Agent\TraceSpan::costStatusOf($call->model, $call->costUsd),
             ],
         );
     }
