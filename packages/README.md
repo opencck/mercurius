@@ -26,7 +26,7 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 |--------|---------|--------|-----------|---------|------------|
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `cc4c9a9` | 2026-11-17 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `479b35c` | 2026-11-18 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `e45c771` | 2026-11-19 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `d916e69` | 2026-11-19 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `f110a21` | 2026-11-18 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `7e43a9f` | 2026-11-18 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `10c83be` | 2026-11-19 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |

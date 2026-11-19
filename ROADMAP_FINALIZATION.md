@@ -712,7 +712,7 @@
 сделаны ещё 2026-11-18 (`p<участник>[/projects/<проект>]/<имя>`, `/adopt`) — сверено. 2026-11-19 — `web_search` через
 модель пишет расход в `llm_calls` и бюджет запуска (`mercurius-search` `6160633`). 2026-11-19 — `web_read`: окна
 по 15 000 символов (`offset`) и кеш прочитанных страниц на 20 минут. 2026-11-19 — почта: `mail_attachment`, `files` у
-`mail_send`, файлы ответов MCP — в `inbox/`, authserv-id в `mail_read` и `doctor` (`mercurius-mail-mcp` `10c83be`).
+`mail_send`, файлы ответов MCP — в `inbox/`, authserv-id в `mail_read` и `doctor` (`mercurius-mail-mcp` `10c83be`). 2026-11-19 — модуль браузера на TypeScript: tsc, ESLint и тесты в CI (`mercurius-browser` `d916e69`).
 
 ## Фаза Д10 — Скиллы и MCP
 
