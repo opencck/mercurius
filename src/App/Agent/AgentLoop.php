@@ -426,7 +426,20 @@ final class AgentLoop {
         if ($closingPrompt !== null) {
             $messages[] = Message::user($closingPrompt);
         }
-        return new ChatRequest($state->model ?? $state->run->model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort);
+        $model = $state->model ?? $state->run->model;
+        return new ChatRequest($model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort, extra: self::cacheKey($model, $state->run->conversationId));
+    }
+
+    /**
+     * OpenAI routes requests with the same key to the same cache: the conversation names its prefix.
+     *
+     * ref: references/hermes-agent/agent/auxiliary_client.py@e96221fa:L1481-L1497 — a key scoped by the conversation,
+     *      only where the endpoint takes it; hermes also hashes the static prefix, here the conversation alone is the scope
+     *
+     * @return array<string, mixed>
+     */
+    private static function cacheKey(string $model, int $conversationId): array {
+        return ModelRef::parse($model)->provider === ModelRef::OPENAI ? ['prompt_cache_key' => 'conversation-' . $conversationId] : [];
     }
 
     /**

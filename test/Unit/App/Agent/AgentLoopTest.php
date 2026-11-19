@@ -99,6 +99,19 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('Токены: 9012.', $this->observer->final);
     }
 
+    public function testARequestToOpenAiNamesTheConversationForItsPromptCache(): void {
+        $openAi = $this->runs->start($this->conversationId, 1, 'openai:gpt-5.5', new RunLimits(30, 100_000, 900, 120));
+        self::assertNotNull($openAi);
+        $this->transcript->appendUser($this->conversationId, $openAi->id, 'задача');
+        $llm = new ScriptedLlm([ScriptedLlm::text('ok')]);
+        $this->execute($llm, $openAi);
+        self::assertSame('conversation-' . $this->conversationId, $llm->requests[0]->extra['prompt_cache_key'] ?? null);
+
+        $other = new ScriptedLlm([ScriptedLlm::text('ok')]);
+        $this->execute($other, $this->start());
+        self::assertArrayNotHasKey('prompt_cache_key', $other->requests[0]->extra, 'only OpenAI takes the key');
+    }
+
     public function testTwoStepTaskUsesToolsThenAnswers(): void {
         $this->registry->register(new FakeTool('search'));
         $this->registry->register(new FakeTool('save', DangerClass::Write));
