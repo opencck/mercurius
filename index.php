@@ -1005,6 +1005,12 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
 );
 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a run in a group gets no more rights than the weakest one who spoke there
 $scheduler->useGroupSpeakers($groupGate->speakers(...));
+// spec: BRIEF.md#группа — other bots are heard in groups (as visitors, by mention), the guard ends their loops;
+// participants name the bots and visitors not to hear
+$groupGate->useBots(new \OpenCCK\App\Service\BotLoopGuard());
+$groupIgnores = new \OpenCCK\Infrastructure\Repository\PostgresGroupIgnoreRepository($db);
+$groupGate->useIgnores($groupIgnores);
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\GroupIgnoreTool($groupIgnores, $conversations, $groupRepository));
 // spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
@@ -1093,7 +1099,7 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-r
 $presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv']);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
-$parser = new UpdateParser($botId);
+$parser = new UpdateParser($botId, allowBots: true);
 // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — a text Telegram split at 4096 characters is glued back (2 s, as hermes)
 $dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: new \OpenCCK\App\Service\MembershipRouter([$groupGate, $channelRegistry]), posts: $channelRegistry, splitDelay: 2.0);
 // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — updates taken are kept a day in the database:

@@ -49,6 +49,19 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     /** @var array<string, string> chat id => the day its owner was warned about the daily limit */
     private array $limitWarned = [];
 
+    private ?BotLoopGuard $bots = null;
+    private ?\OpenCCK\Domain\Repository\GroupIgnoreRepository $ignores = null;
+
+    /** spec: BRIEF.md#группа — messages of other bots come, and the guard keeps two bots from talking without end */
+    public function useBots(BotLoopGuard $bots): void {
+        $this->bots = $bots;
+    }
+
+    /** spec: BRIEF.md#группа — bots and visitors the participants of a group asked not to hear */
+    public function useIgnores(\OpenCCK\Domain\Repository\GroupIgnoreRepository $ignores): void {
+        $this->ignores = $ignores;
+    }
+
     public function __construct(
         private readonly GroupRepository $groups,
         private readonly PrincipalRepository $principals,
@@ -107,6 +120,10 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $this->topicOpened($message, $opened);
             return null;
         }
+        // spec: BRIEF.md#группа — a bot or a visitor the participants named is not heard, not even in the talk
+        if ($this->ignores?->ignored($message->channel, $message->chatId, $message->userId, $message->userName) === true) {
+            return null;
+        }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
         // spec: BRIEF.md#группа — the talk of a topic is its own and survives a restart
         $thread = MessageMeta::topicKey($message);
@@ -121,6 +138,17 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $addressed = $this->addressed($message);
+        $exchange = $message->chatId . "\0" . MessageMeta::topicKey($message);
+        if (!$message->fromBot) {
+            $this->bots?->human($exchange);
+        } elseif (!$addressed) {
+            // ref: references/hermes-agent/website/docs/user-guide/messaging/telegram.md@e96221fa:L753 — a bot must
+            //      address the agent even in a free group (bots_require_mention)
+            return null;
+        } elseif ($this->bots === null || !$this->bots->admit($exchange, $message->userId, $message->text)) {
+            $this->logger->notice('A bot message is not answered: the exchange of bots is long enough', ['chat' => $message->chatId, 'bot' => $message->userId]);
+            return null;
+        }
         if (!$addressed && $group->mode !== Group::FREE) {
             return null;
         }

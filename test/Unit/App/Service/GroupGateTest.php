@@ -119,6 +119,55 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(0, $this->stack->llm->requests, 'opening a topic is not a question to the agent');
     }
 
+    private function message(string $text, string $userId, bool $bot = false, string $userName = ''): IncomingMessage {
+        $id = (string) ++$this->id;
+        return new IncomingMessage('telegram', self::GROUP, $userId, $userName === '' ? 'u' . $userId : $userName, 'User ' . $userId, $text, $id, null, false, new DateTimeImmutable(), $id, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup']], fromBot: $bot);
+    }
+
+    public function testABotIsAVisitorAnsweredOnlyWhenAddressedAndNotForEver(): void {
+        // spec: BRIEF.md#группа — another bot is a visitor; it must address the agent, and the guard ends a loop of bots
+        $this->stack(new ScriptedLlm([]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+        $this->gate->useBots(new \OpenCCK\App\Service\BotLoopGuard());
+
+        self::assertNull($this->gate->route($this->message('@mrcuribot привет', '901', true)), 'a new bot waits for the owner like a person');
+        $bot = $this->stack->principals->findByIdentity('telegram', '901');
+        self::assertNotNull($bot);
+        $this->stack->principals->decideVisitor($bot->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+
+        self::assertNull($this->gate->route($this->message('просто болтаю', '901', true)), 'a free group still wants a bot to address the agent');
+        $answered = 0;
+        for ($i = 1; $i <= 6; $i++) {
+            $answered += $this->gate->route($this->message('@mrcuribot вопрос ' . $i, '901', true)) === null ? 0 : 1;
+        }
+        self::assertSame(4, $answered, 'four hops, then silence');
+        self::assertNotNull($this->gate->route($this->message('@mrcuribot что там?', '42')), 'a person is answered');
+        self::assertNotNull($this->gate->route($this->message('@mrcuribot ещё вопрос', '901', true)), 'and a new exchange begins');
+    }
+
+    public function testAParticipantNamesWhomTheAgentIgnoresInTheGroup(): void {
+        // spec: BRIEF.md#группа — participants name bots and visitors the agent does not hear in a group
+        $this->stack(new ScriptedLlm([]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+        $ignores = new \OpenCCK\Test\Support\InMemoryGroupIgnoreRepository();
+        $this->gate->useIgnores($ignores);
+        $tool = new \OpenCCK\App\Agent\Tool\Messaging\GroupIgnoreTool($ignores, $this->stack->conversations, $this->groups);
+        $owner = $this->stack->principals->findByIdentity('telegram', '42');
+        self::assertNotNull($owner);
+        $conversation = $this->stack->conversations->openConversation($owner->id, 'telegram', self::GROUP);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, $conversation, $owner, new \Amp\NullCancellation());
+
+        self::assertStringContainsString('noisy_bot', $tool->execute(['action' => 'add', 'who' => '@Noisy_Bot'], $context)->content);
+        self::assertNull($this->gate->route($this->message('@mrcuribot слушай меня', '901', true, 'noisy_bot')), 'ignored by name');
+        self::assertStringContainsString('noisy_bot', $tool->execute(['action' => 'list'], $context)->content);
+        $tool->execute(['action' => 'remove', 'who' => 'noisy_bot'], $context);
+        self::assertSame([], $ignores->list('telegram', self::GROUP));
+        $private = new \OpenCCK\App\Agent\Tool\ToolContext(1, $this->stack->conversations->openConversation($owner->id, 'telegram', '42'), $owner, new \Amp\NullCancellation());
+        self::assertTrue($tool->execute(['action' => 'add', 'who' => '@x'], $private)->isError, 'only in a group');
+    }
+
     public function testAStrangerInTheGroupBecomesAVisitorTheOwnerCanDecideAbout(): void {
         $this->stack(new ScriptedLlm([]));
         $this->say('первое');
