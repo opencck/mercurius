@@ -32,12 +32,16 @@ final class ModelCatalogModule implements AppModuleInterface {
     /** @var list<Future<void>> */
     private array $loads = [];
 
-    /** @param array<string, Closure(): list<ModelInfo>> $sources provider => loader */
+    /**
+     * @param array<string, Closure(): list<ModelInfo>> $sources provider => loader
+     * @param array<string, Closure(): list<string>> $toolReliable provider => the ids of the models that call tools well
+     */
     public function __construct(
         private readonly array $sources,
         private readonly ModelCatalogRepository $catalog,
         private readonly LoggerInterface $logger,
         private readonly float $interval = self::DAY,
+        private readonly array $toolReliable = [],
     ) {}
 
     public function start(): void {
@@ -81,9 +85,31 @@ final class ModelCatalogModule implements AppModuleInterface {
             }
             $this->catalog->replace($provider, $models);
             $this->logger->info('Model catalog loaded', ['provider' => $provider, 'models' => count($models)]);
+            $this->markToolReliable($provider);
         } catch (Throwable $e) {
             $this->logger->warning('Model catalog was not loaded; the old one stays', ['provider' => $provider, 'error' => $e::class]);
             $this->retry($provider, $fetch);
+        }
+    }
+
+    /**
+     * Which models call tools well; a failed or empty answer leaves it unknown, so no model is held back by it.
+     *
+     * spec: BRIEF.md#выбор-моделей-под-задачу
+     */
+    private function markToolReliable(string $provider): void {
+        $fetch = $this->toolReliable[$provider] ?? null;
+        if ($fetch === null) {
+            return;
+        }
+        try {
+            $ids = $fetch();
+        } catch (Throwable $e) {
+            $this->logger->warning('Tool reliability of models was not loaded', ['provider' => $provider, 'error' => $e::class]);
+            return;
+        }
+        if ($ids !== []) {
+            $this->catalog->markToolReliable($provider, $ids);
         }
     }
 

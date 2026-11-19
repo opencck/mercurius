@@ -72,6 +72,9 @@ final class ModelSelector {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
         $unreliable = $this->unreliable();
+        // spec: BRIEF.md#выбор-моделей-под-задачу — a part with tools does not get a model whose tool calls the catalog
+        //       saw fail their schemas too often; a model named outright is not chosen here
+        $toolsBad = $needsTools ? array_flip($this->catalog->toolUnreliable()) : [];
         // spec: BRIEF.md#выбор — urgency: the catalog has no latency, our own calls do
         $slow = $profile->score('urgency') >= self::URGENT ? $this->slow() : [];
         // Thresholds come from the models that could be chosen at all, so a top score is reachable. Models that often
@@ -114,7 +117,7 @@ final class ModelSelector {
                 continue;
             }
             $ref = new ModelRef($providerOf[$i], $m->id);
-            if (isset($unreliable[(string) $ref])) {
+            if (isset($unreliable[(string) $ref]) || isset($toolsBad[(string) $ref])) {
                 $skipped++;
                 continue;
             }

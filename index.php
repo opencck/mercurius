@@ -271,10 +271,13 @@ $onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logg
 );
 $clients = [];
 $catalogSources = [];
+$toolReliableSources = [];
 $openRouterKey = $llmSettings->openRouterKey();
 if ($openRouterKey !== null) {
     $clients[ModelRef::OPENROUTER] = new RetryingClient(new OpenRouterClient($modelHttp, $openRouterKey, appName: 'Mercurius', appUrl: $config->appUrl), onRetry: $onRetry);
     $catalogSources[ModelRef::OPENROUTER] = (new OpenRouterCatalog($modelHttp, $openRouterKey))->fetch(...);
+    // spec: BRIEF.md#выбор-моделей-под-задачу — a model must pass 90% of its tool calls by the catalog to get a part with tools
+    $toolReliableSources[ModelRef::OPENROUTER] = static fn(): array => (new OpenRouterCatalog($modelHttp, $openRouterKey))->toolReliable(0.9);
 }
 $openAiKey = $llmSettings->openAiKey();
 if ($openAiKey !== null) {
@@ -1075,7 +1078,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background, deliveries: new \OpenCCK\App\Agent\DeliveryRecovery($deliveryRepository, $channel, $app->getLogger())))
-    ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger()))
+    ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger(), toolReliable: $toolReliableSources))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
     ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))

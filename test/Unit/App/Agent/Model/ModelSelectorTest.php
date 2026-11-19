@@ -151,6 +151,18 @@ final class ModelSelectorTest extends AsyncTestCase {
         self::assertSame('openrouter:a/top', (string) $model);
     }
 
+    public function testAPartWithToolsSkipsAModelWhoseToolCallsOftenFailInTheCatalog(): void {
+        // spec: BRIEF.md#выбор-моделей-под-задачу — tool calls that do not pass their schemas, by the catalog
+        $this->standard();
+        $this->stores->markToolReliable('openrouter', ['a/tiny', 'a/cheap', 'a/mid', 'a/agent', 'a/top', 'a/notools']);
+
+        [$withTools] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), true, 7);
+        [$withoutTools] = $this->selector()->choose(TaskProfile::fromArray(['text' => 2]), false, 7);
+
+        self::assertSame('openrouter:a/tiny', (string) $withTools, 'a/unscored failed the share of good tool calls');
+        self::assertContains((string) $withoutTools, ['openrouter:a/unscored', 'openrouter:a/notools'], 'a part without tools does not care');
+    }
+
     public function testModelsThatOftenFailedHereAreSkipped(): void {
         $this->standard();
         $reliability = new class implements \OpenCCK\Domain\Repository\ModelReliabilityRepository {

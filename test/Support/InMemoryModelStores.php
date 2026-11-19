@@ -42,6 +42,19 @@ final class InMemoryModelStores implements ModelCatalogRepository, ModelRoleRepo
         return array_values($models);
     }
 
+    /** @var array<string, bool> ref => calls tools well */
+    public array $toolReliable = [];
+
+    public function markToolReliable(string $provider, array $ids): void {
+        foreach (array_keys($this->models[$provider] ?? []) as $id) {
+            $this->toolReliable[$provider . ':' . $id] = in_array($id, $ids, true);
+        }
+    }
+
+    public function toolUnreliable(): array {
+        return array_keys(array_filter($this->toolReliable, static fn(bool $good): bool => !$good));
+    }
+
     public function fetchedAt(string $provider): ?DateTimeImmutable {
         return ($this->models[$provider] ?? []) === [] ? null : ($this->fetched[$provider] ?? null);
     }

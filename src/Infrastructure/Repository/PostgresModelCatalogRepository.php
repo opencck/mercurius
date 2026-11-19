@@ -13,6 +13,25 @@ use OpenCCK\Domain\Repository\ModelCatalogRepository;
 final class PostgresModelCatalogRepository implements ModelCatalogRepository {
     public function __construct(private readonly PostgresLink $db) {}
 
+    public function markToolReliable(string $provider, array $ids): void {
+        $this->db->execute(
+            'UPDATE model_catalog SET tool_reliable = (id = ANY(?::text[])) WHERE provider = ?',
+            ['{' . implode(',', array_map(static fn(string $id): string => '"' . addcslashes($id, '"\\') . '"', $ids)) . '}', $provider],
+        );
+    }
+
+    public function toolUnreliable(): array {
+        $refs = [];
+        foreach ($this->db->query('SELECT provider, id FROM model_catalog WHERE tool_reliable = false') as $row) {
+            $provider = $row['provider'] ?? null;
+            $id = $row['id'] ?? null;
+            if (is_string($provider) && is_string($id)) {
+                $refs[] = $provider . ':' . $id;
+            }
+        }
+        return $refs;
+    }
+
     public function replace(string $provider, array $models): void {
         $tx = $this->db->beginTransaction();
         try {
