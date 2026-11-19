@@ -972,6 +972,14 @@ $peerNetwork->onAnswered($scheduler->taint(...));
 if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
+    // spec: BRIEF.md#сеть-агентов — the extended card names the tools of the asking agent's own policy
+    $a2aServer->useSkills(static function (Principal $agent) use ($tools, $policies): array {
+        $skills = [];
+        foreach (array_slice($tools->definitions($policies->forPrincipal($agent)), 0, 30) as $definition) {
+            $skills[] = ['id' => $definition->name, 'name' => $definition->name, 'description' => mb_substr(trim(explode("\n", $definition->description)[0]), 0, 160)];
+        }
+        return $skills;
+    });
 }
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
 // spec: BRIEF.md#трассировка-и-метрики — the summary counts the memory proposals waiting for the owner

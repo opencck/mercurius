@@ -73,6 +73,7 @@ final class A2aServer implements JobRuns {
         'SendMessage' => ['send', true], 'message/send' => ['send', false],
         'GetTask' => ['get', true], 'tasks/get' => ['get', false],
         'CancelTask' => ['cancel', true], 'tasks/cancel' => ['cancel', false],
+        'GetExtendedAgentCard' => ['extended', true], 'agent/getAuthenticatedExtendedCard' => ['extended', false],
         // spec: BRIEF.md#между-агентами — a file of an answer over a connection, when the neighbour has no address
         'GetFile' => ['file', true],
     ];
@@ -311,6 +312,35 @@ final class A2aServer implements JobRuns {
         return (preg_replace('~^http~', 'ws', rtrim($this->self, '/')) ?? $this->self) . '/a2a/ws';
     }
 
+    /** @var (Closure(Principal): list<array{id: string, name: string, description: string}>)|null */
+    private ?Closure $skillsOf = null;
+
+    /**
+     * The skills an agent that proved its key sees in the extended card: what its policy here lets it ask for.
+     *
+     * spec: BRIEF.md#сеть-агентов — the extended card after the key
+     * ref: references/hermes-agent/plugins/platforms/a2a/protocol.py@e96221fa:L60-L90 (build_agent_card) — hermes lists
+     *      skills by its tool sets and has no extended card (extendedAgentCard: false); here the public card keeps one
+     *      general skill and the extended one names the tools of the agent's own policy
+     *
+     * @param Closure(Principal): list<array{id: string, name: string, description: string}> $skillsOf
+     */
+    public function useSkills(Closure $skillsOf): void {
+        $this->skillsOf = $skillsOf;
+    }
+
+    /**
+     * The card for an agent that proved its key: the public one with the skills of its policy.
+     *
+     * @return array<string, mixed>
+     */
+    public function extendedCard(Principal $agent): array {
+        $skills = $this->skillsOf === null ? [] : ($this->skillsOf)($agent);
+        $card = $this->card();
+        $card['skills'] = array_map(static fn(array $s): array => $s + ['tags' => [$s['id']]], $skills === [] ? [['id' => 'general', 'name' => 'general', 'description' => t('peer.a2a_server.zadachi_vladeltsa_etogo_agenta_po')]] : $skills);
+        return $card;
+    }
+
     /**
      * @param string|null $nonce a random number of the one who asks: the card then carries its signature by this
      *        agent's key and address — proof that the key is ours, not copied from someone else's card
@@ -328,7 +358,7 @@ final class A2aServer implements JobRuns {
             'version' => '1.0.0',
             'provider' => ['organization' => 'Mercurius', 'url' => $this->self],
             'supportedInterfaces' => [['url' => $url, 'protocolBinding' => 'JSONRPC', 'protocolVersion' => '1.0']],
-            'capabilities' => ['streaming' => false, 'pushNotifications' => false, 'stateTransitionHistory' => false, 'extendedAgentCard' => false],
+            'capabilities' => ['streaming' => false, 'pushNotifications' => false, 'stateTransitionHistory' => false, 'extendedAgentCard' => $this->skillsOf !== null],
             'defaultInputModes' => ['text/plain'],
             'defaultOutputModes' => ['text/plain'],
             'skills' => [['id' => 'general', 'name' => 'general', 'description' => t('peer.a2a_server.zadachi_vladeltsa_etogo_agenta_po'), 'tags' => ['general']]],
@@ -363,6 +393,7 @@ final class A2aServer implements JobRuns {
             'send' => [200, $this->send($agent, $id, $params, $v1, $via)],
             'get' => [200, $this->get($agent, $id, $params)],
             'cancel' => [200, $this->cancel($agent, $id, $params)],
+            'extended' => [200, ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->extendedCard($agent)]],
             'file' => [200, $this->file($agent, $id, $params)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
         };
@@ -541,7 +572,7 @@ final class A2aServer implements JobRuns {
      * The agent that gave the task learns at once that it ended, over a live connection with it; without one it polls.
      *
      * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
-     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L660-L671 (_finish_task) — the push when
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L658-L671 (_record_outcome) — the push when
      *      a task ends; hermes posts to a callback URL, here a notice goes over the connection both sides proved
      */
     private function tell(A2aTask $task, string $state): void {

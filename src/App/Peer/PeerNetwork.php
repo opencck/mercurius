@@ -80,7 +80,7 @@ final class PeerNetwork {
      * only starts the reading — what the task is comes from the neighbour it was given to, as by polling.
      *
      * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
-     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L660-L671 — hermes fires a push callback
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L658-L671 (_record_outcome) — hermes fires a push callback
      *      when a task ends; here the push goes over the connection both sides already proved, no callback URL
      * @param array<array-key, mixed> $params
      */

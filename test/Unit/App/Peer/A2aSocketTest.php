@@ -86,6 +86,20 @@ final class A2aSocketTest extends AsyncTestCase {
         $socket->close();
     }
 
+    public function testAnAgentThatProvedItsKeyGetsTheExtendedCard(): void {
+        // spec: BRIEF.md#сеть-агентов — the extended card lists the skills of the agent's policy, after the key
+        $this->server->useSkills(static fn(\OpenCCK\Domain\Entity\Principal $agent): array => [['id' => 'web_search', 'name' => 'web_search', 'description' => 'Ищет в сети']]);
+        $capabilities = $this->server->card()['capabilities'] ?? [];
+        self::assertTrue(is_array($capabilities) && ($capabilities['extendedAgentCard'] ?? false) === true, 'the public card says there is more');
+        [$end] = $this->connection();
+
+        $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER);
+        $card = $socket->request('GetExtendedAgentCard', []);
+
+        self::assertSame('web_search', self::field($card, 'skills', '0', 'id'));
+        $socket->close();
+    }
+
     public function testFilesOfANeighbourAreKeptInItsAgentsSandbox(): void {
         [$end] = $this->connection();
         $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER);
