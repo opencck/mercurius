@@ -195,7 +195,7 @@ final class AgentLoop {
             // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
             $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
             if ($ceiling !== null) {
-                $state->policy = $state->policy->capTo($ceiling);
+                $state->policy = $state->policy->narrowedBy($ceiling, keepApproval: $state->principal->isOwner());
             }
             $this->deliverInbox($state);
             $reason = $this->checkLimits($state);
@@ -715,6 +715,12 @@ final class AgentLoop {
                 ApprovalStatus::Denied => ToolResult::error(t('agent.agent_loop.otkazano_vladeltsem') . ($approval->reason !== null ? ': ' . $approval->reason : '.') . t('agent.agent_loop.deystvie_ne_vypolneno')),
                 ApprovalStatus::Expired => ToolResult::error(t('agent.agent_loop.vladelets_ne_otvetil_vovremya_molchanie')),
             };
+        }
+        if ($call->tool instanceof Tool\ChecksBeforeApproval) {
+            $refused = $call->tool->refuseEarly($call->args, $this->contextOf($state, $call));
+            if ($refused !== null) {
+                return $refused;
+            }
         }
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
         // spec: BRIEF.md#подтверждения-и-запреты — after outside data a grant is not used: the text read may be someone's

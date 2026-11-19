@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#права-участника — who changes policies
  */
-final class SetParticipantPolicyTool implements Tool {
+final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     public const NAME = 'set_participant_policy';
 
     /**
@@ -65,6 +65,16 @@ final class SetParticipantPolicyTool implements Tool {
 
     public function timeout(): int {
         return 10;
+    }
+
+    public function refuseEarly(array $args, ToolContext $context): ?ToolResult {
+        if (!$context->principal->isOwner()) {
+            return ToolResult::error(t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet'));
+        }
+        if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
+            return ToolResult::error(t('tool.participants.private_chat_only'));
+        }
+        return null;
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {

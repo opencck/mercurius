@@ -43,6 +43,21 @@ final class ParticipantPolicyTest extends TestCase {
         self::assertFalse($policy->mayRequestApproval);
     }
 
+    public function testTheOwnerInAGroupKeepsTheCardButNotTheTools(): void {
+        $owner = new ParticipantPolicy(null, new RunLimits(50, 1000, 100, 100), null, true);
+        $weakest = new ParticipantPolicy(['web_search'], new RunLimits(5, 10, 10, 10), null, false);
+
+        $mine = $owner->narrowedBy($weakest, keepApproval: true);
+        $theirs = $owner->narrowedBy($weakest);
+
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the card goes to the owner with the exact call
+        self::assertTrue($mine->mayRequestApproval);
+        self::assertSame(['web_search'], $mine->tools);
+        self::assertSame(5, $mine->run->maxTurns);
+        self::assertFalse($theirs->mayRequestApproval);
+        self::assertFalse((new ParticipantPolicy(null, new RunLimits(5, 10, 10, 10), null, false))->narrowedBy($weakest, keepApproval: true)->mayRequestApproval, 'kept, not given');
+    }
+
     public function testSandboxLimitsAreCapped(): void {
         $base = new ParticipantPolicy([], new RunLimits(30, 400_000, 900, 120), new SandboxLimits(10_000, 10, 10, 10, 10), false);
         $policy = $base->capTo($this->owner());

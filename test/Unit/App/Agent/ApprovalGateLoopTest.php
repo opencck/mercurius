@@ -104,6 +104,57 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertNull($this->observer->final);
     }
 
+    public function testTheOwnersRunUnderAGroupCeilingStillAsksTheOwner(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}'))]);
+        $loop = $this->loop($llm);
+        // a weaker participant wrote in the group: no right to ask, all tools still
+        $loop->useCap(static fn(int $runId): ParticipantPolicy => new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, false));
+
+        $run = $this->execute($loop, $this->start());
+
+        self::assertSame(RunStatus::WaitingApproval, $run->status);
+        self::assertSame(['c1'], $this->asked);
+    }
+
+    public function testAToolThatRefusesBeforeTheCardShowsNoCard(): void {
+        $this->registry->register(new class implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\ChecksBeforeApproval {
+            public function definition(): \Mercurius\Llm\ToolDefinition {
+                return new \Mercurius\Llm\ToolDefinition('grant', 'grant', ['type' => 'object', 'properties' => ['q' => ['type' => 'string']]]);
+            }
+
+            public function danger(array $args): DangerClass {
+                return DangerClass::Irreversible;
+            }
+
+            public function untrusted(): bool {
+                return false;
+            }
+
+            public function timeout(): int {
+                return 5;
+            }
+
+            /** @param array<string, mixed> $args */
+            public function refuseEarly(array $args, \OpenCCK\App\Agent\Tool\ToolContext $context): \OpenCCK\App\Agent\Tool\ToolResult {
+                return \OpenCCK\App\Agent\Tool\ToolResult::error('only in the private chat');
+            }
+
+            public function execute(array $args, \OpenCCK\App\Agent\Tool\ToolContext $context): \OpenCCK\App\Agent\Tool\ToolResult {
+                return \OpenCCK\App\Agent\Tool\ToolResult::ok('done');
+            }
+        });
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'grant', '{}')), ScriptedLlm::text('ок')]);
+
+        $run = $this->execute($this->loop($llm), $this->start());
+
+        self::assertSame([], $this->asked, 'a card that can only end in a refusal is not shown');
+        self::assertSame(RunStatus::Done, $run->status);
+        $messages = $llm->requests[1]->messages;
+        $last = end($messages);
+        self::assertNotFalse($last);
+        self::assertStringContainsString('only in the private chat', $last->content);
+    }
+
     public function testRunIsSavedAsWaitingBeforeTheOwnerIsAsked(): void {
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}'))]);
 

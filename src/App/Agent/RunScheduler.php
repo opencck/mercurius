@@ -169,10 +169,10 @@ final class RunScheduler {
             }
             if ($speaker === null || $speaker->status !== \OpenCCK\Domain\Entity\PrincipalStatus::Active) {
                 $visitor ??= $this->policies->visitor();
-                $policy = $policy->capTo($visitor);
+                $policy = $policy->narrowedBy($visitor, keepApproval: $principal->isOwner());
                 continue;
             }
-            $policy = $policy->capTo($this->policies->forPrincipal($speaker));
+            $policy = $policy->narrowedBy($this->policies->forPrincipal($speaker), keepApproval: $principal->isOwner());
         }
         return $policy;
     }
