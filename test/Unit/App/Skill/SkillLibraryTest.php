@@ -213,4 +213,37 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertCount(3, $library->history($this->owner, null, 'notes'), 'the rollback is an edit that can be undone');
         self::assertNotNull($library->rollback($this->owner, null, 'notes', 999, new NullCancellation()), 'an unknown edit');
     }
+    public function testAnImportedSkillKnowsItsSourceAndIsUpdatedFromIt(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — the source and revision of an import are in SKILL.md; /skill update takes it again
+        $revision = 'r1';
+        $source = new class($revision) implements \OpenCCK\App\Skill\SkillSource {
+            public function __construct(public string $revision) {}
+
+            public function supports(string $url): bool {
+                return str_starts_with($url, 'https://github.com/acme/');
+            }
+
+            public function fetch(string $url, \Amp\Cancellation $cancellation): SkillBundle {
+                return SkillBundle::fromFiles(['SKILL.md' => "---
+name: weekly
+description: Отчёт
+---
+
+Версия {$this->revision}."], 'https://github.com/acme/skills/tree/' . $this->revision . '/weekly', $this->revision);
+            }
+        };
+        $library = $this->library();
+        $commands = new SkillCommands($library, fn(string $c, string $chat, string $t): ?Project => null, new \OpenCCK\App\Skill\SkillImporter([$source]));
+        $message = new IncomingMessage('telegram', '42', '42', null, 'Owner', '/skill', '1', null, true, new DateTimeImmutable(), 'u1');
+
+        $commands->skill($this->owner, $message, 'import https://github.com/acme/skills/tree/main/weekly');
+        $saved = $this->sandbox->files[1]['.mercurius/skills/weekly/SKILL.md'] ?? '';
+        self::assertStringContainsString("source: https://github.com/acme/skills/tree/main/weekly\nrevision: r1", $saved, 'the address asked, not the pinned one');
+
+        self::assertStringContainsString('последняя', $commands->skill($this->owner, $message, 'weekly update'));
+        $source->revision = 'r2';
+        self::assertStringContainsString('r2', $commands->skill($this->owner, $message, 'weekly update'));
+        self::assertStringContainsString('Версия r2.', $this->sandbox->files[1]['.mercurius/skills/weekly/SKILL.md'] ?? '');
+        self::assertStringContainsString('нет источника', $commands->skill($this->owner, $message, 'deploy update'), 'a skill without a source');
+    }
 }

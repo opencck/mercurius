@@ -94,7 +94,7 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
             } else {
                 return ToolResult::error(t('tool.skill_import.need'));
             }
-            $dir = $this->library->write($bundle, $target, $context->cancellation, 'skill_import');
+            $dir = $this->library->write($bundle, $target, $context->cancellation, 'skill_import', $url === '' ? null : $url);
         } catch (InvalidArgumentException | SandboxFailure $e) {
             return ToolResult::error($e->getMessage());
         }

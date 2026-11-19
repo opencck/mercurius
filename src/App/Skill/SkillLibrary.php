@@ -56,6 +56,34 @@ final class SkillLibrary {
     /** a file of a skill kept in the journal of edits at most this big */
     private const EDIT_FILE_BYTES = 1_000_000;
 
+    /**
+     * Where a skill of this conversation came from and where it lies: null when it is built in or has no source.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — /skill update
+     *
+     * @return array{source: string, revision: string, target: array{owner: int, dir: string, limits: SandboxLimits}}|null
+     */
+    public function origin(Principal $who, ?Project $project, string $name, Cancellation $cancellation): ?array {
+        $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
+        if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->sandbox === null) {
+            return null;
+        }
+        $limits = ($this->limitsOf)($skill['owner']);
+        if ($limits === null) {
+            return null;
+        }
+        try {
+            $raw = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/SKILL.md', SkillBundle::READ_BYTES, $cancellation);
+        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+            return null;
+        }
+        $origin = SkillBundle::origin($raw);
+        if ($origin['source'] === '') {
+            return null;
+        }
+        return $origin + ['target' => ['owner' => $skill['owner'], 'dir' => dirname($skill['dir']), 'limits' => $limits]];
+    }
+
     /** spec: BRIEF.md#скиллы-и-mcp — a journal of skill edits with a rollback of one record */
     public function useEdits(\OpenCCK\Domain\Repository\SkillEditRepository $edits): void {
         $this->edits = $edits;
@@ -305,14 +333,17 @@ final class SkillLibrary {
      *
      * @param array{owner: int, dir: string, limits: SandboxLimits} $target
      * @param string $source who edits: skill_save, skill_import, /skill import — for the journal
+     * @param string|null $from the address a skill was imported by: kept with its revision in SKILL.md for /skill update
      */
-    public function write(SkillBundle $bundle, array $target, Cancellation $cancellation, string $source = ''): string {
+    public function write(SkillBundle $bundle, array $target, Cancellation $cancellation, string $source = '', ?string $from = null): string {
         if ($this->sandbox === null) {
             throw new \RuntimeException('no sandbox');
         }
         $root = $target['dir'] . '/' . $bundle->name;
         $before = $this->edits === null ? null : $this->folder($target['owner'], $target['limits'], $root, $cancellation);
-        $skillMd = "---\nname: " . $bundle->name . "\ndescription: " . str_replace("\n", ' ', $bundle->description) . "\n---\n\n" . $bundle->body . "\n";
+        // spec: BRIEF.md#скиллы-и-mcp — an imported skill keeps where it came from and which revision it is
+        $origin = $from === null || preg_match('~[\r\n]~', $from . $bundle->revision) === 1 ? '' : "source: " . $from . "\nrevision: " . $bundle->revision . "\n";
+        $skillMd = "---\nname: " . $bundle->name . "\ndescription: " . str_replace("\n", ' ', $bundle->description) . "\n" . $origin . "---\n\n" . $bundle->body . "\n";
         $this->sandbox->write($target['owner'], $target['limits'], $root . '/SKILL.md', $skillMd, $cancellation);
         foreach ($bundle->files as $path => $text) {
             $this->sandbox->write($target['owner'], $target['limits'], $root . '/' . $path, $text, $cancellation);

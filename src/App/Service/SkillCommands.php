@@ -63,7 +63,7 @@ final class SkillCommands {
             }
             try {
                 [$bundle, $findings] = $this->importer->fetch($parts[1] ?? '', new TimeoutCancellation(60));
-                $dir = $this->library->write($bundle, $target, new TimeoutCancellation(30), '/skill import');
+                $dir = $this->library->write($bundle, $target, new TimeoutCancellation(30), '/skill import', $parts[1] ?? null);
             } catch (InvalidArgumentException $e) {
                 return $e->getMessage();
             }
@@ -79,6 +79,26 @@ final class SkillCommands {
             }
             $this->usage->turnOff($name, $action === 'off');
             return sprintf($action === 'off' ? t('service.skill_commands.off_now') : t('service.skill_commands.on_now'), $name);
+        }
+        // spec: BRIEF.md#скиллы-и-mcp — an imported skill is taken again from its source when the revision changed
+        if ($action === 'update' && $this->importer !== null) {
+            $origin = $this->library->origin($who, $project, $name, new TimeoutCancellation(30));
+            if ($origin === null) {
+                return sprintf(t('service.skill_commands.no_source'), $name);
+            }
+            try {
+                [$bundle, $findings] = $this->importer->fetch($origin['source'], new TimeoutCancellation(60));
+                if ($bundle->revision !== '' && $bundle->revision === $origin['revision']) {
+                    return sprintf(t('service.skill_commands.up_to_date'), $name, $origin['revision']);
+                }
+                if ($bundle->name !== $name) {
+                    return sprintf(t('service.skill_commands.other_name'), $origin['source'], $bundle->name, $name);
+                }
+                $this->library->write($bundle, $origin['target'], new TimeoutCancellation(30), '/skill update', $origin['source']);
+            } catch (InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return sprintf(t('service.skill_commands.updated'), $name, $origin['revision'] === '' ? '—' : $origin['revision'], $bundle->revision, $findings === [] ? t('skill.import.clean') : implode("\n", array_slice($findings, 0, 10)));
         }
         // spec: BRIEF.md#скиллы-и-mcp — the journal of a skill's edits and the rollback of one of them
         if ($action === 'history') {

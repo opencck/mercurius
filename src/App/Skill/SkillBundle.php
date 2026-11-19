@@ -87,6 +87,18 @@ final class SkillBundle {
     }
 
     /**
+     * Where an imported skill came from: the address it was imported by and the revision then; empty when not imported.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — the source and revision of an import, for /skill update
+     *
+     * @return array{source: string, revision: string}
+     */
+    public static function origin(string $skillMd): array {
+        [$meta] = self::frontmatter($skillMd);
+        return ['source' => $meta['source'] ?? '', 'revision' => $meta['revision'] ?? ''];
+    }
+
+    /**
      * The name, the one-line description and the text of a SKILL.md, for the index and for reading.
      *
      * @return array{name: string, description: string, body: string}
