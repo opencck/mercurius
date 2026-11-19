@@ -399,6 +399,34 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringContainsString('пустой ответ', (string) $this->observer->final);
     }
 
+    public function testTwoEmptyAnswersWithNoOutputAtAllAreNotAskedAThirdTime(): void {
+        $nothing = static fn(): \Mercurius\Llm\ChatResponse => new \Mercurius\Llm\ChatResponse('', [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(100, 0), 'test/model', 'gen');
+        $llm = new ScriptedLlm([$nothing(), $nothing(), ScriptedLlm::text('лишний'), ScriptedLlm::text('лишний')]);
+
+        $this->execute($llm, $this->start());
+
+        // ref: hermes empty_response_guard — the same model, the same finish, zero output twice: a deterministic empty
+        self::assertCount(2, $llm->requests, 'a third request would bill the same input for the same nothing');
+    }
+
+    public function testACostlyEmptyAnswerIsRetriedOnlyOnce(): void {
+        $costly = static fn(): \Mercurius\Llm\ChatResponse => new \Mercurius\Llm\ChatResponse('', [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(1000, 5, costUsd: 0.6), 'test/model', 'gen');
+        $llm = new ScriptedLlm([$costly(), $costly(), ScriptedLlm::text('лишний')]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertCount(2, $llm->requests);
+    }
+
+    public function testAnEmptyAnswerSpentOnReasoningIsAskedAgainWithLessReasoning(): void {
+        $thought = new \Mercurius\Llm\ChatResponse('', [], \Mercurius\Llm\FinishReason::Length, new \Mercurius\Llm\Usage(100, 4000, reasoningTokens: 4000), 'test/model', 'gen');
+        $llm = new ScriptedLlm([$thought, ScriptedLlm::text('Ответ.'), ScriptedLlm::text('Ещё.')]);
+
+        $this->execute($llm, $this->start());
+
+        self::assertSame('low', $llm->requests[1]->reasoningEffort);
+    }
+
     public function testBrokenStreamIsRetriedOnce(): void {
         $broken = ScriptedLlm::broken('Отв', new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Network, 'reset'));
         $llm = new ScriptedLlm([$broken, ScriptedLlm::text('Ответ.')]);

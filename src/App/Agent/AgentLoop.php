@@ -82,6 +82,8 @@ final class AgentLoop {
     private const MAX_CONTINUATIONS = 4;
     /** Retries of an empty answer. */
     private const MAX_EMPTY_RETRIES = 3;
+    /** an empty answer whose input cost this much (USD) is retried once: each retry bills the whole input again */
+    private const COSTLY_EMPTY_USD = 0.25;
     public const TEXT_ACTION_NOTE = 'agent.agent_loop.text_action';
     /** how the system note of done actions begins (now and before), in both languages */
     private const ACTION_MARKERS = ['[Сделано в этом запуске', '[Done in this run', '[Служебная заметка системы', '[System note'];
@@ -238,14 +240,8 @@ final class AgentLoop {
                 // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
                 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
                 //       model works; another model would only be asked to say the same
-                if ($this->fallback !== null && !$state->switched && $state->lastError !== ErrorKind::ContentFilter) {
-                    $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId);
-                    if ($next !== null) {
-                        $state->switched = true;
-                        $state->model = $next;
-                        $this->runs->switchModel($state->run->id, $next);
-                        continue;
-                    }
+                if ($state->lastError !== ErrorKind::ContentFilter && $this->switchModel($state)) {
+                    continue;
                 }
                 return StopReason::ModelFailed;
             }
@@ -263,10 +259,11 @@ final class AgentLoop {
                 $text = $state->partial . $response->text;
                 // ref: references/hermes-agent/agent/turn_empty_response.py@e96221fa:L105-L155 (_retry_empty) — an empty
                 //      answer is asked again with a hint, up to 3 times
-                if (trim($text) === '' && $state->emptyRetries < self::MAX_EMPTY_RETRIES) {
-                    $state->emptyRetries++;
+                if (trim($text) === '' && $this->retryEmpty($state, $response)) {
                     continue;
                 }
+                $state->emptyStreak = [];
+                $state->lessReasoning = false;
                 // spec: BRIEF.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
                 //      words (it copies the system note of earlier runs) is shown back once with a reminder
                 // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
@@ -292,6 +289,8 @@ final class AgentLoop {
             $state->partial = '';
             $state->continuations = 0;
             $state->emptyRetries = 0;
+            $state->emptyStreak = [];
+            $state->lessReasoning = false;
 
             $outcome = $this->validator->validate($response->toolCalls, $state->policy, $this->transcript->callIds($state->run->id));
             if ($outcome->truncated) {
@@ -431,7 +430,56 @@ final class AgentLoop {
             $messages[] = Message::user($closingPrompt);
         }
         $model = $state->model ?? $state->run->model;
-        return new ChatRequest($model, $messages, $tools, $maxTokens, reasoningEffort: $this->reasoningEffort, extra: self::cacheKey($model, $state->run->conversationId));
+        $effort = $state->lessReasoning ? 'low' : $this->reasoningEffort;
+        return new ChatRequest($model, $messages, $tools, $maxTokens, reasoningEffort: $effort, extra: self::cacheKey($model, $state->run->conversationId));
+    }
+
+    /**
+     * Whether an empty answer is asked again. Each retry bills the whole input once more, so a costly one is retried
+     * once, and two answers in a row with no output at all from the same model are not retried: the model switches if
+     * it can. An answer that went to reasoning is asked again with less of it.
+     *
+     * ref: references/hermes-agent/agent/empty_response_guard.py@e96221fa:L1-L30, L157-L237 (deterministic_empty,
+     *      empty_retry_budget) — the signature of model, provider and finish, zero output and reasoning proven by usage,
+     *      a budget of 1 over $0.25; here the cost is the one the provider reported, and a reasoning-only empty answer
+     *      lowers the effort of the retry instead of being left to the prefill path
+     */
+    private function retryEmpty(RunState $state, \Mercurius\Llm\ChatResponse $response): bool {
+        $usage = $response->usage;
+        $nothing = $usage->inputTokens > 0 && $usage->outputTokens + $usage->reasoningTokens === 0;
+        $state->emptyStreak[] = $nothing ? $response->model . '|' . $response->finishReason->value : null;
+        $state->lessReasoning = $usage->reasoningTokens > 0;
+        $streak = $state->emptyStreak;
+        if (count($streak) >= 2 && !in_array(null, $streak, true) && count(array_unique($streak)) === 1) {
+            $this->logger->notice('The same empty answer twice: not asked again', ['run' => $state->run->id, 'model' => $response->model]);
+            if ($this->switchModel($state)) {
+                $state->emptyRetries = 0;
+                $state->emptyStreak = [];
+                return true;
+            }
+            return false;
+        }
+        $budget = ($usage->costUsd ?? 0.0) >= self::COSTLY_EMPTY_USD ? 1 : self::MAX_EMPTY_RETRIES;
+        if ($state->emptyRetries >= $budget) {
+            return false;
+        }
+        $state->emptyRetries++;
+        return true;
+    }
+
+    /** One switch per run to another model; false when there is none. */
+    private function switchModel(RunState $state): bool {
+        if ($this->fallback === null || $state->switched) {
+            return false;
+        }
+        $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId);
+        if ($next === null) {
+            return false;
+        }
+        $state->switched = true;
+        $state->model = $next;
+        $this->runs->switchModel($state->run->id, $next);
+        return true;
     }
 
     /**

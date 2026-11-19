@@ -31,6 +31,10 @@ final class RunState {
     public string $partial = '';
     public int $continuations = 0;
     public int $emptyRetries = 0;
+    /** @var list<string|null> per empty answer of the streak: "model|finish" when usage proves no output at all, else null */
+    public array $emptyStreak = [];
+    /** the last empty answer went to reasoning: the retry asks for less of it */
+    public bool $lessReasoning = false;
     /** an answer that reported an action in words without calling a tool, shown back once with a reminder */
     public ?string $textAction = null;
     public bool $textActionRetried = false;
