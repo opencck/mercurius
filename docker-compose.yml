@@ -216,8 +216,12 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
+      # spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
+      - SYS_ADMIN
     security_opt:
       - no-new-privileges:true
+      - apparmor=unconfined
     tmpfs:
       - /tmp:size=512m,nosuid
     volumes:
@@ -281,8 +285,12 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
+      # spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
+      - SYS_ADMIN
     security_opt:
       - no-new-privileges:true
+      - apparmor=unconfined
     tmpfs:
       - /tmp:size=512m,nosuid
     networks:

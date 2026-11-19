@@ -75,11 +75,12 @@ COPY src ./src
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM
-CMD ["php", "sandbox.php"]
+# /proc with hidepid: a participant sees only own processes, root (gid 0) all of them, to stop what a command left
+CMD ["sh", "-c", "mount -o remount,hidepid=2,gid=0 /proc || echo 'hidepid is not set: /proc stays open' >&2; exec php sandbox.php"]
 
 # Sandbox tests (users, processes, files): docker compose --profile test run --rm sandbox-test
 FROM sandbox AS sandbox-test
 COPY --from=test /app/vendor ./vendor
 COPY phpunit.xml.dist ./
 COPY test ./test
-CMD ["composer", "test-sandbox"]
+CMD ["sh", "-c", "mount -o remount,hidepid=2,gid=0 /proc || echo 'hidepid is not set' >&2; exec composer test-sandbox"]

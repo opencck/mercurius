@@ -64,6 +64,12 @@ final class CommandRunnerTest extends SandboxTestCase {
         $this->runner->run(7, self::limits(), "echo a\0b", $this->workspace->home(7), 10, null, new \Amp\NullCancellation());
     }
 
+    public function testAParticipantDoesNotSeeTheProcessesOfOthers(): void {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc with hidepid: the executor and other participants are hidden
+        $result = $this->sh(7, '[ -d /proc/1 ] && echo SEES || echo HIDDEN');
+        self::assertSame("HIDDEN\n", $result->stdout);
+    }
+
     public function testTimeoutKillsBackgroundProcesses(): void {
         $result = $this->sh(7, 'sleep 300 & nohup sleep 301 >/dev/null 2>&1 & sleep 302', 1);
 
