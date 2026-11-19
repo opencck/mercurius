@@ -77,6 +77,13 @@ final class AgentLoop {
     public const TEXT_ACTION_NOTE = 'agent.agent_loop.text_action';
     /** how the system note of done actions begins (now and before), in both languages */
     private const ACTION_MARKERS = ['[Сделано в этом запуске', '[Done in this run', '[Служебная заметка системы', '[System note'];
+    private const SELF_INFO = 'self_info';
+    /** words of an answer that says the agent cannot do something about itself; lower case */
+    private const DENIAL_MARKERS = [
+        'не вижу такой возможности', 'нет такой возможности', 'такой возможности нет', 'такой возможности у меня нет',
+        'у меня нет возможности', 'нет такой функции', 'такой функции нет', 'не умею', 'не поддерживаю',
+        "i can't do", 'i cannot do', 'i am not able to', "i'm not able to", 'no such feature', "i don't have the ability",
+    ];
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
@@ -300,6 +307,16 @@ final class AgentLoop {
             return Step::next();
         }
         $state->silenceAfterActions = false;
+        // spec: BRIEF.md#знания-агента-о-себе — "no such ability" about itself only after self_info: a weak model
+        //      answered "I cannot pass ownership" without looking, while /owner exists
+        if (!$state->selfCheckRetried && self::deniesAbility($text) && $this->registry->get(self::SELF_INFO) !== null && !$this->called($state->run->id, self::SELF_INFO)) {
+            $state->selfCheckRetried = true;
+            $state->selfCheck = $text;
+            $state->partial = '';
+            $this->logger->notice('An ability was denied without self_info: asked to check', ['run' => $state->run->id]);
+            return Step::next();
+        }
+        $state->selfCheck = null;
         $state->partial = '';
         $state->finalText = $text;
         $this->saveAnswer($state, $text);
@@ -436,6 +453,9 @@ final class AgentLoop {
     private function tail(RunState $state): array {
         if ($state->textAction !== null) {
             return [Message::assistant($state->textAction), Message::user(\Mercurius\I18n\t(self::TEXT_ACTION_NOTE))];
+        }
+        if ($state->selfCheck !== null) {
+            return [Message::assistant($state->selfCheck), Message::user(\Mercurius\I18n\t('agent.agent_loop.self_check'))];
         }
         if ($state->silenceAfterActions) {
             return [Message::assistant('[SILENT]'), Message::user(\Mercurius\I18n\t('agent.agent_loop.silent_after_actions'))];
@@ -591,6 +611,33 @@ final class AgentLoop {
         $state->observer->waiting($paused, t('agent.agent_loop.zhdu_podtverzhdeniya_vladeltsa'));
         $this->logger->info('Run waits for approval', ['run' => $state->run->id]);
         return $paused;
+    }
+
+    /** The answer says the agent has no such ability or feature: worth a look in self_info first. */
+    private static function deniesAbility(string $text): bool {
+        $lower = mb_strtolower($text);
+        foreach (self::DENIAL_MARKERS as $marker) {
+            if (str_contains($lower, $marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the run has called a tool of this name. */
+    private function called(int $runId, string $name): bool {
+        try {
+            foreach ($this->transcript->runEntries($runId) as $entry) {
+                foreach ($entry->message->toolCalls as $call) {
+                    if ($call->name === $name) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Throwable) {
+            return true;
+        }
+        return false;
     }
 
     /** The answer reports a done action in the form of the system note instead of calling a tool. */

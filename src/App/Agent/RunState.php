@@ -41,6 +41,9 @@ final class RunState {
     /** a [SILENT] answer after actions: the model is asked once to report them instead */
     public bool $silenceAfterActions = false;
     public bool $silenceRetried = false;
+    /** an answer that denied an ability without self_info, shown back once with a reminder to look */
+    public ?string $selfCheck = null;
+    public bool $selfCheckRetried = false;
     /** A call that broke mid-stream was repeated once. */
     public bool $streamRetried = false;
     /** The last call delivered at least one stream event before it failed. */

@@ -208,6 +208,36 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertNotEmpty($asked);
     }
 
+    public function testADeniedAbilityIsCheckedInSelfInfoFirst(): void {
+        // spec: BRIEF.md#знания-агента-о-себе — "no, I cannot" about itself is said only after self_info
+        $self = new FakeTool('self_info');
+        $this->registry->register($self);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::text('Нет, я не вижу такой возможности у себя.'),
+            ScriptedLlm::calls(new ToolCall('c1', 'self_info', '{"q":"commands"}')),
+            ScriptedLlm::text('Да: /owner <номер участника>.'),
+        ]);
+
+        $this->execute($llm, $this->start('могу ли я передать права владения другому?'));
+
+        self::assertCount(1, $self->calls, 'the agent looked itself up');
+        self::assertSame('Да: /owner <номер участника>.', $this->observer->final);
+        $nudged = array_filter($llm->requests[1]->messages, static fn(Message $m): bool => str_contains($m->content, 'self_info'));
+        self::assertNotEmpty($nudged, 'the second call carries the reminder');
+    }
+
+    public function testADenialAfterSelfInfoIsLetThrough(): void {
+        $this->registry->register(new FakeTool('self_info'));
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'self_info', '{"q":"tools"}')),
+            ScriptedLlm::text('Нет, такой возможности у меня нет.'),
+        ]);
+
+        $this->execute($llm, $this->start('умеешь звонить?'));
+
+        self::assertCount(2, $llm->requests, 'checked already: no reminder');
+    }
+
     public function testAReportOfWhatThisRunReallyDidIsNotDoubted(): void {
         $save = new FakeTool('settings', DangerClass::Write);
         $this->registry->register($save);
