@@ -589,6 +589,8 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
 // spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
+// spec: BRIEF.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
+$workers->useContext($scheduler->workerContext(...));
 $consolidationJournal = new PostgresConsolidationJournal($db);
 $proposals->onForget(static function (Fact $fact) use ($transcript, $experience, $traces, $consolidationJournal): void {
     $line = sprintf('[#%d] %s', $fact->id, $fact->text);

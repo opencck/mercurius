@@ -172,4 +172,24 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('<untrusted-data source="project">', $system);
         self::assertStringContainsString('Активный проект: Меркурий', $system);
     }
+
+    public function testAWorkerAskingForTheProjectGetsTheBlockOfTheOrchestratorsChat(): void {
+        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — the same block the orchestrator's prompt has
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $project = $this->projects->create('Меркурий', 'Агент на сервере');
+        $this->projects->activate('telegram', '42', $project->id);
+        $stack->scheduler->useProjects(new ProjectContext($this->projects));
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+        $run = $stack->runs->find(1);
+        self::assertNotNull($run);
+        $parent = new ToolContext($run->id, $run->conversationId, $this->owner, new NullCancellation());
+
+        $context = $stack->scheduler->workerContext($parent, ['project']);
+
+        self::assertStringContainsString('<untrusted-data source="project">', $context);
+        self::assertStringContainsString('Активный проект: Меркурий', $context);
+        self::assertSame('', $stack->scheduler->workerContext($parent, []), 'isolation unless asked');
+        self::assertSame('', $stack->scheduler->workerContext($parent, ['participant']), 'no core memory without the memory module');
+    }
 }

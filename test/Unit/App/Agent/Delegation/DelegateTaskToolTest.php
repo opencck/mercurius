@@ -50,6 +50,9 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack = new AgentStack($llm, $limits);
         $stack->registry->register(new FakeTool('read', delay: 0.2));
         $stack->registry->register(new FakeTool('push', DangerClass::Irreversible));
+        $stack->registry->register(new FakeTool('note', DangerClass::Write));
+        $stack->registry->register(new FakeTool('memory_search'));
+        $stack->registry->register(new FakeTool('memory_propose', DangerClass::Write));
         $runner = new WorkerRunner(
             $stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->registry, $this->roles, 15, 100_000, new NullLogger(),
             new ModelSelector($stores, $this->roles, $stores, new NullLogger()),
@@ -116,6 +119,82 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         self::assertSame(['read'], array_map(static fn($t): string => $t->name, $llm->requests[1]->tools));
+    }
+
+    public function testTheOrchestratorSetsAReadOnlyModeAndTheBriefShowsTheRights(): void {
+        // spec: BRIEF.md#права-воркера-задаёт-оркестратор
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'прочитай', 'tools' => ['read', 'note'], 'mode' => 'read']]),
+            ScriptedLlm::text('готово'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(['read'], array_map(static fn($t): string => $t->name, $llm->requests[1]->tools), 'a write tool is dropped in the read mode');
+        $brief = $llm->requests[1]->messages[1]->content;
+        self::assertStringContainsString('read', $brief);
+        self::assertStringContainsString(\Mercurius\I18n\t('delegation.worker_runner.rights_read'), $brief, 'the worker and the trace see its rights');
+    }
+
+    public function testMemoryIsGivenOnlyWhenTheOrchestratorSaysSo(): void {
+        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — memory is the orchestrator's decision
+        $llm = new ScriptedLlm([
+            self::delegate([
+                ['goal' => 'без памяти', 'tools' => ['read', 'memory_search']],
+                ['goal' => 'читает память', 'tools' => ['read'], 'memory' => 'read'],
+                ['goal' => 'пишет в память', 'tools' => ['note'], 'memory' => 'write', 'mode' => 'write'],
+                ['goal' => 'чтение не пишет', 'tools' => ['read'], 'memory' => 'write', 'mode' => 'read'],
+            ]),
+            ScriptedLlm::text('1'), ScriptedLlm::text('2'), ScriptedLlm::text('3'), ScriptedLlm::text('4'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $tools = [];
+        foreach (array_slice($llm->requests, 1, 4) as $request) {
+            $first = $request->messages[1]->content;
+            $names = array_map(static fn($t): string => $t->name, $request->tools);
+            sort($names);
+            $tools[str_contains($first, 'без памяти') ? 1 : (str_contains($first, 'читает') ? 2 : (str_contains($first, 'пишет в') ? 3 : 4))] = $names;
+        }
+        ksort($tools);
+        self::assertSame([
+            1 => ['read'],
+            2 => ['memory_search', 'read'],
+            3 => ['memory_propose', 'memory_search', 'note'],
+            4 => ['memory_search', 'read'],
+        ], $tools);
+    }
+
+    public function testTheContextOfTheConversationIsGivenOnlyOnRequest(): void {
+        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — isolation unless the orchestrator asks for context
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'изолирован'], ['goal' => 'с проектом', 'context_of' => ['project']]]),
+            ScriptedLlm::text('1'), ScriptedLlm::text('2'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $asked = [];
+        $this->runner->useContext(static function (\OpenCCK\App\Agent\Tool\ToolContext $parent, array $of) use (&$asked): string {
+            $asked[] = $of;
+            return in_array('project', $of, true) ? 'КАРТОЧКА ПРОЕКТА' : '';
+        });
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $briefs = array_map(static fn($r): string => $r->messages[1]->content, array_slice($llm->requests, 1, 2));
+        $isolated = array_values(array_filter($briefs, static fn(string $b): bool => str_contains($b, 'изолирован')))[0] ?? '';
+        $withProject = array_values(array_filter($briefs, static fn(string $b): bool => str_contains($b, 'с проектом')))[0] ?? '';
+        self::assertStringNotContainsString('КАРТОЧКА ПРОЕКТА', $isolated);
+        self::assertStringContainsString('КАРТОЧКА ПРОЕКТА', $withProject);
+        self::assertSame([['project']], $asked, 'nothing is read for an isolated part');
     }
 
     public function testAWorkerGetsOnlyToolsOfTheWhiteList(): void {

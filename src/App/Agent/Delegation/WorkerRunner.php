@@ -52,7 +52,16 @@ final class WorkerRunner {
      * Tools a worker never gets: no further delegation, no changes to roles and rights; no memory, history or
      * experience — a worker has no audience of its own, and what it learns goes back in its report.
      */
-    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy', 'memory_search', 'memory_propose', 'history_search', 'experience_search'];
+    public const FORBIDDEN = ['delegate_task', 'set_model_role', 'set_participant_policy'];
+
+    /**
+     * Memory a worker gets only when the orchestrator gives it (`memory`): searching the participant's memory and
+     * history, and with `write` proposing facts too.
+     *
+     * spec: BRIEF.md#права-воркера-задаёт-оркестратор
+     */
+    public const MEMORY_READ = ['memory_search', 'history_search', 'experience_search'];
+    public const MEMORY_WRITE = ['memory_propose'];
     /** Workers running side by side at most, when all of them only read. */
     private const PARALLEL = 3;
     /** Below this a worker cannot make even one call (answer cap 4096 plus its prompt): refuse instead of starting it. */
@@ -107,6 +116,7 @@ final class WorkerRunner {
     public const ALLOWED = [
         'read_file', 'list_files', 'search_files', 'write_file', 'run_command', 'git', 'checkpoint', 'http_request', 'web_search', 'web_read',
         'browser', 'documents', 'media', 'skill_view', 'self_info', 'servers', 'ssh_run', 'sql_query', 'file_write', 'tcp_probe',
+        'memory_search', 'history_search', 'experience_search', 'memory_propose',
     ];
     /** @var list<string>|null names a worker may get, `name*` for a prefix; null — no list (tests) */
     private ?array $allowed = null;
@@ -138,6 +148,19 @@ final class WorkerRunner {
             }
             return false;
         }));
+    }
+
+    /** @var (\Closure(ToolContext, list<string>): string)|null the conversation's context a worker may be given */
+    private ?\Closure $context = null;
+
+    /**
+     * Where a worker's context comes from when the orchestrator asks for it: the same blocks the orchestrator's own
+     * prompt has (the active project, the participant's core memory where the conversation is private).
+     *
+     * @param \Closure(ToolContext, list<string>): string $context
+     */
+    public function useContext(\Closure $context): void {
+        $this->context = $context;
     }
 
     /** Each part that ran is recorded as experience: what was asked, which model did it, how it went. */
@@ -314,6 +337,9 @@ final class WorkerRunner {
     /** @param list<WorkerTask> $tasks */
     private function readOnly(ToolContext $parent, array $tasks): bool {
         foreach ($tasks as $task) {
+            if ($task->mode === 'write') {
+                return false;
+            }
             foreach ($this->tools($parent, $task) as $name) {
                 if ($this->registry->get($name)?->danger([]) !== DangerClass::Read) {
                     return false;
@@ -325,9 +351,23 @@ final class WorkerRunner {
 
     /** @return list<string> the tools the worker gets: asked for, allowed to the orchestrator, existing, not forbidden */
     private function tools(ToolContext $parent, WorkerTask $task): array {
+        $asked = $task->tools;
+        if ($task->memory !== 'none') {
+            $asked = [...$asked, ...self::MEMORY_READ, ...($task->memory === 'write' ? self::MEMORY_WRITE : [])];
+        }
         $tools = [];
-        foreach ($this->onTheList(array_values(array_unique($task->tools))) as $name) {
-            if (in_array($name, self::FORBIDDEN, true) || $this->registry->get($name) === null) {
+        foreach ($this->onTheList(array_values(array_unique($asked))) as $name) {
+            $tool = $this->registry->get($name);
+            if (in_array($name, self::FORBIDDEN, true) || $tool === null) {
+                continue;
+            }
+            // spec: BRIEF.md#права-воркера-задаёт-оркестратор — memory only as the orchestrator gave it
+            if ((in_array($name, self::MEMORY_READ, true) && $task->memory === 'none')
+                || (in_array($name, self::MEMORY_WRITE, true) && $task->memory !== 'write')) {
+                continue;
+            }
+            // the read-only mode the orchestrator chose: a tool that may write is not given at all
+            if ($task->mode === 'read' && $tool->danger([]) !== DangerClass::Read) {
                 continue;
             }
             if ($parent->policy !== null && !$parent->policy->allowsTool($name)) {
@@ -560,9 +600,9 @@ final class WorkerRunner {
                 if ($onStarted !== null) {
                     $onStarted($run->id);
                 }
-                $this->transcript->appendUser($conversation, $run->id, self::brief($task));
+                $this->transcript->appendUser($conversation, $run->id, $this->brief($parent, $task));
             }
-            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly, false);
+            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);
@@ -594,15 +634,38 @@ final class WorkerRunner {
         );
     }
 
-    private static function brief(WorkerTask $task): string {
+    /**
+     * The worker's first message: the orchestrator's context, the conversation's context if asked for, the task, the
+     * expected answer and the worker's rights — the worker sees them and so does its trace.
+     */
+    private function brief(ToolContext $parent, WorkerTask $task): string {
         $parts = [];
         if (trim($task->context) !== '') {
             $parts[] = t('delegation.worker_runner.kontekst') . trim($task->context);
+        }
+        if ($task->contextOf !== [] && $this->context !== null) {
+            try {
+                $shared = trim(($this->context)($parent, $task->contextOf));
+            } catch (Throwable $e) {
+                $this->logger->warning('Worker context is not available', ['error' => $e::class]);
+                $shared = '';
+            }
+            if ($shared !== '') {
+                $parts[] = $shared;
+            }
         }
         $parts[] = t('delegation.worker_runner.zadacha') . trim($task->goal);
         if (trim($task->output) !== '') {
             $parts[] = t('delegation.worker_runner.nuzhen_otvet') . trim($task->output);
         }
+        $tools = $this->tools($parent, $task);
+        $parts[] = sprintf(
+            t('delegation.worker_runner.rights'),
+            $tools === [] ? t('delegation.worker_runner.rights_no_tools') : implode(', ', $tools),
+            t($task->mode === 'read' || ($task->mode === '' && $this->readOnly($parent, [$task])) ? 'delegation.worker_runner.rights_read' : 'delegation.worker_runner.rights_write'),
+            t('delegation.worker_runner.rights_memory_' . $task->memory),
+            $task->contextOf === [] ? t('delegation.worker_runner.rights_isolated') : implode(', ', array_map(static fn(string $c): string => t('delegation.worker_runner.rights_context_' . $c), $task->contextOf)),
+        );
         return implode("\n\n", $parts);
     }
 

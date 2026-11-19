@@ -61,6 +61,10 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                                 'additionalProperties' => false,
                             ],
                             'verify' => ['type' => 'boolean', 'description' => t('delegation.delegate_task_tool.proverit_otvet_otdelnym_proveryayuschim')],
+                            // spec: BRIEF.md#права-воркера-задаёт-оркестратор
+                            'mode' => ['type' => 'string', 'enum' => WorkerTask::MODES, 'description' => t('delegation.delegate_task_tool.mode')],
+                            'memory' => ['type' => 'string', 'enum' => WorkerTask::MEMORY, 'description' => t('delegation.delegate_task_tool.memory')],
+                            'context_of' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => WorkerTask::CONTEXT_OF], 'description' => t('delegation.delegate_task_tool.context_of')],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
@@ -101,6 +105,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                 if (!is_array($item)) {
                     continue;
                 }
+                [$mode, $memory, $of] = WorkerTask::rights($item);
                 $tasks[] = new WorkerTask(
                     self::field($item, 'goal') ?? '',
                     self::field($item, 'context') ?? '',
@@ -109,6 +114,9 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                     self::field($item, 'role') ?? 'main',
                     isset($item['profile']) && is_array($item['profile']) ? TaskProfile::fromArray($item['profile']) : null,
                     ($item['verify'] ?? false) === true,
+                    $mode,
+                    $memory,
+                    $of,
                 );
             }
         }

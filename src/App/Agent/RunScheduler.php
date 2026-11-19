@@ -503,6 +503,36 @@ final class RunScheduler {
     }
 
     /**
+     * The context of the orchestrator's conversation a worker asked to have it gets: the same blocks the orchestrator's
+     * own prompt has — the active project, and the participant's core memory only where the conversation is private.
+     * Its report comes back into the same conversation, so it learns nothing the orchestrator could not tell it.
+     *
+     * spec: BRIEF.md#права-воркера-задаёт-оркестратор
+     *
+     * @param list<string> $of 'project', 'participant'
+     */
+    public function workerContext(\OpenCCK\App\Agent\Tool\ToolContext $parent, array $of): string {
+        $meta = $this->conversations->meta($parent->conversationId);
+        if ($meta === null) {
+            return '';
+        }
+        $parts = [];
+        if (in_array('project', $of, true)) {
+            $project = $this->project($parent->principal, $meta->channel, $meta->chatId, $meta->threadId);
+            if ($project !== '') {
+                $parts[] = UntrustedWrapper::wrap('project', $project);
+            }
+        }
+        if (in_array('participant', $of, true)) {
+            $core = $this->core($parent->principal, $parent->conversationId);
+            if ($core !== '') {
+                $parts[] = UntrustedWrapper::wrap('participant', $core);
+            }
+        }
+        return implode("\n\n", $parts);
+    }
+
+    /**
      * The forum topic answers go to: the conversation's own topic (kept in the base, so a run resumed after a restart
      * answers in it), else the thread of the last message (a reply chain in an ordinary group).
      */
