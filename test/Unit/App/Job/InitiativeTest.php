@@ -81,7 +81,7 @@ final class InitiativeTest extends AsyncTestCase {
         $this->scheduler(new ScriptedLlm([]), 3);
         $initiative = new Initiative($this->jobs, new DateTimeZone('UTC'), fn(): DateTimeImmutable => $this->now);
 
-        $initiative->sync($this->owner, '42', 'daily:10:30');
+        $initiative->sync($this->owner, 'telegram', '42', 'daily:10:30');
         $jobs = $this->jobs->list($this->owner->id);
         self::assertCount(1, $jobs);
         self::assertSame(Initiative::TITLE, $jobs[0]->title);
@@ -89,15 +89,15 @@ final class InitiativeTest extends AsyncTestCase {
         self::assertSame(Job::ACTIVE, $jobs[0]->status);
         self::assertStringContainsString('[SILENT]', $jobs[0]->prompt, 'nothing to say — nothing is sent');
 
-        $initiative->sync($this->owner, '42', 'daily:10:30');
+        $initiative->sync($this->owner, 'telegram', '42', 'daily:10:30');
         self::assertCount(1, $this->jobs->list($this->owner->id), 'the same setting changes nothing');
 
-        $initiative->sync($this->owner, '42', 'every:240');
+        $initiative->sync($this->owner, 'telegram', '42', 'every:240');
         $active = array_values(array_filter($this->jobs->list($this->owner->id), static fn(Job $j): bool => $j->status === Job::ACTIVE));
         self::assertCount(1, $active);
         self::assertSame('every:240', $active[0]->schedule);
 
-        $initiative->sync($this->owner, '42', '');
+        $initiative->sync($this->owner, 'telegram', '42', '');
         self::assertSame([], array_values(array_filter($this->jobs->list($this->owner->id), static fn(Job $j): bool => $j->status === Job::ACTIVE)), 'an empty setting turns it off');
     }
 
@@ -105,7 +105,7 @@ final class InitiativeTest extends AsyncTestCase {
         $this->scheduler(new ScriptedLlm([]), 3);
         $initiative = new Initiative($this->jobs, new DateTimeZone('UTC'), fn(): DateTimeImmutable => $this->now);
 
-        self::assertFalse($initiative->sync($this->owner, '42', 'every:1'));
+        self::assertFalse($initiative->sync($this->owner, 'telegram', '42', 'every:1'));
         self::assertSame([], $this->jobs->list($this->owner->id));
     }
 }

@@ -42,7 +42,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
         private readonly PrincipalRepository $principals,
         private readonly Channel $channel,
         private readonly MessageRelayRepository $relays,
-        private readonly string $channelName = 'telegram',
+        private readonly string $channelName,
         /** files to attach come from the sender's sandbox home; null — text only */
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
         /** another agent — a neighbour or one connected here — is written to over A2A; null — people only */

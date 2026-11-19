@@ -52,11 +52,11 @@ final class SendContentToolTest extends AsyncTestCase {
     }
 
     private function files(): SendFileTool {
-        return new SendFileTool($this->sandbox, $this->channel, $this->conversations, new Recipients($this->principals));
+        return new SendFileTool($this->sandbox, $this->channel, $this->conversations, new Recipients($this->principals, 'telegram'));
     }
 
     private function content(): SendContentTool {
-        return new SendContentTool($this->channel, $this->conversations, new Recipients($this->principals));
+        return new SendContentTool($this->channel, $this->conversations, new Recipients($this->principals, 'telegram'));
     }
 
     public function testAFileGoesAsItsKindGuessedByTheName(): void {

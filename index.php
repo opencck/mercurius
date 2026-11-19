@@ -190,7 +190,7 @@ $logger->info('Migrations checked', ['applied' => $applied]);
 
 // spec: BRIEF.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
 // when it is kept, and once more here: if they fail, the agent starts on .env and says why.
-$principals = new PostgresPrincipalRepository($db);
+$principals = new PostgresPrincipalRepository($db, TelegramChannel::NAME);
 // spec: BRIEF.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
 $ownerDirectory = new \OpenCCK\App\Service\OwnerDirectory($principals, TelegramChannel::NAME, $telegram->ownerId);
 // spec: BRIEF.md#несколько-пользователей — the owner reads every secret but a former owner's
@@ -837,7 +837,7 @@ $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', 
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));
 $tools->register(new JobManageTool($jobRepository, $jobScheduler));
 // spec: BRIEF.md#планировщик-и-проекты — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
-if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
 
@@ -1080,7 +1080,7 @@ $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($ru
     $meta = $run === null ? null : $conversations->meta($run->conversationId);
     return $run !== null && $meta !== null && ($run->principalId === $viewer->id || str_starts_with($meta->chatId, '-'));
 });
-if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
 $presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv']);

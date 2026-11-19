@@ -64,7 +64,7 @@ final class MemoryCards implements CallbackHandler {
         $chatId = OwnerDirectory::chat($this->ownerChatId);
         $who = $this->ownerOf($proposal);
         if ($who !== null) {
-            $chatId = $this->principals->externalId($who, 'telegram') ?? OwnerDirectory::chat($this->ownerChatId);
+            $chatId = $this->principals->externalId($who, $this->channel->name()) ?? OwnerDirectory::chat($this->ownerChatId);
         }
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a fact the agent wrote itself comes as a notice the owner
         //       may undo with one press; anything else waits for the owner's decision

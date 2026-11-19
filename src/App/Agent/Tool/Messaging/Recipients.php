@@ -25,7 +25,8 @@ use function Mercurius\I18n\t;
 final class Recipients {
     public function __construct(
         private readonly PrincipalRepository $principals,
-        private readonly string $channel = 'telegram',
+        /** the channel the people are written to in: their identities there are their chats */
+        private readonly string $channel,
     ) {}
 
     /** The active person the name points to; the text — why there is none. */

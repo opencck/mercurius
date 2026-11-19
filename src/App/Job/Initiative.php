@@ -49,7 +49,7 @@ final class Initiative {
      * Brings the owner's initiative job in line with the setting: '' pauses it; a schedule creates or reschedules it.
      * False when the schedule cannot be read; nothing is changed then.
      */
-    public function sync(Principal $owner, string $chatId, string $schedule): bool {
+    public function sync(Principal $owner, string $channel, string $chatId, string $schedule): bool {
         $schedule = trim($schedule);
         $job = null;
         foreach ($this->jobs->list($owner->id) as $candidate) {
@@ -74,7 +74,7 @@ final class Initiative {
         }
         $next = $parsed->next(($this->now)(), $this->zone, true);
         if ($job === null) {
-            $this->jobs->create($owner->id, 'telegram', $chatId, $this->title, t($this->promptKey), (string) $parsed, $next);
+            $this->jobs->create($owner->id, $channel, $chatId, $this->title, t($this->promptKey), (string) $parsed, $next);
             return true;
         }
         if ($job->schedule !== (string) $parsed || $job->status !== Job::ACTIVE) {

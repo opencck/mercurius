@@ -18,7 +18,8 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
     /** the vault name of the agent's own key for other agents (AgentIdentity::VAULT_NAME), and of its extra keys */
     private const AGENT_KEY = 'a2a-identity-key';
 
-    public function __construct(private readonly PostgresLink $db) {}
+    /** @param string $channel the channel of the owner's chat: jobs passed with the agent go to the new owner's chat there */
+    public function __construct(private readonly PostgresLink $db, private readonly string $channel) {}
 
     public function owner(): ?Principal {
         $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals WHERE role = 'owner'")->fetchRow();
@@ -45,9 +46,9 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
                 [$to, self::AGENT_KEY, self::AGENT_KEY . '-'],
             );
             $tx->execute(
-                "UPDATE jobs SET principal_id = ?, chat_id = coalesce((SELECT external_id FROM channel_identities WHERE principal_id = ? AND channel = 'telegram' ORDER BY external_id LIMIT 1), chat_id)
+                "UPDATE jobs SET principal_id = ?, chat_id = coalesce((SELECT external_id FROM channel_identities WHERE principal_id = ? AND channel = ? ORDER BY external_id LIMIT 1), chat_id)
                  WHERE principal_id = ? AND title IN ('initiative', 'self-review')",
-                [$to, $to, $from],
+                [$to, $to, $this->channel, $from],
             );
             $tx->execute('INSERT INTO ownership_transfers (from_principal, to_principal) VALUES (?, ?)', [$from, $to]);
             $tx->commit();

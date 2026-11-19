@@ -18,7 +18,7 @@ final class PostgresPrincipalStoreTest extends PrincipalStoreContract {
     protected function setUp(): void {
         parent::setUp();
         $this->db = TestDatabase::connect();
-        $this->principals = new PostgresPrincipalRepository($this->db);
+        $this->principals = new PostgresPrincipalRepository($this->db, 'telegram');
         $this->externalId = 'visitor-' . bin2hex(random_bytes(6));
     }
 
