@@ -290,22 +290,8 @@ final class WorkerRunner {
      * @return array<int, WorkerReport>
      */
     private function side(array $jobs): array {
-        $reports = [];
-        $futures = [];
-        foreach ($jobs as $index => $job) {
-            $futures[$index] = async($job);
-            if (count($futures) === self::PARALLEL) {
-                $reports += Future\await($futures);
-                $futures = [];
-            }
-        }
-        if ($futures !== []) {
-            $reports += Future\await($futures);
-        }
-        ksort($reports);
-        // Every job returns a WorkerReport; the futures lose the type on the way.
-        /** @var array<int, WorkerReport> $reports */
-        return $reports;
+        // spec: BRIEF.md#часть-1--синхронное-делегирование — a sliding window: a free slot takes the next part
+        return SlidingWindow::run($jobs, self::PARALLEL);
     }
 
     /**
