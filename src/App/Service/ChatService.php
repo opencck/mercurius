@@ -196,7 +196,7 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, t(self::MEMORY_PRIVATE));
             } else {
                 $this->reply($message, match ($command) {
-                    '/memory' => $this->memory->overview($message->channel, $message->chatId),
+                    '/memory' => $this->memory->show(substr($text, strlen($command)), $message->channel, $message->chatId),
                     '/consolidate' => $this->memory->consolidate(),
                     default => $this->memory->forget(substr($text, strlen($command))),
                 });

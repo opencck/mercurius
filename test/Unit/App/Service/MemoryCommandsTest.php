@@ -55,6 +55,26 @@ final class MemoryCommandsTest extends AsyncTestCase {
         self::assertStringNotContainsString('Чужой факт', $reply);
     }
 
+    public function testFactsGoByPagesAndByWords(): void {
+        // spec: BRIEF.md#память-слои — /memory <words> and pages; every fact shows where it came from
+        for ($i = 1; $i <= 25; $i++) {
+            $this->store->addFact('owner', Fact::KNOWLEDGE, 'Заметка номер ' . $i, ['заметк', 'н' . $i], 0.6, Fact::AGENT, null);
+        }
+        $coffee = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Пьёт кофе без сахара', ['пьёт', 'коф', 'сахар'], 0.7, Fact::OWNER_SAID, null);
+
+        $this->chat->handle($this->stack->message('/memory 2'));
+        $second = $this->lastReply();
+        $this->chat->handle($this->stack->message('/memory кофе'));
+        $found = $this->lastReply();
+
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.memory_commands.page'), 2, 2), $second);
+        self::assertStringContainsString('Заметка номер 1', $second, 'the oldest are on the last page');
+        self::assertStringNotContainsString('Пьёт кофе', $second);
+        self::assertStringContainsString(sprintf('#%d Пьёт кофе без сахара', $coffee->id), $found);
+        self::assertStringContainsString(\Mercurius\I18n\t('memory.provenance.owner_said'), $found);
+        self::assertStringNotContainsString('Заметка номер', $found);
+    }
+
     public function testForgetRemovesTheFact(): void {
         $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Секретный план', ['план'], 0.8, Fact::OWNER_SAID, null);
 

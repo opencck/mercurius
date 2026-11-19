@@ -20,6 +20,9 @@ use function Mercurius\I18n\t;
  */
 final class MemoryCommands {
     public const RECENT = 20;
+    /** the facts paged through at most */
+    private const ALL = 2000;
+    private const SEARCH_BUDGET = 6000;
     private const LINE = 300;
 
     public function __construct(
@@ -34,6 +37,29 @@ final class MemoryCommands {
         return $this->consolidation === null ? t('service.memory_commands.proverka_pamyati_ne_nastroena') : $this->consolidation->run(true);
     }
 
+    /**
+     * /memory: the overview; /memory <number> — that page of facts, newest first; /memory <words> — the facts recall
+     * finds by them.
+     *
+     * spec: BRIEF.md#память-слои — /memory <words> and pages
+     */
+    public function show(string $argument, string $channel, string $chatId): string {
+        $argument = trim($argument);
+        $scopes = [Audience::OWNER, Audience::chat($channel, $chatId)];
+        if ($argument === '') {
+            return $this->overview($channel, $chatId);
+        }
+        if (ctype_digit($argument)) {
+            $all = $this->store->recent($scopes, self::ALL);
+            $pages = max(1, (int) ceil(count($all) / self::RECENT));
+            $page = max(1, min($pages, (int) $argument));
+            $facts = array_slice($all, ($page - 1) * self::RECENT, self::RECENT);
+            return sprintf(t('service.memory_commands.page'), $page, $pages) . "\n" . ($facts === [] ? t('service.memory_commands.faktov_poka_net') : self::lines($facts));
+        }
+        $found = $this->context->search($argument, $scopes, self::SEARCH_BUDGET);
+        return $found === [] ? t('service.memory_commands.nothing_found') : t('service.memory_commands.found') . "\n" . self::lines($found);
+    }
+
     public function overview(string $channel, string $chatId): string {
         $parts = [];
         $core = $this->context->core();
@@ -43,13 +69,22 @@ final class MemoryCommands {
         $facts = $this->store->recent([Audience::OWNER, Audience::chat($channel, $chatId)], self::RECENT);
         $parts[] = $facts === []
             ? t('service.memory_commands.faktov_poka_net')
-            : t('service.memory_commands.poslednie_fakty') . implode("\n", array_map(static fn($f): string => sprintf('#%d %s', $f->id, self::cut($f->text)), $facts));
+            : t('service.memory_commands.poslednie_fakty') . self::lines($facts);
         $pending = $this->store->pending();
         if ($pending !== []) {
             $parts[] = t('service.memory_commands.zhdut_resheniya') . implode("\n", array_map(static fn($p): string => sprintf('№%d %s: %s', $p->id, $p->kind, self::cut($p->text)), $pending));
         }
         $parts[] = t('service.memory_commands.forget_nomer_zabyt_fakt_nasovsem');
         return implode("\n\n", $parts);
+    }
+
+    /**
+     * One line a fact: number, text and where it came from.
+     *
+     * @param list<\OpenCCK\Memory\Domain\Fact> $facts
+     */
+    private static function lines(array $facts): string {
+        return implode("\n", array_map(static fn(\OpenCCK\Memory\Domain\Fact $f): string => sprintf('#%d %s — %s', $f->id, self::cut($f->text), t('memory.provenance.' . $f->provenance)), $facts));
     }
 
     public function forget(string $argument): string {

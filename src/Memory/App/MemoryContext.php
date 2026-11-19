@@ -34,6 +34,16 @@ final class MemoryContext {
     }
 
     /**
+     * Facts found by words, as recall finds them, without marking them recalled in a conversation.
+     *
+     * @param list<string> $scopes
+     * @return list<\OpenCCK\Memory\Domain\Fact>
+     */
+    public function search(string $words, array $scopes, int $budget): array {
+        return $this->recall->find($words, $scopes, null, $budget);
+    }
+
+    /**
      * Layer 1: the profile and the summary of what is going on — the owner's, or a participant's own in their private
      * chat; '' while both are empty.
      *
