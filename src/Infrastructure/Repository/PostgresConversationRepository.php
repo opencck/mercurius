@@ -42,6 +42,13 @@ final class PostgresConversationRepository implements ConversationRepository {
         );
     }
 
+    public function isOpen(int $conversationId): bool {
+        foreach ($this->db->execute('SELECT 1 FROM conversations WHERE id = ? AND closed_at IS NULL', [$conversationId]) as $row) {
+            return true;
+        }
+        return false;
+    }
+
     public function meta(int $conversationId): ?ConversationMeta {
         $row = $this->db->execute(
             'SELECT id, principal_id, channel, chat_id, system_prompt, model, thread_id FROM conversations WHERE id = ?',

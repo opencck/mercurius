@@ -31,6 +31,10 @@ final class InMemoryConversationRepository implements ConversationRepository {
         unset($this->open[$channel . ':' . $chatId . ':' . $threadId]);
     }
 
+    public function isOpen(int $conversationId): bool {
+        return in_array($conversationId, $this->open, true);
+    }
+
     public function meta(int $conversationId): ?ConversationMeta {
         return $this->meta[$conversationId] ?? null;
     }

@@ -24,6 +24,9 @@ interface ConversationRepository {
 
     public function meta(int $conversationId): ?ConversationMeta;
 
+    /** Whether the conversation is still the open one of its chat (not closed by /new). */
+    public function isOpen(int $conversationId): bool;
+
     /** Fixes the system prompt and model of the conversation when it opens; they do not change afterwards. */
     public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void;
 

@@ -39,7 +39,10 @@ final class PostgresConversationTopicTest extends AsyncTestCase {
         self::assertSame('12', $conversations->meta($topic)?->threadId);
         self::assertSame('', $conversations->meta($chat)?->threadId);
 
+        self::assertTrue($conversations->isOpen($topic));
         $conversations->close('telegram', '-100777', '12');
+        self::assertFalse($conversations->isOpen($topic), 'closed by /new');
+        self::assertTrue($conversations->isOpen($chat));
         self::assertNotSame($topic, $conversations->openConversation($principalId, 'telegram', '-100777', '12'));
         self::assertSame($chat, $conversations->openConversation($principalId, 'telegram', '-100777'), 'closing a topic leaves the chat alone');
     }

@@ -49,6 +49,30 @@ final class RunSchedulerTest extends AsyncTestCase {
         self::assertSame('и ещё X', $messages[4]->content);
     }
 
+    public function testADeliveryToAConversationClosedByNewIsDropped(): void {
+        // spec: BRIEF.md#часть-3--фоновое-делегирование — /new is a clean start: no old report runs in it
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок'), ScriptedLlm::text('не должно')]));
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+        $run = $stack->runs->find(1);
+        self::assertNotNull($run);
+        $meta = $stack->conversations->meta($run->conversationId);
+        self::assertNotNull($meta);
+        $principal = $stack->principals->find($run->principalId);
+        self::assertNotNull($principal);
+        $stack->conversations->close($meta->channel, $meta->chatId, $meta->threadId);
+        $delivered = [];
+
+        $stack->scheduler->deliver($principal, $run->conversationId, 'отчёт воркеров', static function (int $runId) use (&$delivered): void {
+            $delivered[] = $runId;
+        });
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame([], $delivered);
+        self::assertNull($stack->runs->find(2), 'no run in the closed conversation');
+        self::assertCount(1, $stack->llm->requests);
+    }
+
     public function testMessagesWithinDebounceAreMerged(): void {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]), debounce: 0.2);
 

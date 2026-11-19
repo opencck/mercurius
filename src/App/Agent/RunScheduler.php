@@ -239,6 +239,12 @@ final class RunScheduler {
                         delay(self::DELIVERY_POLL);
                         continue;
                     }
+                    // spec: BRIEF.md#часть-3--фоновое-делегирование — /new is a clean start: a report that finished
+                    //       before it does not bring the old conversation back
+                    if (!$this->conversations->isOpen($conversationId)) {
+                        $this->logger->info('Delivery dropped: the conversation was closed', ['conversation' => $conversationId]);
+                        return;
+                    }
                     // A delivered report is the agent's own text, often quoting the web: no recall on it.
                     $runId = $this->start($principal, $conversationId, $text, null, mayJoin: false, recall: false, outside: $outside === null ? [] : [$outside]);
                     if ($runId !== null) {
