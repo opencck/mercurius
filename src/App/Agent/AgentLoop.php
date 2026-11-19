@@ -139,6 +139,7 @@ final class AgentLoop {
 
     /** Runs until the run ends; on shutdown returns the run still running, to resume after restart. */
     public function run(Run $run, ParticipantPolicy $policy, Principal $principal, RunObserver $observer, Cancellation $cancellation): Run {
+        \OpenCCK\Infrastructure\Logger\RunContext::set($run->id);
         $meta = $this->conversations->meta($run->conversationId);
         $state = new RunState(
             $run,
@@ -681,6 +682,8 @@ final class AgentLoop {
         if (!$call->executable() || $call->tool === null) {
             return ToolResult::error($call->error ?? t('agent.agent_loop.vyzov_ne_proshel_proverku'));
         }
+        // a tool call runs in a fiber of its own: its log lines name the run too
+        \OpenCCK\Infrastructure\Logger\RunContext::set($state->run->id);
         $this->transcript->startCall($state->run->id, $call->call->id);
         if ($call->tool instanceof ReadsOutside && $call->args !== null && $call->tool->readsOutside($call->args)) {
             // marked before the call: even a failed read may have brought text in

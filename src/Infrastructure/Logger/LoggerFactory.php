@@ -25,6 +25,7 @@ final class LoggerFactory {
         $logger = new Logger($channel);
         $logger->pushHandler($handler);
         $logger->pushProcessor(new SecretProcessor());
+        $logger->pushProcessor(new RunContext());
         $logger->pushProcessor(new PsrLogMessageProcessor());
         $logger->useLoggingLoopDetection(false);
 
