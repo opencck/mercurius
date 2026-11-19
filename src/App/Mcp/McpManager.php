@@ -67,6 +67,16 @@ final class McpManager {
     private bool $ticking = false;
     /** @var array<string, McpServer> built-in servers by name */
     private array $builtinServers = [];
+    private ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null;
+    private ?\DateTimeZone $zone = null;
+
+    /**
+     * spec: BRIEF.md#интернет-и-браузер — files of MCP tools go to and from the participants' sandbox
+     */
+    public function useSandbox(\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox, \DateTimeZone $zone): void {
+        $this->sandbox = $sandbox;
+        $this->zone = $zone;
+    }
 
     /** At start: the tools of every active server; a changed one is turned off. */
     /** @var array<string, string> bearer tokens of built-in servers by name */
@@ -353,7 +363,11 @@ final class McpManager {
                 continue;
             }
             try {
-                $this->registry->register(new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker));
+                $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker);
+                if ($this->sandbox !== null && $this->zone !== null) {
+                    $mcpTool->useSandbox($this->sandbox, $this->zone);
+                }
+                $this->registry->register($mcpTool);
             } catch (\InvalidArgumentException $e) {
                 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a tool with a schema no model can call is left out
                 $this->logger->warning('An MCP tool is not registered', ['server' => $server->name, 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);

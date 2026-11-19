@@ -752,6 +752,9 @@ $mcpManager = new McpManager(
     $logger,
     stdio: $stdioMcp !== null,
 );
+if ($sandbox !== null) {
+    $mcpManager->useSandbox($sandbox, new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00'));
+}
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
 // spec: BRIEF.md#скиллы-и-mcp — servers down at start are tried again, connected ones are listed again for changes
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($mcpManager): void {

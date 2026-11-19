@@ -69,7 +69,8 @@ final class HttpMcpClient extends McpRpcClient {
         }
         $request->setTransferTimeout(60);
         $request->setInactivityTimeout(60);
-        $request->setBodySizeLimit(4_194_304);
+        // an answer may carry a file (an attachment of a letter, base64): up to 25 MB of it
+        $request->setBodySizeLimit(36 * 1024 * 1024);
         try {
             $response = $this->http->request($request, $cancellation);
             $text = $response->getBody()->buffer($cancellation);

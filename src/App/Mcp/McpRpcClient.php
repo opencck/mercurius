@@ -50,7 +50,21 @@ abstract class McpRpcClient implements McpClient {
     public function call(McpServer $server, #[SensitiveParameter] ?string $token, string $tool, array $arguments, Cancellation $cancellation): array {
         $session = $this->session($server, $token, $cancellation);
         $result = $this->rpc($server, $token, $session, 'tools/call', ['name' => $tool, 'arguments' => (object) $arguments], $cancellation);
+        return self::content($result);
+    }
+
+    /**
+     * The text of a tool result, whether it is an error, and the files in it: an embedded resource with a blob, an
+     * image or audio with data. A binary part is not text for the model; the caller keeps it as a file.
+     *
+     * spec: BRIEF.md#интернет-и-браузер — an attachment of a letter reaches the sandbox
+     *
+     * @param array<array-key, mixed> $result
+     * @return array{0: string, 1: bool, 2: list<array{name: string, type: string, bytes: string}>}
+     */
+    public static function content(array $result): array {
         $texts = [];
+        $files = [];
         $content = isset($result['content']) && is_array($result['content']) ? $result['content'] : [];
         foreach (array_keys($content) as $k) {
             $part = $content[$k] ?? null;
@@ -58,15 +72,53 @@ abstract class McpRpcClient implements McpClient {
                 continue;
             }
             $type = isset($part['type']) && is_string($part['type']) ? $part['type'] : '';
-            $texts[] = $type === 'text' && isset($part['text']) && is_string($part['text'])
-                ? $part['text']
-                : sprintf('(%s)', $type === '' ? t('mcp.http_mcp_client.neizvestnoe_soderzhimoe') : $type);
+            $file = self::file($part, count($files) + 1);
+            if ($file !== null) {
+                $files[] = $file;
+                continue;
+            }
+            $resource = $type === 'resource' && isset($part['resource']) && is_array($part['resource']) ? $part['resource'] : null;
+            $texts[] = match (true) {
+                $type === 'text' && isset($part['text']) && is_string($part['text']) => $part['text'],
+                $resource !== null && isset($resource['text']) && is_string($resource['text']) => $resource['text'],
+                default => sprintf('(%s)', $type === '' ? t('mcp.http_mcp_client.neizvestnoe_soderzhimoe') : $type),
+            };
         }
         if (isset($result['structuredContent']) && $texts === []) {
             $json = json_encode($result['structuredContent'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $texts[] = $json === false ? '' : $json;
         }
-        return [implode("\n", $texts), ($result['isError'] ?? false) === true];
+        return [implode("\n", $texts), ($result['isError'] ?? false) === true, $files];
+    }
+
+    /**
+     * @param array<array-key, mixed> $part
+     * @return array{name: string, type: string, bytes: string}|null
+     */
+    private static function file(array $part, int $number): ?array {
+        $type = isset($part['type']) && is_string($part['type']) ? $part['type'] : '';
+        if ($type === 'resource' && isset($part['resource']) && is_array($part['resource'])) {
+            $resource = $part['resource'];
+            /** @var mixed $data */
+            $data = $resource['blob'] ?? null;
+            $uri = isset($resource['uri']) && is_string($resource['uri']) ? $resource['uri'] : '';
+            $mime = isset($resource['mimeType']) && is_string($resource['mimeType']) ? $resource['mimeType'] : 'application/octet-stream';
+            $path = parse_url($uri, PHP_URL_PATH);
+            $name = rawurldecode(basename(is_string($path) ? $path : ''));
+        } elseif ($type === 'image' || $type === 'audio') {
+            /** @var mixed $data */
+            $data = $part['data'] ?? null;
+            $mime = isset($part['mimeType']) && is_string($part['mimeType']) ? $part['mimeType'] : 'application/octet-stream';
+            $name = sprintf('%s-%d.%s', $type, $number, explode('/', $mime)[1] ?? 'bin');
+        } else {
+            return null;
+        }
+        $bytes = is_string($data) ? base64_decode($data, true) : false;
+        if ($bytes === false) {
+            return null;
+        }
+        $name = preg_replace('~[^\p{L}\p{N}._ -]~u', '_', $name) ?? '';
+        return ['name' => trim($name, ' .') === '' ? sprintf('file-%d', $number) : $name, 'type' => $mime, 'bytes' => $bytes];
     }
 
     /**

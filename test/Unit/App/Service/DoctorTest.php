@@ -34,6 +34,13 @@ final class DoctorTest extends AsyncTestCase {
         }
     }
 
+    public function testMailNamesTheAuthservIdItTrusts(): void {
+        // spec: BRIEF.md#интернет-и-браузер — doctor names the authserv-id the sender check trusts
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mail.kwinta.net'), self::results(['MAIL_HOST' => 'Mail.Kwinta.net']));
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mx.example.ru'), self::results(['MAIL_HOST' => 'mail.kwinta.net', 'MAIL_AUTHSERV_ID' => 'mx.example.ru']));
+        self::assertStringNotContainsString('authserv', self::results([]), 'no mail, no line');
+    }
+
     public function testABrokenCommandJournalFails(): void {
         // spec: BRIEF.md#фаза-7-по-частям — doctor checks the chain of the command journal
         $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
