@@ -188,6 +188,26 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame(A2aTask::COMPLETED, $a['peers']->outgoing[$fresh->id]->state ?? null, 'the others are still read');
     }
 
+    public function testTheNeighbourKeepsTheLeadersRunAndTakesItsTokenCap(): void {
+        // spec: BRIEF.md#сеть-агентов — the leader's run and its token cap go in metadata.mercurius
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
+        $policy = new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 777, 900, 120), null, true);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(7, $conversation, $a['owner'], new \Amp\NullCancellation(), $policy);
+
+        (new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($a['network'], $a['peers'], $a['stack']->conversations))->execute(['peer' => 'b', 'task' => 'Посчитай', 'wait' => 5], $context);
+
+        $b = $this->agents['b'];
+        $task = end($b['peers']->tasks);
+        self::assertNotFalse($task);
+        self::assertSame(7, $task->leaderRun, 'the run of the leader is kept for the trace');
+        self::assertNotNull($task->runId);
+        $run = $b['stack']->runs->find($task->runId);
+        self::assertNotNull($run);
+        self::assertLessThanOrEqual(777, $run->limits->tokenBudget, 'the neighbour takes the smaller budget');
+    }
+
     public function testANoticeOfATaskThisAgentDidNotGiveChangesNothing(): void {
         $a = $this->agents['a'];
         $a['network']->noticed('b', 'TaskStatusUpdate', ['id' => 'task-unknown', 'state' => A2aTask::COMPLETED]);

@@ -30,6 +30,10 @@ final class A2aTask {
         public readonly int $depth = 0,
         /** @var list<string> */
         public readonly array $path = [],
+        /** the run of the leader that gave the task, as it said */
+        public readonly ?int $leaderRun = null,
+        /** the task of the leader's own neighbour its run works on, in a chain */
+        public readonly ?string $parentTask = null,
     ) {}
 
     public function terminal(): bool {

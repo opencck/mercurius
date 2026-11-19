@@ -349,7 +349,18 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      * @param list<array{name: string, bytes: string}> $files
      */
-    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null): OutgoingTask {
+    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null, ?int $tokens = null, ?string $parentTask = null): OutgoingTask {
+        // spec: BRIEF.md#сеть-агентов — the token cap, the leader's run and the task it works on go with the task
+        $lead = [];
+        if ($tokens !== null) {
+            $lead['tokens'] = $tokens;
+        }
+        if ($leaderRun !== null) {
+            $lead['leaderRun'] = $leaderRun;
+        }
+        if ($parentTask !== null) {
+            $lead['parentTask'] = $parentTask;
+        }
         $peer = $this->peers->peer($peerName);
         // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
@@ -362,7 +373,7 @@ final class PeerNetwork {
         $token = null;
         if ($link !== null) {
             try {
-                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::forAgents($task), $depth + 1, $path, $files, [], $contextId)));
+                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::forAgents($task), $depth + 1, $path, $files, [], $contextId, $lead)));
             } catch (\RuntimeException $e) {
                 throw new DomainException($e->getMessage());
             }
@@ -371,7 +382,7 @@ final class PeerNetwork {
         } else {
             $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
             $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
-            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::forAgents($task), $depth + 1, $path, null, $files, $contextId));
+            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::forAgents($task), $depth + 1, $path, null, $files, $contextId, $lead));
         }
         $remoteId = A2aClient::taskId($remote) ?? throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);

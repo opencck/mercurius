@@ -283,6 +283,11 @@ final class TraceReports {
             $cost += $remote['usd'] ?? 0.0;
             $lines[] = sprintf(t('service.trace_reports.remote'), $remote['peer'], $remote['remote'], $remote['run'] === null ? '?' : '#' . $remote['run'], $remote['state'], $remote['tokens'], $remote['usd'] === null ? '?' : self::usd($remote['usd']));
         }
+        // spec: BRIEF.md#сеть-агентов — a task from a neighbour names the leader's run and the task it works on
+        $given = $this->peers?->taskByRun($runId);
+        if ($given !== null && ($given->leaderRun !== null || $given->parentTask !== null)) {
+            $lines[] = sprintf(t('service.trace_reports.from_leader'), $given->id, $given->leaderRun === null ? '?' : '#' . $given->leaderRun, $given->parentTask ?? '—');
+        }
         $lines[] = '';
         $lines[] = t('service.trace_reports.stoimost_shagov') . self::usd($cost);
         return implode("\n", $lines);

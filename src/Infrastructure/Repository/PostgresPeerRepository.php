@@ -14,7 +14,7 @@ use OpenCCK\Domain\Repository\PeerRepository;
 use UnexpectedValueException;
 
 final class PostgresPeerRepository implements PeerRepository {
-    private const TASK = 'id, principal_id, context_id, message_id, state, run_id, result, depth, path::text AS path';
+    private const TASK = 'id, principal_id, context_id, message_id, state, run_id, result, depth, path::text AS path, leader_run, parent_task';
     private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result, leader_run_id, context_id';
     private const REQUEST = 'id, fingerprint, name, url, transport, status';
     private const OPEN = "('TASK_STATE_SUBMITTED', 'TASK_STATE_WORKING')";
@@ -113,10 +113,10 @@ final class PostgresPeerRepository implements PeerRepository {
         return $row === null ? null : self::taskRow($row);
     }
 
-    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = []): bool {
+    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = [], ?int $leaderRun = null, ?string $parentTask = null): bool {
         return $this->db->execute(
-            'INSERT INTO a2a_tasks (id, principal_id, context_id, message_id, state, depth, path) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb) ON CONFLICT DO NOTHING RETURNING id',
-            [$id, $principalId, $contextId, $messageId, $state, $depth, json_encode($path, JSON_THROW_ON_ERROR)],
+            'INSERT INTO a2a_tasks (id, principal_id, context_id, message_id, state, depth, path, leader_run, parent_task) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?) ON CONFLICT DO NOTHING RETURNING id',
+            [$id, $principalId, $contextId, $messageId, $state, $depth, json_encode($path, JSON_THROW_ON_ERROR), $leaderRun, $parentTask],
         )->fetchRow() !== null;
     }
 
@@ -256,6 +256,8 @@ final class PostgresPeerRepository implements PeerRepository {
             isset($row['result']) && is_string($row['result']) ? $row['result'] : null,
             isset($row['depth']) && is_int($row['depth']) ? $row['depth'] : 0,
             self::path($row),
+            isset($row['leader_run']) && is_int($row['leader_run']) ? $row['leader_run'] : null,
+            isset($row['parent_task']) && is_string($row['parent_task']) ? $row['parent_task'] : null,
         );
     }
 

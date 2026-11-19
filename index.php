@@ -957,6 +957,15 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
     sandbox: $sandbox,
     requests: $agentRequests,
     files: $a2aFiles,
+    // spec: BRIEF.md#сеть-агентов — the cost of a task's run (its workers too) in USD goes to the leader's trace
+    costOf: static function (int $runId) use ($db): ?float {
+        $row = $db->execute(
+            'SELECT coalesce(sum(cost_usd), 0)::float8 AS usd FROM llm_calls WHERE run_id = ? OR run_id IN (SELECT id FROM runs WHERE parent_run_id = ?)',
+            [$runId, $runId],
+        )->fetchRow();
+        $usd = $row['usd'] ?? null;
+        return is_float($usd) ? $usd : null;
+    },
 );
 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour marks the run that reads it
 $peerNetwork->onAnswered($scheduler->taint(...));

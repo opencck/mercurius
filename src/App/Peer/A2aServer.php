@@ -421,6 +421,7 @@ final class A2aServer implements JobRuns {
             ? $message['contextId']
             : 'ctx-' . substr(hash('sha256', $agent->id . "\0" . $messageId), 0, 16);
         [$depth, $path] = self::chain($params);
+        $lead = self::lead($params);
         $taskId = 'task-' . bin2hex(random_bytes(8));
         $refusal = match (true) {
             in_array($this->self, $path, true) => t('peer.a2a_server.tsikl_delegirovaniya_zadacha_uzhe_prohod'),
@@ -428,7 +429,7 @@ final class A2aServer implements JobRuns {
             $this->peers->contextTurns($agent->id, $contextId) >= self::MAX_TURNS => sprintf(t('peer.a2a_server.v_odnom_kontekste_ne_bolshe'), self::MAX_TURNS),
             default => null,
         };
-        if (!$this->peers->createTask($taskId, $agent->id, $contextId, $messageId, $refusal === null ? A2aTask::SUBMITTED : A2aTask::REJECTED, $depth, [...$path, $this->self])) {
+        if (!$this->peers->createTask($taskId, $agent->id, $contextId, $messageId, $refusal === null ? A2aTask::SUBMITTED : A2aTask::REJECTED, $depth, [...$path, $this->self], $lead['leaderRun'], $lead['parentTask'])) {
             $raced = $this->peers->taskByMessage($agent->id, $messageId);
             return $raced === null ? self::error($id, self::ERR_INVALID_PARAMS, 'task was not created') : self::result($id, $this->view($raced), $v1);
         }
@@ -436,17 +437,19 @@ final class A2aServer implements JobRuns {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, $refusal);
             $this->logger->notice('A2A task refused', ['agent' => $agent->id, 'reason' => $refusal]);
         } else {
-            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files), $via);
+            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files), $via, $lead['tokens']);
         }
         $task = $this->peers->task($taskId);
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : self::result($id, $this->view($task), $v1);
     }
 
-    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http'): void {
+    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null): void {
         $policy = $this->policies->forPrincipal($agent);
         $conversation = $this->conversations->openConversation($agent->id, self::CHANNEL, 'a2a-' . $agent->id . '-' . $contextId);
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
-        $run = $this->runs->start($conversation, $agent->id, $this->model, $policy->run);
+        // spec: BRIEF.md#сеть-агентов — the token cap the leader sent is taken as the smaller of the two budgets
+        $limits = $tokens === null ? $policy->run : new \OpenCCK\Domain\Agent\RunLimits($policy->run->maxTurns, max(1, min($policy->run->tokenBudget, $tokens)), $policy->run->runTimeout, $policy->run->toolTimeout);
+        $run = $this->runs->start($conversation, $agent->id, $this->model, $limits);
         if ($run === null) {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, t('peer.a2a_server.v_etom_kontekste_uzhe_idet'));
             return;
@@ -785,9 +788,38 @@ final class A2aServer implements JobRuns {
      * @return array{int, list<string>}
      */
     public static function chain(array $params): array {
-        $meta = isset($params['metadata']) && is_array($params['metadata']) && isset($params['metadata']['mercurius']) && is_array($params['metadata']['mercurius'])
+        return self::chainOf(self::meta($params));
+    }
+
+    /**
+     * What the leader says of itself: the token cap of the task, its run and the task its run works on.
+     *
+     * @param array<array-key, mixed> $params
+     * @return array{tokens: ?int, leaderRun: ?int, parentTask: ?string}
+     */
+    public static function lead(array $params): array {
+        $meta = self::meta($params);
+        $tokens = isset($meta['tokens']) && is_int($meta['tokens']) && $meta['tokens'] > 0 ? $meta['tokens'] : null;
+        $run = isset($meta['leaderRun']) && is_int($meta['leaderRun']) && $meta['leaderRun'] > 0 ? $meta['leaderRun'] : null;
+        $parent = isset($meta['parentTask']) && is_string($meta['parentTask']) && preg_match('~^[\w.:-]{1,100}$~D', $meta['parentTask']) === 1 ? $meta['parentTask'] : null;
+        return ['tokens' => $tokens, 'leaderRun' => $run, 'parentTask' => $parent];
+    }
+
+    /**
+     * @param array<array-key, mixed> $params
+     * @return array<array-key, mixed>
+     */
+    private static function meta(array $params): array {
+        return isset($params['metadata']) && is_array($params['metadata']) && isset($params['metadata']['mercurius']) && is_array($params['metadata']['mercurius'])
             ? $params['metadata']['mercurius']
             : [];
+    }
+
+    /**
+     * @param array<array-key, mixed> $meta
+     * @return array{int, list<string>}
+     */
+    private static function chainOf(array $meta): array {
         $depth = isset($meta['depth']) && is_int($meta['depth']) ? max(0, $meta['depth']) : 0;
         $path = [];
         /** @var mixed $item */

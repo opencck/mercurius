@@ -54,7 +54,7 @@ interface PeerRepository {
      *
      * @param list<string> $path instances the task has passed
      */
-    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = []): bool;
+    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = [], ?int $leaderRun = null, ?string $parentTask = null): bool;
 
     public function taskByRun(int $runId): ?A2aTask;
 

@@ -123,18 +123,18 @@ final class InMemoryPeerRepository implements PeerRepository {
         return null;
     }
 
-    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = []): bool {
+    public function createTask(string $id, int $principalId, string $contextId, string $messageId, string $state, int $depth = 0, array $path = [], ?int $leaderRun = null, ?string $parentTask = null): bool {
         if ($this->taskByMessage($principalId, $messageId) !== null) {
             return false;
         }
-        $this->tasks[$id] = new A2aTask($id, $principalId, $contextId, $messageId, $state, null, null, $depth, $path);
+        $this->tasks[$id] = new A2aTask($id, $principalId, $contextId, $messageId, $state, null, null, $depth, $path, $leaderRun, $parentTask);
         $this->touched[$id] = new DateTimeImmutable();
         return true;
     }
 
     public function updateTask(string $id, string $state, ?int $runId, ?string $result): void {
         $t = $this->tasks[$id];
-        $this->tasks[$id] = new A2aTask($t->id, $t->principalId, $t->contextId, $t->messageId, $state, $runId ?? $t->runId, $result ?? $t->result, $t->depth, $t->path);
+        $this->tasks[$id] = new A2aTask($t->id, $t->principalId, $t->contextId, $t->messageId, $state, $runId ?? $t->runId, $result ?? $t->result, $t->depth, $t->path, $t->leaderRun, $t->parentTask);
         $this->touched[$id] = new DateTimeImmutable();
     }
 

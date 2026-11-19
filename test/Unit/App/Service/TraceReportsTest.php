@@ -197,6 +197,21 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertNotNull((new TraceReports($this->figures, $this->traces))->trace(43), 'shown without the rule');
     }
 
+    public function testTheTraceOfATaskFromANeighbourNamesTheLeader(): void {
+        // spec: BRIEF.md#сеть-агентов — the leader's run and the task it works on, on the neighbour's side
+        $this->traces->openRun(44, 'openrouter:x/model');
+        $this->traces->closeRun(44, TraceSpan::OK, 100, null);
+        $peers = new \OpenCCK\Test\Support\InMemoryPeerRepository();
+        $peers->createTask('task-x', 5, 'ctx', 'msg', 'TASK_STATE_WORKING', 1, ['a'], 812, 'task-up');
+        $peers->updateTask('task-x', 'TASK_STATE_COMPLETED', 44, null);
+
+        $trace = (string) (new TraceReports($this->figures, $this->traces, $peers))->trace(44);
+
+        self::assertStringContainsString('task-x', $trace);
+        self::assertStringContainsString('#812', $trace);
+        self::assertStringContainsString('task-up', $trace);
+    }
+
     public function testTheTraceSaysWhyTheModelWasChosen(): void {
         // spec: BRIEF.md#выбор-моделей-под-задачу — every decision about the model is shown in /trace
         $this->traces->openRun(44, 'openrouter:x/model');

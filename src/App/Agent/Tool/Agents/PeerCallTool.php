@@ -116,7 +116,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
         // a run that is itself a task from a neighbour carries its chain on
         $parent = $meta->channel === A2aServer::CHANNEL ? $peers->taskByRun($context->runId) : null;
         try {
-            $out = $network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, [], $context->runId, true, $contextId);
+            $out = $network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, [], $context->runId, true, $contextId, $context->policy?->run->tokenBudget, $parent?->id);
         } catch (DomainException | RuntimeException $e) {
             return $e->getMessage();
         }
