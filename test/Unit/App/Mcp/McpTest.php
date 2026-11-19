@@ -267,6 +267,22 @@ final class McpTest extends AsyncTestCase {
         self::assertNotNull($this->registry->get('mcp_everything_echo'));
     }
 
+    public function testAPackageWithMalwareIsNotApproved(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — the check of MCP packages before /mcp on
+        $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();
+        $client = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(new HttpClient(new FakeHttpClient(), [])), new \OpenCCK\Infrastructure\Mcp\StdioMcpClient($streams, new \OpenCCK\Domain\Agent\SandboxLimits(1, 1, 1, 1, 1)));
+        $manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(): Principal => $this->owner, static function (string $t): void {}, new NullLogger(), stdio: true);
+        $osv = new FakeHttpClient(['https://api.osv.dev/v1/query' => [200, [], '{"vulns":[{"id":"MAL-2026-9","summary":"steals tokens"}]}']]);
+        $manager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(new HttpClient($osv, []), new NullLogger()));
+        $manager->add('evil', 'stdio:npx -y evil-mcp', null);
+
+        $answer = $manager->approve('evil', new NullCancellation());
+
+        self::assertStringContainsString('MAL-2026-9', $answer);
+        self::assertSame([], $streams->spawned, 'the process never started');
+        self::assertNotSame(McpServer::ACTIVE, $this->servers->find('evil')?->status);
+    }
+
     public function testStdioIsRefusedWithoutTheSandbox(): void {
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessage('песочниц');

@@ -785,6 +785,8 @@ $mcpManager = new McpManager(
     $logger,
     stdio: $stdioMcp !== null,
 );
+// spec: BRIEF.md#скиллы-и-mcp — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
+$mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {
     $mcpManager->useSandbox($sandbox, new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00'));
 }

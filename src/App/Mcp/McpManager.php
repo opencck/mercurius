@@ -68,6 +68,12 @@ final class McpManager {
     /** @var array<string, McpServer> built-in servers by name */
     private array $builtinServers = [];
     private ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null;
+    private ?OsvCheck $osv = null;
+
+    /** spec: BRIEF.md#скиллы-и-mcp — the check of MCP packages */
+    public function useOsv(OsvCheck $osv): void {
+        $this->osv = $osv;
+    }
     private ?\DateTimeZone $zone = null;
 
     /**
@@ -140,6 +146,12 @@ final class McpManager {
      */
     public function approve(string $name, Cancellation $cancellation): string {
         $server = $this->servers->find($name) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
+        // spec: BRIEF.md#скиллы-и-mcp — the package of an npx/uvx server is looked up in OSV before it starts
+        $blocked = str_starts_with($server->url, 'stdio:') ? $this->osv?->check(substr($server->url, 6), $cancellation) : null;
+        if ($blocked !== null) {
+            $this->logger->warning('MCP server not approved: its package has a malware advisory', ['server' => $name]);
+            return $blocked;
+        }
         $count = $this->sync($server, true, $cancellation);
         return sprintf(t('mcp.mcp_manager.mcp_server_odobren_instrumentov'), $name, $count);
     }
