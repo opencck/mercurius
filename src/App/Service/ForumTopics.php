@@ -57,6 +57,21 @@ final class ForumTopics {
         return sprintf(t('service.forum_topics.sozdal_temu_dlya_proekta'), $project->name);
     }
 
+    /**
+     * A project got a new name: its topics are renamed too. Best effort, as every topic call.
+     *
+     * spec: BRIEF.md#форум-темы--проекты
+     */
+    public function renamed(int $projectId, string $name): void {
+        if (!$this->channel instanceof ForumChannel) {
+            return;
+        }
+        foreach ($this->projects->topicsOf($projectId) as $topic) {
+            $done = $this->channel->editTopic($topic['chatId'], $topic['threadId'], $name);
+            $this->logger->notice('Forum topic renamed with its project', ['chat' => $topic['chatId'], 'thread' => $topic['threadId'], 'project' => $projectId, 'done' => $done]);
+        }
+    }
+
     /** A project's status changes from $before->status to $status: done closes its topics, a return reopens them. */
     public function statusChanged(Project $before, string $status): void {
         $closing = $status === Project::DONE && $before->status !== Project::DONE;

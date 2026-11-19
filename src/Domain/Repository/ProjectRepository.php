@@ -34,6 +34,14 @@ interface ProjectRepository {
     /** Changes what is given; null leaves a field as it is. */
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project;
 
+    /**
+     * A new name of a project; null when there is no such project.
+     *
+     * spec: BRIEF.md#форум-темы--проекты — a project is renamed together with its forum topics
+     * @throws \DomainException another project of the same owner has that name
+     */
+    public function rename(int $id, string $name): ?Project;
+
 
     /** @param array<string, int> $profile */
     public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask;

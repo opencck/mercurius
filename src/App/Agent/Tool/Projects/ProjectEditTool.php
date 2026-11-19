@@ -31,7 +31,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
     public const RELATION_MAX = 1000;
@@ -68,11 +68,13 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . t('tool.project_edit.1_10_po_osyam_esli')
             . t('tool.project_edit.open_doing_done_dropped_dlya')
             . t('tool.project_edit.relation_otnoshenie_sobesednika_k_proekt')
-            . t('tool.project_edit.proekt_proektom_etogo_chata_create'), [
+            . t('tool.project_edit.proekt_proektom_etogo_chata_create')
+            . ' ' . t('tool.project_edit.rename_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
                 'project' => ['type' => 'string', 'minLength' => 1, 'maxLength' => Project::NAME_MAX],
+                'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => Project::NAME_MAX],
                 'text' => ['type' => 'string', 'maxLength' => Project::CARD_MAX],
                 'status' => ['type' => 'string', 'enum' => array_values(array_unique([...Project::STATUSES, ...ProjectTask::STATUSES]))],
                 'task_id' => ['type' => 'integer', 'minimum' => 1],
@@ -150,6 +152,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'task_due' => $this->taskDue($project, Args::int($args, 'task_id'), Args::string($args, 'due') ?? ''),
             'relation' => $this->relation($project, $context, $text),
             'activate' => $this->activate($project, $context),
+            'rename' => $this->rename($project, trim(Args::string($args, 'name') ?? '')),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -164,6 +167,20 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
         // spec: BRIEF.md#несколько-пользователей — a participant works only with their own projects
         return $active !== null && $active->visibleTo($context->principal) ? $active : null;
+    }
+
+    /** spec: BRIEF.md#форум-темы--проекты — a new name for the project and its forum topics */
+    private function rename(Project $project, string $name): ToolResult {
+        if ($name === '' || mb_strlen($name) > Project::NAME_MAX) {
+            return ToolResult::error(sprintf(t('tool.project_edit.rename_needs_name'), Project::NAME_MAX));
+        }
+        try {
+            $this->projects->rename($project->id, $name);
+        } catch (DomainException $e) {
+            return ToolResult::error($e->getMessage());
+        }
+        $this->forum?->renamed($project->id, $name);
+        return ToolResult::ok(sprintf(t('tool.project_edit.renamed'), $project->name, $name));
     }
 
     private function update(Project $project, ?string $goal, ?string $status, ?string $card, string $what): ToolResult {

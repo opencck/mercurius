@@ -34,6 +34,22 @@ final class PostgresProjectRepository implements ProjectRepository {
         return self::project($row ?? throw new UnexpectedValueException('Project was not created'));
     }
 
+    public function rename(int $id, string $name): ?Project {
+        $taken = $this->db->execute(
+            'SELECT 1 FROM projects WHERE id <> ? AND lower(name) = lower(?) AND coalesce(owner_id, 0) = (SELECT coalesce(owner_id, 0) FROM projects WHERE id = ?)',
+            [$id, $name, $id],
+        )->fetchRow();
+        if ($taken !== null) {
+            throw new DomainException(sprintf(t('repository.postgres_project.proekt_uzhe_est'), $name));
+        }
+        try {
+            $row = $this->db->execute('UPDATE projects SET name = ?, updated_at = now() WHERE id = ? RETURNING ' . self::PROJECT, [$name, $id])->fetchRow();
+        } catch (SqlQueryError) {
+            throw new DomainException(sprintf(t('repository.postgres_project.proekt_uzhe_est'), $name));
+        }
+        return $row === null ? null : self::project($row);
+    }
+
     public function find(int $id): ?Project {
         $row = $this->db->execute('SELECT ' . self::PROJECT . ' FROM projects WHERE id = ?', [$id])->fetchRow();
         return $row === null ? null : self::project($row);

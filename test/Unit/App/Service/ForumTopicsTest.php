@@ -71,6 +71,21 @@ final class ForumTopicsTest extends AsyncTestCase {
         self::assertSame([], $this->projects->topicsOf($project->id));
     }
 
+    public function testARenamedProjectRenamesItsTopics(): void {
+        // spec: BRIEF.md#форум-темы--проекты — a project renamed keeps its topics named after it
+        $project = $this->projects->create('Сайт', '');
+        $this->topics->created($project, self::meta());
+
+        $renamed = $this->projects->rename($project->id, 'Магазин');
+        self::assertSame('Магазин', $renamed?->name);
+        $this->topics->renamed($project->id, 'Магазин');
+
+        self::assertSame([['edit', self::FORUM, '500', 'Магазин']], array_slice($this->channel->topics, 1), 'after the topic was made');
+        $other = $this->projects->create('Блог', '');
+        $this->expectException(\DomainException::class);
+        $this->projects->rename($other->id, 'магазин');
+    }
+
     public function testAFinishedProjectClosesItsTopicAndAReturnReopensIt(): void {
         $project = $this->projects->create('Сайт', '');
         $this->topics->created($project, self::meta());

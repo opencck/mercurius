@@ -47,6 +47,19 @@ final class InMemoryProjectRepository implements ProjectRepository {
         return array_slice($all, 0, $limit);
     }
 
+    public function rename(int $id, string $name): ?Project {
+        $p = $this->projects[$id] ?? null;
+        if ($p === null) {
+            return null;
+        }
+        foreach ($this->projects as $other) {
+            if ($other->id !== $id && $other->ownerId === $p->ownerId && mb_strtolower($other->name) === mb_strtolower($name)) {
+                throw new DomainException(sprintf('Проект «%s» уже есть.', $name));
+            }
+        }
+        return $this->projects[$id] = new Project($p->id, $name, $p->goal, $p->status, $p->card, time(), $p->ownerId, $p->skill);
+    }
+
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project {
         $p = $this->projects[$id] ?? null;
         if ($p === null) {
