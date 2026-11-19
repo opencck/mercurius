@@ -12,8 +12,8 @@ use OpenCCK\Memory\Domain\Proposal;
 final class InMemoryMemoryStore implements MemoryStore {
     /** @var array<int, Fact> */
     public array $facts = [];
-    /** @var array<int, list<string>> fact id => texts of earlier versions */
-    public array $versions = [];
+    /** @var array<int, list<array{version: int, text: string, reason: string, source: ?string}>> fact id => its versions */
+    private array $history = [];
     /** @var array<string, true> */
     public array $tombstones = [];
     /** @var array<int, Proposal> */
@@ -29,6 +29,7 @@ final class InMemoryMemoryStore implements MemoryStore {
 
     public function addFact(string $scope, string $category, string $text, array $keys, float $trust, string $provenance, ?int $runId): Fact {
         $id = $this->nextFact++;
+        $this->history[$id] = [['version' => 1, 'text' => $text, 'reason' => 'добавлен', 'source' => $provenance]];
         return $this->facts[$id] = new Fact($id, $scope, $category, $text, $keys, $trust, $provenance, true, 1, time());
     }
 
@@ -108,12 +109,16 @@ final class InMemoryMemoryStore implements MemoryStore {
         return array_slice(array_values($found), 0, $limit);
     }
 
-    public function changeFact(int $id, string $text, array $keys, string $reason): ?Fact {
+    public function versions(int $factId): array {
+        return $this->history[$factId] ?? [];
+    }
+
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact {
         $f = $this->facts[$id] ?? null;
         if ($f === null || !$f->active) {
             return null;
         }
-        $this->versions[$id][] = $f->text;
+        $this->history[$id][] = ['version' => $f->version + 1, 'text' => $text, 'reason' => $reason, 'source' => $source];
         return $this->facts[$id] = new Fact($id, $f->scope, $f->category, $text, $keys, $f->trust, $f->provenance, $f->active, $f->version + 1, time());
     }
 
@@ -150,7 +155,7 @@ final class InMemoryMemoryStore implements MemoryStore {
                 unset($this->proposals[$pid], $this->cards[$pid]);
             }
         }
-        unset($this->facts[$id], $this->versions[$id]);
+        unset($this->facts[$id], $this->history[$id]);
         $this->tombstones[$fingerprint] = true;
         $this->recalls = array_values(array_filter($this->recalls, static fn(array $r): bool => $r[1] !== $id));
         return true;
@@ -160,9 +165,9 @@ final class InMemoryMemoryStore implements MemoryStore {
         return isset($this->tombstones[$fingerprint]);
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal {
         $id = $this->nextProposal++;
-        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId, $aboutPerson, time());
+        return $this->proposals[$id] = new Proposal($id, $kind, $factId, $scope, $text, $reason, Proposal::PENDING, $principalId, $runId, $aboutPerson, time(), $provenance, $keywords);
     }
 
     public function proposal(int $id): ?Proposal {
@@ -174,7 +179,7 @@ final class InMemoryMemoryStore implements MemoryStore {
         if ($p === null || $p->status !== Proposal::PENDING) {
             return null;
         }
-        return $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, $status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt);
+        return $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, $status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
     }
 
     public function setCard(int $id, string $chatId, string $messageId): void {
@@ -184,7 +189,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function linkProposal(int $proposalId, int $factId): void {
         $p = $this->proposals[$proposalId] ?? null;
         if ($p !== null) {
-            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt);
+            $this->proposals[$proposalId] = new Proposal($p->id, $p->kind, $factId, $p->scope, $p->text, $p->reason, $p->status, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
         }
     }
 
@@ -202,7 +207,7 @@ final class InMemoryMemoryStore implements MemoryStore {
     public function reopen(int $id): void {
         $p = $this->proposals[$id] ?? null;
         if ($p !== null && $p->status === Proposal::APPROVED) {
-            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt);
+            $this->proposals[$id] = new Proposal($p->id, $p->kind, $p->factId, $p->scope, $p->text, $p->reason, Proposal::PENDING, $p->principalId, $p->runId, $p->aboutPerson, $p->createdAt, $p->provenance, $p->keywords);
         }
     }
 

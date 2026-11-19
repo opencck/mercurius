@@ -54,6 +54,9 @@ final class MemoryProposeTool implements Tool {
                 'edit' => ['type' => 'string', 'enum' => \OpenCCK\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
                 'old_text' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.memory_propose.old_text')],
                 'project' => ['type' => 'boolean', 'description' => t('tool.memory_propose.project')],
+                // spec: BRIEF.md#факты — the real provenance and keywords from the agent
+                'source' => ['type' => 'string', 'enum' => ['owner', 'inferred', 'tool'], 'description' => t('tool.memory_propose.source')],
+                'keywords' => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 40], 'maxItems' => 10, 'description' => t('tool.memory_propose.keywords')],
             ],
             'required' => ['kind', 'reason'],
             'additionalProperties' => false,
@@ -89,6 +92,8 @@ final class MemoryProposeTool implements Tool {
                 Args::string($args, 'edit') ?? 'all',
                 Args::string($args, 'old_text') ?? '',
                 ($args['project'] ?? false) === true,
+                Args::string($args, 'source') ?? '',
+                Args::strings($args, 'keywords'),
             );
         } catch (InvalidArgumentException $e) {
             return ToolResult::error($e->getMessage());

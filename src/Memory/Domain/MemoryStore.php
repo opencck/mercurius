@@ -79,7 +79,16 @@ interface MemoryStore {
     public function recent(array $scopes, int $limit): array;
 
     /** @param list<string> $keys a new version; null when the fact is gone */
-    public function changeFact(int $id, string $text, array $keys, string $reason): ?Fact;
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact;
+
+    /**
+     * The versions of a fact, oldest first: what it said, why it changed, who made the version.
+     *
+     * spec: BRIEF.md#факты
+     *
+     * @return list<array{version: int, text: string, reason: string, source: ?string}>
+     */
+    public function versions(int $factId): array;
 
     /**
      * The agent used the fact: trust moves by $delta within [0, 1], a useful one is counted; the time of the last change
@@ -95,7 +104,8 @@ interface MemoryStore {
 
     public function forgotten(string $fingerprint): bool;
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal;
+    /** @param list<string> $keywords */
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal;
 
     public function proposal(int $id): ?Proposal;
 

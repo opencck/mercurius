@@ -36,5 +36,9 @@ final class Proposal {
         public readonly bool $aboutPerson = false,
         /** when it was proposed, unix seconds; null — not known */
         public readonly ?int $createdAt = null,
+        /** where the fact came from (Fact::OWNER_SAID, AGENT, TOOL); null — not said */
+        public readonly ?string $provenance = null,
+        /** @var list<string> keywords the agent gave with the fact */
+        public readonly array $keywords = [],
     ) {}
 }

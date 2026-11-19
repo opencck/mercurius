@@ -15,6 +15,8 @@ final class Fact {
     public const OWNER_SAID = 'owner_said';
     public const OWNER_CONFIRMED = 'owner_confirmed';
     public const AGENT = 'agent';
+    /** read from a tool result: a page, a file, a command */
+    public const TOOL = 'tool';
 
     /** @param list<string> $keys */
     public function __construct(

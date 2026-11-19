@@ -32,6 +32,10 @@ final class Proposals {
     private const CONFIRMED_TRUST = 0.8;
     /** a fact the agent wrote itself: below what the owner confirmed */
     private const AGENT_TRUST = 0.6;
+    /** the person said it in words: more than the agent's guess, less than the owner's yes on a card */
+    private const SAID_TRUST = 0.7;
+    private const SOURCES = ['owner' => Fact::OWNER_SAID, 'inferred' => Fact::AGENT, 'tool' => Fact::TOOL];
+    private const MAX_KEYWORDS = 10;
 
     /** @var list<Closure(Fact, list<array{string, string}>): void> */
     private array $forgetListeners = [];
@@ -56,9 +60,12 @@ final class Proposals {
     /**
      * @param list<string> $readable the audience's scopes; a new fact goes to the first of them
      * @param bool $aboutPerson the fact is about another person: only the owner's memory takes it
+     * @param string $source where the fact came from: owner (the person said it), inferred (the agent concluded it),
+     *                       tool (a tool result); '' — not said, the agent's
+     * @param list<string> $keywords words to find the fact by, besides its own (synonyms, loans, names)
      * @throws InvalidArgumentException with the reason to show the model
      */
-    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = '', bool $project = false): Proposal {
+    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = '', bool $project = false, string $source = '', array $keywords = []): Proposal {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
@@ -117,7 +124,15 @@ final class Proposals {
         if ($reason === '') {
             throw new InvalidArgumentException(t('app.proposals.nuzhna_prichina_vladelets_reshaet_po'));
         }
-        $proposal = $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson);
+        // spec: BRIEF.md#факты — the real provenance and the agent's keywords
+        if ($source !== '' && !isset(self::SOURCES[$source])) {
+            throw new InvalidArgumentException(t('app.proposals.bad_source'));
+        }
+        $keywords = array_values(array_unique(array_filter(array_map(static fn(string $k): string => trim($k), $keywords), static fn(string $k): bool => $k !== '')));
+        if (count($keywords) > self::MAX_KEYWORDS || array_filter($keywords, static fn(string $k): bool => mb_strlen($k) > 40) !== []) {
+            throw new InvalidArgumentException(sprintf(t('app.proposals.too_many_keywords'), self::MAX_KEYWORDS));
+        }
+        $proposal = $this->store->propose($kind, $kind === Proposal::ADD ? null : $factId, $scope, $text, mb_substr($reason, 0, 500), $principalId, $runId, $aboutPerson, $source === '' ? null : self::SOURCES[$source], $keywords);
         if ($kind !== Proposal::ADD) {
             return $proposal;
         }
@@ -159,13 +174,17 @@ final class Proposals {
     private function apply(Proposal $proposal, bool $byAgent = false): bool {
         switch ($proposal->kind) {
             case Proposal::ADD:
-                $fact = $byAgent
-                    ? $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::AGENT_TRUST, Fact::AGENT, $proposal->runId)
-                    : $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->analyzer->keys($proposal->text), self::CONFIRMED_TRUST, Fact::OWNER_CONFIRMED, $proposal->runId);
+                $provenance = $byAgent ? ($proposal->provenance ?? Fact::AGENT) : Fact::OWNER_CONFIRMED;
+                $trust = match ($provenance) {
+                    Fact::OWNER_CONFIRMED => self::CONFIRMED_TRUST,
+                    Fact::OWNER_SAID => self::SAID_TRUST,
+                    default => self::AGENT_TRUST,
+                };
+                $fact = $this->store->addFact($proposal->scope, Fact::KNOWLEDGE, $proposal->text, $this->keys($proposal), $trust, $provenance, $proposal->runId);
                 $this->store->linkProposal($proposal->id, $fact->id);
                 return true;
             case Proposal::CHANGE:
-                return $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->analyzer->keys($proposal->text), $proposal->reason) !== null;
+                return $this->store->changeFact((int) $proposal->factId, $proposal->text, $this->keys($proposal), $proposal->reason, $byAgent ? ($proposal->provenance ?? Fact::AGENT) : Fact::OWNER_CONFIRMED) !== null;
             case Proposal::END:
                 return $this->store->endFact((int) $proposal->factId, $proposal->reason);
             case Proposal::FORGET:
@@ -176,6 +195,19 @@ final class Proposals {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * The keys of a fact: those of its text and of the keywords the agent gave with it.
+     *
+     * @return list<string>
+     */
+    private function keys(Proposal $proposal): array {
+        $keys = $this->analyzer->keys($proposal->text);
+        foreach ($proposal->keywords as $word) {
+            $keys = [...$keys, ...$this->analyzer->keys($word)];
+        }
+        return array_values(array_unique($keys));
     }
 
     /**

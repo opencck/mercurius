@@ -53,6 +53,17 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertSame([], $this->store->related([$this->scope], $probes, Hrr::RELATED_THRESHOLD, 10), 'the vector follows the new keys');
     }
 
+    public function testEachVersionKeepsWhoMadeIt(): void {
+        // spec: BRIEF.md#факты — the source of a version
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['было'], 0.5, Fact::OWNER_SAID, null);
+        $this->store->changeFact($fact->id, 'стало', ['стало'], 'уточнил', Fact::AGENT);
+
+        self::assertSame(
+            [[1, 'было', Fact::OWNER_SAID], [2, 'стало', Fact::AGENT]],
+            array_map(static fn(array $v): array => [$v['version'], $v['text'], $v['source']], $this->store->versions($fact->id)),
+        );
+    }
+
     public function testActiveFactsAndRecalledOnes(): void {
         $a = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'a', ['a'], 0.5, Fact::AGENT, null);
         $b = $this->store->addFact('chat:' . $this->scope, Fact::KNOWLEDGE, 'b', ['b'], 0.5, Fact::AGENT, null);

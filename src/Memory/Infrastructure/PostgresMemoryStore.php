@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  */
 final class PostgresMemoryStore implements MemoryStore {
     private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated';
-    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch';
+    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch, provenance, array_to_json(keywords)::text AS keywords';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -33,7 +33,7 @@ final class PostgresMemoryStore implements MemoryStore {
                 [$scope, $category, $text, $keys, $trust, $provenance, $runId, self::vector($keys)],
             )->fetchRow() ?? throw new UnexpectedValueException('Fact was not created');
             $fact = self::fact_($row);
-            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, 1, ?, ?)', [$fact->id, $text, t('infrastructure.postgres_memory_store.dobavlen')]);
+            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason, source) VALUES (?, 1, ?, ?, ?)', [$fact->id, $text, t('infrastructure.postgres_memory_store.dobavlen'), $provenance]);
             $transaction->commit();
             return $fact;
         } catch (Throwable $e) {
@@ -178,7 +178,16 @@ final class PostgresMemoryStore implements MemoryStore {
         return $facts;
     }
 
-    public function changeFact(int $id, string $text, array $keys, string $reason): ?Fact {
+    public function versions(int $factId): array {
+        $rows = [];
+        foreach ($this->db->execute('SELECT version, text, reason, source FROM fact_versions WHERE fact_id = ? ORDER BY version', [$factId]) as $row) {
+            $source = $row['source'] ?? null;
+            $rows[] = ['version' => self::int($row, 'version'), 'text' => self::str($row, 'text'), 'reason' => self::str($row, 'reason'), 'source' => is_string($source) ? $source : null];
+        }
+        return $rows;
+    }
+
+    public function changeFact(int $id, string $text, array $keys, string $reason, ?string $source = null): ?Fact {
         $transaction = $this->db->beginTransaction();
         try {
             $row = $transaction->execute(
@@ -191,7 +200,7 @@ final class PostgresMemoryStore implements MemoryStore {
             }
             $fact = self::fact_($row);
             $transaction->execute('UPDATE fact_versions SET valid_to = now() WHERE fact_id = ? AND valid_to IS NULL', [$id]);
-            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason) VALUES (?, ?, ?, ?)', [$id, $fact->version, $text, $reason]);
+            $transaction->execute('INSERT INTO fact_versions (fact_id, version, text, reason, source) VALUES (?, ?, ?, ?, ?)', [$id, $fact->version, $text, $reason, $source]);
             $transaction->commit();
             return $fact;
         } catch (Throwable $e) {
@@ -250,10 +259,10 @@ final class PostgresMemoryStore implements MemoryStore {
         return $this->db->execute('SELECT 1 AS found FROM fact_tombstones WHERE hmac = ?', [$fingerprint])->fetchRow() !== null;
     }
 
-    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
+    public function propose(string $kind, ?int $factId, string $scope, string $text, string $reason, ?int $principalId, ?int $runId, bool $aboutPerson = false, ?string $provenance = null, array $keywords = []): Proposal {
         $row = $this->db->execute(
-            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id, about_person) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::PROPOSAL,
-            [$kind, $factId, $scope, $text, $reason, $principalId, $runId, $aboutPerson],
+            'INSERT INTO memory_proposals (kind, fact_id, scope, text, reason, principal_id, run_id, about_person, provenance, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::text[]) RETURNING ' . self::PROPOSAL,
+            [$kind, $factId, $scope, $text, $reason, $principalId, $runId, $aboutPerson, $provenance, $keywords],
         )->fetchRow() ?? throw new UnexpectedValueException('Proposal was not created');
         return self::proposal_($row);
     }
@@ -390,7 +399,19 @@ final class PostgresMemoryStore implements MemoryStore {
             isset($row['run_id']) ? self::int($row, 'run_id') : null,
             ($row['about_person'] ?? false) === true,
             isset($row['created_epoch']) && is_int($row['created_epoch']) ? $row['created_epoch'] : null,
+            isset($row['provenance']) && is_string($row['provenance']) ? $row['provenance'] : null,
+            self::words($row['keywords'] ?? null),
         );
+    }
+
+    /** @return list<string> */
+    private static function words(mixed $json): array {
+        if (!is_string($json)) {
+            return [];
+        }
+        /** @var mixed $list */
+        $list = json_decode($json, true, 4);
+        return is_array($list) ? array_values(array_filter($list, 'is_string')) : [];
     }
 
     /** @param array<string, mixed> $row */

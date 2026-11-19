@@ -127,6 +127,22 @@ final class ProposalsTest extends TestCase {
             }
         }
     }
+    public function testAFactKeepsWhereItCameFromAndTheAgentsKeywords(): void {
+        // spec: BRIEF.md#факты — the real provenance and keywords from the agent
+        $said = $this->proposals->propose(Proposal::ADD, null, 'Работает через корпоративный тоннель', 'сказал сам', ['owner'], null, null, source: 'owner', keywords: ['впн', 'VPN']);
+        $guessed = $this->proposals->propose(Proposal::ADD, null, 'Предпочитает утренние встречи', 'по расписанию', ['owner'], null, null, source: 'inferred');
+
+        $saidFact = $this->store->fact((int) $this->store->proposal($said->id)?->factId);
+        $guessedFact = $this->store->fact((int) $this->store->proposal($guessed->id)?->factId);
+        self::assertSame([\OpenCCK\Memory\Domain\Fact::OWNER_SAID, 0.7], [$saidFact?->provenance, $saidFact?->trust]);
+        self::assertSame([\OpenCCK\Memory\Domain\Fact::AGENT, 0.6], [$guessedFact?->provenance, $guessedFact?->trust]);
+        self::assertContains('vpn', $saidFact->keys ?? [], 'the agent\'s keywords are keys too');
+        self::assertContains('впн', $saidFact->keys ?? []);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->proposals->propose(Proposal::ADD, null, 'x', 'y', ['owner'], null, null, keywords: array_map(static fn(int $i): string => 'слово' . $i, range(1, 11)));
+    }
+
     public function testAFactOfTheProjectGoesToItsScope(): void {
         // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — facts of a project
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'Сервер проекта — Ubuntu 24.04', 'проверил', ['chat:t:-100', 'project:12'], null, null, project: true);
