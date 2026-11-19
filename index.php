@@ -1087,7 +1087,8 @@ $presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\I
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
-$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: new \OpenCCK\App\Service\MembershipRouter([$groupGate, $channelRegistry]), posts: $channelRegistry);
+// spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — a text Telegram split at 4096 characters is glued back (2 s, as hermes)
+$dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: new \OpenCCK\App\Service\MembershipRouter([$groupGate, $channelRegistry]), posts: $channelRegistry, splitDelay: 2.0);
 $deduplicator = new Deduplicator();
 
 $routes = [];
