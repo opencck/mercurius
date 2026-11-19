@@ -41,6 +41,10 @@ final class Job {
         public readonly bool $trusted = false,
         /** the forum topic the job was set in; '' — the chat itself */
         public readonly string $threadId = '',
+        /** which webhook events wake the job and how long a burst is merged (App\Job\HookFilter); '' — every event */
+        public readonly string $hookFilter = '',
+        /** the model role its runs use: '' — the main model, 'cheap' — for simple checks */
+        public readonly string $modelRole = '',
     ) {}
 
     public function byEvent(): bool {

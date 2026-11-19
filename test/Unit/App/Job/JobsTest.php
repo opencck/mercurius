@@ -365,6 +365,26 @@ description: Отчёт о диске таблицей
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $manage->danger(['action' => 'pause', 'id' => 1]));
     }
 
+    public function testAJobGetsAnEventFilterAndTheCheapModel(): void {
+        // spec: BRIEF.md#планировщик-и-проекты — the filter of events and the model role of a job
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
+        $scheduler->useModels(static fn(string $role): ?string => $role === 'cheap' ? 'test/cheap' : null);
+        $this->stack->say('привет');
+        $context = new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation());
+        $manage = new JobManageTool($this->jobs, $scheduler);
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Диск', 'Проверь диск', 'every:60', $this->now->modify('-5 minutes'));
+        $hook = $this->jobs->create($this->owner->id, 'telegram', '42', 'PR', 'Разбери PR', Schedule::EVENT, null);
+
+        self::assertTrue($manage->execute(['action' => 'filter', 'id' => 1, 'filter' => 'events=push'], $context)->isError, 'a job on a schedule has no events');
+        self::assertTrue($manage->execute(['action' => 'filter', 'id' => $hook->id, 'filter' => 'ref'], $context)->isError);
+        self::assertStringContainsString('events=push; merge=10', $manage->execute(['action' => 'filter', 'id' => $hook->id, 'filter' => 'events=push;merge=10'], $context)->content);
+        self::assertSame('events=push; merge=10', $this->jobs->find($hook->id)?->hookFilter);
+
+        $manage->execute(['action' => 'model', 'id' => 1, 'role' => 'cheap'], $context);
+        $scheduler->tick(true);
+        self::assertSame('test/cheap', $this->stack->llm->requests[0]->model ?? null);
+    }
+
     public function testAJobByEventPassesTheSchemaOfJobCreate(): void {
         $this->scheduler(new ScriptedLlm([]));
         $schema = json_encode((new JobCreateTool($this->jobs, $this->stack->conversations, $this->scheduler(new ScriptedLlm([])), new ContentScreen()))->definition()->parameters, JSON_THROW_ON_ERROR);

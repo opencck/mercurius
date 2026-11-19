@@ -21,6 +21,24 @@ final class InMemoryJobRepository implements JobRepository {
         return $this->jobs[$id] = new Job($id, $principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt, 0, null, null, Job::ACTIVE, origin: $origin, threadId: $threadId);
     }
 
+    public function setHookFilter(int $id, string $filter): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, hookFilter: $filter);
+        return true;
+    }
+
+    public function setModelRole(int $id, string $role): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = self::with($j, modelRole: $role);
+        return true;
+    }
+
     public function setTrusted(int $id, bool $trusted): bool {
         $j = $this->jobs[$id] ?? null;
         if ($j === null) {
@@ -88,7 +106,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId);
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole);
         return true;
     }
 
@@ -174,6 +192,8 @@ final class InMemoryJobRepository implements JobRepository {
         string|false|null $watchUrl = false,
         string|false|null $watchHash = false,
         ?bool $trusted = null,
+        ?string $hookFilter = null,
+        ?string $modelRole = null,
     ): Job {
         return new Job(
             $j->id,
@@ -194,6 +214,8 @@ final class InMemoryJobRepository implements JobRepository {
             $j->origin,
             $trusted ?? $j->trusted,
             $j->threadId,
+            $hookFilter ?? $j->hookFilter,
+            $modelRole ?? $j->modelRole,
         );
     }
 }

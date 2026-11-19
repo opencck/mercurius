@@ -103,6 +103,44 @@ final class HooksAndDigestTest extends AsyncTestCase {
         self::assertCount(1, $this->stack->llm->requests);
     }
 
+    public function testAnEventTheFilterDoesNotWantWakesNoModel(): void {
+        // spec: BRIEF.md#планировщик-и-проекты — the filter of webhook events: the wrong event costs no tokens
+        $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Собрано.')]));
+        $job = $this->hookJob();
+        self::assertTrue($this->jobs->setHookFilter($job->id, 'events=push; ref=refs/heads/master'));
+        $issue = '{"action":"opened"}';
+        $dev = '{"ref":"refs/heads/dev"}';
+        $master = '{"ref":"refs/heads/master"}';
+
+        self::assertSame([200, 'ignored'], $this->receiver()->receive($job->id, ['x-webhook-event' => 'issues'] + $this->v2($issue), $issue));
+        self::assertSame([200, 'ignored'], $this->receiver()->receive($job->id, ['x-webhook-event' => 'push'] + $this->v2($dev), $dev));
+        self::assertSame([202, 'accepted'], $this->receiver()->receive($job->id, ['x-webhook-event' => 'push'] + $this->v2($master), $master));
+        delay(0.05);
+
+        self::assertCount(1, $this->stack->llm->requests, 'only the push to master ran the model');
+    }
+
+    public function testABurstOfEventsRunsTheJobOnceOnTheLastOne(): void {
+        // spec: BRIEF.md#планировщик-и-проекты — events within the merge window run the job once
+        $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Три пуша разобраны.')]));
+        $job = $this->hookJob();
+        $this->jobs->setHookFilter($job->id, 'merge=1');
+        $receiver = $this->receiver();
+
+        foreach (['{"n":1}', '{"n":2}', '{"n":3}'] as $body) {
+            self::assertSame([202, 'merged'], $receiver->receive($job->id, $this->v2($body), $body));
+        }
+        delay(0.3);
+        self::assertCount(0, $this->stack->llm->requests, 'the window is still open');
+        delay(1.2);
+
+        self::assertCount(1, $this->stack->llm->requests);
+        $prompt = array_slice($this->stack->llm->requests[0]->messages, -1)[0]->content ?? '';
+        self::assertStringContainsString('"n": 3', $prompt, 'the last event');
+        self::assertStringNotContainsString('"n": 1', $prompt);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.hook_receiver.merged'), 3), $prompt, 'with how many came');
+    }
+
     public function testWrongStaleAndBodyOnlySignaturesAreRefused(): void {
         $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok'), ScriptedLlm::text('ok')]));
         $job = $this->hookJob();

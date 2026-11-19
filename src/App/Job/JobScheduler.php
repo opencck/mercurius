@@ -257,6 +257,18 @@ final class JobScheduler implements JobRuns {
     }
 
     private ?\OpenCCK\App\Skill\SkillLibrary $skills = null;
+    /** @var (\Closure(string): ?string)|null the model of a role; null — the role has none */
+    private ?\Closure $modelOf = null;
+
+    /**
+     * spec: BRIEF.md#планировщик-и-проекты — a job marked cheap runs on the model of the cheap role
+     *
+     * @param \Closure(string): ?string $modelOf
+     */
+    public function useModels(\Closure $modelOf): void {
+        $this->modelOf = $modelOf;
+    }
+
     /** @var (\Closure(Principal, Job): string)|null the memory core for a job's run; '' where it must not go */
     private ?\Closure $core = null;
 
@@ -287,11 +299,12 @@ final class JobScheduler implements JobRuns {
         $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
         $policy = $this->policy($principal);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
-        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $this->model);
+        $model = $job->modelRole !== '' && $this->modelOf !== null ? (($this->modelOf)($job->modelRole) ?? $this->model) : $this->model;
+        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $model);
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));
-        $run = $this->runs->start($conversation, $principal->id, $this->model, $policy->run, null, $outside === '' ? null : $outside) ?? throw new \RuntimeException('run did not start');
+        $run = $this->runs->start($conversation, $principal->id, $model, $policy->run, null, $outside === '' ? null : $outside) ?? throw new \RuntimeException('run did not start');
         $this->transcript->appendUser($conversation, $run->id, sprintf(
             t('job.job_scheduler.zadanie_zapusk_zadanie_sdelay_ego'),
             $event === null || $source !== 'webhook' ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),

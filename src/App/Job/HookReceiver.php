@@ -11,6 +11,7 @@ use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use Psr\Log\LoggerInterface;
+use Revolt\EventLoop;
 
 use function Mercurius\I18n\t;
 
@@ -31,6 +32,11 @@ final class HookReceiver {
     public const BODY_MAX = 65_536;
     public const PER_HOUR = 60;
     private const EVENT_MAX = 8_000;
+    /** the longest a burst waits from its first event, unless its window is longer */
+    private const MERGE_WAIT = 300;
+
+    /** @var array<int, array{event: string, count: int, first: float, timer: string, window: int}> held bursts by job */
+    private array $held = [];
 
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
@@ -69,8 +75,25 @@ final class HookReceiver {
             $this->logger->warning('Webhook signature refused', ['job' => $job->id]);
             return [401, 'bad signature'];
         }
+        // spec: BRIEF.md#планировщик-и-проекты — an event the filter of the job does not want wakes no model
+        $filter = HookFilter::parse($job->hookFilter);
+        $filter = is_string($filter) ? HookFilter::parse('') : $filter;
+        if (!$filter instanceof HookFilter) {
+            return [500, 'filter'];
+        }
+        if (!$filter->matches(self::type($headers), self::payload($body))) {
+            $this->logger->info('Webhook event filtered out', ['job' => $job->id]);
+            return [200, 'ignored'];
+        }
         if ($this->jobs->deliveriesSince($job->id, ($this->now)()->modify('-1 hour')) >= self::PER_HOUR) {
             return [429, 'too many'];
+        }
+        if ($filter->merge > 0) {
+            if (!$this->jobs->recordDelivery($job->id, $delivery)) {
+                return [200, 'duplicate'];
+            }
+            $this->hold($job->id, $this->event($headers, $body), $filter->merge);
+            return [202, 'merged'];
         }
         if (!$this->jobs->claimEvent($job->id)) {
             return [409, 'busy'];
@@ -111,9 +134,64 @@ final class HookReceiver {
         return null;
     }
 
+    /**
+     * Keeps the latest event of a burst; the job runs once the window passes without a new one, or MERGE_WAIT after
+     * the first.
+     */
+    private function hold(int $jobId, string $event, int $window): void {
+        $now = microtime(true);
+        $held = $this->held[$jobId] ?? null;
+        if ($held !== null) {
+            EventLoop::cancel($held['timer']);
+        }
+        $first = $held['first'] ?? $now;
+        $wait = max(0.0, min((float) $window, $first + (float) max(self::MERGE_WAIT, $window) - $now));
+        $this->held[$jobId] = [
+            'event' => $event,
+            'count' => ($held['count'] ?? 0) + 1,
+            'first' => $first,
+            'window' => $window,
+            'timer' => EventLoop::delay($wait, fn() => $this->flush($jobId)),
+        ];
+    }
+
+    /** The burst of a job runs it once on its latest event; a busy job is tried again after the window. */
+    private function flush(int $jobId): void {
+        $held = $this->held[$jobId] ?? null;
+        unset($this->held[$jobId]);
+        $job = $this->jobs->find($jobId);
+        if ($held === null || $job === null || $job->status !== Job::ACTIVE) {
+            return;
+        }
+        if (!$this->jobs->claimEvent($jobId)) {
+            $held['timer'] = EventLoop::delay((float) $held['window'], fn() => $this->flush($jobId));
+            $this->held[$jobId] = $held;
+            return;
+        }
+        $this->logger->info('Webhook burst runs the job', ['job' => $jobId, 'events' => $held['count']]);
+        $event = $held['count'] > 1 ? sprintf(t('job.hook_receiver.merged'), $held['count']) . "\n" . $held['event'] : $held['event'];
+        $this->scheduler->runEvent($job, $event);
+    }
+
+    /** @param array<string, string> $headers */
+    private static function type(array $headers): string {
+        return trim($headers['x-github-event'] ?? $headers['x-webhook-event'] ?? '');
+    }
+
+    /** The body as JSON, or null when it is not JSON. */
+    private static function payload(string $body): mixed {
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode(mb_scrub($body, 'UTF-8'), true, 32, JSON_THROW_ON_ERROR);
+            return $decoded;
+        } catch (\JsonException) {
+            return null;
+        }
+    }
+
     /** @param array<string, string> $headers */
     private function event(array $headers, string $body): string {
-        $type = trim($headers['x-github-event'] ?? $headers['x-webhook-event'] ?? '');
+        $type = self::type($headers);
         $text = mb_scrub($body, 'UTF-8');
         try {
             /** @var mixed $decoded */

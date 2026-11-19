@@ -11,6 +11,7 @@ use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
+use OpenCCK\App\Job\HookFilter;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Job\Job;
@@ -28,7 +29,7 @@ use function Mercurius\I18n\t;
  */
 final class JobManageTool implements Tool {
     public const NAME = 'job_manage';
-    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust'];
+    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust', 'filter', 'model'];
 
     public function __construct(
         private readonly JobRepository $jobs,
@@ -37,11 +38,13 @@ final class JobManageTool implements Tool {
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.job_manage.zadaniya_po_raspisaniyu_action_list')
-            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run'), [
+            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
                 'id' => ['type' => 'integer', 'minimum' => 1],
+                'filter' => ['type' => 'string', 'maxLength' => 500],
+                'role' => ['type' => 'string', 'enum' => ['main', 'cheap']],
             ],
             'additionalProperties' => false,
         ]);
@@ -81,6 +84,8 @@ final class JobManageTool implements Tool {
             'run_now' => $this->runNow($job),
             'trust' => $this->trust($job, true, $context),
             'distrust' => $this->trust($job, false, $context),
+            'filter' => $this->filter($job, Args::string($args, 'filter') ?? ''),
+            'model' => $this->model($job, Args::string($args, 'role') ?? 'main'),
             default => ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . $action),
         };
     }
@@ -114,6 +119,25 @@ final class JobManageTool implements Tool {
         }
         $this->jobs->setTrusted($job->id, $trusted);
         return ToolResult::ok(sprintf(t($trusted ? 'tool.job_manage.trusted' : 'tool.job_manage.distrusted'), $job->id, $job->title));
+    }
+
+    /** spec: BRIEF.md#планировщик-и-проекты — which webhook events wake the job and how long a burst is merged */
+    private function filter(Job $job, string $text): ToolResult {
+        if (!$job->byEvent()) {
+            return ToolResult::error(sprintf(t('tool.job_manage.filter_event_only'), $job->id));
+        }
+        $filter = HookFilter::parse($text);
+        if (is_string($filter)) {
+            return ToolResult::error($filter);
+        }
+        $this->jobs->setHookFilter($job->id, (string) $filter);
+        return ToolResult::ok(sprintf(t('tool.job_manage.filter_set'), $job->id, $job->title, (string) $filter === '' ? '—' : (string) $filter));
+    }
+
+    /** spec: BRIEF.md#планировщик-и-проекты — a job of simple checks runs on the cheap model */
+    private function model(Job $job, string $role): ToolResult {
+        $this->jobs->setModelRole($job->id, $role === 'cheap' ? 'cheap' : '');
+        return ToolResult::ok(sprintf(t('tool.job_manage.model_set'), $job->id, $job->title, $role === 'cheap' ? 'cheap' : 'main'));
     }
 
     private function runNow(Job $job): ToolResult {

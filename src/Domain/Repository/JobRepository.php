@@ -17,6 +17,12 @@ interface JobRepository {
     /** The owner trusts the source of the job, or no longer does. */
     public function setTrusted(int $id, bool $trusted): bool;
 
+    /** spec: BRIEF.md#планировщик-и-проекты — the filter of webhook events of a job */
+    public function setHookFilter(int $id, string $filter): bool;
+
+    /** spec: BRIEF.md#планировщик-и-проекты — the model role of a job's runs: '' or 'cheap' */
+    public function setModelRole(int $id, string $role): bool;
+
     public function find(int $id): ?Job;
 
     /** @return list<Job> active and paused jobs of a participant (all of them for null), newest first */
