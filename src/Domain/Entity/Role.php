@@ -79,12 +79,19 @@ final class Role {
         return $role;
     }
 
-    /** Back to the starting set: the catalog of an instance defines its own roles over it. */
-    public static function reset(): void {
+    /** No role is defined: the catalog of an instance defines its list from scratch. */
+    public static function clear(): void {
         foreach (self::$known as $role) {
             $role->powers = [];
+            $role->title = '';
+            $role->position = PHP_INT_MAX;
         }
         self::$known[self::OWNER] ??= new self(self::OWNER);
+    }
+
+    /** Back to the starting set (an instance without a catalog, tests). */
+    public static function reset(): void {
+        self::clear();
         foreach (self::BUILTIN as $name => [$title, $position, $powers]) {
             self::define($name, $title, $position, array_map(static fn(string $p): Power => Power::from($p), $powers));
         }

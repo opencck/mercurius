@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\App\Agent;
 
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\Domain\Entity\Power;
 use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ProjectRepository;
@@ -33,7 +33,7 @@ final class ProjectContext {
     }
 
     public function block(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
-        if ($principal->role === Role::visitor()) {
+        if (!$principal->role->may(Power::Projects)) {
             return '';
         }
         $project = $this->projects->active($channel, $chatId, $threadId);

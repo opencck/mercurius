@@ -340,7 +340,10 @@ $runs = new PostgresRunRepository($db);
 $runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
 $deliveryRepository = new \OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
-$policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits());
+// spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — the owner's list of roles: titles, order, powers, templates
+$roleCatalog = new \OpenCCK\App\Service\RoleCatalog(new \OpenCCK\Infrastructure\Repository\PostgresRoleRepository($db));
+$roleCatalog->load();
+$policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits(), $roleCatalog->template(...));
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — module services from .env; a tool of a module only while its service is up,
@@ -964,6 +967,7 @@ $chat->useImprovements($improvements);
 // spec: BRIEF.md#несколько-пользователей — the owner passes ownership on by /owner and a card
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);
+$chat->useRoles($roleCatalog);
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }

@@ -43,6 +43,28 @@ final class PolicyServiceTest extends TestCase {
         self::assertFalse($policy->allowsTool('http_request'));
     }
 
+    public function testARoleGivesItsTemplateAndThePersonalSettingsLieOnTop(): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        $trader = Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
+        $mute = Role::define('mute', 'Без инструментов', 16, []);
+        $service = new PolicyService($this->repository, new RunLimits(30, 400_000, 900, 120), template: static fn(Role $role): array => match ($role->value) {
+            'trader', 'mute' => ['tools' => ['web_search', 'http_request'], 'max_turns' => 5],
+            default => [],
+        });
+        try {
+            $byRole = $service->forPrincipal($this->principal($trader));
+            self::assertSame(['web_search', 'http_request'], $byRole->tools);
+            self::assertSame(5, $byRole->run->maxTurns);
+
+            $this->repository->save(3, ['tools' => ['web_search']]);
+            self::assertSame(['web_search'], $service->forPrincipal($this->principal($trader, 3))->tools, 'the personal settings lie on top');
+
+            self::assertSame([], $service->forPrincipal($this->principal($mute))->tools, 'a role without the power of tools gets none');
+        } finally {
+            Role::reset();
+        }
+    }
+
     public function testUpdateIsStoredAndCapped(): void {
         $user = $this->principal(Role::user());
         $policy = $this->service->update($user, ['tools' => ['http_request'], 'max_turns' => 100]);

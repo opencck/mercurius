@@ -11,9 +11,9 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\Domain\Entity\Power;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
-use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -86,6 +86,28 @@ final class ChatService implements MessageHandler {
 
     public function useOwnership(OwnershipTransfer $ownership): void {
         $this->ownership = $ownership;
+    }
+
+    /** the owner's list of roles: /roles and /role */
+    private ?RoleCatalog $roles = null;
+
+    public function useRoles(RoleCatalog $roles): void {
+        $this->roles = $roles;
+    }
+
+    /** /roles — the list; /role add|set|remove … — a change. */
+    private function roleCommand(RoleCatalog $roles, string $argument): string {
+        $parts = preg_split('/\s+/', trim($argument), 4) ?: [];
+        try {
+            return match ($parts[0] ?? '') {
+                'add' => $roles->add($parts[1] ?? '', trim(($parts[2] ?? '') . ' ' . ($parts[3] ?? ''))),
+                'set' => $roles->set($parts[1] ?? '', $parts[2] ?? '', $parts[3] ?? ''),
+                'remove' => $roles->remove($parts[1] ?? ''),
+                default => $roles->describe(),
+            };
+        } catch (\InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
     }
 
     /** The run that wrote the agent's message this one answers; null when it is not known. */
@@ -177,7 +199,7 @@ final class ChatService implements MessageHandler {
             // spec: BRIEF.md#фаза-7-по-частям — a secret goes to the vault and its message leaves the chat
             $argument = substr($text, strlen($command));
             $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
-            if ($principal->role === Role::visitor()) {
+            if (!$principal->role->may(Power::Secrets)) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, t(self::SECRET_PRIVATE));
@@ -214,6 +236,15 @@ final class ChatService implements MessageHandler {
                 !$principal->isOwner() => t(self::OWNER_ONLY),
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
+            });
+            return;
+        }
+        if (in_array($command, ['/roles', '/role'], true) && $this->roles !== null) {
+            // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — only the owner, only in the private chat
+            $this->reply($message, match (true) {
+                !$principal->isOwner() => t(self::OWNER_ONLY),
+                !$message->isPrivateChat => t(self::PRIVATE_ONLY),
+                default => $this->roleCommand($this->roles, $command === '/roles' ? '' : substr($text, strlen($command))),
             });
             return;
         }
@@ -274,7 +305,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {
-            $this->reply($message, $principal->role !== Role::visitor() && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
+            $this->reply($message, $principal->role->may(Power::Secrets) && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
             return;
         }
         if (in_array($command, ['/servers', '/audit'], true) && $this->servers !== null) {
@@ -335,7 +366,7 @@ final class ChatService implements MessageHandler {
         if ($masked === $message->text) {
             return $message;
         }
-        $name = $message->isPrivateChat && $principal->role !== Role::visitor() ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
+        $name = $message->isPrivateChat && $principal->role->may(Power::Secrets) ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
         $deleted = $this->channel->delete($message->chatId, $message->messageId);
         $this->reply($message, sprintf(
             t('service.chat.v_soobschenii_byl_sekret'),
