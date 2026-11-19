@@ -151,7 +151,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
         } catch (DomainException $e) {
             return ToolResult::error($e->getMessage());
         }
-        return ToolResult::ok(WorkerReports::text($reports));
+        return ToolResult::ok(WorkerReports::text($reports, $this->workers->reportRoom($context)));
     }
 
     /** @param array<array-key, mixed> $item */

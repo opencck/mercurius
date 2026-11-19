@@ -262,6 +262,22 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertNull($stack->runs->find(2), 'no worker started');
     }
 
+    public function testAReportGetsTheRoomLeftInTheOrchestratorsWindow(): void {
+        // spec: BRIEF.md#часть-1--синхронное-делегирование — the report share follows the room left
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'длинный ответ']]),
+            ScriptedLlm::text(str_repeat('x', 5000)),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $this->runner->useWindow(static fn(string $model): int => 1000);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(1200, substr_count(self::report($llm), 'x'), 'a window of 1000 tokens leaves 30% of 4000 characters');
+    }
+
     public function testAWorkerGetsOnlyToolsOfTheWhiteList(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'прочитай', 'tools' => ['read', 'push']]]),

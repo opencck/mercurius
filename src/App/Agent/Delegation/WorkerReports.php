@@ -14,9 +14,16 @@ use function Mercurius\I18n\t;
  *      each summary so the reports do not crowd out the orchestrator's context
  */
 final class WorkerReports {
-    /** @param list<WorkerReport> $reports */
-    public static function text(array $reports): string {
-        $cap = min(4000, max(500, intdiv(16000, max(1, count($reports)))));
+    /** the share of a part when the room left in the orchestrator's window is not known */
+    private const ROOM_UNKNOWN = 16000;
+
+    /**
+     * @param list<WorkerReport> $reports
+     * @param int|null $room characters the orchestrator's window has left for these reports; null — not known
+     */
+    public static function text(array $reports, ?int $room = null): string {
+        // spec: BRIEF.md#часть-1--синхронное-делегирование — min(4000, free room ÷ number of parts), at least 500
+        $cap = min(4000, max(500, intdiv(max(0, $room ?? self::ROOM_UNKNOWN), max(1, count($reports)))));
         $lines = [sprintf(t('delegation.worker_reports.otchet_vorkerov'), count($reports))];
         foreach ($reports as $report) {
             $summary = $report->summary === '' ? t('delegation.worker_reports.itoga_net') : $report->summary;

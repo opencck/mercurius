@@ -163,6 +163,30 @@ final class WorkerRunner {
         $this->context = $context;
     }
 
+    /** @var (\Closure(string): ?int)|null the context window of a model, in tokens; null — not known */
+    private ?\Closure $window = null;
+
+    /** @param \Closure(string): ?int $window */
+    public function useWindow(\Closure $window): void {
+        $this->window = $window;
+    }
+
+    /**
+     * Characters the orchestrator's window has left for the reports of its workers: the window of its model less the
+     * prompt it sent last, and of that the share one turn's tool results get (30%, as the results' budget); null when
+     * the window is not known.
+     *
+     * spec: BRIEF.md#часть-1--синхронное-делегирование — the report share follows the room left
+     */
+    public function reportRoom(ToolContext $parent): ?int {
+        $run = $this->runs->find($parent->runId);
+        $window = $run === null || $this->window === null ? null : ($this->window)($run->model);
+        if ($run === null || $window === null || $window <= 0) {
+            return null;
+        }
+        return intdiv(max(0, $window - $run->promptAnchor) * 4 * 3, 10);
+    }
+
     /** Each part that ran is recorded as experience: what was asked, which model did it, how it went. */
     public function useExperience(ExperienceRepository $experience): void {
         $this->experience = $experience;

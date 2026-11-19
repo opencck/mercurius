@@ -591,6 +591,14 @@ $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
 // spec: BRIEF.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
 $workers->useContext($scheduler->workerContext(...));
+// spec: BRIEF.md#часть-1--синхронное-делегирование — reports share what is left of the orchestrator's window
+$workers->useWindow(static function (string $model) use ($modelCatalog, $llmSettings): int {
+    try {
+        return $modelCatalog->find(ModelRef::parse($model))->contextLength ?? $llmSettings->contextWindow;
+    } catch (\InvalidArgumentException) {
+        return $llmSettings->contextWindow;
+    }
+});
 $consolidationJournal = new PostgresConsolidationJournal($db);
 $proposals->onForget(static function (Fact $fact) use ($transcript, $experience, $traces, $consolidationJournal): void {
     $line = sprintf('[#%d] %s', $fact->id, $fact->text);
