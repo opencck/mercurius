@@ -26,6 +26,7 @@ final class ConsolidationTest extends AsyncTestCase {
     /** @var list<string> */
     private array $told = [];
     private int $now = 1_800_000_000;
+    private bool $delivered = true;
 
     protected function setUp(): void {
         parent::setUp();
@@ -41,8 +42,9 @@ final class ConsolidationTest extends AsyncTestCase {
                 $this->shown[] = $p;
                 return true;
             },
-            function (string $text): void {
+            function (string $text): bool {
                 $this->told[] = $text;
+                return $this->delivered;
             },
             fn(): int => $this->now,
         );
@@ -96,6 +98,40 @@ final class ConsolidationTest extends AsyncTestCase {
         self::assertStringContainsString('противоречат друг другу', $text);
         $this->now += 86400;
         self::assertStringNotContainsString('противоречат', $this->consolidation->run(true), 'paused for 14 days');
+    }
+
+    public function testANegationIsAConflictNotADuplicate(): void {
+        // spec: BRIEF.md#консолидация-dreaming — facts that differ by a negation contradict each other
+        $this->add('Владелец любит острую еду');
+        $this->add('Владелец не любит острую еду', 0.5, provenance: Fact::AGENT);
+
+        $text = $this->consolidation->run();
+
+        self::assertSame([], $this->shown, 'not proposed to be forgotten as a copy');
+        self::assertStringContainsString('противоречат друг другу (отрицание)', $text);
+    }
+
+    public function testAReportThatWasNotDeliveredIsShownNextTime(): void {
+        // spec: BRIEF.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner
+        $this->add('Встреча с командой проходит по понедельникам в 11:00');
+        $this->add('Встреча с командой проходит по понедельникам в 12:00');
+        $this->delivered = false;
+        $this->consolidation->run();
+        self::assertSame(ConsolidationJournal::FAILED, $this->journal->passes[0]['status'], 'the next night looks again');
+
+        $this->delivered = true;
+        $this->now += 86400;
+        self::assertStringContainsString('противоречат друг другу', $this->consolidation->run());
+    }
+
+    public function testAMissedNightIsCaughtUpAtStart(): void {
+        // spec: BRIEF.md#консолидация-dreaming — a night missed while the app was down is checked at start
+        $midnight = 1_800_000_000 - 1_800_000_000 % 86400;
+
+        self::assertTrue(MemoryConsolidationModule::missed(null, 3, $midnight + 10 * 3600), 'never checked');
+        self::assertTrue(MemoryConsolidationModule::missed($midnight - 86400 + 3 * 3600, 3, $midnight + 10 * 3600), 'last night was missed');
+        self::assertFalse(MemoryConsolidationModule::missed($midnight + 3 * 3600 + 5, 3, $midnight + 10 * 3600), 'checked tonight');
+        self::assertFalse(MemoryConsolidationModule::missed($midnight - 86400 + 3 * 3600, 3, $midnight + 2 * 3600), 'tonight has not come yet');
     }
 
     public function testOldUnusedFactsOfLowTrustAreAskedAbout(): void {

@@ -63,6 +63,20 @@ final class TextAnalyzer {
     /** @var array<string, list<string>>|null stem => stems linked to it by a derivation */
     private static ?array $derivation = null;
 
+    /**
+     * Words that negate the word after them (a modal passes it on: «не может прийти»).
+     *
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream_lang.py@21878d3:L175-L184 (NEGATION_WORDS,
+     *      _MODALS) — the Russian and English words of the lists
+     */
+    public const NEGATIONS = ['не', 'нет', 'без', 'ни', 'никогда', 'нельзя', 'not', 'no', 'never', 'nor', 'neither', 'none',
+        'nothing', 'nobody', 'without', 'cannot', 'doesn', 'don', 'didn', 'isn', 'aren', 'wasn', 'weren', 'hasn', 'haven',
+        'hadn', 'shouldn', 'wouldn', 'couldn'];
+    private const MODALS = ['должен', 'должна', 'должно', 'должны', 'может', 'могут', 'мог', 'могла', 'могли', 'нужно', 'надо',
+        'будет', 'будут', 'стал', 'стала', 'стали', 'хочет', 'хотят', 'умеет', 'can', 'could', 'should', 'would', 'will',
+        'must', 'may', 'might', 'need', 'needs', 'have', 'has', 'had', 'do', 'does', 'did', 'be', 'been', 'is', 'are',
+        'was', 'were', 'want', 'wants', 'going'];
+
     /** @var array<string, true> */
     private readonly array $stop;
     private ?Stemmer $russian = null;
@@ -106,6 +120,42 @@ final class TextAnalyzer {
         }
         // PHP turns a numeric string key ("10") into an int: keys stay strings.
         return array_map(strval(...), array_keys($keys));
+    }
+
+    /**
+     * The keys of the words a text negates: the word after a negation, past a modal («не может прийти» — «приш»).
+     *
+     * spec: BRIEF.md#консолидация-dreaming — a negation turns a fact into another one
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L2326-L2348 (_negated) — the word after
+     *      the negation; the two-way words and Chinese are not taken
+     *
+     * @return list<string>
+     */
+    public function negated(string $text): array {
+        preg_match_all('~\p{L}+~u', mb_strtolower(str_replace(['ё', 'Ё'], ['е', 'Е'], $text)), $m);
+        $words = $m[0];
+        $keys = [];
+        foreach ($words as $i => $word) {
+            if (!in_array($word, self::NEGATIONS, true)) {
+                continue;
+            }
+            $next = $i + 1;
+            while (isset($words[$next]) && in_array($words[$next], self::MODALS, true)) {
+                $next++;
+            }
+            if (isset($words[$next]) && !in_array($words[$next], self::NEGATIONS, true)) {
+                foreach ($this->keys($words[$next]) as $key) {
+                    $keys[$key] = true;
+                }
+            }
+        }
+        return array_map(strval(...), array_keys($keys));
+    }
+
+    /** Whether a text has a negation at all. */
+    public static function negates(string $text): bool {
+        preg_match_all('~\p{L}+~u', mb_strtolower(str_replace(['ё', 'Ё'], ['е', 'Е'], $text)), $m);
+        return array_intersect($m[0], self::NEGATIONS) !== [];
     }
 
     /**

@@ -47,13 +47,12 @@ final class InMemoryConsolidationJournal implements ConsolidationJournal {
         $this->passes[] = ['at' => ($this->now)(), 'facts' => $facts, 'chars' => $chars, 'status' => $status, 'report' => $report];
     }
 
-    public function notice(string $kind, int $a, int $b, int $pauseDays): bool {
+    public function due(string $kind, int $a, int $b, int $pauseDays): bool {
         $key = $kind . ':' . $a . ':' . $b;
-        $now = ($this->now)();
-        if (isset($this->notices[$key]) && $this->notices[$key] >= $now - $pauseDays * 86400) {
-            return false;
-        }
-        $this->notices[$key] = $now;
-        return true;
+        return !isset($this->notices[$key]) || $this->notices[$key] < ($this->now)() - $pauseDays * 86400;
+    }
+
+    public function shown(string $kind, int $a, int $b): void {
+        $this->notices[$kind . ':' . $a . ':' . $b] = ($this->now)();
     }
 }

@@ -22,9 +22,6 @@ final class Corroboration {
     public const WINDOW_DAYS = 60;
     /** the newest lines of a person read for one fact */
     public const LINES = 2000;
-    private const NEGATIONS = ['не', 'нет', 'без', 'ни', 'никогда', 'нельзя', 'not', 'no', 'never', 'nor', 'neither', 'none',
-        'nothing', 'nobody', 'without', 'cannot', 'doesn', 'don', 'didn', 'isn', 'aren', 'wasn', 'weren', 'hasn', 'haven',
-        'hadn', 'shouldn', 'wouldn', 'couldn'];
 
     public function __construct(private readonly TextAnalyzer $analyzer) {}
 
@@ -36,7 +33,7 @@ final class Corroboration {
         if ($words === []) {
             return 0;
         }
-        $negated = self::negated($fact);
+        $negated = TextAnalyzer::negates($fact);
         $need = min(2, count($words));
         $days = [];
         foreach ($lines as [$content, $at]) {
@@ -45,7 +42,7 @@ final class Corroboration {
                 continue;
             }
             foreach (preg_split('~[.!?;\n]+~u', self::ownWords($content)) ?: [] as $sentence) {
-                if (trim($sentence) === '' || self::negated($sentence) !== $negated) {
+                if (trim($sentence) === '' || TextAnalyzer::negates($sentence) !== $negated) {
                     continue;
                 }
                 $keys = array_fill_keys($this->analyzer->keys($sentence), true);
@@ -97,10 +94,5 @@ final class Corroboration {
             $words[] = [array_fill_keys($keys, true), $distinctive];
         }
         return $words;
-    }
-
-    private static function negated(string $text): bool {
-        preg_match_all('~\p{L}+~u', mb_strtolower(str_replace(['ё', 'Ё'], ['е', 'Е'], $text)), $m);
-        return array_intersect($m[0], self::NEGATIONS) !== [];
     }
 }

@@ -658,8 +658,8 @@ $consolidation = new Consolidation(
     $proposals,
     $consolidationJournal,
     $memoryCards->show(...),
-    static function (string $text) use ($channel, $ownerDirectory): void {
-        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text));
+    static function (string $text) use ($channel, $ownerDirectory): bool {
+        return $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success;
     },
 );
 // spec: BRIEF.md#фаза-7-по-частям — the vault, the registry of servers, SSH with a command policy and a journal
@@ -1132,7 +1132,7 @@ $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background, deliveries: new \OpenCCK\App\Agent\DeliveryRecovery($deliveryRepository, $channel, $app->getLogger())))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger(), toolReliable: $toolReliableSources))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
-    ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger()))
+    ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger(), $consolidationJournal))
     ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))
     ->addHandler(fn(App $app): \OpenCCK\Infrastructure\Module\PeerModule => new \OpenCCK\Infrastructure\Module\PeerModule($peerNetwork, $a2aServer, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(

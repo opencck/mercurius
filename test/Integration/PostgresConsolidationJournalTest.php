@@ -48,10 +48,12 @@ final class PostgresConsolidationJournalTest extends AsyncTestCase {
         self::assertNotNull($last);
         self::assertSame([4, 120, ConsolidationJournal::DONE], [$last['facts'], $last['chars'], $last['status']]);
 
-        self::assertTrue($this->journal->notice('duplicate', 1, 2, 180));
-        self::assertFalse($this->journal->notice('duplicate', 1, 2, 180));
-        self::assertTrue($this->journal->notice('duplicate', 1, 3, 180));
+        self::assertTrue($this->journal->due('duplicate', 1, 2, 180));
+        self::assertTrue($this->journal->due('duplicate', 1, 2, 180), 'not shown until delivered');
+        $this->journal->shown('duplicate', 1, 2);
+        self::assertFalse($this->journal->due('duplicate', 1, 2, 180));
+        self::assertTrue($this->journal->due('duplicate', 1, 3, 180));
         $this->db->query("UPDATE memory_notices SET shown_at = now() - interval '200 days' WHERE a = 1 AND b = 2");
-        self::assertTrue($this->journal->notice('duplicate', 1, 2, 180), 'shown again after the pause');
+        self::assertTrue($this->journal->due('duplicate', 1, 2, 180), 'shown again after the pause');
     }
 }

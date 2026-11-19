@@ -21,10 +21,11 @@ interface ConsolidationJournal {
     /** @param list<string> $report */
     public function save(string $status, int $facts, int $chars, int $durationMs, array $report): void;
 
-    /**
-     * Whether a finding may be shown now: not shown within the pause. When it may, it counts as shown from now.
-     */
-    public function notice(string $kind, int $a, int $b, int $pauseDays): bool;
+    /** Whether a finding may be shown now: not shown within the pause. */
+    public function due(string $kind, int $a, int $b, int $pauseDays): bool;
+
+    /** A finding reached the owner: the pause counts from now. */
+    public function shown(string $kind, int $a, int $b): void;
 
     /** Replaces a text in every stored report (a forgotten fact); returns the reports changed. */
     public function redact(string $text, string $replacement): int;

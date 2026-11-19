@@ -53,14 +53,18 @@ final class PostgresConsolidationJournal implements ConsolidationJournal {
         );
     }
 
-    public function notice(string $kind, int $a, int $b, int $pauseDays): bool {
+    public function due(string $kind, int $a, int $b, int $pauseDays): bool {
         $row = $this->db->execute(
-            "INSERT INTO memory_notices (kind, a, b) VALUES (?, ?, ?)
-             ON CONFLICT (kind, a, b) DO UPDATE SET shown_at = now()
-             WHERE memory_notices.shown_at < now() - make_interval(days => ?)
-             RETURNING kind",
+            'SELECT 1 FROM memory_notices WHERE kind = ? AND a = ? AND b = ? AND shown_at >= now() - make_interval(days => ?)',
             [$kind, $a, $b, $pauseDays],
         )->fetchRow();
-        return $row !== null;
+        return $row === null;
+    }
+
+    public function shown(string $kind, int $a, int $b): void {
+        $this->db->execute(
+            'INSERT INTO memory_notices (kind, a, b) VALUES (?, ?, ?) ON CONFLICT (kind, a, b) DO UPDATE SET shown_at = now()',
+            [$kind, $a, $b],
+        );
     }
 }

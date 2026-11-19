@@ -10,6 +10,7 @@ use OpenCCK\Memory\Domain\ConsolidationJournal;
 use OpenCCK\Memory\Domain\Fact;
 use OpenCCK\Memory\Domain\MemoryStore;
 use OpenCCK\Memory\Domain\Proposal;
+use OpenCCK\Memory\Domain\TextAnalyzer;
 
 use function Mercurius\I18n\t;
 
@@ -42,10 +43,11 @@ final class Consolidation {
 
     /** @var Closure(): int */
     private readonly Closure $now;
+    private static ?TextAnalyzer $analyzer = null;
 
     /**
      * @param Closure(Proposal): bool $show sends a proposal's card to the owner
-     * @param Closure(string): void $tell writes to the owner
+     * @param Closure(string): bool $tell writes to the owner; false when the message was not delivered
      * @param (Closure(): int)|null $now unix seconds
      */
     public function __construct(
@@ -77,6 +79,8 @@ final class Consolidation {
         }
 
         $report = [];
+        /** @var list<array{string, int, int}> $pending findings that count as shown once the report is delivered */
+        $pending = [];
         $loss = $last === null ? null : self::loss($last['facts'], $last['chars'], $count, $chars);
         if ($loss !== null) {
             $report[] = $loss;
@@ -85,14 +89,22 @@ final class Consolidation {
         if ($duplicate !== null) {
             $report[] = $duplicate;
         }
-        array_push($report, ...$this->conflicts($facts), ...$this->unused($facts));
+        array_push($report, ...$this->conflicts($facts, $pending), ...$this->unused($facts, $pending));
 
-        $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report);
         if ($report === []) {
+            $this->journal->save(ConsolidationJournal::DONE, $count, $chars, self::ms($started), $report);
             return sprintf(t('app.consolidation.provereno_faktov_zamechaniy_net'), $count);
         }
         $text = t('app.consolidation.pamyat_nochnaya_proverka') . implode("\n\n", $report);
-        ($this->tell)($text);
+        // spec: BRIEF.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner; an
+        //       undelivered pass is a failed one, so the next night looks again even if memory did not change
+        $delivered = ($this->tell)($text);
+        if ($delivered) {
+            foreach ($pending as [$kind, $a, $b]) {
+                $this->journal->shown($kind, $a, $b);
+            }
+        }
+        $this->journal->save($delivered ? ConsolidationJournal::DONE : ConsolidationJournal::FAILED, $count, $chars, self::ms($started), $report);
         return $text;
     }
 
@@ -133,7 +145,7 @@ final class Consolidation {
                     continue;
                 }
                 [$keep, $drop] = self::keep($a, $b);
-                if (!$this->journal->notice('duplicate', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
+                if (!$this->journal->due('duplicate', min($a->id, $b->id), max($a->id, $b->id), self::PAUSE_DUPLICATE)) {
                     continue;
                 }
                 try {
@@ -149,7 +161,10 @@ final class Consolidation {
                 } catch (InvalidArgumentException) {
                     continue;
                 }
-                ($this->show)($proposal);
+                // the card is its own message: the pair counts as shown once the card reached the owner
+                if (($this->show)($proposal)) {
+                    $this->journal->shown('duplicate', min($a->id, $b->id), max($a->id, $b->id));
+                }
                 return sprintf(t('app.consolidation.fakt_povtoryaet_predlozhil_zabyt_kartoch'), $drop->id, $keep->id, $drop->id, $proposal->id);
             }
         }
@@ -160,9 +175,11 @@ final class Consolidation {
      * Facts about the same thing with different numbers: which is right is the owner's call.
      *
      * @param list<Fact> $facts
+     * @param list<array{string, int, int}> $pending
+     * @param-out list<array{string, int, int}> $pending
      * @return list<string>
      */
-    private function conflicts(array $facts): array {
+    private function conflicts(array $facts, array &$pending): array {
         $found = [];
         $checked = 0;
         foreach ($facts as $i => $a) {
@@ -170,11 +187,12 @@ final class Consolidation {
                 if (++$checked > self::PAIR_BUDGET || count($found) >= self::LIST_CAP) {
                     break 2;
                 }
-                if ($a->scope !== $b->scope || !self::conflict($a, $b) || !$this->journal->notice('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
+                if ($a->scope !== $b->scope || !self::conflict($a, $b) || !$this->journal->due('conflict', $a->id, $b->id, self::PAUSE_NOTICE)) {
                     continue;
                 }
+                $pending[] = ['conflict', $a->id, $b->id];
                 $found[] = sprintf(
-                    t('app.consolidation.vozmozhno_protivorechat_drug_drugu_razny'),
+                    t(self::flip($a, $b) ? 'app.consolidation.conflict_negation' : 'app.consolidation.vozmozhno_protivorechat_drug_drugu_razny'),
                     $a->id,
                     self::cut($a->text),
                     $b->id,
@@ -189,9 +207,11 @@ final class Consolidation {
      * Old facts of low trust that no run was ever given: a question, never a deletion.
      *
      * @param list<Fact> $facts
+     * @param list<array{string, int, int}> $pending
+     * @param-out list<array{string, int, int}> $pending
      * @return list<string>
      */
-    private function unused(array $facts): array {
+    private function unused(array $facts, array &$pending): array {
         $old = array_values(array_filter(
             $facts,
             fn(Fact $f): bool => $f->trust <= self::UNUSED_TRUST && $f->updatedAt < ($this->now)() - self::UNUSED_DAYS * 86400,
@@ -205,7 +225,8 @@ final class Consolidation {
             if (count($lines) >= self::LIST_CAP) {
                 break;
             }
-            if (!isset($used[$fact->id]) && $this->journal->notice('unused', $fact->id, 0, self::PAUSE_NOTICE)) {
+            if (!isset($used[$fact->id]) && $this->journal->due('unused', $fact->id, 0, self::PAUSE_NOTICE)) {
+                $pending[] = ['unused', $fact->id, 0];
                 $lines[] = sprintf('#%d %s', $fact->id, self::cut($fact->text));
             }
         }
@@ -214,7 +235,7 @@ final class Consolidation {
 
     /** Near-copies: the same numbers, and nearly the same words. */
     public static function duplicates(Fact $a, Fact $b): bool {
-        if (self::numbers($a) !== self::numbers($b)) {
+        if (self::numbers($a) !== self::numbers($b) || self::flip($a, $b)) {
             return false;
         }
         $shared = count(array_intersect($a->keys, $b->keys));
@@ -222,18 +243,35 @@ final class Consolidation {
         return $all > 0 && min(count($a->keys), count($b->keys)) >= 2 && (float) $shared / (float) $all >= self::DUPLICATE_JACCARD;
     }
 
-    /** About the same thing, with numbers that differ. */
+    /**
+     * About the same thing, with numbers that differ or a word one of them negates.
+     *
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@21878d3:L3035-L3068 (find_conflicts) — a
+     *      negation that differs is a conflict before the numbers are looked at
+     */
     public static function conflict(Fact $a, Fact $b): bool {
         $numbersA = self::numbers($a);
         $numbersB = self::numbers($b);
-        if ($numbersA === [] || $numbersB === [] || $numbersA === $numbersB) {
-            return false;
-        }
         $wordsA = array_diff($a->keys, $numbersA);
         $wordsB = array_diff($b->keys, $numbersB);
         $shared = count(array_intersect($wordsA, $wordsB));
         $smaller = min(count($wordsA), count($wordsB));
-        return $shared >= self::CONFLICT_SHARED && $smaller > 0 && (float) $shared / (float) $smaller >= self::CONFLICT_OVERLAP;
+        if ($shared < self::CONFLICT_SHARED || $smaller === 0 || (float) $shared / (float) $smaller < self::CONFLICT_OVERLAP) {
+            return false;
+        }
+        return self::flip($a, $b) || ($numbersA !== [] && $numbersB !== [] && $numbersA !== $numbersB);
+    }
+
+    /** One of the two negates a word both speak of («любит острое» and «не любит острое»). */
+    private static function flip(Fact $a, Fact $b): bool {
+        if (!TextAnalyzer::negates($a->text) && !TextAnalyzer::negates($b->text)) {
+            return false;
+        }
+        self::$analyzer ??= new TextAnalyzer();
+        $negatedA = self::$analyzer->negated($a->text);
+        $negatedB = self::$analyzer->negated($b->text);
+        $differ = array_merge(array_diff($negatedA, $negatedB), array_diff($negatedB, $negatedA));
+        return array_intersect($differ, $a->keys, $b->keys) !== [];
     }
 
     /**
