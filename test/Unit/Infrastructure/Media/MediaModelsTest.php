@@ -84,7 +84,7 @@ final class MediaModelsTest extends AsyncTestCase {
         self::assertNull($failed->text);
         self::assertStringContainsString('HTTP 500', $failed->error ?? '');
         self::assertStringContainsString('OPENAI_API_KEY', $failed->error ?? '', 'no key — no request, and the reason says so');
-        self::assertCount(1, $this->http->bodies);
+        self::assertCount(2, $this->http->bodies, 'a server error is asked once more, as for the text models');
     }
 
     public function testAVideoGoesAsAVideoPart(): void {

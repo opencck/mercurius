@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `466179d` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `832c2ef` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `efdba72` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
@@ -42,6 +42,11 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-19 — llm: изображения и видео в сообщении
+
+- `mercurius-llm` `832c2ef`: `MediaPart` (изображение или видео) в `Message::user`; сообщение уходит частями — текст и
+  `image_url`/`video_url` с data: URL. Приложение шлёт через это картинки и видео моделям зрения.
 
 ### 2026-11-19 — llm: модели, хорошо вызывающие инструменты
 

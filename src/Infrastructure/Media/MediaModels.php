@@ -10,6 +10,14 @@ use Amp\Http\Client\Form;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Closure;
+use Mercurius\Llm\ChatRequest;
+use Mercurius\Llm\LlmException;
+use Mercurius\Llm\MediaPart;
+use Mercurius\Llm\Message;
+use Mercurius\Llm\OpenAI\OpenAIClient;
+use Mercurius\Llm\OpenRouter\OpenRouterClient;
+use Mercurius\Llm\RetryingClient;
+use Mercurius\Llm\Usage;
 use OpenCCK\Domain\Entity\LlmCallRecord;
 use OpenCCK\Domain\Repository\LlmCallRepository;
 use OpenCCK\Infrastructure\Config\MediaSettings;
@@ -49,18 +57,11 @@ final class MediaModels {
 
     /** @param list<array{bytes: string, mime: string}> $images */
     public function look(string $ref, array $images, string $prompt, MediaCall $call): MediaAnswer {
-        $parts = [['type' => 'text', 'text' => $prompt]];
-        foreach ($images as $image) {
-            $parts[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $image['mime'] . ';base64,' . base64_encode($image['bytes'])]];
-        }
-        return $this->chat($ref, $parts, 'media-vision', $call);
+        return $this->chat($ref, $prompt, array_map(static fn(array $i): MediaPart => MediaPart::image($i['mime'], $i['bytes']), $images), 'media-vision', $call);
     }
 
     public function video(string $ref, string $bytes, string $mime, string $prompt, MediaCall $call): MediaAnswer {
-        return $this->chat($ref, [
-            ['type' => 'text', 'text' => $prompt],
-            ['type' => 'video_url', 'video_url' => ['url' => 'data:' . $mime . ';base64,' . base64_encode($bytes)]],
-        ], 'media-video', $call);
+        return $this->chat($ref, $prompt, [MediaPart::video($mime, $bytes)], 'media-video', $call);
     }
 
     public function transcribe(string $ref, string $bytes, string $fileName, MediaCall $call): MediaAnswer {
@@ -98,38 +99,46 @@ final class MediaModels {
     }
 
     /**
-     * @param list<array<string, mixed>> $parts
+     * A picture or a video with its question, through the same client as the text models: one way of retries,
+     * of errors and of spend.
+     *
+     * spec: BRIEF.md#входящие-вложения — models, calls, spend
+     *
+     * @param list<MediaPart> $media
      * @param non-empty-string $purpose
      */
-    private function chat(string $ref, array $parts, string $purpose, MediaCall $call): MediaAnswer {
+    private function chat(string $ref, string $prompt, array $media, string $purpose, MediaCall $call): MediaAnswer {
         $target = $this->target($ref);
         if (is_string($target)) {
             return new MediaAnswer(null, $target, $ref);
         }
         [$base, $model, $key] = $target;
-        $body = ['model' => $model, 'messages' => [['role' => 'user', 'content' => $parts]]];
-        // OpenAI takes max_completion_tokens; OpenRouter reports the cost when asked
-        $body += str_starts_with($ref, 'openai:') ? ['max_completion_tokens' => self::MAX_TOKENS] : ['max_tokens' => self::MAX_TOKENS];
-        if ($base === self::OPENROUTER) {
-            $body['usage'] = ['include' => true];
+        $client = new RetryingClient(match ($base) {
+            // OpenAI takes max_completion_tokens; the other endpoints speak the dialect of OpenRouter
+            self::OPENAI => new OpenAIClient($this->http, (string) $key, transferTimeout: 180.0),
+            default => new OpenRouterClient($this->http, $key ?? 'none', $base, transferTimeout: 180.0),
+        }, maxAttempts: 2, baseDelay: 0.5);
+        $started = microtime(true);
+        $text = null;
+        $error = null;
+        $usage = new Usage();
+        try {
+            $response = $client->complete(new ChatRequest($model, [Message::user($prompt, $media)], [], self::MAX_TOKENS), $call->cancellation);
+            $usage = $response->usage;
+            $text = trim($response->text) === '' ? null : trim($response->text);
+            $error = $text === null ? t('media.models.empty') : null;
+        } catch (CancelledException $e) {
+            throw $e;
+        } catch (LlmException $e) {
+            $error = $e->status === null ? $e->getMessage() : sprintf('HTTP %d: %s', $e->status, mb_substr($e->getMessage(), 0, 300));
+        } catch (Throwable $e) {
+            $error = t('media.models.no_answer') . (new \ReflectionClass($e))->getShortName();
         }
-        $request = new Request($base . '/chat/completions', 'POST', json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        $request->setHeader('content-type', 'application/json');
-        return $this->send($request, $key, $ref, $purpose, $call, static function (array $data): ?string {
-            /** @var mixed $content */
-            $content = self::dig($data, 'choices', 0, 'message', 'content');
-            if (!is_array($content)) {
-                return is_string($content) ? $content : null;
-            }
-            $text = '';
-            /** @var mixed $part */
-            foreach ($content as $part) {
-                /** @var mixed $piece */
-                $piece = is_array($part) ? ($part['text'] ?? null) : null;
-                $text .= is_string($piece) ? $piece : '';
-            }
-            return $text;
-        });
+        $this->record($ref, $purpose, ['usage' => ['prompt_tokens' => $usage->promptTokens(), 'completion_tokens' => $usage->outputTokens, 'cost' => $usage->costUsd]], $error, $call, (int) round((microtime(true) - $started) * 1000.0));
+        if ($error !== null) {
+            $this->logger->notice('Media model did not answer', ['model' => $ref, 'purpose' => $purpose, 'error' => mb_substr($error, 0, 200)]);
+        }
+        return new MediaAnswer($text, $error, $ref);
     }
 
     /**
