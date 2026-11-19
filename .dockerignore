@@ -3,6 +3,7 @@
 .claude
 .env
 .env.*
+!.env.example
 .mcp.json
 docs
 notes

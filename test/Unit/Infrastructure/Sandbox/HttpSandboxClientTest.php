@@ -95,6 +95,32 @@ final class HttpSandboxClientTest extends AsyncTestCase {
 
         self::assertSame(['text' => "a\nb\n", 'totalLines' => 9], $client->read(7, self::limits(), 'f', 1, 2, new NullCancellation()));
     }
+    public function testTheWorkspacesComeAsAFileAndGoBackFromOne(): void {
+        $client = $this->client(static fn(string $path): array => $path === '/archive' ? [200, 'TARGZ'] : [200, '{"ok":true}']);
+        $file = sys_get_temp_dir() . '/ws-' . bin2hex(random_bytes(4)) . '.tar.gz';
+
+        $client->archive($file, new NullCancellation());
+        self::assertSame('TARGZ', file_get_contents($file));
+        $client->unarchive($file, new NullCancellation());
+        unlink($file);
+
+        self::assertSame('/archive', $this->http->sent[0][0]);
+        self::assertSame('Bearer tok-0123456789abcdef', $this->http->sent[0][1]);
+        self::assertSame(['/unarchive', 'Bearer tok-0123456789abcdef', ['raw' => 'TARGZ']], $this->http->sent[1]);
+    }
+
+    public function testAFailedUnpackingIsAFailure(): void {
+        $client = $this->client(static fn(string $path): array => [500, '{"ok":false,"error":"tar: broken"}']);
+        $file = sys_get_temp_dir() . '/ws-' . bin2hex(random_bytes(4)) . '.tar.gz';
+        file_put_contents($file, 'X');
+        try {
+            $this->expectException(SandboxFailure::class);
+            $this->expectExceptionMessage('tar: broken');
+            $client->unarchive($file, new NullCancellation());
+        } finally {
+            unlink($file);
+        }
+    }
 }
 
 /** Records requests to the executor and answers from a table. */
@@ -107,8 +133,9 @@ final class SandboxHttpRecorder implements DelegateHttpClient {
 
     public function request(Request $request, Cancellation $cancellation): Response {
         $path = $request->getUri()->getPath();
+        $raw = buffer($request->getBody()->getContent());
         /** @var mixed $body */
-        $body = json_decode(buffer($request->getBody()->getContent()), true, 16, JSON_THROW_ON_ERROR);
+        $body = str_starts_with($raw, '{') ? json_decode($raw, true, 16, JSON_THROW_ON_ERROR) : ['raw' => $raw];
         $this->sent[] = [$path, $request->getHeader('authorization'), is_array($body) ? $body : []];
         [$status, $json] = ($this->answer)($path);
         if ($status === 0) {

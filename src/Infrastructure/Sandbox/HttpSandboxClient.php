@@ -32,6 +32,9 @@ use function Mercurius\I18n\t;
 final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv {
     private const FILE_TIMEOUT = 60;
     private const EXTRA_SECONDS = 10;
+    /** the archive of all working folders: an hour, up to 8 GB */
+    private const ARCHIVE_TIMEOUT = 3600;
+    private const ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024;
 
     public function __construct(
         private readonly DelegateHttpClient $http,
@@ -139,6 +142,68 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
             // already gone
         }
     }
+    /**
+     * The working folders of all participants as tar.gz into $file, streamed: for the archive of the agent.
+     *
+     * spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
+     * @throws SandboxFailure
+     */
+    public function archive(string $file, Cancellation $cancellation): void {
+        $request = new Request($this->url . '/archive', 'POST');
+        $request->setHeader('authorization', 'Bearer ' . $this->token);
+        $request->setTransferTimeout(self::ARCHIVE_TIMEOUT);
+        $request->setInactivityTimeout(self::FILE_TIMEOUT);
+        $request->setBodySizeLimit(self::ARCHIVE_BYTES);
+        $out = \Amp\File\openFile($file, 'w');
+        try {
+            $response = $this->http->request($request, $cancellation);
+            if ($response->getStatus() !== 200) {
+                throw new SandboxFailure(self::error(buffer($response->getBody())));
+            }
+            \Amp\ByteStream\pipe($response->getBody(), $out, $cancellation);
+        } catch (HttpException) {
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_nedostupna'));
+        } finally {
+            $out->close();
+        }
+    }
+
+    /**
+     * The working folders back from a tar.gz of archive(), unpacked over the workspace by the executor.
+     *
+     * spec: BRIEF.md#экспорт-и-импорт-агента — a full import brings the working folders back
+     * @throws SandboxFailure
+     */
+    public function unarchive(string $file, Cancellation $cancellation): void {
+        $request = new Request($this->url . '/unarchive', 'POST', \Amp\Http\Client\StreamedContent::fromFile($file));
+        $request->setHeader('authorization', 'Bearer ' . $this->token);
+        $request->setHeader('content-type', 'application/gzip');
+        $request->setTransferTimeout(self::ARCHIVE_TIMEOUT);
+        $request->setInactivityTimeout(self::ARCHIVE_TIMEOUT);
+        try {
+            $response = $this->http->request($request, $cancellation);
+            $text = buffer($response->getBody());
+        } catch (HttpException) {
+            throw new SandboxFailure(t('sandbox.http_sandbox_client.pesochnitsa_nedostupna'));
+        }
+        if ($response->getStatus() !== 200) {
+            throw new SandboxFailure(self::error($text));
+        }
+    }
+
+    /** The executor's error text of a JSON answer, or a general one. */
+    private static function error(string $text): string {
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode($text, true, 8, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $decoded = null;
+        }
+        /** @var mixed $error */
+        $error = is_array($decoded) ? ($decoded['error'] ?? null) : null;
+        return is_string($error) && $error !== '' ? $error : t('sandbox.http_sandbox_client.pesochnitsa_nedostupna');
+    }
+
     /**
      * @param array<string, mixed> $fields
      * @return array<string, mixed>

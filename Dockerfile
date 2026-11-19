@@ -43,6 +43,8 @@ COPY migrations ./migrations
 COPY resources ./resources
 COPY skills ./skills
 COPY bin/doctor.php ./bin/doctor.php
+# the names of the settings that go into the archive of the agent
+COPY .env.example ./
 
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION}

@@ -105,6 +105,13 @@ final class ChatService implements MessageHandler {
         $this->modelRoles = $roles;
     }
 
+    private ?\OpenCCK\App\Export\ExportCommands $export = null;
+
+    /** spec: BRIEF.md#экспорт-и-импорт-агента — /export: the owner's archive of the agent */
+    public function useExport(\OpenCCK\App\Export\ExportCommands $export): void {
+        $this->export = $export;
+    }
+
     /** /models — the roles and their latest changes; /models rollback <number> — a role back to that record. */
     private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Principal $who, string $argument): string {
         $parts = preg_split('/\s+/', trim($argument)) ?: [];
@@ -240,6 +247,21 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, $this->servers->secret($principal, $argument));
             }
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
+            return;
+        }
+        if ($command === '/export' && $this->export !== null) {
+            // spec: BRIEF.md#экспорт-и-импорт-агента — the password goes in a private chat, and its message leaves the chat
+            $argument = trim(substr($text, strlen($command)));
+            if (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } else {
+                $this->reply($message, $this->export->start($message->chatId, null, $argument));
+            }
+            if ($argument !== '' && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
