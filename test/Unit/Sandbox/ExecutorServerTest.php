@@ -93,6 +93,27 @@ final class ExecutorServerTest extends AsyncTestCase {
         return array_combine(array_map('strval', array_keys($decoded)), array_values($decoded));
     }
 
+    public function testTheWorkspacesGoOutAsAnArchiveAndComeBack(): void {
+        // spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive and come back from it
+        $from = sys_get_temp_dir() . '/ws-from-' . bin2hex(random_bytes(4));
+        $to = sys_get_temp_dir() . '/ws-to-' . bin2hex(random_bytes(4));
+        mkdir($from . '/p7/notes', 0777, true);
+        mkdir($to);
+        file_put_contents($from . '/p7/notes/a.txt', 'заметка');
+        $files = $this->createMock(FileStore::class);
+        $runner = $this->createMock(Runner::class);
+
+        self::assertSame(401, (new ExecutorServer(self::TOKEN, new Workspace($from), $runner, $files))->handleRequest($this->request('/archive', [], 'wrong'))->getStatus());
+        $archive = buffer((new ExecutorServer(self::TOKEN, new Workspace($from), $runner, $files))->handleRequest($this->request('/archive'))->getBody());
+        self::assertStringStartsWith("\x1f\x8b", $archive, 'gzip');
+
+        $back = new Request($this->createMock(Client::class), 'POST', Http::new('http://sandbox:9000/unarchive'), ['authorization' => 'Bearer ' . self::TOKEN], $archive);
+        $answer = (new ExecutorServer(self::TOKEN, new Workspace($to), $runner, $files))->handleRequest($back);
+
+        self::assertSame(200, $answer->getStatus(), buffer($answer->getBody()));
+        self::assertSame('заметка', file_get_contents($to . '/p7/notes/a.txt'));
+    }
+
     public function testMissingTokenIs401(): void {
         self::assertSame(401, $this->server()->handleRequest($this->request('/v1/usage', ['principal_id' => 7, 'limits' => self::LIMITS], null))->getStatus());
     }

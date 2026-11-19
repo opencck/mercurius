@@ -49,6 +49,12 @@ final class ExecutorServer implements RequestHandler {
         if (str_starts_with($peer, '127.') || str_starts_with($peer, '[::1]')) {
             return self::json(HttpStatus::FORBIDDEN, ['ok' => false, 'error' => t('sandbox.executor_server.net_dostupa')]);
         }
+        if ($request->getMethod() === 'POST' && ($path === '/archive' || $path === '/unarchive')) {
+            if (!hash_equals('Bearer ' . $this->token, $request->getHeader('authorization') ?? '')) {
+                return self::json(HttpStatus::UNAUTHORIZED, ['ok' => false, 'error' => t('sandbox.executor_server.net_dostupa')]);
+            }
+            return $path === '/archive' ? $this->archive() : $this->unarchive($request);
+        }
         if ($request->getMethod() !== 'POST' || !str_starts_with($path, '/v1/')) {
             return self::json(HttpStatus::NOT_FOUND, ['ok' => false, 'error' => t('sandbox.executor_server.net_takoy_operatsii')]);
         }
@@ -66,6 +72,44 @@ final class ExecutorServer implements RequestHandler {
             $this->logger->error('Executor failed', ['error' => $e::class]);
             return self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => t('sandbox.executor_server.vnutrennyaya_oshibka_pesochnitsy')]);
         }
+    }
+
+    /**
+     * The working folders of all participants as tar.gz, a stream: for the archive of the agent. Read as root, the
+     * ownership of every file kept.
+     *
+     * spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
+     */
+    private function archive(): Response {
+        $process = \Amp\Process\Process::start(['tar', '--numeric-owner', '-czf', '-', '-C', $this->workspace->root, '.']);
+        \Amp\async(static function () use ($process): void {
+            \Amp\ByteStream\buffer($process->getStderr());
+            $process->join();
+        })->ignore();
+        return new Response(HttpStatus::OK, ['content-type' => 'application/gzip'], $process->getStdout());
+    }
+
+    /**
+     * The working folders back from a tar.gz of archive(): unpacked over /workspace with their owners.
+     *
+     * spec: BRIEF.md#экспорт-и-импорт-агента — a full import brings the working folders back
+     */
+    private function unarchive(HttpRequest $request): Response {
+        $request->getBody()->increaseSizeLimit(8 * 1024 * 1024 * 1024);
+        $process = \Amp\Process\Process::start(['tar', '--numeric-owner', '-xzf', '-', '-C', $this->workspace->root]);
+        try {
+            \Amp\ByteStream\pipe($request->getBody(), $process->getStdin());
+            $process->getStdin()->close();
+            $error = \Amp\ByteStream\buffer($process->getStderr());
+            $code = $process->join();
+        } catch (Throwable $e) {
+            $process->kill();
+            $this->logger->error('Workspace not unpacked', ['error' => $e::class]);
+            return self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => t('sandbox.executor_server.vnutrennyaya_oshibka_pesochnitsy')]);
+        }
+        return $code === 0
+            ? self::json(HttpStatus::OK, ['ok' => true])
+            : self::json(HttpStatus::INTERNAL_SERVER_ERROR, ['ok' => false, 'error' => mb_substr(trim($error), 0, 500)]);
     }
 
     /**
