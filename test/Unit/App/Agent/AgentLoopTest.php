@@ -208,6 +208,22 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertNotEmpty($asked);
     }
 
+    public function testAModelOfAProseFamilyIsToldToActThroughTools(): void {
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — the rule goes with a request that has tools, by the model of that call
+        $this->registry->register(new FakeTool('spending'));
+        $llm = new ScriptedLlm([ScriptedLlm::text('ok')]);
+        $run = $this->runs->start($this->conversationId, 1, 'openrouter:z-ai/glm-5.3-flash', new RunLimits(30, 100_000, 900, 120));
+        self::assertNotNull($run);
+        $this->transcript->appendUser($this->conversationId, $run->id, 'задача');
+
+        $this->execute($llm, $run);
+
+        self::assertStringContainsString(\Mercurius\I18n\t('agent.tool_use_guidance'), $llm->requests[0]->messages[0]->content);
+        $other = new ScriptedLlm([ScriptedLlm::text('ok')]);
+        $this->execute($other, $this->start());
+        self::assertStringNotContainsString(\Mercurius\I18n\t('agent.tool_use_guidance'), $other->requests[0]->messages[0]->content, 'test/model is not of such a family');
+    }
+
     public function testADeniedAbilityIsCheckedInSelfInfoFirst(): void {
         // spec: BRIEF.md#знания-агента-о-себе — "no, I cannot" about itself is said only after self_info
         $self = new FakeTool('self_info');

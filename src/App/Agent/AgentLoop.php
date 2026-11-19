@@ -94,6 +94,8 @@ final class AgentLoop {
     private readonly ToolCallValidator $validator;
     /** @var (Closure(int): ?ParticipantPolicy)|null a ceiling for a run's policy, read before every model call */
     private ?Closure $cap = null;
+    /** which models get the rule to act through tools (AGENT_TOOL_USE_GUIDANCE) */
+    private ToolUseGuidance $toolUse;
     private readonly ToolRound $round;
     /** @var Closure(): float */
     private readonly Closure $clock;
@@ -126,6 +128,7 @@ final class AgentLoop {
         ?\OpenCCK\App\Agent\Tool\ResultBudget $budget = null,
     ) {
         $this->budget = $budget ?? \OpenCCK\App\Agent\Tool\ResultBudget::forWindow(131_072);
+        $this->toolUse = new ToolUseGuidance();
         $this->validator = new ToolCallValidator($registry);
         $this->clock = $clock ?? static fn(): float => microtime(true);
         $this->round = new ToolRound($runs, $transcript, $executor, $this->budget, $this->clock, $logger, $approvals, $gate, $events);
@@ -171,6 +174,11 @@ final class AgentLoop {
             }
             return $this->stop($state);
         }
+    }
+
+    /** spec: BRIEF.md#агентский-цикл-и-харнесс — AGENT_TOOL_USE_GUIDANCE */
+    public function useToolUseGuidance(ToolUseGuidance $guidance): void {
+        $this->toolUse = $guidance;
     }
 
     /**
@@ -473,12 +481,14 @@ final class AgentLoop {
      */
     private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null, array $tail = []): ChatRequest {
         $summary = $state->summary === null ? [] : [Message::user($state->summary)];
-        $messages = [Message::system($state->systemPrompt), ...$summary, ...$state->history, ...$this->contextMessages($state), ...$tail];
+        $model = $state->model ?? $state->run->model;
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — a model of a family that answers in prose is told to act through tools
+        $system = $tools !== [] && $this->toolUse->applies($model) ? $state->systemPrompt . "\n\n" . \Mercurius\I18n\t('agent.tool_use_guidance') : $state->systemPrompt;
+        $messages = [Message::system($system), ...$summary, ...$state->history, ...$this->contextMessages($state), ...$tail];
         $state->messagesAtCall = count($this->transcript->runMessages($state->run->id));
         if ($closingPrompt !== null) {
             $messages[] = Message::user($closingPrompt);
         }
-        $model = $state->model ?? $state->run->model;
         $effort = $state->lessReasoning ? 'low' : $this->reasoningEffort;
         return new ChatRequest($model, $messages, $tools, $maxTokens, reasoningEffort: $effort, extra: self::cacheKey($model, $state->run->conversationId));
     }
