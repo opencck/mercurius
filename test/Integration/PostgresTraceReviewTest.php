@@ -32,6 +32,12 @@ final class PostgresTraceReviewTest extends AsyncTestCase {
                 [$conversation, $principal, $reason],
             );
             $db->execute("INSERT INTO llm_calls (conversation_id, purpose, model, cost_usd) VALUES (?, ?, 'm', 0.5)", [$conversation, 'review-' . $reason]);
+            $row = $db->execute('SELECT id FROM runs WHERE conversation_id = ?', [$conversation])->fetchRow();
+            $id = $row['id'] ?? null;
+            Assert::assertIsInt($id);
+            foreach ([['c1', 0, 'ssh_exec-' . $tag, 'write', 'denied', false], ['c2', 1, 'http_request-' . $tag, 'write', 'done', false], ['c3', 2, 'shell-' . $tag, 'read', 'failed', true]] as [$call, $position, $name, $danger, $status, $refused]) {
+                $db->execute('INSERT INTO tool_calls (run_id, call_id, position, name, danger, status, refused) VALUES (?, ?, ?, ?, ?, ?, ?)', [$id, $call, $position, $name, $danger, $status, $refused]);
+            }
         };
 
         $run('eval', 'eval-' . $tag);
@@ -44,6 +50,10 @@ final class PostgresTraceReviewTest extends AsyncTestCase {
         $purposes = array_column($review['spend'], 'purpose');
         self::assertContains('review-real-' . $tag, $purposes);
         self::assertNotContains('review-eval-' . $tag, $purposes);
+        self::assertSame([['name' => 'shell-' . $tag, 'calls' => 1, 'runs' => 1]], array_values(array_filter($review['refused'], static fn(array $r): bool => $r['name'] === 'shell-' . $tag)), 'one refused call of the real run');
+        $after = array_values(array_filter($review['afterRefusal'], static fn(array $r): bool => $r['then'] === 'http_request-' . $tag));
+        self::assertCount(1, $after, 'the outward call after the refusal, of the real run only');
+        self::assertSame('ssh_exec-' . $tag, $after[0]['denied'] ?? null);
 
         $db->execute("DELETE FROM llm_calls WHERE purpose LIKE ?", ['review-%' . $tag]);
         $db->execute('DELETE FROM runs WHERE conversation_id IN (SELECT id FROM conversations WHERE chat_id = ?)', ['review-' . $tag]);

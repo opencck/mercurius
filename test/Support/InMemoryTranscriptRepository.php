@@ -72,7 +72,13 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         $this->setStatus($runId, $callId, $status);
     }
 
-    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void {
+    /** @var list<string> ids of calls the policy refused */
+    public array $refused = [];
+
+    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content, bool $refused = false): void {
+        if ($refused) {
+            $this->refused[] = $callId;
+        }
         if ($this->beforeToolResult !== null) {
             ($this->beforeToolResult)();
         }

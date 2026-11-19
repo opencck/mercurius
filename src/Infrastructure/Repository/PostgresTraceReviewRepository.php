@@ -61,7 +61,29 @@ final class PostgresTraceReviewRepository implements TraceReviewRepository {
             $usd = $row['usd'] ?? 0.0;
             $spend[] = ['purpose' => self::str($row, 'purpose'), 'usd' => is_float($usd) ? $usd : 0.0, 'calls' => self::int($row, 'calls')];
         }
-        return ['stops' => $stops, 'tools' => $tools, 'retried' => self::int($retried ?? [], 'n'), 'costly' => $costly, 'spend' => $spend];
+        // ref: references/claude-cookbooks/managed_agents/CMA_agent_security_review.ipynb@ce8b262 (log_review_utils.py,
+        //      structural rules) — rules against the grant, here against the participant's policy: calls it did not
+        //      allow, and an outward call within six calls after the owner refused one (retry-after-refusal)
+        $refused = [];
+        foreach ($this->db->execute(
+            'SELECT t.name, count(*) AS calls, count(DISTINCT t.run_id) AS runs FROM tool_calls t JOIN runs r ON r.id = t.run_id
+             WHERE t.refused AND r.created_at >= to_timestamp(?) AND ' . self::REAL . ' GROUP BY t.name ORDER BY 2 DESC LIMIT 10',
+            [$at],
+        ) as $row) {
+            $refused[] = ['name' => self::str($row, 'name'), 'calls' => self::int($row, 'calls'), 'runs' => self::int($row, 'runs')];
+        }
+        $afterRefusal = [];
+        foreach ($this->db->execute(
+            "SELECT DISTINCT ON (a.run_id, a.call_id) a.run_id AS run, d.name AS denied, a.name AS then
+             FROM tool_calls d JOIN tool_calls a ON a.run_id = d.run_id AND a.position > d.position AND a.position <= d.position + 6
+             JOIN runs r ON r.id = d.run_id
+             WHERE d.status = 'denied' AND a.danger <> 'read' AND a.status <> 'denied' AND r.created_at >= to_timestamp(?) AND " . self::REAL . "
+             ORDER BY a.run_id DESC, a.call_id LIMIT 10",
+            [$at],
+        ) as $row) {
+            $afterRefusal[] = ['run' => self::int($row, 'run'), 'denied' => self::str($row, 'denied'), 'then' => self::str($row, 'then')];
+        }
+        return ['stops' => $stops, 'tools' => $tools, 'retried' => self::int($retried ?? [], 'n'), 'costly' => $costly, 'spend' => $spend, 'refused' => $refused, 'afterRefusal' => $afterRefusal];
     }
 
     /** @param array<string, mixed> $row */

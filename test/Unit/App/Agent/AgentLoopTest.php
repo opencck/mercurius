@@ -224,6 +224,21 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringNotContainsString(\Mercurius\I18n\t('agent.tool_use_guidance'), $other->requests[0]->messages[0]->content, 'test/model is not of such a family');
     }
 
+    public function testACallThePolicyRefusesIsMarkedForTheReview(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the review counts calls the policy did not allow
+        $this->registry->register(new FakeTool('search'));
+        $this->registry->register(new FakeTool('shell'));
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'shell', '{"q":"rm"}'), new ToolCall('c2', 'search', '{"q":"a"}')),
+            ScriptedLlm::text('ok'),
+        ]);
+        $run = $this->start();
+
+        $this->loop($llm)->run($run, new ParticipantPolicy(['search'], $run->limits, null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame(['c1'], $this->transcript->refused);
+    }
+
     public function testManyMcpToolsAreReachedThroughTheBridge(): void {
         // spec: BRIEF.md#скиллы-и-mcp — the search of MCP tools: the model gets names, calls a tool through tool_call
         $issue = new FakeTool('mcp_github_create_issue', DangerClass::Read, ['type' => 'object', 'properties' => ['title' => ['type' => 'string']]]);

@@ -279,7 +279,8 @@ final class ToolRound {
     }
     private function writeResult(RunState $state, ValidatedCall $call, ToolResult $result): void {
         $status = $result->isError ? ToolCallStatus::Failed : ToolCallStatus::Done;
-        $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->call->id, $status, $result->content);
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — a call the policy did not allow is marked for the review
+        $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->call->id, $status, $result->content, $call->tool === null);
     }
     /**
      * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221f:L41-L99, L183-L186 — one-time budget warning

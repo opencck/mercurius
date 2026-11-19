@@ -83,6 +83,14 @@ final class TraceReviewTool implements Tool {
             static fn(array $s): string => sprintf('- %s: $%.4f (%d)', $s['purpose'], $s['usd'], $s['calls']),
             $data['spend'],
         )));
+        $out[] = t('tool.trace_review.refused') . "\n" . ($data['refused'] === [] ? '—' : implode("\n", array_map(
+            static fn(array $s): string => sprintf('- %s: %d (%d)', $s['name'], $s['calls'], $s['runs']),
+            $data['refused'],
+        )));
+        $out[] = t('tool.trace_review.after_refusal') . "\n" . ($data['afterRefusal'] === [] ? '—' : implode("\n", array_map(
+            static fn(array $s): string => sprintf('- #%d: %s → %s', $s['run'], $s['denied'], $s['then']),
+            $data['afterRefusal'],
+        )));
         if ($this->skills !== null) {
             // ref: references/hermes-agent/agent/curator.py@e96221fa:L31, L205-L240 — skills unused for a while are named
             //      for the owner; hermes archives them itself after 30 days, here the owner turns them off or pins them

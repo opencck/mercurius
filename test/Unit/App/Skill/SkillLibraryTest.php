@@ -195,7 +195,7 @@ final class SkillLibraryTest extends AsyncTestCase {
 
         $review = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new class implements \OpenCCK\Domain\Repository\TraceReviewRepository {
             public function review(\DateTimeImmutable $since): array {
-                return ['stops' => [], 'tools' => [], 'retried' => 0, 'costly' => [], 'spend' => []];
+                return ['stops' => [], 'tools' => [], 'retried' => 0, 'costly' => [], 'spend' => [], 'refused' => [], 'afterRefusal' => []];
             }
         });
         $review->useSkills($library);

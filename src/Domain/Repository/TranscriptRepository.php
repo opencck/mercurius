@@ -29,7 +29,8 @@ interface TranscriptRepository {
     public function setCallStatus(int $runId, string $callId, ToolCallStatus $status): void;
 
     /** The result message and the call's final status, in one transaction. */
-    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void;
+    /** @param bool $refused the policy of the participant did not allow the call, or there is no such tool */
+    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content, bool $refused = false): void;
 
     /** @return list<Message> every message of the run in order */
     public function runMessages(int $runId): array;

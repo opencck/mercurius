@@ -76,7 +76,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $this->db->execute('UPDATE tool_calls SET status = ? WHERE run_id = ? AND call_id = ?', [$status->value, $runId, $callId]);
     }
 
-    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content): void {
+    public function appendToolResult(int $conversationId, int $runId, string $callId, ToolCallStatus $status, string $content, bool $refused = false): void {
         $transaction = $this->db->beginTransaction();
         try {
             $transaction->execute(
@@ -84,8 +84,8 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
                 [$conversationId, $runId, $content, $callId],
             );
             $transaction->execute(
-                'UPDATE tool_calls SET status = ?, result_preview = ?, finished_at = now() WHERE run_id = ? AND call_id = ?',
-                [$status->value, mb_substr($content, 0, self::PREVIEW_CHARS), $runId, $callId],
+                'UPDATE tool_calls SET status = ?, result_preview = ?, finished_at = now(), refused = ? WHERE run_id = ? AND call_id = ?',
+                [$status->value, mb_substr($content, 0, self::PREVIEW_CHARS), $refused, $runId, $callId],
             );
             $transaction->commit();
         } catch (Throwable $e) {

@@ -27,6 +27,8 @@ final class TraceReviewToolTest extends AsyncTestCase {
                     'retried' => 2,
                     'costly' => [['run' => 812, 'tokens' => 400_000, 'turns' => 30, 'reason' => 'token_budget']],
                     'spend' => [['purpose' => 'agent', 'usd' => 1.25, 'calls' => 300]],
+                    'refused' => [['name' => 'shell', 'calls' => 3, 'runs' => 2]],
+                    'afterRefusal' => [['run' => 815, 'denied' => 'ssh_exec', 'then' => 'http_request']],
                 ];
             }
         };
@@ -40,6 +42,8 @@ final class TraceReviewToolTest extends AsyncTestCase {
         self::assertStringContainsString('web_read: 30 / 9 / 0', $result->content);
         self::assertStringContainsString('#812', $result->content);
         self::assertStringContainsString('$1.2500', $result->content);
+        self::assertStringContainsString('shell: 3 (2)', $result->content, 'calls the policy refused');
+        self::assertStringContainsString('#815: ssh_exec → http_request', $result->content, 'an outward call right after a refusal');
         self::assertStringContainsString('2', $result->content);
         self::assertStringNotContainsString('abcdefghijklmnop', $result->content, 'a secret in a failed result is masked');
         self::assertTrue($tool->untrusted());

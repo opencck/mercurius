@@ -19,7 +19,9 @@ interface TraceReviewRepository {
      *     tools: list<array{name: string, calls: int, failed: int, denied: int, sample: string}>,
      *     retried: int,
      *     costly: list<array{run: int, tokens: int, turns: int, reason: string}>,
-     *     spend: list<array{purpose: string, usd: float, calls: int}>
+     *     spend: list<array{purpose: string, usd: float, calls: int}>,
+     *     refused: list<array{name: string, calls: int, runs: int}>,
+     *     afterRefusal: list<array{run: int, denied: string, then: string}>
      * }
      */
     public function review(DateTimeImmutable $since): array;
