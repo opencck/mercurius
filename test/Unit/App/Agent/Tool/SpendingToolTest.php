@@ -44,6 +44,25 @@ final class SpendingToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute(['message_id' => 296], $context)->isError, 'an unknown message is not guessed');
     }
 
+    public function testTheSpendOfATaskIsTheSumOfItsRuns(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — the spend of a task is counted from its runs, never estimated
+        $principals = new InMemoryPrincipalRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Owner');
+        $figures = new FakeTraceReports();
+        $row = static fn(int $id, float $cost): array => ['id' => $id, 'status' => 'done', 'reason' => 'answered', 'model' => 'openrouter:z-ai/glm-5.3-flash', 'turns' => 3, 'tokens' => 100_000, 'active_ms' => 5000, 'cost' => $cost, 'started' => '2026-11-19 15:34'];
+        $figures->runs = [$row(653, 0.0104), $row(652, 0.0119), $row(646, 0.0319), $row(645, 0.0)];
+        $tool = new SpendingTool(new TraceReports($figures, new InMemoryTraceRepository()), new InMemoryRunRepository());
+        $context = new ToolContext(1, 1, $owner, new NullCancellation());
+
+        $result = $tool->execute(['action' => 'runs', 'run_ids' => [646, 652, 653]], $context);
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame([646, 652, 653], $figures->idsAsked);
+        self::assertStringContainsString('$0.0542', $result->content, 'the total of the three runs');
+        self::assertStringNotContainsString('#645', $result->content);
+        self::assertTrue($tool->execute(['action' => 'runs'], $context)->isError, 'no numbers — no guess');
+    }
+
     public function testTheCurrentRunReportsWhatItHasSpentSoFar(): void {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');

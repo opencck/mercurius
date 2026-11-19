@@ -30,8 +30,13 @@ interface TraceReportRepository {
     /** @return list<array{id: int, cost: float, tokens: int}> */
     public function costliestRuns(DateTimeImmutable $since, int $limit): array;
 
-    /** @return list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}> newest first */
-    public function recentRuns(int $limit, ?string $status = null): array;
+    /**
+     * Top-level runs, newest first; with $ids — those runs, a worker's spend in its parent's.
+     *
+     * @param list<int> $ids
+     * @return list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}>
+     */
+    public function recentRuns(int $limit, ?string $status = null, array $ids = []): array;
 
     /**
      * Why the model of a run was chosen: the decisions taken for it, oldest first.

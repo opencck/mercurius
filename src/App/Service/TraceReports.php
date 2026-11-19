@@ -138,11 +138,34 @@ final class TraceReports {
      * spec: BRIEF.md#трассировка-и-метрики — /runs <count> <status>
      */
     public function runs(int $limit = 10, ?string $status = null): string {
-        $rows = $this->figures->recentRuns(max(1, min(50, $limit)), $status !== null && in_array($status, self::RUN_STATUSES, true) ? $status : null);
+        return $this->runLines($this->figures->recentRuns(max(1, min(50, $limit)), $status !== null && in_array($status, self::RUN_STATUSES, true) ? $status : null), t('service.trace_reports.poslednie_zapuski'));
+    }
+
+    /**
+     * Named runs with their money and the total: the spend of a task is the sum of its runs, workers included.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — the spend of a task is counted, never estimated
+     *
+     * @param list<int> $ids
+     */
+    public function runsTotal(array $ids): string {
+        $ids = array_values(array_unique(array_slice($ids, 0, 50)));
+        $rows = $this->figures->recentRuns(max(1, count($ids)), null, $ids);
         if ($rows === []) {
             return t('service.trace_reports.zapuskov_esche_ne_bylo');
         }
-        $lines = [t('service.trace_reports.poslednie_zapuski')];
+        $missing = array_values(array_diff($ids, array_column($rows, 'id')));
+        $text = $this->runLines($rows, t('service.trace_reports.runs_named'), false);
+        $text .= "\n" . sprintf(t('service.trace_reports.runs_total'), count($rows), self::usd(array_sum(array_column($rows, 'cost'))), self::n(array_sum(array_column($rows, 'tokens'))));
+        return $missing === [] ? $text : $text . "\n" . sprintf(t('service.trace_reports.runs_missing'), implode(', ', array_map(static fn(int $id): string => '#' . $id, $missing)));
+    }
+
+    /** @param list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}> $rows */
+    private function runLines(array $rows, string $title, bool $hint = true): string {
+        if ($rows === []) {
+            return t('service.trace_reports.zapuskov_esche_ne_bylo');
+        }
+        $lines = [$title];
         foreach ($rows as $row) {
             $lines[] = sprintf(
                 t('service.trace_reports.hodov_tokenov'),
@@ -157,8 +180,10 @@ final class TraceReports {
                 $row['model'],
             );
         }
-        $lines[] = '';
-        $lines[] = t('service.trace_reports.razbor_zapuska_trace_nomer');
+        if ($hint) {
+            $lines[] = '';
+            $lines[] = t('service.trace_reports.razbor_zapuska_trace_nomer');
+        }
         return implode("\n", $lines);
     }
 

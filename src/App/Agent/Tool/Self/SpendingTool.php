@@ -40,10 +40,12 @@ final class SpendingTool implements Tool {
             . t('tool.spending.kotoryy_napisal_soobschenie_message_id')
             . t('tool.spending.recent_poslednie_zapuski_days_rashod')
             . t('tool.spending.breakdown_about')
+            . t('tool.spending.runs_about')
             . t('tool.spending.chisla_beri_tolko_otsyuda_i'), [
             'type' => 'object',
             'properties' => [
-                'action' => ['type' => 'string', 'enum' => ['run', 'recent', 'days', 'breakdown']],
+                'action' => ['type' => 'string', 'enum' => ['run', 'recent', 'runs', 'days', 'breakdown']],
+                'run_ids' => ['type' => 'array', 'items' => ['type' => 'integer', 'minimum' => 1], 'maxItems' => 50],
                 'by' => ['type' => 'string', 'enum' => \OpenCCK\Domain\Agent\SpendQuery::BY, 'description' => t('tool.spending.by')],
                 'from' => ['type' => 'string', 'description' => t('tool.spending.from')],
                 'to' => ['type' => 'string', 'description' => t('tool.spending.to')],
@@ -152,6 +154,13 @@ final class SpendingTool implements Tool {
         $owner = $context->principal->isOwner();
         if ($action !== 'run' && !$owner) {
             return ToolResult::error(t('tool.spending.obschiy_rashod_vidit_tolko_vladelets'));
+        }
+        if ($action === 'runs') {
+            /** @var mixed $raw */
+            $raw = $args['run_ids'] ?? null;
+            $ids = is_array($raw) ? array_values(array_filter($raw, static fn(mixed $id): bool => is_int($id) && $id > 0)) : [];
+            /** @var list<int> $ids */
+            return $ids === [] ? ToolResult::error(t('tool.spending.runs_need_ids')) : ToolResult::ok($this->reports->runsTotal($ids));
         }
         if ($action === 'recent') {
             return ToolResult::ok($this->reports->runs(10));

@@ -104,8 +104,13 @@ final class FakeTraceReports implements TraceReportRepository {
     /** @var array{0?: int, 1?: ?string} the count and status /runs asked for */
     public array $runsAsked = [];
 
-    public function recentRuns(int $limit, ?string $status = null): array {
+    /** @var list<int> the runs asked for by number */
+    public array $idsAsked = [];
+
+    public function recentRuns(int $limit, ?string $status = null, array $ids = []): array {
         $this->runsAsked = [$limit, $status];
-        return array_slice($this->runs, 0, $limit);
+        $this->idsAsked = $ids;
+        $rows = $ids === [] ? $this->runs : array_values(array_filter($this->runs, static fn(array $r): bool => in_array($r['id'], $ids, true)));
+        return array_slice($rows, 0, $limit);
     }
 }

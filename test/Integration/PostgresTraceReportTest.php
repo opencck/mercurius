@@ -61,6 +61,10 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertContains($run->id, array_column($reports->costliestRuns($since, 100), 'id'));
         $recent = array_column($reports->recentRuns(1000), null, 'id');
         self::assertEqualsWithDelta(0.0021, $recent[$run->id]['cost'], 0.0000001);
+        // spec: BRIEF.md#трассировка-и-метрики — runs by number, for the spend of a task
+        $named = $reports->recentRuns(10, null, [$run->id]);
+        self::assertSame([$run->id], array_column($named, 'id'));
+        self::assertEqualsWithDelta(0.0021, $named[0]['cost'], 0.0000001);
     }
 
     public function testSpendIsSplitByTopicProjectParticipantAndDay(): void {
