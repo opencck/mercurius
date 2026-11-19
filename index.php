@@ -195,6 +195,8 @@ $logger->info('Migrations checked', ['applied' => $applied]);
 // spec: BRIEF.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
 // when it is kept, and once more here: if they fail, the agent starts on .env and says why.
 $principals = new PostgresPrincipalRepository($db);
+// spec: BRIEF.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
+$ownerDirectory = new \OpenCCK\App\Service\OwnerDirectory($principals, TelegramChannel::NAME, $telegram->ownerId);
 $vault = new Vault(new PostgresSecretRepository($db), $vaultSettings->key());
 $restarter = new \OpenCCK\App\Settings\Restarter();
 $validateSettings = static function (array $env): ?string {
@@ -234,7 +236,7 @@ $settingsService = new \OpenCCK\App\Settings\SettingsService(
     $vault,
     $_ENV,
     $validateSettings,
-    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+    static fn(): ?Principal => $ownerDirectory->principal(),
 );
 $overlay = $settingsService->overlay();
 $settingsProblem = $validateSettings($overlay);
@@ -422,7 +424,7 @@ $traces = new PostgresTraceRepository($db);
 $tracer = new Tracer($traces, $modelCatalog, $logger);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
-$approvals = new ApprovalService($approvalStore, $principals, $channel, $telegram->ownerId, $agentSettings->approvalTimeout, $logger, $tracer);
+$approvals = new ApprovalService($approvalStore, $principals, $channel, $ownerDirectory, $agentSettings->approvalTimeout, $logger, $tracer);
 // spec: BRIEF.md#входящие-вложения — vision, speech and video models through the models' HTTP client (VLESS when set);
 // an own endpoint's key is the vault secret media-endpoint-<name>
 $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
@@ -430,8 +432,8 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $openRouterKey,
     $openAiKey,
     $mediaSettings,
-    static function (string $name) use ($vault, $principals, $telegram): ?string {
-        $owner = $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId);
+    static function (string $name) use ($vault, $ownerDirectory): ?string {
+        $owner = $ownerDirectory->principal();
         return $owner === null ? null : $vault->reveal('media-endpoint-' . $name, $owner);
     },
     $llmCalls,
@@ -455,7 +457,7 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
     $tools->register(new BrowserTool(
         $browserClient,
         $channel,
-        $telegram->ownerId,
+        $ownerDirectory,
         $addressGuard,
         // a screenshot goes to the chat it was asked in and is kept in the sandbox, to be sent on
         $conversations,
@@ -569,7 +571,7 @@ $proposals = new Proposals(
     new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
     $memorySettings->key($telegram->token()),
 );
-$memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $telegram->ownerId, $principals, $logger);
+$memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $ownerDirectory, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
 // spec: BRIEF.md#память-слои — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
@@ -603,8 +605,8 @@ $consolidation = new Consolidation(
     $proposals,
     $consolidationJournal,
     $memoryCards->show(...),
-    static function (string $text) use ($channel, $telegram): void {
-        $channel->send(new OutgoingMessage($telegram->ownerId, $text));
+    static function (string $text) use ($channel, $ownerDirectory): void {
+        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text));
     },
 );
 // spec: BRIEF.md#фаза-7-по-частям — the vault, the registry of servers, SSH with a command policy and a journal
@@ -613,7 +615,7 @@ if (!$vault->enabled()) {
 }
 $serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
-$hostKeyCards = new HostKeyCards($serverRepository, $channel, $telegram->ownerId);
+$hostKeyCards = new HostKeyCards($serverRepository, $channel, $ownerDirectory);
 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the owner may take off any rule of what is never done
 $sshNeverOff = array_values(array_filter(array_map('trim', explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SSH_NEVER_OFF') ?? '')), static fn(string $r): bool => $r !== ''));
 $serverConsole = new ServerConsole(
@@ -645,7 +647,7 @@ $skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
         $principal = $principals->find($principalId);
         return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
     },
-    static fn(): ?int => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId)?->id,
+    static fn(): ?int => $ownerDirectory->principal()?->id,
     $logger,
 );
 $scheduler->useSkills($skillLibrary);
@@ -682,9 +684,9 @@ $mcpManager = new McpManager(
     new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create()), $stdioMcp),
     $vault,
     $tools,
-    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
-    static function (string $text) use ($channel, $telegram): void {
-        $channel->send(new OutgoingMessage($telegram->ownerId, $text));
+    static fn(): ?Principal => $ownerDirectory->principal(),
+    static function (string $text) use ($channel, $ownerDirectory): void {
+        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text));
     },
     $logger,
     stdio: $stdioMcp !== null,
@@ -735,7 +737,7 @@ $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', 
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));
 $tools->register(new JobManageTool($jobRepository, $jobScheduler));
 // spec: BRIEF.md#планировщик-и-проекты — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
-if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
 
@@ -753,7 +755,7 @@ $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, 
 $tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
-$channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $telegram->ownerId, $logger);
+$channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $ownerDirectory, $logger);
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ChannelPostTool($channel, $channelRepository));
 $scheduler->useJobRuns($jobScheduler);
 
@@ -767,7 +769,7 @@ $agentIdentity = $vault->enabled()
     : \OpenCCK\App\Peer\AgentIdentity::generate();
 // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — keys the agent makes itself, the
 // transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
-$agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId), $agentIdentity);
+$agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $ownerDirectory->principal(), $agentIdentity);
 // native WebSocket pings from this side too: every 10 s; three unanswered — the connection is dead and is closed
 // spec: BRIEF.md#между-агентами — files go ahead by POST /a2a/files (http, by default) or as bytes over a WebSocket (ws):
 // then a message after the handshake may reach 28 MB
@@ -803,7 +805,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $selfUrl ?? 'local:' . $telegram->ownerId,
     $logger,
     $agentIdentity,
-    static fn(): ?Principal => $principals->findByIdentity(TelegramChannel::NAME, $telegram->ownerId),
+    static fn(): ?Principal => $ownerDirectory->principal(),
     $agentKeys,
     $a2aLinks,
     $sandbox,
@@ -818,7 +820,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerLinksTool($peerNetwork))
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerKeysTool($peerNetwork, $agentKeys));
 // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — an unknown agent knocks, the owner decides
-$agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $telegram->ownerId, $logger, conversations: $conversations, transcript: $transcript);
+$agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $ownerDirectory, $logger, conversations: $conversations, transcript: $transcript);
 // ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
 $a2aTransport = (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TRANSPORT') ?? 'ws') === 'http' ? 'http' : 'ws';
 $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? null : new \OpenCCK\App\Peer\A2aServer(
@@ -848,7 +850,7 @@ if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
 }
-$dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
+$dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
@@ -856,7 +858,7 @@ $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audi
 $tools->register(new ExperienceSearchTool($experience, $audience));
 $background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
-$visitors = new VisitorService($principals, $channel, $telegram->ownerId, $logger);
+$visitors = new VisitorService($principals, $channel, $ownerDirectory, $logger);
 // spec: BRIEF.md#telegram-группы-каналы-и-темы — groups approved by the owner; the bot's name finds mentions
 try {
     $me = $telegramApi->getMe();
@@ -869,7 +871,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     $groupRepository,
     $principals,
     $channel,
-    $telegram->ownerId,
+    $ownerDirectory,
     explode(':', $telegram->token(), 2)[0],
     $botUsername,
     $logger,
@@ -942,7 +944,7 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
     $improvementRepository,
     $promptNotes,
     $channel,
-    $telegram->ownerId,
+    $ownerDirectory,
     // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the owner may switch off the check of a prompt change by the set
     \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'IMPROVE_GATE') === '0'
         ? static fn(string $current, string $candidate): \OpenCCK\App\Improve\GateVerdict => new \OpenCCK\App\Improve\GateVerdict(true, \Mercurius\I18n\t('improve.gate_off'))
@@ -958,10 +960,10 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($improvements));
 $chat->useImprovements($improvements);
-if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
+if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $telegram->ownerId, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
+$presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards], ['p' . $apiOwner->id], [MemoryCards::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);

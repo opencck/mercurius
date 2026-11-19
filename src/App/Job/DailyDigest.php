@@ -10,6 +10,7 @@ use DateTimeZone;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\DigestJournal;
@@ -44,7 +45,7 @@ final class DailyDigest {
         private readonly DigestJournal $journal,
         private readonly JobScheduler $scheduler,
         private readonly Channel $channel,
-        private readonly string $ownerChat,
+        private readonly OwnerDirectory|string $ownerChat,
         private readonly ?string $time,
         private readonly LoggerInterface $logger,
         ?Closure $now = null,
@@ -63,7 +64,7 @@ final class DailyDigest {
             return;
         }
         $text = $this->text($now);
-        if ($text !== null && !$this->channel->send(new OutgoingMessage($this->ownerChat, SecretMasker::mask($text)))->success) {
+        if ($text !== null && !$this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChat), SecretMasker::mask($text)))->success) {
             $this->logger->warning('Daily summary was not delivered');
         }
     }

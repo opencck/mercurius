@@ -11,6 +11,7 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Repository\ImprovementRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -42,7 +43,7 @@ final class Improvements implements CallbackHandler {
         private readonly ImprovementRepository $store,
         private readonly PromptNotes $notes,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly Closure $gate,
         private readonly Closure $setSetting,
         private readonly LoggerInterface $logger = new NullLogger(),
@@ -98,7 +99,7 @@ final class Improvements implements CallbackHandler {
         if (in_array($kind, self::GRANTABLE, true) && $this->grant !== null) {
             $row[] = new Button(t('improve.always'), sprintf('%s:%d:g', self::PREFIX, $id));
         }
-        $this->channel->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [$row]));
+        $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: [$row]));
     }
 
     public function handleCallback(IncomingCallback $callback): void {
@@ -195,6 +196,6 @@ final class Improvements implements CallbackHandler {
     }
 
     private function tell(string $text): void {
-        $this->channel->send(new OutgoingMessage($this->ownerChatId, $text));
+        $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $text));
     }
 }

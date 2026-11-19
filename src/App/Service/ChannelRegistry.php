@@ -29,7 +29,7 @@ final class ChannelRegistry implements MembershipHandler, PostHandler {
     public function __construct(
         private readonly ChannelRepository $channels,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly LoggerInterface $logger,
     ) {}
 
@@ -63,7 +63,7 @@ final class ChannelRegistry implements MembershipHandler, PostHandler {
             default => null,
         };
         if ($text !== null) {
-            $this->channel->send(new OutgoingMessage($this->ownerChatId, $text));
+            $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $text));
         }
     }
 

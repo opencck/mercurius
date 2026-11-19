@@ -21,6 +21,39 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return $this->principals[$id] ?? null;
     }
 
+    public function owner(): ?Principal {
+        foreach ($this->principals as $principal) {
+            if ($principal->role === Role::Owner) {
+                return $principal;
+            }
+        }
+        return null;
+    }
+
+    /** @var array<int, int> */
+    private array $former = [];
+
+    public function transferOwnership(int $from, int $to): bool {
+        if ($from < 1 || $to < 1) {
+            return false;
+        }
+        $old = $this->principals[$from] ?? null;
+        $new = $this->principals[$to] ?? null;
+        if ($old === null || $new === null || $from === $to || !$old->isOwner() || $new->kind !== PrincipalKind::Human || $new->status !== PrincipalStatus::Active) {
+            return false;
+        }
+        $this->principals[$from] = new Principal($old->id, $old->kind, Role::Admin, $old->displayName, $old->status);
+        $this->principals[$to] = new Principal($new->id, $new->kind, Role::Owner, $new->displayName, $new->status);
+        $this->ownerId = $to;
+        $this->former[$from] = time();
+        unset($this->former[$to]);
+        return true;
+    }
+
+    public function formerOwners(): array {
+        return $this->former;
+    }
+
     public function findByIdentity(string $channel, string $externalId): ?Principal {
         $id = $this->identities[$channel . ':' . $externalId] ?? null;
         return $id === null ? null : $this->find($id);

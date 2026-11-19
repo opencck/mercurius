@@ -11,6 +11,7 @@ use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\AgentRequest;
 use OpenCCK\Domain\Repository\PeerRepository;
@@ -40,7 +41,7 @@ final class AgentRequests implements CallbackHandler {
         private readonly PeerRepository $peers,
         private readonly PrincipalRepository $principals,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly LoggerInterface $logger = new NullLogger(),
         /** at most this many agents wait for the owner at once; the rest are told to come later and not shown */
         private readonly int $maxPending = 20,
@@ -135,7 +136,7 @@ final class AgentRequests implements CallbackHandler {
             $request->fingerprint,
         );
         // the address is the agent's own words: no preview, or Telegram would put its page into the owner's card
-        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [[
+        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: [[
             new Button(t('peer.agent_requests.user'), sprintf('%s:%d:u', self::PREFIX, $request->id)),
             new Button(t('peer.agent_requests.admin'), sprintf('%s:%d:a', self::PREFIX, $request->id)),
             new Button(t('peer.agent_requests.reject'), sprintf('%s:%d:r', self::PREFIX, $request->id)),
@@ -160,12 +161,12 @@ final class AgentRequests implements CallbackHandler {
         if ($this->conversations === null || $this->transcript === null) {
             return;
         }
-        $owner = $this->principals->findByIdentity($this->channel->name(), $this->ownerChatId);
+        $owner = $this->principals->findByIdentity($this->channel->name(), OwnerDirectory::chat($this->ownerChatId));
         if ($owner === null) {
             return;
         }
         try {
-            $conversation = $this->conversations->openConversation($owner->id, $this->channel->name(), $this->ownerChatId);
+            $conversation = $this->conversations->openConversation($owner->id, $this->channel->name(), OwnerDirectory::chat($this->ownerChatId));
             $this->transcript->appendUser($conversation, null, $text);
         } catch (\Throwable $e) {
             $this->logger->warning('Agent request note was not kept', ['error' => $e::class]);

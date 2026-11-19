@@ -15,8 +15,64 @@ use UnexpectedValueException;
 final class PostgresPrincipalRepository implements PrincipalRepository {
     /** Advisory lock key: only one process creates the owner. */
     private const OWNER_LOCK = 7_331_002;
+    /** the vault name of the agent's own key for other agents (AgentIdentity::VAULT_NAME), and of its extra keys */
+    private const AGENT_KEY = 'a2a-identity-key';
 
     public function __construct(private readonly PostgresLink $db) {}
+
+    public function owner(): ?Principal {
+        $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals WHERE role = 'owner'")->fetchRow();
+        return $row === null ? null : self::hydrate($row);
+    }
+
+    public function transferOwnership(int $from, int $to): bool {
+        $tx = $this->db->beginTransaction();
+        try {
+            $tx->execute('SELECT pg_advisory_xact_lock(?)', [self::OWNER_LOCK]);
+            $old = $tx->execute("SELECT id FROM principals WHERE id = ? AND role = 'owner'", [$from])->fetchRow();
+            $new = $tx->execute("SELECT id FROM principals WHERE id = ? AND id <> ? AND kind = 'human' AND status = 'active'", [$to, $from])->fetchRow();
+            if ($old === null || $new === null) {
+                return false;
+            }
+            $tx->execute("UPDATE principals SET role = 'admin' WHERE id = ?", [$from]);
+            $tx->execute("UPDATE principals SET role = 'owner' WHERE id = ?", [$to]);
+            // the personal stays with the former owner: memory about them, the projects they had as owner
+            $tx->execute("UPDATE facts SET scope = 'principal:' || ? WHERE scope = 'owner'", [(string) $from]);
+            $tx->execute('UPDATE projects SET owner_id = ? WHERE owner_id IS NULL', [$from]);
+            // what the agent has goes with it: its key for other agents and the jobs it keeps for the owner
+            $tx->execute(
+                "UPDATE secrets SET principal_id = ? WHERE lower(name) = ? OR starts_with(lower(name), ?)",
+                [$to, self::AGENT_KEY, self::AGENT_KEY . '-'],
+            );
+            $tx->execute(
+                "UPDATE jobs SET principal_id = ?, chat_id = coalesce((SELECT external_id FROM channel_identities WHERE principal_id = ? AND channel = 'telegram' ORDER BY external_id LIMIT 1), chat_id)
+                 WHERE principal_id = ? AND title IN ('initiative', 'self-review')",
+                [$to, $to, $from],
+            );
+            $tx->execute('INSERT INTO ownership_transfers (from_principal, to_principal) VALUES (?, ?)', [$from, $to]);
+            $tx->commit();
+            return true;
+        } finally {
+            if ($tx->isActive()) {
+                $tx->rollback();
+            }
+        }
+    }
+
+    public function formerOwners(): array {
+        $former = [];
+        foreach ($this->db->query(
+            "SELECT t.from_principal AS id, extract(epoch FROM max(t.at))::bigint AS until FROM ownership_transfers t
+             JOIN principals p ON p.id = t.from_principal WHERE p.role <> 'owner' GROUP BY t.from_principal",
+        ) as $row) {
+            $id = $row['id'] ?? null;
+            $until = $row['until'] ?? null;
+            if (is_int($id) && is_int($until)) {
+                $former[$id] = $until;
+            }
+        }
+        return $former;
+    }
 
     public function find(int $id): ?Principal {
         $row = $this->db->execute('SELECT id, kind, role, display_name, status FROM principals WHERE id = ?', [$id])->fetchRow();

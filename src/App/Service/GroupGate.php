@@ -53,7 +53,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly GroupRepository $groups,
         private readonly PrincipalRepository $principals,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly string $botId,
         private readonly ?string $botUsername,
         private readonly LoggerInterface $logger,
@@ -189,7 +189,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $this->talk->forget($change->channel, $change->chatId);
             if ($group !== null && $group->status === Group::APPROVED) {
                 $this->groups->decide($change->channel, $change->chatId, Group::PENDING, $group->mode);
-                $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.menya_ubrali_iz_gruppy'), $group->title)));
+                $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(t('service.group_gate.menya_ubrali_iz_gruppy'), $group->title)));
             }
             $this->logger->notice('Bot removed from a group', ['chat' => $change->chatId, 'status' => $change->status]);
             return;
@@ -209,7 +209,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if ($callback->chatId !== $this->ownerChatId || preg_match('/^gr:(-?\d+):([mfrn]|u[1-9]\d{0,9})$/', $callback->data, $m) !== 1) {
+        if ($callback->chatId !== OwnerDirectory::chat($this->ownerChatId) || preg_match('/^gr:(-?\d+):([mfrn]|u[1-9]\d{0,9})$/', $callback->data, $m) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
@@ -289,7 +289,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         }
         $this->limitWarned[$group->chatId] = $today;
         $raised = max($limit * 2, $spent + $limit);
-        $sent = $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.limit_reached'), MessageMeta::inline($group->title), $spent, $limit), buttons: [[
+        $sent = $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(t('service.group_gate.limit_reached'), MessageMeta::inline($group->title), $spent, $limit), buttons: [[
             new Button(sprintf(t('service.group_gate.limit_raise'), $raised), sprintf('gr:%s:u%d', $group->chatId, $raised)),
             new Button(t('service.group_gate.limit_lift'), sprintf('gr:%s:n', $group->chatId)),
         ]]));
@@ -348,7 +348,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     }
 
     private function card(string $chatId, string $title): void {
-        $result = $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(t('service.group_gate.menya_dobavili_v_gruppu_rabotat'), $title), buttons: [[
+        $result = $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(t('service.group_gate.menya_dobavili_v_gruppu_rabotat'), $title), buttons: [[
             new Button(t('service.group_gate.po_upominaniyu'), sprintf('gr:%s:m', $chatId)),
             new Button(t('service.group_gate.svobodno'), sprintf('gr:%s:f', $chatId)),
             new Button(t('service.group_gate.vyyti'), sprintf('gr:%s:r', $chatId)),

@@ -28,6 +28,29 @@ abstract class PrincipalStoreContract extends AsyncTestCase {
         self::assertNull($this->principals->externalId($visitor->id, 'slack'));
     }
 
+    public function testOwnershipPassesToAnActivePersonAndTheFormerOwnerBecomesAnAdmin(): void {
+        $owner = $this->principals->ensureOwner('telegram', 'owner-' . $this->externalId, 'Владелец');
+        $next = $this->principals->createVisitor('telegram', $this->externalId, 'Преемник');
+        $this->principals->decideVisitor($next->id, Role::User, PrincipalStatus::Active);
+        $agent = $this->principals->createAgent('agent-' . $this->externalId, Role::User);
+        try {
+            self::assertFalse($this->principals->transferOwnership($next->id, $owner->id), 'only the owner passes it on');
+            self::assertFalse($this->principals->transferOwnership($owner->id, $agent->id), 'an agent does not own');
+            self::assertFalse($this->principals->transferOwnership($owner->id, $owner->id));
+
+            self::assertTrue($this->principals->transferOwnership($owner->id, $next->id));
+
+            self::assertSame($next->id, $this->principals->owner()?->id);
+            self::assertSame(Role::Admin, $this->principals->find($owner->id)?->role);
+            self::assertArrayHasKey($owner->id, $this->principals->formerOwners(), 'with the time ownership ended');
+            self::assertArrayNotHasKey($next->id, $this->principals->formerOwners());
+        } finally {
+            // the store is shared with other tests on the server: ownership goes back
+            $this->principals->transferOwnership($next->id, $owner->id);
+        }
+        self::assertSame($owner->id, $this->principals->owner()?->id);
+    }
+
     public function testVisitorIsDecidedOnce(): void {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, 'Гость');
 

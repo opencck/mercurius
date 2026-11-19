@@ -9,6 +9,7 @@ use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
 
@@ -26,12 +27,12 @@ final class HostKeyCards implements CallbackHandler {
     public function __construct(
         private readonly ServerRepository $servers,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
     ) {}
 
     public function ask(Server $server, string $fingerprint, bool $changed): void {
         if ($changed) {
-            $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(
+            $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(
                 t('agent.host_key_cards.klyuch_hosta_servera_izmenilsya_byl'),
                 $server->name,
                 $server->address(),
@@ -40,7 +41,7 @@ final class HostKeyCards implements CallbackHandler {
             )));
             return;
         }
-        $this->channel->send(new OutgoingMessage($this->ownerChatId, sprintf(
+        $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(
             t('agent.host_key_cards.novyy_server_otpechatok_klyucha_hosta'),
             $server->name,
             $server->username,

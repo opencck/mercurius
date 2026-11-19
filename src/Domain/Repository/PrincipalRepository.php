@@ -16,6 +16,20 @@ interface PrincipalRepository {
 
     public function findByIdentity(string $channel, string $externalId): ?Principal;
 
+    /** The participant who owns the agent now; null before the first owner wrote. */
+    public function owner(): ?Principal;
+
+    /**
+     * Ownership passes to an active person: the owner becomes an admin. What the agent has goes with it (its key, its
+     * own jobs); what the former owner kept as owner stays theirs (memory about them, their projects).
+     *
+     * spec: BRIEF.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
+     */
+    public function transferOwnership(int $from, int $to): bool;
+
+    /** @return array<int, int> former owners (not the owner now) => when their ownership ended, unix time */
+    public function formerOwners(): array;
+
     /** The participant's account in a channel (in Telegram, the user id), or null when they have none there. */
     public function externalId(int $principalId, string $channel): ?string;
 

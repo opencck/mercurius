@@ -16,6 +16,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\Run;
@@ -57,7 +58,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         private readonly ApprovalRepository $approvals,
         private readonly PrincipalRepository $principals,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly int $timeoutSeconds,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly AgentEvents $events = new NullEvents(),
@@ -99,7 +100,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $inFile = mb_strlen($shown) > self::CARD_LIMIT;
         // ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L2744-L2763 (send_exec_approval) — an action
         //      the owner could not read in full can only be refused
-        $unreadable = $inFile && !$this->channel->sendFile($this->ownerChatId, sprintf('approval-%d.json', $approval->id), $shown, t('agent.approval_service.deystvie_tselikom'))->success;
+        $unreadable = $inFile && !$this->channel->sendFile(OwnerDirectory::chat($this->ownerChatId), sprintf('approval-%d.json', $approval->id), $shown, t('agent.approval_service.deystvie_tselikom'))->success;
         $text = sprintf(
             t('agent.approval_service.podtverdite_deystvie_instrument_argument'),
             $label,
@@ -121,7 +122,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         }
         $row[] = new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id));
         // arguments may carry an address from outside data: no preview of it in the card
-        $card = new OutgoingMessage($this->ownerChatId, $text, disableLinkPreview: true, buttons: [$row]);
+        $card = new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $text, disableLinkPreview: true, buttons: [$row]);
         $sent = $this->channel->send($card);
         // The run streams into the same chat: a short flood is waited out before the action is refused.
         if (!$sent->success && $sent->errorKind === \Mercurius\Messenger\SendErrorKind::RateLimited && $sent->retryAfter !== null && $sent->retryAfter <= self::FLOOD_WAIT) {
@@ -129,7 +130,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $sent = $this->channel->send($card);
         }
         if ($sent->success && $sent->messageId !== null) {
-            $this->approvals->setCard($approval->id, $this->ownerChatId, $sent->messageId);
+            $this->approvals->setCard($approval->id, OwnerDirectory::chat($this->ownerChatId), $sent->messageId);
         } elseif (!$sent->success) {
             // ref: references/hermes-agent/tools/approval.py@e96221fa:L950 — a card nobody can see is a refusal now,
             //      not a wait for the timeout

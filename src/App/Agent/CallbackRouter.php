@@ -7,6 +7,7 @@ namespace OpenCCK\App\Agent;
 use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
+use OpenCCK\App\Service\OwnerDirectory;
 
 use function Mercurius\I18n\t;
 
@@ -25,16 +26,26 @@ final class CallbackRouter implements CallbackHandler {
      */
     public function __construct(
         private readonly Channel $channel,
-        private readonly string $ownerUserId,
+        /** the owner: their account, asked at each press — ownership may pass on */
+        private readonly OwnerDirectory|string $ownerUserId,
         private readonly array $handlers,
         private readonly array $otherOwnerIds = [],
         /** @var list<string> prefixes whose handlers take presses of participants too and check the right themselves */
         private readonly array $openPrefixes = [],
     ) {}
 
+    private function byOwner(string $userId): bool {
+        if ($userId === OwnerDirectory::chat($this->ownerUserId)) {
+            return true;
+        }
+        // the owner's id in the WebSocket API follows the owner too
+        $owner = $this->ownerUserId instanceof OwnerDirectory ? $this->ownerUserId->principal() : null;
+        return $owner !== null ? $userId === 'p' . $owner->id : in_array($userId, $this->otherOwnerIds, true);
+    }
+
     public function handleCallback(IncomingCallback $callback): void {
         $open = in_array(explode(':', $callback->data, 2)[0], $this->openPrefixes, true);
-        if (!$open && $callback->userId !== $this->ownerUserId && !in_array($callback->userId, $this->otherOwnerIds, true)) {
+        if (!$open && !$this->byOwner($callback->userId)) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
         }

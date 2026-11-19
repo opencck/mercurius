@@ -10,6 +10,7 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Memory\App\Audience;
 use OpenCCK\Memory\App\Proposals;
@@ -37,7 +38,7 @@ final class MemoryCards implements CallbackHandler {
         private readonly Proposals $proposals,
         private readonly MemoryStore $store,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly PrincipalRepository $principals,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
@@ -47,10 +48,10 @@ final class MemoryCards implements CallbackHandler {
      * to their private chat; everything else goes to the owner
      */
     public function show(Proposal $proposal): bool {
-        $chatId = $this->ownerChatId;
+        $chatId = OwnerDirectory::chat($this->ownerChatId);
         $who = $this->ownerOf($proposal);
         if ($who !== null) {
-            $chatId = $this->principals->externalId($who, 'telegram') ?? $this->ownerChatId;
+            $chatId = $this->principals->externalId($who, 'telegram') ?? OwnerDirectory::chat($this->ownerChatId);
         }
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a fact the agent wrote itself comes as a notice the owner
         //       may undo with one press; anything else waits for the owner's decision

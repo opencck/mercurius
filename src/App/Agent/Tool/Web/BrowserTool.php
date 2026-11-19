@@ -16,6 +16,7 @@ use OpenCCK\App\Agent\Tool\ReadsOutside;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
+use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Infrastructure\Browser\BrowserClient;
 use RuntimeException;
@@ -43,7 +44,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
     public function __construct(
         private readonly BrowserClient $browser,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         /** tells internal addresses apart; null — the browser service alone refuses them */
         private readonly ?AddressGuard $guard = null,
         /** the chat a screenshot goes to is the one it was asked in; null — the owner's chat */
@@ -289,7 +290,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
 
     private function deliver(string $png, string $url, ToolContext $context): ToolResult {
         $meta = $this->conversations?->meta($context->conversationId);
-        $chat = $meta === null ? $this->ownerChatId : $meta->chatId;
+        $chat = $meta === null ? OwnerDirectory::chat($this->ownerChatId) : $meta->chatId;
         $thread = $meta === null || $meta->threadId === '' ? null : $meta->threadId;
         $kept = null;
         $limits = $context->policy?->sandbox;

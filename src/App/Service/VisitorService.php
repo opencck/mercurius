@@ -55,7 +55,7 @@ final class VisitorService implements CallbackHandler {
     public function __construct(
         private readonly PrincipalRepository $principals,
         private readonly Channel $channel,
-        private readonly string $ownerChatId,
+        private readonly OwnerDirectory|string $ownerChatId,
         private readonly LoggerInterface $logger = new NullLogger(),
         /** @var list<float> pauses before the next tries of a card the messenger did not take */
         private readonly array $retryDelays = [2.0, 4.0],
@@ -86,7 +86,7 @@ final class VisitorService implements CallbackHandler {
             ? sprintf(t('service.visitor.novyy_sobesednik_napisal_chto_emu'), $who, $said)
             : sprintf(t('service.visitor.in_group'), $group, $who, $said);
         // the stranger's words may carry a link: no preview of it in the owner's card
-        $result = $this->send(new OutgoingMessage($this->ownerChatId, $card, disableLinkPreview: true, buttons: [[
+        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: [[
             new Button(t('service.visitor.razgovor'), sprintf('pv:%d:t', $visitor->id)),
             new Button(t('service.visitor.polzovatel'), sprintf('pv:%d:u', $visitor->id)),
             new Button(t('service.visitor.admin'), sprintf('pv:%d:a', $visitor->id)),
@@ -148,10 +148,10 @@ final class VisitorService implements CallbackHandler {
         $text = sprintf(t('service.visitor.summary'), $summary['title'], count($summary['visitors']), implode("\n", $names))
             . (count($summary['names']) > self::SUMMARY_NAMES ? "\n…" : '');
         $buttons = [[new Button(t('service.visitor.summary_talk'), sprintf('pv:g%d:t', $id)), new Button(t('service.visitor.summary_reject'), sprintf('pv:g%d:r', $id))]];
-        if ($summary['messageId'] !== null && $this->channel->edit($this->ownerChatId, $summary['messageId'], $text, buttons: $buttons)->success) {
+        if ($summary['messageId'] !== null && $this->channel->edit(OwnerDirectory::chat($this->ownerChatId), $summary['messageId'], $text, buttons: $buttons)->success) {
             return;
         }
-        $result = $this->send(new OutgoingMessage($this->ownerChatId, $text, disableLinkPreview: true, buttons: $buttons));
+        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $text, disableLinkPreview: true, buttons: $buttons));
         $summary['messageId'] = $result->messageId;
         $this->summaries[$id] = $summary;
         if (!$result->success) {
