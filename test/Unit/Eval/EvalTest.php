@@ -59,6 +59,30 @@ final class EvalTest extends AsyncTestCase {
         self::assertStringContainsString('вызов project_edit', $judge->requests[0]->messages[1]->content, 'the judge sees the calls');
     }
 
+    public function testAJudgeOfAnyKindTakesThePlaceOfTheModel(): void {
+        // spec: BRIEF.md#границы-самоулучшения — the judge may be of any provider
+        $agent = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"add_task","project":"Дом","text":"оплатить интернет","due":"2026-11-25"}')),
+            ScriptedLlm::text('Задача #7 добавлена в «Дом», срок 25 ноября.'),
+        ]);
+        $judge = new class implements \OpenCCK\App\Eval\EvalJudge {
+            /** @var list<list<string>> */
+            public array $traces = [];
+
+            public function verdict(EvalTask $task, array $trace, string $answer): array {
+                $this->traces[] = $trace;
+                return [0.6, 'по мнению судьи'];
+            }
+        };
+        $owner = (new \OpenCCK\Test\Support\InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+        $runner = new EvalRunner($agent, null, null, new \OpenCCK\Test\Support\InMemoryRunRepository(), new \OpenCCK\Test\Support\InMemoryTranscriptRepository(), new \OpenCCK\Test\Support\InMemoryConversationRepository(), new \OpenCCK\Test\Support\InMemoryLlmCallRepository(), $owner, $judge);
+
+        $result = $runner->runTask(self::task('action-add-task'), 'agent/model');
+
+        self::assertSame([1.0, 0.6, 0.8], [$result['checks'], $result['judge'], $result['score']]);
+        self::assertCount(1, $judge->traces);
+    }
+
     public function testAnActionClaimedWithoutTheToolFails(): void {
         $agent = new ScriptedLlm([ScriptedLlm::text('Готово — задача добавлена в «Дом».')]);
 

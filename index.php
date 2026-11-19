@@ -940,8 +940,13 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SettingsTool($settingsService,
 $apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
 $evalJudge = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_JUDGE_MODEL') ?? '';
 $evalRuns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_RUNS');
+// spec: BRIEF.md#границы-самоулучшения — the judge may be of any provider: jev:<model> is the judging service Jev
+$jevKey = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JEV_API_KEY');
+$jevJudge = str_starts_with($evalJudge, 'jev:') && $jevKey !== null
+    ? new \OpenCCK\Infrastructure\Eval\JevJudge($modelHttp, $jevKey, substr($evalJudge, 4) === '' ? 'jev-latest' : substr($evalJudge, 4))
+    : null;
 $promptGate = new \OpenCCK\App\Improve\PromptGate(
-    new \OpenCCK\App\Eval\EvalRunner($llm, $evalJudge === '' ? null : $llm, $evalJudge === '' ? null : $evalJudge, $runs, $transcript, $conversations, $llmCalls, $apiOwner),
+    new \OpenCCK\App\Eval\EvalRunner($llm, $evalJudge === '' || $jevJudge !== null ? null : $llm, $evalJudge === '' || $jevJudge !== null ? null : $evalJudge, $runs, $transcript, $conversations, $llmCalls, $apiOwner, $jevJudge),
     \OpenCCK\App\Eval\EvalTask::load(PATH_ROOT . '/resources/eval/tasks.json'),
     $llmSettings->model,
     $evalRuns !== null && ctype_digit($evalRuns) ? (int) $evalRuns : 3,

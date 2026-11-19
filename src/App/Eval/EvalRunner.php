@@ -51,6 +51,8 @@ final class EvalRunner {
         private readonly LlmCallRepository $calls,
         /** the owner the tasks run as */
         private readonly Principal $owner,
+        /** a judge of another kind (a judging service); null — the judge model, when set */
+        private readonly ?EvalJudge $judge = null,
     ) {}
 
     /**
@@ -162,6 +164,9 @@ final class EvalRunner {
      * @return array{?float, string}
      */
     private function judge(EvalTask $task, array $trace, string $answer): array {
+        if ($this->judge !== null) {
+            return $this->judge->verdict($task, $trace, $answer);
+        }
         if ($this->judgeLlm === null || $this->judgeModel === null || $task->rubric === '') {
             return [null, ''];
         }
