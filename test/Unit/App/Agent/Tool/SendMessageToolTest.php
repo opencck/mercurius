@@ -9,7 +9,7 @@ use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Llm\ToolCall;
 use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
-use OpenCCK\App\Agent\Tool\SendMessageTool;
+use OpenCCK\App\Agent\Tool\Messaging\SendMessageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;

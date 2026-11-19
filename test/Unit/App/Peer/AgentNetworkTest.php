@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Peer;
 
+use Amp\Http\Client\HttpClient;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Http\Client\HttpClient;
-use OpenCCK\App\Agent\Tool\PeerDelegateTool;
+use OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Peer\A2aClient;
 use OpenCCK\App\Peer\A2aServer;

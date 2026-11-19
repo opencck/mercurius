@@ -6,7 +6,7 @@ namespace OpenCCK\Infrastructure\Logger;
 
 use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 
 /**
  * Every log line goes through the mask of secrets: its message and every string of its context, at any depth.

@@ -8,7 +8,7 @@ use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
 use DateTimeZone;
-use OpenCCK\App\Agent\Tool\MyPreferencesTool;
+use OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Job\ParticipantClock;

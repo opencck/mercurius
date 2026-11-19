@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent;
 
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;

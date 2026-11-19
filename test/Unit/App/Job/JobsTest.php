@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Job;
 
-use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Agent\DangerClass;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 use Mercurius\Llm\ToolCall;
-use OpenCCK\App\Agent\Tool\JobManageTool;
-use OpenCCK\App\Agent\Tool\JobCreateTool;
+use OpenCCK\App\Agent\Tool\Projects\JobCreateTool;
+use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
+use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Memory\Domain\ContentScreen;

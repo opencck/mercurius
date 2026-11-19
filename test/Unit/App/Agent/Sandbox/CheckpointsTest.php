@@ -6,12 +6,13 @@ namespace OpenCCK\Test\Unit\App\Agent\Sandbox;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
+use Mercurius\Llm\ToolCall;
 use OpenCCK\App\Agent\Sandbox\Checkpoints;
-use OpenCCK\App\Agent\Tool\CheckpointTool;
+use OpenCCK\App\Agent\Tool\Files\CheckpointTool;
+use OpenCCK\App\Agent\Tool\Files\WriteFileTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
-use OpenCCK\App\Agent\Tool\WriteFileTool;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
@@ -20,7 +21,6 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeSandbox;
-use Mercurius\Llm\ToolCall;
 
 /**
  * Snapshots of the working folder: one before the first change of a run, a list, a diff, a restore that can be undone.
@@ -66,7 +66,7 @@ final class CheckpointsTest extends AsyncTestCase {
     public function testASkillWrittenIntoTheFolderGetsASnapshotFirst(): void {
         $checkpoints = new Checkpoints($this->sandbox);
         $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
-        $save = new class implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\ChangesSandbox {
+        $save = new class implements \OpenCCK\App\Agent\Tool\Tool, \OpenCCK\App\Agent\Tool\Sandbox\ChangesSandbox {
             public function definition(): \Mercurius\Llm\ToolDefinition {
                 return new \Mercurius\Llm\ToolDefinition('skill_save', 'x', ['type' => 'object']);
             }
@@ -97,7 +97,7 @@ final class CheckpointsTest extends AsyncTestCase {
     public function testReadsTakeNoSnapshot(): void {
         $checkpoints = new Checkpoints($this->sandbox);
         $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
-        $read = new \OpenCCK\App\Agent\Tool\ReadFileTool($this->sandbox);
+        $read = new \OpenCCK\App\Agent\Tool\Files\ReadFileTool($this->sandbox);
         $this->sandbox->files[1]['a.txt'] = 'x';
 
         $executor->run(new ValidatedCall(new ToolCall('c1', 'read_file', '{}'), $read, ['path' => 'a.txt'], null, DangerClass::Read), self::context(), 10);

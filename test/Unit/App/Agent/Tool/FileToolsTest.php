@@ -6,12 +6,12 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
 use OpenCCK\App\Agent\Sandbox\CommandOutcome;
-use OpenCCK\App\Agent\Tool\ListFilesTool;
-use OpenCCK\App\Agent\Tool\ReadFileTool;
-use OpenCCK\App\Agent\Tool\RunCommandTool;
+use OpenCCK\App\Agent\Tool\Files\ListFilesTool;
+use OpenCCK\App\Agent\Tool\Files\ReadFileTool;
+use OpenCCK\App\Agent\Tool\Files\WriteFileTool;
+use OpenCCK\App\Agent\Tool\Sandbox\RunCommandTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\Unspillable;
-use OpenCCK\App\Agent\Tool\WriteFileTool;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;

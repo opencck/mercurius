@@ -8,7 +8,7 @@ use Amp\Cancellation;
 use Closure;
 use Mercurius\Connectors\RouteException;
 use Mercurius\Connectors\RouteFactory;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\Classification;
 use OpenCCK\CommandPolicy\CommandClassifier;

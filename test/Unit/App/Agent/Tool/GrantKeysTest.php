@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
-use OpenCCK\App\Agent\Tool\ForumTopicTool;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
-use OpenCCK\App\Agent\Tool\OpenRouterByokTool;
-use OpenCCK\App\Agent\Tool\ProjectEditTool;
-use OpenCCK\App\Agent\Tool\ServerAddTool;
-use OpenCCK\App\Agent\Tool\SetModelRoleTool;
-use OpenCCK\App\Agent\Tool\SettingsTool;
-use OpenCCK\App\Agent\Tool\SqlQueryTool;
+use OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool;
+use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
+use OpenCCK\App\Agent\Tool\Self\OpenRouterByokTool;
+use OpenCCK\App\Agent\Tool\Self\SetModelRoleTool;
+use OpenCCK\App\Agent\Tool\Self\SettingsTool;
+use OpenCCK\App\Agent\Tool\Servers\ServerAddTool;
+use OpenCCK\App\Agent\Tool\Servers\SqlQueryTool;
 use PHPUnit\Framework\TestCase;
 
 /**

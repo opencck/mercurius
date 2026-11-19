@@ -9,7 +9,7 @@ use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Memory\App\Audience;
 use OpenCCK\Memory\App\Proposals;

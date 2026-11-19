@@ -11,7 +11,7 @@ use Mercurius\Llm\ChatResponse;
 use Mercurius\Llm\Message;
 use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\TraceSpan;

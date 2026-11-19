@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\JobRuns;
 use OpenCCK\App\Agent\PromptBuilder;
 use OpenCCK\App\Agent\SilentObserver;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;

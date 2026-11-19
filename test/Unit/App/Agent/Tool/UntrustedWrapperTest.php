@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
-use OpenCCK\App\Agent\Tool\UntrustedWrapper;
+use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use PHPUnit\Framework\TestCase;
 
 final class UntrustedWrapperTest extends TestCase {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use Mercurius\Messenger\IncomingMessage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 
 use function Mercurius\I18n\t;
 

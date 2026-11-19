@@ -10,8 +10,8 @@ use Mercurius\Llm\OpenAI\OpenAIClient;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
 use Mercurius\Llm\RetryingClient;
 use Mercurius\Messenger\ChatDispatcher;
-use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\Deduplicator;
+use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\Telegram\LongPolling;
 use Mercurius\Messenger\Telegram\TelegramApi;
 use Mercurius\Messenger\Telegram\TelegramChannel;
@@ -21,139 +21,139 @@ use OpenCCK\App\Agent\AgentLoop;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\Context\ContextCompactor;
+use OpenCCK\App\Agent\ConversationAudience;
 use OpenCCK\App\Agent\Delegation\BackgroundDelegations;
 use OpenCCK\App\Agent\Delegation\DelegateTaskTool;
 use OpenCCK\App\Agent\Delegation\WorkerReportTool;
 use OpenCCK\App\Agent\Delegation\WorkerRunner;
+use OpenCCK\App\Agent\HostKeyCards;
+use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\App\Agent\Model\FallbackModels;
 use OpenCCK\App\Agent\Model\ModelRoles;
-use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\Model\ModelRouter;
+use OpenCCK\App\Agent\Model\ModelSelector;
 use OpenCCK\App\Agent\Model\RequestClassifier;
+use OpenCCK\App\Agent\ProjectContext;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\SpendGuard;
-use OpenCCK\App\Agent\Tool\AddressGuard;
-use OpenCCK\App\Agent\Tool\HttpRequestTool;
-use OpenCCK\App\Agent\Tool\ListFilesTool;
-use OpenCCK\App\Agent\Tool\ReadFileTool;
-use OpenCCK\App\Agent\Tool\RunCommandTool;
-use OpenCCK\App\Agent\Tool\SetModelRoleTool;
-use OpenCCK\App\Agent\Trace\Tracer;
-use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
+use OpenCCK\App\Agent\Tool\Agents\SetParticipantPolicyTool;
+use OpenCCK\App\Agent\Tool\Files\FileWriteTool;
+use OpenCCK\App\Agent\Tool\Files\ListFilesTool;
+use OpenCCK\App\Agent\Tool\Files\ReadFileTool;
+use OpenCCK\App\Agent\Tool\Files\WriteFileTool;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Agent\Tool\Memory\ExperienceSearchTool;
+use OpenCCK\App\Agent\Tool\Memory\HistorySearchTool;
+use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
+use OpenCCK\App\Agent\Tool\Memory\MemorySearchTool;
+use OpenCCK\App\Agent\Tool\Projects\JobCreateTool;
+use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
+use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
+use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
+use OpenCCK\App\Agent\Tool\Sandbox\RunCommandTool;
+use OpenCCK\App\Agent\Tool\Self\OpenRouterByokTool;
+use OpenCCK\App\Agent\Tool\Self\SetModelRoleTool;
+use OpenCCK\App\Agent\Tool\Servers\ServerAddTool;
+use OpenCCK\App\Agent\Tool\Servers\ServersTool;
+use OpenCCK\App\Agent\Tool\Servers\SqlQueryTool;
+use OpenCCK\App\Agent\Tool\Servers\SshRunTool;
+use OpenCCK\App\Agent\Tool\Skills\SkillViewTool;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
-use OpenCCK\App\Agent\Tool\WriteFileTool;
+use OpenCCK\App\Agent\Tool\Web\BrowserTool;
+use OpenCCK\App\Agent\Tool\Web\HttpRequestTool;
+use OpenCCK\App\Agent\Tool\Web\TcpProbeTool;
+use OpenCCK\App\Agent\Tool\Web\WebReadTool;
+use OpenCCK\App\Agent\Tool\Web\WebSearchTool;
+use OpenCCK\App\Agent\Trace\Tracer;
+use OpenCCK\App\Job\DailyDigest;
+use OpenCCK\App\Job\HookReceiver;
+use OpenCCK\App\Job\JobScheduler;
+use OpenCCK\App\Mcp\McpManager;
+use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\HealthService;
+use OpenCCK\App\Service\JobCommands;
+use OpenCCK\App\Service\McpCommands;
+use OpenCCK\App\Service\MemoryCommands;
 use OpenCCK\App\Service\MetricsText;
 use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\ProjectCommands;
+use OpenCCK\App\Service\ServerCommands;
+use OpenCCK\App\Service\SkillCommands;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
+use OpenCCK\App\Vault\Vault;
+use OpenCCK\App\Web\TextExtractor;
+use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\ModelRole;
+use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Infrastructure\API\App;
+use OpenCCK\Infrastructure\API\Handler\JobHookHandler;
 use OpenCCK\Infrastructure\API\Handler\MetricsHandler;
 use OpenCCK\Infrastructure\API\Handler\TelegramWebhookHandler;
 use OpenCCK\Infrastructure\API\Server;
+use OpenCCK\Infrastructure\Browser\BrowserClient;
 use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\LlmSettings;
+use OpenCCK\Infrastructure\Config\MemorySettings;
 use OpenCCK\Infrastructure\Config\SandboxSettings;
 use OpenCCK\Infrastructure\Config\TelegramSettings;
 use OpenCCK\Infrastructure\Config\TraceSettings;
+use OpenCCK\Infrastructure\Config\VaultSettings;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
 use OpenCCK\Infrastructure\Database\Migrator;
 use OpenCCK\Infrastructure\Http\HttpClients;
-use OpenCCK\Infrastructure\Logger\LoggerFactory;
-use OpenCCK\Domain\Agent\ModelRef;
-use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Infrastructure\Llm\ProviderRouter;
-use OpenCCK\Infrastructure\Module\AgentModule;
-use OpenCCK\Infrastructure\Module\ModelCatalogModule;
-use OpenCCK\Infrastructure\Module\MemoryConsolidationModule;
-use OpenCCK\Infrastructure\Module\TraceRetentionModule;
-use OpenCCK\Infrastructure\Module\TelegramModule;
-use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
-use OpenCCK\App\Agent\ConversationAudience;
-use OpenCCK\App\Agent\HostKeyCards;
-use OpenCCK\App\Agent\ProjectContext;
-use OpenCCK\App\Agent\MemoryCards;
-use OpenCCK\App\Agent\Tool\MemoryProposeTool;
-use OpenCCK\App\Agent\Tool\ExperienceSearchTool;
-use OpenCCK\App\Agent\Tool\HistorySearchTool;
-use OpenCCK\App\Agent\Tool\MemorySearchTool;
-use OpenCCK\App\Agent\Tool\SshRunTool;
-use OpenCCK\Infrastructure\API\Handler\JobHookHandler;
-use OpenCCK\Infrastructure\Repository\PostgresDigestJournal;
-use OpenCCK\App\Service\JobCommands;
-use OpenCCK\App\Job\HookReceiver;
-use OpenCCK\App\Job\DailyDigest;
-use OpenCCK\Infrastructure\Module\SchedulerModule;
-use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
-use OpenCCK\App\Agent\Tool\JobManageTool;
-use OpenCCK\App\Agent\Tool\JobCreateTool;
-use OpenCCK\App\Job\JobScheduler;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
+use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
-use OpenCCK\App\Service\McpCommands;
-use OpenCCK\App\Mcp\McpManager;
-use OpenCCK\App\Service\SkillCommands;
-use OpenCCK\App\Agent\Tool\SkillViewTool;
-use OpenCCK\Infrastructure\Browser\BrowserClient;
-use OpenCCK\App\Agent\Tool\BrowserTool;
-use OpenCCK\App\Web\TextExtractor;
-use OpenCCK\App\Agent\Tool\WebSearchTool;
-use OpenCCK\App\Agent\Tool\WebReadTool;
-use OpenCCK\App\Agent\Tool\OpenRouterByokTool;
-use OpenCCK\App\Agent\Tool\TcpProbeTool;
-use OpenCCK\App\Agent\Tool\FileWriteTool;
-use OpenCCK\App\Agent\Tool\SqlQueryTool;
-use OpenCCK\App\Agent\Tool\ServerAddTool;
-use OpenCCK\App\Agent\Tool\ServersTool;
-use OpenCCK\App\Agent\Tool\ProjectEditTool;
-use OpenCCK\App\Agent\Tool\ProjectTool;
-use OpenCCK\App\Agent\Tool\SecretMasker;
-use OpenCCK\Infrastructure\Config\MemorySettings;
-use OpenCCK\Infrastructure\Config\VaultSettings;
-use OpenCCK\App\Service\MemoryCommands;
-use OpenCCK\CommandPolicy\CommandClassifier;
-use OpenCCK\App\Vault\Vault;
-use OpenCCK\App\Service\ServerCommands;
-use OpenCCK\App\Server\ServerConsole;
-use OpenCCK\App\Service\ProjectCommands;
-use OpenCCK\Memory\App\Consolidation;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\TextAnalyzer;
-use OpenCCK\Memory\Infrastructure\PostgresConsolidationJournal;
-use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
+use OpenCCK\Infrastructure\Module\AgentModule;
+use OpenCCK\Infrastructure\Module\MemoryConsolidationModule;
+use OpenCCK\Infrastructure\Module\ModelCatalogModule;
+use OpenCCK\Infrastructure\Module\SchedulerModule;
+use OpenCCK\Infrastructure\Module\TelegramModule;
+use OpenCCK\Infrastructure\Module\TraceRetentionModule;
+use OpenCCK\Infrastructure\Repository\PostgresApprovalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
 use OpenCCK\Infrastructure\Repository\PostgresConversationRepository;
+use OpenCCK\Infrastructure\Repository\PostgresDelegationRepository;
+use OpenCCK\Infrastructure\Repository\PostgresDigestJournal;
+use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
+use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
+use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
 use OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository;
+use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
 use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
 use OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository;
+use OpenCCK\Infrastructure\Repository\PostgresModelReliabilityRepository;
 use OpenCCK\Infrastructure\Repository\PostgresModelRoleRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPolicyRepository;
 use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
-use OpenCCK\Infrastructure\Repository\PostgresDelegationRepository;
-use OpenCCK\Infrastructure\Repository\PostgresModelReliabilityRepository;
+use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
 use OpenCCK\Infrastructure\Repository\PostgresRunRepository;
+use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
+use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
-use OpenCCK\Infrastructure\Ssh\AmpSshShell;
-use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
-use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
-use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
-use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
-use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
-use OpenCCK\Infrastructure\Repository\PostgresExperienceRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
+use OpenCCK\Infrastructure\Ssh\AmpSshShell;
+use OpenCCK\Memory\App\Consolidation;
+use OpenCCK\Memory\App\MemoryContext;
+use OpenCCK\Memory\App\Proposals;
+use OpenCCK\Memory\App\Recall;
+use OpenCCK\Memory\Domain\ContentScreen;
+use OpenCCK\Memory\Domain\Fact;
+use OpenCCK\Memory\Domain\TextAnalyzer;
+use OpenCCK\Memory\Infrastructure\PostgresConsolidationJournal;
+use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
 use Revolt\EventLoop;
 
 use function Mercurius\I18n\t;
@@ -382,14 +382,14 @@ $ownerPrivateChat = static function (int $conversationId) use ($conversations): 
 };
 $tools->register(new SetParticipantPolicyTool($principals, $policies, $ownerPrivateChat));
 // spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — a participant without a tool asks the owner for it
-$tools->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($tools, $policies));
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($tools, $policies));
 // spec: BRIEF.md#входящие-вложения — the owner's media models and principles, each participant's own way with files
 $mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
 $mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
-$tools->register(new \OpenCCK\App\Agent\Tool\MediaPrefsTool($mediaPrefs));
+$tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaPrefsTool($mediaPrefs));
 /** @var \OpenCCK\Infrastructure\Repository\PostgresPeerRepository|null $peerRepository set below */
 $peerRepository = null;
-$tools->register(new \OpenCCK\App\Agent\Tool\ParticipantsTool($principals, $policies, static function () use (&$peerRepository): array {
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\ParticipantsTool($principals, $policies, static function () use (&$peerRepository): array {
     return $peerRepository?->keys() ?? [];
 }, $ownerPrivateChat));
 $tools->register(new SetModelRoleTool($modelRoles));
@@ -400,22 +400,22 @@ $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::cr
 $a2aServer = null;
 $checkpoints = $sandbox === null ? null : new \OpenCCK\App\Agent\Sandbox\Checkpoints($sandbox, $logger);
 if ($sandbox !== null && $checkpoints !== null) {
-    $tools->register(new \OpenCCK\App\Agent\Tool\CheckpointTool($sandbox, $checkpoints));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\CheckpointTool($sandbox, $checkpoints));
     $tools->register(new ReadFileTool($sandbox));
     $tools->register(new ListFilesTool($sandbox));
-    $tools->register(new \OpenCCK\App\Agent\Tool\SearchFilesTool($sandbox));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\SearchFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: BRIEF.md#планировщик-и-проекты — git with a token of the vault in the environment of one command
-    $tools->register(new \OpenCCK\App\Agent\Tool\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
     // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: BRIEF.md#между-агентами — in a task of another agent a file goes with the answer
-    $tools->register(new \OpenCCK\App\Agent\Tool\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
+    $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
         return $a2aServer instanceof \OpenCCK\App\Peer\A2aServer && $a2aServer->answerFile($runId, $name, $bytes);
     }));
 }
 // spec: BRIEF.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
-$tools->register(new \OpenCCK\App\Agent\Tool\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Recipients($principals, TelegramChannel::NAME)));
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME)));
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.
 $traces = new PostgresTraceRepository($db);
@@ -473,9 +473,9 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
     ));
 }
 if ($sandbox !== null) {
-    $tools->register(new \OpenCCK\App\Agent\Tool\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
     // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
-    $tools->register(new \OpenCCK\App\Agent\Tool\DocumentsTool($sandbox, $docsService));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\DocumentsTool($sandbox, $docsService));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go
     $inboxCleaner = new \OpenCCK\App\Agent\Media\InboxCleaner($principals, $policies, $sandbox, $mediaSettings, $logger);
     \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(600, static function () use ($inboxCleaner): void {
@@ -659,11 +659,11 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
 };
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage));
-$tools->register(new \OpenCCK\App\Agent\Tool\SkillSaveTool($skillLibrary, $skillProjectOf));
+$tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
 $skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp)]);
-$tools->register(new \OpenCCK\App\Agent\Tool\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
+$tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
 /** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
@@ -694,7 +694,7 @@ $mcpManager = new McpManager(
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($mcpManager): void {
     \Amp\async($mcpManager->tick(...))->ignore();
 }));
-$tools->register(new \OpenCCK\App\Agent\Tool\McpResourcesTool($mcpManager));
+$tools->register(new \OpenCCK\App\Agent\Tool\Skills\McpResourcesTool($mcpManager));
 // spec: BRIEF.md#скиллы-и-mcp — the built-in mail server: the mailbox from the settings goes in headers of each request
 $mailHeaders = \OpenCCK\Infrastructure\Config\MailSettings::headers($_ENV);
 $mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');
@@ -718,7 +718,7 @@ $proactiveBudget = new \OpenCCK\App\Job\ProactiveBudget($proactivePerDay !== nul
 // spec: BRIEF.md#несколько-пользователей — a participant's own time zone and quiet hours for their jobs
 $participantPrefs = new \OpenCCK\Infrastructure\Repository\PostgresParticipantPrefRepository($db);
 $participantClock = new \OpenCCK\App\Job\ParticipantClock($participantPrefs, $ownerZone, $quietHours);
-$tools->register(new \OpenCCK\App\Agent\Tool\MyPreferencesTool($participantPrefs, $participantClock));
+$tools->register(new \OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool($participantPrefs, $participantClock));
 $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, clock: $participantClock, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
     $request = new \Amp\Http\Client\Request($url);
     $request->setTransferTimeout(30);
@@ -746,15 +746,15 @@ $scheduler->useProjects(new ProjectContext($projectRepository));
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
 $promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
 $scheduler->useNotes($promptNotes);
-$tools->register(new \OpenCCK\App\Agent\Tool\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db)));
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db)));
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
 $tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
-$tools->register(new \OpenCCK\App\Agent\Tool\ForumTopicTool($channel, $conversations));
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $telegram->ownerId, $logger);
-$tools->register(new \OpenCCK\App\Agent\Tool\ChannelPostTool($channel, $channelRepository));
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ChannelPostTool($channel, $channelRepository));
 $scheduler->useJobRuns($jobScheduler);
 
 // spec: BRIEF.md#сеть-агентов — A2A v1.0: neighbours connect with their own tokens; the agent gives tasks to its own
@@ -809,14 +809,14 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $sandbox,
     static fn(int $principalId): ?\OpenCCK\Domain\Agent\SandboxLimits => ($p = $principals->find($principalId)) === null ? null : $policies->forPrincipal($p)->sandbox,
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
-$tools->register(new \OpenCCK\App\Agent\Tool\PeerLinksTool($peerNetwork));
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerLinksTool($peerNetwork));
 // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept: idle ones are not closed,
 // dropped ones are opened again (after a restart too); WebSocket pings keep a live one through NPM
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($peerNetwork): void {
     $peerNetwork->keepAlive();
 }));
-$tools->register(new \OpenCCK\App\Agent\Tool\PeerKeysTool($peerNetwork, $agentKeys));
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerKeysTool($peerNetwork, $agentKeys));
 // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — an unknown agent knocks, the owner decides
 $agentRequests = new \OpenCCK\App\Peer\AgentRequests($peerRepository, $principals, $channel, $telegram->ownerId, $logger, conversations: $conversations, transcript: $transcript);
 // ws (by default) — neighbours connect by WebSocket only; http — by POST /a2a only
@@ -850,7 +850,7 @@ if ($a2aServer !== null) {
 }
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $telegram->ownerId, $digestTime, $logger);
 $tools->register(new MemorySearchTool($recall, $audience));
-$tools->register(new \OpenCCK\App\Agent\Tool\MemoryFeedbackTool($memoryStore, $audience));
+$tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
 $tools->register(new ExperienceSearchTool($experience, $audience));
@@ -893,7 +893,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
 $scheduler->useGroupSpeakers($groupGate->speakers(...));
 // spec: BRIEF.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
-$tools->register(new \OpenCCK\App\Agent\Tool\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
 // spec: BRIEF.md#второй-канал-websocket-api — keys of participants for the WebSocket API
 $apiKeys = new \OpenCCK\App\Api\ApiKeys(new \OpenCCK\Infrastructure\Repository\PostgresApiKeyRepository($db), $principals);
 $chat = new ChatService(
@@ -926,8 +926,8 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\PromptCommands($promptNotes),
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
-$tools->register(new \OpenCCK\App\Agent\Tool\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
-$tools->register(new \OpenCCK\App\Agent\Tool\SettingsTool($settingsService, $restarter));
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\SettingsTool($settingsService, $restarter));
 $apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
 $evalJudge = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_JUDGE_MODEL') ?? '';
 $evalRuns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_RUNS');
@@ -956,7 +956,7 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
         $approvalStore->addGrant($apiOwner->id, $key);
     },
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\ImprovementProposeTool($improvements));
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($improvements));
 $chat->useImprovements($improvements);
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, $telegram->ownerId, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
@@ -1003,7 +1003,7 @@ if ($a2aServer !== null) {
     $networkText = \Mercurius\I18n\t('agent.prompt_builder.instance_no_a2a');
 }
 $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.self_info'));
-$tools->register(new \OpenCCK\App\Agent\Tool\SelfInfoTool([
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText,
     'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config): string {
         $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);

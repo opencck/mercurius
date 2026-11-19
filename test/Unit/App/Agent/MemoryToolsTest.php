@@ -9,8 +9,8 @@ use Mercurius\Llm\ToolCall;
 use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Agent\ConversationAudience;
 use OpenCCK\App\Agent\MemoryCards;
-use OpenCCK\App\Agent\Tool\MemoryProposeTool;
-use OpenCCK\App\Agent\Tool\MemorySearchTool;
+use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
+use OpenCCK\App\Agent\Tool\Memory\MemorySearchTool;
 use OpenCCK\Memory\App\MemoryContext;
 use OpenCCK\Memory\App\Proposals;
 use OpenCCK\Memory\App\Recall;
@@ -113,7 +113,7 @@ final class MemoryToolsTest extends AsyncTestCase {
             ScriptedLlm::calls(new ToolCall('c3', 'memory_feedback', '{"fact":1,"useful":false}')),
             ScriptedLlm::text('ок'),
         ]));
-        $stack->registry->register(new \OpenCCK\App\Agent\Tool\MemoryFeedbackTool($this->store, $this->audience));
+        $stack->registry->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($this->store, $this->audience));
         $analyzer = new TextAnalyzer();
         $old = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Сервер pve-01 стоит в Хельсинки', $analyzer->keys('Сервер pve-01 стоит в Хельсинки'), 0.4, Fact::AGENT, null);
         $this->store->addFact('principal:999', Fact::KNOWLEDGE, 'Чужой факт', ['чужой'], 0.5, Fact::AGENT, null);

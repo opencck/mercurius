@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Improve;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\IncomingCallback;
-use OpenCCK\App\Agent\Tool\ImprovementProposeTool;
+use OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Improve\GateVerdict;
 use OpenCCK\App\Improve\Improvements;

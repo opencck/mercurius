@@ -6,7 +6,7 @@ namespace OpenCCK\App\Agent;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use OpenCCK\App\Agent\Tool\UntrustedWrapper;
+use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;

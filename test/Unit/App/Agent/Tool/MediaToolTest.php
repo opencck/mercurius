@@ -8,7 +8,7 @@ use Amp\Http\Client\HttpClient;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Media\MediaPrefs;
-use OpenCCK\App\Agent\Tool\MediaTool;
+use OpenCCK\App\Agent\Tool\Files\MediaTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;

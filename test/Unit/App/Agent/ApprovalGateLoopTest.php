@@ -178,7 +178,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
 
     public function testAParticipantWithoutTheRightToAskStillAsksForATool(): void {
         $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
-        $this->registry->register(new \OpenCCK\App\Agent\Tool\RequestToolTool($this->registry, $policies));
+        $this->registry->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($this->registry, $policies));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'request_tool', '{"tool":"read","reason":"нужно прочитать"}')), ScriptedLlm::text('выдали')]);
         $loop = $this->loop($llm);
         $agent = new Principal(7, PrincipalKind::Agent, Role::Admin, 'rekryt');

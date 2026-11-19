@@ -7,8 +7,8 @@ namespace OpenCCK\Test\Unit\App\Web;
 use Amp\Http\Client\HttpClient;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\BrowserTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
+use OpenCCK\App\Agent\Tool\Web\BrowserTool;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -22,7 +22,7 @@ final class BrowserToolTest extends AsyncTestCase {
 
     private function tool(FakeHttpClient $http): BrowserTool {
         $this->channel = new FakeChannel();
-        $guard = new \OpenCCK\App\Agent\Tool\AddressGuard(static fn(string $host): array => $host === 'nas.home.lan' ? ['192.168.1.10'] : ['93.184.216.34']);
+        $guard = new \OpenCCK\App\Agent\Tool\Guard\AddressGuard(static fn(string $host): array => $host === 'nas.home.lan' ? ['192.168.1.10'] : ['93.184.216.34']);
         return new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', $guard);
     }
 

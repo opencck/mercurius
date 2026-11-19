@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\ParticipantsTool;
+use OpenCCK\App\Agent\Tool\Agents\ParticipantsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;

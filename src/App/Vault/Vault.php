@@ -70,7 +70,7 @@ final class Vault {
     /** A value that left the vault is masked wherever it shows up later (output, logs, traces). */
     private static function known(?string $value): ?string {
         if ($value !== null) {
-            \OpenCCK\App\Agent\Tool\SecretMasker::remember($value);
+            \OpenCCK\App\Agent\Tool\Guard\SecretMasker::remember($value);
         }
         return $value;
     }

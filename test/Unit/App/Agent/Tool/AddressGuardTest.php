@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
-use OpenCCK\App\Agent\Tool\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use PHPUnit\Framework\TestCase;
 
 final class AddressGuardTest extends TestCase {

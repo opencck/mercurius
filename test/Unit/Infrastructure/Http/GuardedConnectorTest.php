@@ -11,7 +11,7 @@ use Amp\Socket\ConnectException;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\SocketConnector;
-use OpenCCK\App\Agent\Tool\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\Infrastructure\Http\GuardedConnector;
 
 final class GuardedConnectorTest extends AsyncTestCase {

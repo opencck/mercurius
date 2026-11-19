@@ -223,7 +223,7 @@ final class McpTest extends AsyncTestCase {
         $this->manager->add('github', 'https://mcp.example.com/mcp', null);
         $this->manager->approve('github', new NullCancellation());
         $this->remoteResources = [['uri' => 'docs://readme', 'name' => "README\u{E0042}", 'description' => 'The readme', 'mimeType' => 'text/markdown']];
-        $tool = new \OpenCCK\App\Agent\Tool\McpResourcesTool($this->manager);
+        $tool = new \OpenCCK\App\Agent\Tool\Skills\McpResourcesTool($this->manager);
         $context = new ToolContext(1, 1, $this->owner, new NullCancellation());
 
         self::assertSame(DangerClass::Read, $tool->danger(['server' => 'github']));

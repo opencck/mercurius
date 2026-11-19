@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use DateTimeImmutable;
-use OpenCCK\App\Agent\Tool\JobManageTool;
+use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
 use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\JobScheduler;

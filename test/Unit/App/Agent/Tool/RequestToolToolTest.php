@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\RequestToolTool;
+use OpenCCK\App\Agent\Tool\Agents\RequestToolTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Service\PolicyService;

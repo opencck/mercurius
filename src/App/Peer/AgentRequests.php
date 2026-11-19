@@ -148,7 +148,7 @@ final class AgentRequests implements CallbackHandler {
         }
         $this->logger->notice('Unknown agent waits for the owner', ['request' => $request->id, 'fingerprint' => $request->fingerprint]);
         // the name and the address in the card are the agent's own words: data, not instructions
-        $this->note(\OpenCCK\App\Agent\Tool\UntrustedWrapper::wrap('agent-request', sprintf(t('peer.agent_requests.note_card'), $card)));
+        $this->note(\OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper::wrap('agent-request', sprintf(t('peer.agent_requests.note_card'), $card)));
     }
 
     /**

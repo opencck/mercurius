@@ -4,26 +4,26 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Context;
 
-use Closure;
-use DateTimeImmutable;
 use Amp\Cancellation;
 use Amp\CancelledException;
+use Closure;
+use DateTimeImmutable;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\LlmException;
 use Mercurius\Llm\Message;
 use Mercurius\Llm\Role;
 use Mercurius\Llm\Usage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\TranscriptEntry;
+use OpenCCK\Domain\Entity\LlmCallRecord;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\LlmCallRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
-use OpenCCK\Domain\Entity\LlmCallRecord;
 use Psr\Log\LoggerInterface;
 use Throwable;
 

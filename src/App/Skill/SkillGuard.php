@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Skill;
 
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 
 /**
  * A static check of a skill from outside before it reaches the owner's card: what its text and scripts would do if the

@@ -6,7 +6,7 @@ namespace OpenCCK\App\Service;
 
 use DomainException;
 use OpenCCK\App\Agent\ProjectContext;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ProjectRepository;
 

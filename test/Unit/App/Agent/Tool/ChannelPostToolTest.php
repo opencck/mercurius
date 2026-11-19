@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
-use OpenCCK\App\Agent\Tool\ChannelPostTool;
+use OpenCCK\App\Agent\Tool\Messaging\ChannelPostTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;

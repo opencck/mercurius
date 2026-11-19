@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Settings;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use DomainException;
-use OpenCCK\App\Agent\Tool\SettingsTool;
+use OpenCCK\App\Agent\Tool\Self\SettingsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\SettingsCommands;
 use OpenCCK\App\Settings\Restarter;

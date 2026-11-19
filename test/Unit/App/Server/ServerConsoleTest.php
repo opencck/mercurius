@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Server;
 use Amp\Cancellation;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\SshRunTool;
+use OpenCCK\App\Agent\Tool\Servers\SshRunTool;
 use OpenCCK\App\Server\Connection;
 use OpenCCK\App\Server\RemoteFailure;
 use OpenCCK\App\Server\RemoteResult;

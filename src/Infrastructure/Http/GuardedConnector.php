@@ -10,8 +10,8 @@ use Amp\Socket\ConnectException;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\SocketConnector;
-use OpenCCK\App\Agent\Tool\AddressGuard;
-use OpenCCK\App\Agent\Tool\AddressRefused;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\AddressRefused;
 
 /**
  * Resolves the host itself and dials only an address AddressGuard has checked, so a name that changes its answer

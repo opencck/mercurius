@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\PromptBuilder;
-use OpenCCK\App\Agent\Tool\SelfInfoTool;
+use OpenCCK\App\Agent\Tool\Self\SelfInfoTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;

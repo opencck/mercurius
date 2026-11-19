@@ -11,7 +11,7 @@ use Mercurius\Search\SearchException;
 use Mercurius\Search\SearchProvider;
 use Mercurius\Search\SearchResult;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\App\Agent\Tool\WebSearchTool;
+use OpenCCK\App\Agent\Tool\Web\WebSearchTool;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\SearchSettings;

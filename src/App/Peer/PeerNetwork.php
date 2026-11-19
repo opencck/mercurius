@@ -8,8 +8,8 @@ use Closure;
 use DomainException;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
-use OpenCCK\App\Agent\Tool\UntrustedWrapper;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -492,7 +492,7 @@ final class PeerNetwork {
             $this->channel->send(new OutgoingMessage($out->chatId, SecretMasker::mask(mb_substr($text, 0, 3800))));
             // spec: BRIEF.md#между-агентами — the files of the answer come to the chat as files of their kind
             foreach ($files as $file) {
-                $this->channel->sendMedia($out->chatId, \OpenCCK\App\Agent\Tool\SendFileTool::kind($file['name'], null), $file['name'], $file['bytes']);
+                $this->channel->sendMedia($out->chatId, \OpenCCK\App\Agent\Tool\Messaging\SendFileTool::kind($file['name'], null), $file['name'], $file['bytes']);
             }
         }
         if ($kept !== '') {

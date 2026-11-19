@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Service;
 
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Memory\App\Audience;
 use OpenCCK\Memory\App\Consolidation;
 use OpenCCK\Memory\App\MemoryContext;

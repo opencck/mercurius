@@ -9,7 +9,7 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\RunScheduler;
-use OpenCCK\App\Agent\Tool\UntrustedWrapper;
+use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\MessageRelayRepository;

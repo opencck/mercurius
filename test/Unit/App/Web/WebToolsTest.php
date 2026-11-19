@@ -6,9 +6,9 @@ namespace OpenCCK\Test\Unit\App\Web;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\App\Agent\Tool\WebReadTool;
+use OpenCCK\App\Agent\Tool\Web\WebReadTool;
 use OpenCCK\App\Web\TextExtractor;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;

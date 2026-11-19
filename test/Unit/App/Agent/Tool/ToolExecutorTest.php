@@ -102,7 +102,7 @@ final class ToolExecutorTest extends AsyncTestCase {
     public function testReadFileIsNeverSpilled(): void {
         $sandbox = new FakeSandbox();
         $sandbox->files[7]['f'] = str_repeat("строка\n", 20);
-        $call = new ValidatedCall(new ToolCall('c1', 'read_file'), new \OpenCCK\App\Agent\Tool\ReadFileTool($sandbox), ['path' => 'f'], null, DangerClass::Read);
+        $call = new ValidatedCall(new ToolCall('c1', 'read_file'), new \OpenCCK\App\Agent\Tool\Files\ReadFileTool($sandbox), ['path' => 'f'], null, DangerClass::Read);
 
         $result = (new ToolExecutor(maxResultChars: 50, sandbox: $sandbox))->run($call, self::sandboxContext(), 5);
 

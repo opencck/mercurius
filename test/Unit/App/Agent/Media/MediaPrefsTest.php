@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Media;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Media\MediaPrefs;
-use OpenCCK\App\Agent\Tool\MediaPrefsTool;
+use OpenCCK\App\Agent\Tool\Files\MediaPrefsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;

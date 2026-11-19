@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
-use OpenCCK\App\Agent\Tool\SetParticipantPolicyTool;
+use OpenCCK\App\Agent\Tool\Agents\SetParticipantPolicyTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;

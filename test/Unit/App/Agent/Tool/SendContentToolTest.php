@@ -6,9 +6,9 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\Recipients;
-use OpenCCK\App\Agent\Tool\SendContentTool;
-use OpenCCK\App\Agent\Tool\SendFileTool;
+use OpenCCK\App\Agent\Tool\Messaging\Recipients;
+use OpenCCK\App\Agent\Tool\Messaging\SendContentTool;
+use OpenCCK\App\Agent\Tool\Messaging\SendFileTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;

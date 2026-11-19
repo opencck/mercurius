@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use DomainException;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\CommandAuditRepository;

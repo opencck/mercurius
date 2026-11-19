@@ -6,7 +6,7 @@ namespace OpenCCK\App\Mcp;
 
 use Closure;
 use Mercurius\Llm\ToolDefinition;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;

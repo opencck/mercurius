@@ -8,7 +8,7 @@ use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Llm\ModelCatalog\ModelInfo;
 use OpenCCK\App\Agent\Model\ModelRoles;
-use OpenCCK\App\Agent\Tool\SetModelRoleTool;
+use OpenCCK\App\Agent\Tool\Self\SetModelRoleTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;

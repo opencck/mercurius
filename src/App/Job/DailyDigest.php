@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\DigestJournal;

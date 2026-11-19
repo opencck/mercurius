@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Sandbox\CommandOutcome;
-use OpenCCK\App\Agent\Tool\GitTool;
+use OpenCCK\App\Agent\Tool\Sandbox\GitTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;

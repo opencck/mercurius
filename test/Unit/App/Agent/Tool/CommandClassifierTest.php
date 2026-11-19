@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
-use OpenCCK\App\Agent\Tool\CommandClassifier;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\CommandClassifier;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Agent\DangerClass;
 use PHPUnit\Framework\TestCase;
 

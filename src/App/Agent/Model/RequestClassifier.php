@@ -12,7 +12,7 @@ use Closure;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\Message;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use Psr\Log\LoggerInterface;
 use Throwable;
 

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent;
 
+use Amp\TimeoutCancellation;
 use Closure;
 use InvalidArgumentException;
 use Mercurius\Llm\ChatRequest;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\Message;
 use Mercurius\Llm\Role;
-use Amp\TimeoutCancellation;
-use OpenCCK\App\Agent\Tool\MemoryProposeTool;
-use OpenCCK\App\Agent\Tool\SecretMasker;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Entity\Principal;

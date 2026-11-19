@@ -6,7 +6,8 @@ namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Agent\Tool\SearchFilesTool;
+use OpenCCK\App\Agent\Sandbox\CommandOutcome;
+use OpenCCK\App\Agent\Tool\Files\SearchFilesTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
@@ -15,7 +16,6 @@ use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\App\Agent\Sandbox\CommandOutcome;
 use OpenCCK\Test\Support\FakeSandbox;
 
 /**

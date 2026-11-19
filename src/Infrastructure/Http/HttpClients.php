@@ -10,7 +10,7 @@ use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Socket\DnsSocketConnector;
 use Mercurius\Connectors\RouteFactory;
-use OpenCCK\App\Agent\Tool\AddressGuard;
+use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use Psr\Log\LoggerInterface;
 use SensitiveParameter;
 
