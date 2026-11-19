@@ -107,10 +107,10 @@ final class WebToolsTest extends AsyncTestCase {
 
     /** @param array<string, string> $entries */
     private static function zip(array $entries): string {
-        $file = tempnam(sys_get_temp_dir(), 'zip');
-        self::assertIsString($file);
+        // a name that does not exist yet: replacing a file tempnam() just made fails on Windows now and then
+        $file = sys_get_temp_dir() . '/webtools-' . bin2hex(random_bytes(6)) . '.zip';
         $zip = new ZipArchive();
-        $zip->open($file, ZipArchive::OVERWRITE);
+        $zip->open($file, ZipArchive::CREATE | ZipArchive::EXCL);
         foreach ($entries as $name => $content) {
             $zip->addFromString($name, $content);
         }
