@@ -113,7 +113,8 @@ final class SkillLibraryTest extends AsyncTestCase {
     public function testTheAgentReadsSavesAndImportsSkillsByPlaceAndByANamedProject(): void {
         $usage = new InMemorySkillUsageRepository();
         $library = $this->library();
-        $view = new SkillViewTool($library, $this->projectOf(), $usage);
+        $library->useUsage($usage);
+        $view = new SkillViewTool($library, $this->projectOf());
         $save = new SkillSaveTool($library, $this->projectOf());
 
         $saved = $save->execute(['name' => 'seo', 'description' => 'SEO сайта', 'body' => 'См. references/list.md', 'files' => ['references/list.md' => '- title'], 'where' => 'project', 'project' => 'Сайт'], $this->context($this->owner));
@@ -126,7 +127,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         $text = $view->execute(['name' => 'seo', 'project' => 'Сайт'], $this->context($this->owner))->content;
         self::assertStringContainsString('references/list.md', $text);
         self::assertSame('- title', $view->execute(['name' => 'seo', 'project' => 'Сайт', 'file_path' => 'references/list.md'], $this->context($this->owner))->content);
-        self::assertSame(1, $usage->stats()['seo']['views'] ?? null);
+        self::assertSame(1, $usage->stats()['1:projects/12/.mercurius/skills']['seo']['views'] ?? null, 'counted by place and name');
         self::assertStringContainsString('Создание скиллов', $view->execute(['name' => 'skill-creator'], $this->context($this->owner))->content, 'a built-in skill is read from the code');
 
         self::assertTrue($save->execute(['name' => 'x', 'description' => 'x', 'body' => 'x', 'where' => 'project', 'project' => 'Сайт'], $this->context($this->user))->isError, 'only the project\'s owner writes its skills');
@@ -153,8 +154,10 @@ final class SkillLibraryTest extends AsyncTestCase {
     public function testTheOwnerListsTheSkillsOfTheChat(): void {
         $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
         $usage = new InMemorySkillUsageRepository();
-        $usage->viewedAt['notes'] = time() - 40 * 86400;
-        $commands = new SkillCommands($this->library(), fn(string $c, string $chat, string $t): ?Project => null, null, $usage);
+        $usage->rows['1:.mercurius/skills']['notes'] = ['views' => 2, 'last' => time() - 40 * 86400, 'created' => time() - 90 * 86400, 'pinned' => false, 'off' => false];
+        $library = $this->library();
+        $library->useUsage($usage);
+        $commands = new SkillCommands($library, fn(string $c, string $chat, string $t): ?Project => null, null);
         $message = new IncomingMessage('telegram', '42', '42', null, 'Owner', '/skills', '1', null, true, new DateTimeImmutable(), 'u1');
 
         $list = $commands->list($this->owner, $message);
@@ -166,13 +169,48 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertStringContainsString('Заметки', $commands->list($this->owner, $message));
     }
 
+    public function testTheUseOfASkillIsCountedByPlaceAndName(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — the key of the use is the place and the name; a row from when a skill is made
+        $usage = new InMemorySkillUsageRepository();
+        $usage->rows['']['notes'] = ['views' => 7, 'last' => time() - 86400, 'created' => time() - 90 * 86400, 'pinned' => true, 'off' => false];
+        $library = $this->library();
+        $library->useUsage($usage);
+        $save = new SkillSaveTool($library, $this->projectOf());
+        $view = new SkillViewTool($library, $this->projectOf());
+
+        $save->execute(['name' => 'notes', 'description' => 'Мои заметки', 'body' => 'x'], $this->context($this->owner));
+        $save->execute(['name' => 'notes', 'description' => 'Заметки Васи', 'body' => 'y'], $this->context($this->user));
+        $view->execute(['name' => 'notes'], $this->context($this->user));
+
+        self::assertSame(1, $usage->rows['5:.mercurius/skills']['notes']['views'] ?? null, 'Вася opened his own notes');
+        self::assertSame(7, $usage->rows['1:.mercurius/skills']['notes']['views'] ?? null, 'the row of the time before places went to the first place written');
+        self::assertTrue($usage->stats()['1:.mercurius/skills']['notes']['pinned'] ?? false);
+        self::assertArrayNotHasKey('notes', $usage->rows[''] ?? []);
+        self::assertSame([], $library->unused($this->user, null), 'a skill made now is not stale');
+
+        $usage->rows['5:.mercurius/skills']['notes'] = ['views' => 1, 'last' => time() - 40 * 86400, 'created' => time() - 90 * 86400, 'pinned' => false, 'off' => false];
+        $this->sandbox->files[5]['.mercurius/skills/old/SKILL.md'] = self::skill('old', 'Старый');
+        self::assertSame(['notes'], $library->unused($this->user, null), 'not opened for 30 days; a skill first seen now waits');
+        self::assertArrayHasKey('old', $usage->stats()['5:.mercurius/skills'] ?? [], 'first seen now');
+
+        $review = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new class implements \OpenCCK\Domain\Repository\TraceReviewRepository {
+            public function review(\DateTimeImmutable $since): array {
+                return ['stops' => [], 'tools' => [], 'retried' => 0, 'costly' => [], 'spend' => []];
+            }
+        });
+        $review->useSkills($library);
+        $usage->rows['1:.mercurius/skills']['notes'] = ['views' => 1, 'last' => time() - 50 * 86400, 'created' => time() - 90 * 86400, 'pinned' => false, 'off' => false];
+        $report = $review->execute([], $this->context($this->owner))->content;
+        self::assertStringContainsString('notes', substr($report, (int) strpos($report, \Mercurius\I18n\t('tool.trace_review.unused_skills'))));
+    }
+
     public function testASkillIsTurnedOffAndRemovedAfterASnapshot(): void {
         // spec: BRIEF.md#скиллы-и-mcp — /skill <name> off hides it from the index, remove takes a snapshot first
         $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
         $usage = new InMemorySkillUsageRepository();
         $library = $this->library();
         $library->useUsage($usage);
-        $commands = new SkillCommands($library, fn(string $c, string $chat, string $t): ?Project => null, null, $usage, new \OpenCCK\App\Agent\Sandbox\Checkpoints($this->sandbox));
+        $commands = new SkillCommands($library, fn(string $c, string $chat, string $t): ?Project => null, null, new \OpenCCK\App\Agent\Sandbox\Checkpoints($this->sandbox));
         $message = new IncomingMessage('telegram', '42', '42', null, 'Owner', '/skill', '1', null, true, new DateTimeImmutable(), 'u1');
 
         self::assertStringContainsString('выключен', $commands->skill($this->owner, $message, 'notes off'));

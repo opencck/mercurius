@@ -12,7 +12,6 @@ use OpenCCK\App\Skill\SkillImporter;
 use OpenCCK\App\Skill\SkillLibrary;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Repository\SkillUsageRepository;
 
 use function Mercurius\I18n\t;
 
@@ -24,24 +23,21 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillCommands {
-    /** a skill not opened for this many days is a candidate for removal, unless pinned */
-    public const STALE_DAYS = 30;
-
     /** @param Closure(string, string, string): ?Project $projectOf the active project of a chat and topic */
     public function __construct(
         private readonly SkillLibrary $library,
         private readonly Closure $projectOf,
         private readonly ?SkillImporter $importer = null,
-        private readonly ?SkillUsageRepository $usage = null,
         private readonly ?\OpenCCK\App\Agent\Sandbox\Checkpoints $checkpoints = null,
     ) {}
 
     public function list(Principal $who, IncomingMessage $message): string {
-        $catalog = $this->library->catalog($who, $this->project($message));
+        $project = $this->project($message);
+        $catalog = $this->library->catalog($who, $project);
         if ($catalog === []) {
             return t('service.skill_commands.skillov_net_poprosite_menya_predlozhit');
         }
-        $stats = $this->usage?->stats() ?? [];
+        $stats = $this->library->stats($who, $project, $catalog);
         $lines = [];
         foreach ($catalog as $name => $skill) {
             $off = ($stats[$name]['off'] ?? false) ? ' · ' . t('service.skill_commands.off') : '';
@@ -71,13 +67,12 @@ final class SkillCommands {
         }
         // spec: BRIEF.md#скиллы-и-mcp — off hides a skill from the index, remove deletes its folder after a snapshot
         if ($action === 'off' || $action === 'on') {
-            if ($this->usage === null) {
+            if (!$this->library->counts()) {
                 return t('service.skill_commands.skill_imya_show_on_off_2');
             }
-            if (!isset($this->library->catalog($who, $project)[$name])) {
+            if (!$this->library->mark($who, $project, $name, 'off', $action === 'off')) {
                 return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
             }
-            $this->usage->turnOff($name, $action === 'off');
             return sprintf($action === 'off' ? t('service.skill_commands.off_now') : t('service.skill_commands.on_now'), $name);
         }
         // spec: BRIEF.md#скиллы-и-mcp — an imported skill is taken again from its source when the revision changed
@@ -124,10 +119,12 @@ final class SkillCommands {
             return $why ?? sprintf(t('service.skill_commands.removed_now'), $name);
         }
         if ($action === 'pin' || $action === 'unpin') {
-            if ($this->usage === null) {
+            if (!$this->library->counts()) {
                 return t('service.skill_commands.skill_imya_show_on_off_2');
             }
-            $this->usage->pin($name, $action === 'pin');
+            if (!$this->library->mark($who, $project, $name, 'pin', $action === 'pin')) {
+                return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
+            }
             return sprintf($action === 'pin' ? t('service.skill_commands.pinned_now') : t('service.skill_commands.unpinned_now'), $name);
         }
         $skill = $this->library->view($who, $project, $name, null, new TimeoutCancellation(30));
@@ -146,7 +143,7 @@ final class SkillCommands {
      *
      * ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — active → stale → archived, pinned opts out;
      *      here the list only marks the candidates, removing a skill is removing its folder
-     * @param array<string, array{views: int, last: ?int, pinned: bool, off: bool}> $stats
+     * @param array<string, array{views: int, last: ?int, created: int, pinned: bool, off: bool}> $stats
      */
     private static function usage(string $name, array $stats): string {
         $s = $stats[$name] ?? null;
@@ -156,7 +153,7 @@ final class SkillCommands {
         if ($s['pinned']) {
             return ' · ' . t('service.skill_commands.pinned') . ($s['views'] > 0 ? ', ' . sprintf(t('service.skill_commands.views'), $s['views']) : '');
         }
-        if ($s['last'] !== null && $s['last'] < time() - self::STALE_DAYS * 86400) {
+        if (SkillLibrary::stale($s)) {
             return ' · ' . t('service.skill_commands.stale');
         }
         return $s['views'] > 0 ? ' · ' . sprintf(t('service.skill_commands.views'), $s['views']) : '';

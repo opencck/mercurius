@@ -13,7 +13,6 @@ use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Skill\SkillLibrary;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Repository\SkillUsageRepository;
 
 use function Mercurius\I18n\t;
 
@@ -32,8 +31,6 @@ final class SkillViewTool implements Tool {
     public function __construct(
         private readonly SkillLibrary $library,
         private readonly Closure $projectOf,
-        /** openings are counted for the review and for cleaning the index; null — not counted */
-        private readonly ?SkillUsageRepository $usage = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -76,13 +73,6 @@ final class SkillViewTool implements Tool {
         $skill = $this->library->view($context->principal, $project, $name, $path === '' ? null : $path, $context->cancellation);
         if ($skill === null) {
             return ToolResult::error($path === null ? sprintf(t('tool.skill_view.aktivnogo_skilla_net'), $name) : sprintf(t('tool.skill_view.no_file'), $name, $path));
-        }
-        if ($path === null) {
-            // ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — a counter bump is best effort
-            try {
-                $this->usage?->touch($name);
-            } catch (\Throwable) {
-            }
         }
         return ToolResult::ok($skill['files'] === [] ? $skill['text'] : $skill['text'] . sprintf(t('tool.skill_view.files_list'), implode("\n", array_map(static fn(string $p): string => '- ' . $p, $skill['files']))));
     }

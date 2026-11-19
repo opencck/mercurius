@@ -28,7 +28,14 @@ use function Mercurius\I18n\t;
 final class TraceReviewTool implements Tool {
     public const NAME = 'trace_review';
 
+    private ?\OpenCCK\App\Skill\SkillLibrary $skills = null;
+
     public function __construct(private readonly TraceReviewRepository $traces) {}
+
+    /** spec: BRIEF.md#скиллы-и-mcp — the review names the skills nobody opened for a month */
+    public function useSkills(\OpenCCK\App\Skill\SkillLibrary $skills): void {
+        $this->skills = $skills;
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.trace_review.about'), [
@@ -76,6 +83,12 @@ final class TraceReviewTool implements Tool {
             static fn(array $s): string => sprintf('- %s: $%.4f (%d)', $s['purpose'], $s['usd'], $s['calls']),
             $data['spend'],
         )));
+        if ($this->skills !== null) {
+            // ref: references/hermes-agent/agent/curator.py@e96221fa:L31, L205-L240 — skills unused for a while are named
+            //      for the owner; hermes archives them itself after 30 days, here the owner turns them off or pins them
+            $unused = $this->skills->unused($context->principal, null);
+            $out[] = sprintf(t('tool.trace_review.unused_skills'), \OpenCCK\App\Skill\SkillLibrary::STALE_DAYS) . "\n" . ($unused === [] ? '—' : implode(', ', $unused));
+        }
         return ToolResult::ok(implode("\n\n", $out));
     }
 }

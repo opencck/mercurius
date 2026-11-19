@@ -7,33 +7,36 @@ namespace OpenCCK\Test\Support;
 use OpenCCK\Domain\Repository\SkillUsageRepository;
 
 final class InMemorySkillUsageRepository implements SkillUsageRepository {
-    /** @var array<string, int> */
-    public array $views = [];
-    /** @var array<string, int> the last opening of a skill, set by a test to look back in time */
-    public array $viewedAt = [];
-    /** @var array<string, bool> */
-    public array $pinned = [];
-    /** @var array<string, bool> */
-    public array $off = [];
+    /** @var array<string, array<string, array{views: int, last: ?int, created: int, pinned: bool, off: bool}>> place => name => use; a test may set it to look back in time */
+    public array $rows = [];
 
-    public function turnOff(string $name, bool $off): void {
-        $this->off[$name] = $off;
+    public function touch(string $place, string $name): void {
+        $row = $this->row($place, $name);
+        $this->rows[$place][$name] = ['views' => $row['views'] + 1, 'last' => time()] + $row;
     }
 
-    public function touch(string $name): void {
-        $this->views[$name] = ($this->views[$name] ?? 0) + 1;
-        $this->viewedAt[$name] = time();
+    public function created(string $place, string $name): void {
+        $this->row($place, $name);
     }
 
     public function stats(): array {
-        $out = [];
-        foreach (array_unique([...array_keys($this->views), ...array_keys($this->viewedAt), ...array_keys($this->pinned), ...array_keys($this->off)]) as $name) {
-            $out[$name] = ['views' => $this->views[$name] ?? 0, 'last' => $this->viewedAt[$name] ?? null, 'pinned' => $this->pinned[$name] ?? false, 'off' => $this->off[$name] ?? false];
-        }
-        return $out;
+        return $this->rows;
     }
 
-    public function pin(string $name, bool $pinned): void {
-        $this->pinned[$name] = $pinned;
+    public function pin(string $place, string $name, bool $pinned): void {
+        $this->rows[$place][$name] = ['pinned' => $pinned] + $this->row($place, $name);
+    }
+
+    public function turnOff(string $place, string $name, bool $off): void {
+        $this->rows[$place][$name] = ['off' => $off] + $this->row($place, $name);
+    }
+
+    /** @return array{views: int, last: ?int, created: int, pinned: bool, off: bool} */
+    private function row(string $place, string $name): array {
+        if ($place !== '' && !isset($this->rows[$place][$name]) && isset($this->rows[''][$name])) {
+            $this->rows[$place][$name] = $this->rows[''][$name];
+            unset($this->rows[''][$name]);
+        }
+        return $this->rows[$place][$name] ??= ['views' => 0, 'last' => null, 'created' => time(), 'pinned' => false, 'off' => false];
     }
 }

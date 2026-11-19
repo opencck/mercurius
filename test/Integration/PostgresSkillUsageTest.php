@@ -17,15 +17,38 @@ final class PostgresSkillUsageTest extends AsyncTestCase {
         $usage = new PostgresSkillUsageRepository($db);
         $name = 'test-' . bin2hex(random_bytes(4));
 
-        $usage->touch($name);
-        $usage->pin($name, true);
-        $usage->turnOff($name, true);
-        $stat = $usage->stats()[$name] ?? null;
+        $usage->touch('1:.mercurius/skills', $name);
+        $usage->pin('1:.mercurius/skills', $name, true);
+        $usage->turnOff('1:.mercurius/skills', $name, true);
+        $usage->created('5:.mercurius/skills', $name);
+        $stats = $usage->stats();
+        $stat = $stats['1:.mercurius/skills'][$name] ?? null;
         self::assertSame([1, true, true], [$stat['views'] ?? null, $stat['pinned'] ?? null, $stat['off'] ?? null]);
+        $other = $stats['5:.mercurius/skills'][$name] ?? null;
+        self::assertNotNull($other);
+        self::assertSame(0, $other['views'], 'the same name in another place is another skill');
+        self::assertGreaterThan(time() - 60, $other['created']);
 
-        $usage->turnOff($name, false);
-        self::assertFalse($usage->stats()[$name]['off'] ?? true);
-        $db->execute('DELETE FROM skill_usage WHERE name = ?', [$name]);
+        $usage->turnOff('1:.mercurius/skills', $name, false);
+        self::assertFalse($usage->stats()['1:.mercurius/skills'][$name]['off'] ?? true);
+        $db->execute('DELETE FROM skill_stats WHERE name = ?', [$name]);
+        $db->close();
+    }
+
+    public function testARowOfTheTimeBeforePlacesIsClaimedOnce(): void {
+        $db = TestDatabase::connect();
+        $usage = new PostgresSkillUsageRepository($db);
+        $name = 'test-' . bin2hex(random_bytes(4));
+        $db->execute("INSERT INTO skill_stats (place, name, views, pinned) VALUES ('', ?, 4, true)", [$name]);
+
+        $usage->touch('1:.mercurius/skills', $name);
+        $usage->touch('5:.mercurius/skills', $name);
+
+        $stats = $usage->stats();
+        self::assertSame([5, true], [$stats['1:.mercurius/skills'][$name]['views'] ?? null, $stats['1:.mercurius/skills'][$name]['pinned'] ?? null]);
+        self::assertSame(1, $stats['5:.mercurius/skills'][$name]['views'] ?? null);
+        self::assertArrayNotHasKey($name, $stats[''] ?? []);
+        $db->execute('DELETE FROM skill_stats WHERE name = ?', [$name]);
         $db->close();
     }
     public function testTheJournalOfASkillKeepsWhatWasThere(): void {

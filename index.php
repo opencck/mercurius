@@ -752,7 +752,7 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $skillLibrary->useUsage($skillUsage);
 $skillLibrary->useEdits(new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db));
-$tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage));
+$tools->register(new SkillViewTool($skillLibrary, $skillProjectOf));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
@@ -847,7 +847,10 @@ $scheduler->useProjects(new ProjectContext($projectRepository));
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
 $promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
 $scheduler->useNotes($promptNotes);
-$tools->register(new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db)));
+$traceReview = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db));
+// spec: BRIEF.md#скиллы-и-mcp — the review names the skills nobody opened for a month
+$traceReview->useSkills($skillLibrary);
+$tools->register($traceReview);
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
@@ -1011,7 +1014,7 @@ $chat = new ChatService(
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
-    new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $skillUsage, $checkpoints),
+    new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation

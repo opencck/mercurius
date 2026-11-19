@@ -162,6 +162,83 @@ final class SkillLibrary {
         $this->usage = $usage;
     }
 
+    /** A skill not opened for this many days (or since it was made) is named for /skill off or pin. */
+    public const STALE_DAYS = 30;
+    private const BUILTIN_PLACE = 'builtin';
+
+    /** Whether the use of skills is counted: pin, off and the marks need it. */
+    public function counts(): bool {
+        return $this->usage !== null;
+    }
+
+    /** The key of the place of a skill for its use: built in, or the owner and the folder of the skills. */
+    private static function place(?int $owner, ?string $dir): string {
+        return $owner === null || $dir === null ? self::BUILTIN_PLACE : $owner . ':' . dirname($dir);
+    }
+
+    /**
+     * The use of each skill of this conversation, by the place the skill comes from. A folder skill without a row gets
+     * one now: it is first seen now, and it can grow stale from then.
+     *
+     * spec: BRIEF.md#скиллы-и-mcp — the key of the use is the place and the name
+     * ref: references/hermes-agent/agent/curator.py@e96221fa:L234-L235 — a never-active skill is anchored on when it
+     *      was made or first seen, so it does not go stale at once nor stay fresh for ever
+     *
+     * @param array<string, array{description: string, where: string, dir: ?string, owner: ?int}>|null $catalog
+     * @return array<string, array{views: int, last: ?int, created: int, pinned: bool, off: bool}>
+     */
+    public function stats(Principal $who, ?Project $project, ?array $catalog = null): array {
+        if ($this->usage === null) {
+            return [];
+        }
+        $all = $this->usage->stats();
+        $out = [];
+        foreach ($catalog ?? $this->catalog($who, $project) as $name => $skill) {
+            $place = self::place($skill['owner'], $skill['dir']);
+            $use = $all[$place][$name] ?? $all[''][$name] ?? null;
+            if ($use === null && $place !== self::BUILTIN_PLACE) {
+                try {
+                    $this->usage->created($place, $name);
+                } catch (Throwable) {
+                }
+                $use = ['views' => 0, 'last' => null, 'created' => time(), 'pinned' => false, 'off' => false];
+            }
+            if ($use !== null) {
+                $out[$name] = $use;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Whether a skill not opened for STALE_DAYS (and not pinned or off) waits for /skill off or pin.
+     *
+     * @param array{views: int, last: ?int, created: int, pinned: bool, off: bool} $use
+     */
+    public static function stale(array $use, ?int $now = null): bool {
+        return !$use['pinned'] && !$use['off'] && ($use['last'] ?? $use['created']) < ($now ?? time()) - self::STALE_DAYS * 86400;
+    }
+
+    /**
+     * Skills of this conversation nobody opened for STALE_DAYS, for the review of the owner.
+     *
+     * @return list<string>
+     */
+    public function unused(Principal $who, ?Project $project): array {
+        return array_keys(array_filter($this->stats($who, $project), static fn(array $use): bool => self::stale($use)));
+    }
+
+    /** Pins a skill (never marked stale) or turns it off (out of the index); false — no such skill or no count. */
+    public function mark(Principal $who, ?Project $project, string $name, string $mark, bool $on): bool {
+        $skill = $this->catalog($who, $project)[$name] ?? null;
+        if ($skill === null || $this->usage === null) {
+            return false;
+        }
+        $place = self::place($skill['owner'], $skill['dir']);
+        $mark === 'pin' ? $this->usage->pin($place, $name, $on) : $this->usage->turnOff($place, $name, $on);
+        return true;
+    }
+
     /**
      * Removes a skill's folder after $before took a snapshot of the owner's working folder; null when removed, else why
      * not. A built-in skill is in the code and can only be turned off.
@@ -237,15 +314,10 @@ final class SkillLibrary {
         if ($catalog === []) {
             return '';
         }
-        $off = [];
-        foreach ($this->usage?->stats() ?? [] as $name => $stat) {
-            if ($stat['off']) {
-                $off[$name] = true;
-            }
-        }
+        $stats = $this->stats($who, $project, $catalog);
         $lines = [];
         foreach ($catalog as $name => $skill) {
-            if (!isset($off[$name])) {
+            if (!($stats[$name]['off'] ?? false)) {
                 $lines[] = sprintf('- %s: %s [%s]', $name, $skill['description'], $skill['where']);
             }
         }
@@ -262,6 +334,22 @@ final class SkillLibrary {
         if ($skill === null) {
             return null;
         }
+        $shown = $this->show($skill, $name, $file, $cancellation);
+        if ($shown !== null && $file === null) {
+            // ref: references/hermes-agent/tools/skill_usage.py@e96221fa:L1-L6 — a counter bump is best effort
+            try {
+                $this->usage?->touch(self::place($skill['owner'], $skill['dir']), $name);
+            } catch (Throwable) {
+            }
+        }
+        return $shown;
+    }
+
+    /**
+     * @param array{description: string, where: string, dir: ?string, owner: ?int} $skill
+     * @return array{text: string, files: list<string>}|null
+     */
+    private function show(array $skill, string $name, ?string $file, Cancellation $cancellation): ?array {
         if ($skill['dir'] === null || $skill['owner'] === null) {
             $bundle = $this->builtin[$name];
             if ($file !== null) {
@@ -349,6 +437,11 @@ final class SkillLibrary {
             $this->sandbox->write($target['owner'], $target['limits'], $root . '/' . $path, $text, $cancellation);
         }
         $this->edits?->record($target['owner'], $root, $bundle->name, $before, $source);
+        // spec: BRIEF.md#скиллы-и-mcp — a skill has a row of its use from when it is made
+        try {
+            $this->usage?->created(self::place($target['owner'], $root), $bundle->name);
+        } catch (Throwable) {
+        }
         return $root;
     }
 
