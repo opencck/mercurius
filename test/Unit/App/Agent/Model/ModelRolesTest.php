@@ -63,6 +63,18 @@ final class ModelRolesTest extends AsyncTestCase {
         self::assertSame('openai:gpt-6-sol', (string) $roles->model(ModelRole::STRONG), 'gpt-6.1-sol always reasons: no tools in Chat Completions');
     }
 
+    public function testOnlyClaudeGetsClaudeRolesOfItsProvider(): void {
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — default roles by provider
+        foreach (['anthropic' => 'anthropic:claude-sonnet-5-5', 'bedrock' => 'bedrock:anthropic.claude-sonnet-5-5'] as $provider => $main) {
+            $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+            $roles = new ModelRoles($stores, $stores, [$provider]);
+            $roles->seed();
+
+            self::assertSame($main, (string) $roles->model(ModelRole::MAIN), 'not an OpenAI model without an OpenAI key');
+            self::assertSame($provider, $roles->model(ModelRole::STRONG)->provider);
+        }
+    }
+
     public function testRoleOfAProviderWithoutAKeyFallsBack(): void {
         // The table was filled with OpenRouter; then only the OpenAI key is left.
         $roles = new ModelRoles($this->stores, $this->stores, ['openai']);

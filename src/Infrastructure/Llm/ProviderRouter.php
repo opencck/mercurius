@@ -15,6 +15,8 @@ use Mercurius\Llm\StreamEnd;
 use Mercurius\Llm\StreamEvent;
 use Mercurius\Llm\Usage;
 use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\PromptCache;
+use OpenCCK\Domain\Agent\ProviderProfile;
 use OpenCCK\Domain\Repository\ModelCatalogRepository;
 
 /**
@@ -74,8 +76,7 @@ final class ProviderRouter implements LlmClient {
         // ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221fa:L1740-L1800 (anthropic_prompt_cache_policy)
         // ref: references/hermes-agent/agent/prompt_caching.py@e96221fa:L1-L5, L35-L47 (is_one_shot_request) — the
         //      system prompt is a breakpoint; a call nothing reads back from cache gets no mark at all
-        $claude = in_array($ref->provider, [ModelRef::ANTHROPIC, ModelRef::BEDROCK], true) || ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/'));
-        if ($claude && !isset($bare->extra['cache_control']) && !self::oneShot($bare)) {
+        if (ProviderProfile::cacheFor($ref) === PromptCache::Marks && !isset($bare->extra['cache_control']) && !self::oneShot($bare)) {
             $messages = $bare->messages;
             if (isset($messages[0]) && $messages[0]->role === Role::System) {
                 $messages[0] = $messages[0]->cached();

@@ -859,7 +859,9 @@
 скиллов блокирует только `critical`; денежных лимитов по умолчанию нет; лимиты запуска увеличены в 10 раз; файлы
 памяти, скиллов и промптов открыты инструментам записи; боты в группах слушаются по умолчанию.
 
-**Ход работ Д4:** 2026-11-19 — провайдер `codex`: OpenAI Responses API (`ResponsesClient`, каталог с семействами
+**Ход работ Д4:** 2026-11-19 — профиль провайдера (`ProviderProfile`: API, ключ, кеш, умолчания, роли) и фабрика
+`ProviderClients`; заодно исправлено: экземпляр только с Anthropic или Bedrock получал роли OpenAI. 2026-11-19 —
+провайдер `codex`: OpenAI Responses API (`ResponsesClient`, каталог с семействами
 codex и `-pro`, `llm` `757ae67`) по ключу `OPENAI_API_KEY`; общий разбор потока `EventStream` для Anthropic и
 Responses; на подставных ответах (В11). 2026-11-19 — провайдер Bedrock: Claude в Amazon Bedrock по Messages API (`AnthropicClient::bedrock`,
 `BedrockCatalog`, `llm` `5de2415`), ключ `AWS_BEARER_TOKEN_BEDROCK` и `BEDROCK_REGION`; на подставных ответах (В11).

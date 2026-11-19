@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 use Dotenv\Dotenv;
 use Mercurius\Llm\LlmException;
-use Mercurius\Llm\ModelCatalog\OpenAICatalog;
-use Mercurius\Llm\ModelCatalog\OpenRouterCatalog;
-use Mercurius\Llm\OpenAI\OpenAIClient;
-use Mercurius\Llm\OpenRouter\OpenRouterClient;
-use Mercurius\Llm\RetryingClient;
 use Mercurius\Messenger\ChatDispatcher;
 use Mercurius\Messenger\Deduplicator;
 use Mercurius\Messenger\OutgoingMessage;
@@ -110,6 +105,7 @@ use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\DatabaseHealthCheck;
 use OpenCCK\Infrastructure\Database\Migrator;
 use OpenCCK\Infrastructure\Http\HttpClients;
+use OpenCCK\Infrastructure\Llm\ProviderClients;
 use OpenCCK\Infrastructure\Llm\ProviderRouter;
 use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
@@ -262,44 +258,19 @@ try {
     exit(78); // EX_CONFIG
 }
 
-// Models: one client per provider with a key, chosen by the model's prefix; all go through VLESS when VLESS_URI is set.
+// Models: one client per provider with a key (its profile says which), chosen by the model's prefix; all go through VLESS when VLESS_URI is set.
 // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
 $modelHttp = HttpClients::create($llmSettings->routeUri(), $logger);
 $onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logger->warning(
     'Retrying model call',
     ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
 );
-$clients = [];
-$catalogSources = [];
-$toolReliableSources = [];
+$providerClients = ProviderClients::build($llmSettings, $modelHttp, $config->appUrl, $onRetry);
+$clients = $providerClients->clients;
+$catalogSources = $providerClients->catalogs;
+$toolReliableSources = $providerClients->toolReliable;
 $openRouterKey = $llmSettings->openRouterKey();
-if ($openRouterKey !== null) {
-    $clients[ModelRef::OPENROUTER] = new RetryingClient(new OpenRouterClient($modelHttp, $openRouterKey, appName: 'Mercurius', appUrl: $config->appUrl), onRetry: $onRetry);
-    $catalogSources[ModelRef::OPENROUTER] = (new OpenRouterCatalog($modelHttp, $openRouterKey))->fetch(...);
-    // spec: BRIEF.md#выбор-моделей-под-задачу — a model must pass 90% of its tool calls by the catalog to get a part with tools
-    $toolReliableSources[ModelRef::OPENROUTER] = static fn(): array => (new OpenRouterCatalog($modelHttp, $openRouterKey))->toolReliable(0.9);
-}
 $openAiKey = $llmSettings->openAiKey();
-if ($openAiKey !== null) {
-    $clients[ModelRef::OPENAI] = new RetryingClient(new OpenAIClient($modelHttp, $openAiKey), onRetry: $onRetry);
-    // The OpenAI list has ids only: the public OpenRouter catalog describes them.
-    $catalogSources[ModelRef::OPENAI] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
-    // The same key through the Responses API: the codex models and the tools of models that always reason.
-    $clients[ModelRef::CODEX] = new RetryingClient(new \Mercurius\Llm\OpenAI\ResponsesClient($modelHttp, $openAiKey), onRetry: $onRetry);
-    $catalogSources[ModelRef::CODEX] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp), responses: true))->fetch(...);
-}
-$anthropicKey = $llmSettings->anthropicKey();
-if ($anthropicKey !== null) {
-    $clients[ModelRef::ANTHROPIC] = new RetryingClient(new \Mercurius\Llm\Anthropic\AnthropicClient($modelHttp, $anthropicKey), onRetry: $onRetry);
-    // The Anthropic list has ids and names only: the public OpenRouter catalog describes them.
-    $catalogSources[ModelRef::ANTHROPIC] = (new \Mercurius\Llm\ModelCatalog\AnthropicCatalog($modelHttp, $anthropicKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
-}
-$bedrockKey = $llmSettings->bedrockKey();
-if ($bedrockKey !== null) {
-    // Claude in Amazon Bedrock: the Messages API at the Mantle address of the region, with a Bedrock API key.
-    $clients[ModelRef::BEDROCK] = new RetryingClient(\Mercurius\Llm\Anthropic\AnthropicClient::bedrock($modelHttp, $bedrockKey, $llmSettings->bedrockRegion), onRetry: $onRetry);
-    $catalogSources[ModelRef::BEDROCK] = (new \Mercurius\Llm\ModelCatalog\BedrockCatalog(new OpenRouterCatalog($modelHttp)))->fetch(...);
-}
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);

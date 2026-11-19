@@ -31,6 +31,8 @@ use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\PromptCache;
+use OpenCCK\Domain\Agent\ProviderProfile;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
@@ -505,7 +507,7 @@ final class AgentLoop {
      * @return array<string, mixed>
      */
     private static function cacheKey(string $model, int $conversationId): array {
-        return in_array(ModelRef::parse($model)->provider, [ModelRef::OPENAI, ModelRef::CODEX], true) ? ['prompt_cache_key' => 'conversation-' . $conversationId] : [];
+        return ProviderProfile::cacheFor(ModelRef::parse($model)) === PromptCache::Key ? ['prompt_cache_key' => 'conversation-' . $conversationId] : [];
     }
 
     /**

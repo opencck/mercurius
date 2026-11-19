@@ -7,6 +7,7 @@ namespace OpenCCK\App\Agent\Model;
 use DomainException;
 use InvalidArgumentException;
 use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\ProviderProfile;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ModelCatalogRepository;
@@ -22,28 +23,6 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#начальная-таблица-ролей-моделей — seed values
  */
 final class ModelRoles {
-    /** @var array<string, string> */
-    public const SEED = [
-        ModelRole::CHEAP => 'openrouter:openai/gpt-5.6-luna',
-        ModelRole::MAIN => 'openrouter:z-ai/glm-5.3-flash',
-        ModelRole::STRONG => 'openrouter:anthropic/claude-opus-5',
-        ModelRole::MEDIA => 'openrouter:google/gemini-3.8-flash',
-    ];
-
-    /**
-     * Seed values when only the OpenAI API has a key.
-     *
-     * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — default roles by provider
-     *
-     * @var array<string, string>
-     */
-    public const SEED_OPENAI = [
-        ModelRole::CHEAP => 'openai:gpt-6-luna',
-        ModelRole::MAIN => 'openai:gpt-6.1-terra',
-        ModelRole::STRONG => 'openai:gpt-6-sol',
-        ModelRole::MEDIA => 'openai:gpt-6-luna',
-    ];
-
     private const MIN_REASON = 10;
 
     /** @param list<string> $providers providers with a key; their models are the only ones that can be used */
@@ -74,9 +53,20 @@ final class ModelRoles {
         return ModelRef::parse($seed[$role] ?? $seed[ModelRole::MAIN]);
     }
 
-    /** @return array<string, string> */
+    /**
+     * The seed of the first provider with a key, in the order of the profiles: OpenRouter first.
+     *
+     * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — default roles by provider
+     *
+     * @return array<string, string>
+     */
     private function seedTable(): array {
-        return in_array(ModelRef::OPENROUTER, $this->providers, true) ? self::SEED : self::SEED_OPENAI;
+        foreach (ProviderProfile::all() as $name => $profile) {
+            if (in_array($name, $this->providers, true)) {
+                return $profile->roles;
+            }
+        }
+        return ProviderProfile::all()[ModelRef::OPENROUTER]->roles;
     }
 
     /**

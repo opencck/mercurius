@@ -1,0 +1,98 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Domain\Agent;
+
+/**
+ * A model provider as data: the API it speaks, the key it needs, how it caches prompts and which of its models play
+ * the roles by default. A new provider is a new profile here and a client in the provider factory; the rest of the
+ * agent reads the profile.
+ *
+ * ref: references/hermes-agent/providers/base.py@e96221fa:L140-L171 (ProviderProfile) — identity, API mode, key
+ *      variables and endpoint per provider; hermes also keeps auth handlers and vision flags there, which here stay in
+ *      the clients and the catalog.
+ *
+ * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — a provider is data
+ */
+final class ProviderProfile {
+    public const API_CHAT_COMPLETIONS = 'chat_completions';
+    public const API_RESPONSES = 'responses';
+    public const API_MESSAGES = 'messages';
+
+    /** @var array<string, self>|null */
+    private static ?array $all = null;
+
+    /**
+     * @param self::API_* $api
+     * @param non-empty-string $model default model of the agent when this is the first provider with a key
+     * @param non-empty-string $cheapModel default model of auxiliary calls
+     * @param array<string, non-empty-string> $roles seed models of the roles when this is the first provider with a key
+     */
+    public function __construct(
+        public readonly string $name,
+        public readonly string $label,
+        public readonly string $api,
+        public readonly string $keyEnv,
+        public readonly PromptCache $cache,
+        public readonly string $model,
+        public readonly string $cheapModel,
+        public readonly array $roles,
+    ) {}
+
+    /**
+     * All providers, in the order their defaults are preferred: OpenRouter first.
+     *
+     * @return array<string, self>
+     */
+    public static function all(): array {
+        if (self::$all !== null) {
+            return self::$all;
+        }
+        $claude = static fn(string $p): array => [
+            ModelRole::CHEAP => $p . 'claude-haiku-5-5',
+            ModelRole::MAIN => $p . 'claude-sonnet-5-5',
+            ModelRole::STRONG => $p . 'claude-opus-5-5',
+            ModelRole::MEDIA => $p . 'claude-haiku-5-5',
+        ];
+        $openAi = static fn(string $p): array => [
+            ModelRole::CHEAP => $p . 'gpt-6-luna',
+            ModelRole::MAIN => $p . 'gpt-6.1-terra',
+            // gpt-6.1-sol always reasons: in Chat Completions it takes no tools
+            ModelRole::STRONG => $p . 'gpt-6-sol',
+            ModelRole::MEDIA => $p . 'gpt-6-luna',
+        ];
+        $all = [];
+        foreach ([
+            new self(ModelRef::OPENROUTER, 'OpenRouter', self::API_CHAT_COMPLETIONS, 'OPENROUTER_API_KEY', PromptCache::Provider, 'openrouter:z-ai/glm-5.3-flash', 'openrouter:openai/gpt-5.6-luna', [
+                // spec: BRIEF.md#начальная-таблица-ролей-моделей
+                ModelRole::CHEAP => 'openrouter:openai/gpt-5.6-luna',
+                ModelRole::MAIN => 'openrouter:z-ai/glm-5.3-flash',
+                ModelRole::STRONG => 'openrouter:anthropic/claude-opus-5',
+                ModelRole::MEDIA => 'openrouter:google/gemini-3.8-flash',
+            ]),
+            new self(ModelRef::OPENAI, 'OpenAI', self::API_CHAT_COMPLETIONS, 'OPENAI_API_KEY', PromptCache::Key, 'openai:gpt-6.1-terra', 'openai:gpt-6-luna', $openAi('openai:')),
+            new self(ModelRef::CODEX, 'OpenAI Responses', self::API_RESPONSES, 'OPENAI_API_KEY', PromptCache::Key, 'codex:gpt-6.1-terra', 'codex:gpt-6-luna', $openAi('codex:')),
+            new self(ModelRef::ANTHROPIC, 'Anthropic', self::API_MESSAGES, 'ANTHROPIC_API_KEY', PromptCache::Marks, 'anthropic:claude-sonnet-5-5', 'anthropic:claude-haiku-5-5', $claude('anthropic:')),
+            new self(ModelRef::BEDROCK, 'Amazon Bedrock', self::API_MESSAGES, 'AWS_BEARER_TOKEN_BEDROCK', PromptCache::Marks, 'bedrock:anthropic.claude-sonnet-5-5', 'bedrock:anthropic.claude-haiku-5-5', $claude('bedrock:anthropic.')),
+        ] as $profile) {
+            $all[$profile->name] = $profile;
+        }
+        return self::$all = $all;
+    }
+
+    public static function of(string $provider): ?self {
+        return self::all()[$provider] ?? null;
+    }
+
+    /**
+     * How the prefix of a request to this model is cached. Claude through OpenRouter is cached like Claude anywhere;
+     * an unknown provider caches on its own.
+     */
+    public static function cacheFor(ModelRef $ref): PromptCache {
+        if ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/')) {
+            return PromptCache::Marks;
+        }
+        return self::of($ref->provider)->cache ?? PromptCache::Provider;
+    }
+}
