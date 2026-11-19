@@ -36,7 +36,7 @@ final class PostgresEpisodeRepository implements EpisodeRepository {
         foreach ($this->db->execute(
             'SELECT ' . self::COLUMNS . ", ts_rank_cd(m.search, q) AS rank
              FROM messages m JOIN conversations c ON c.id = m.conversation_id, to_tsquery('russian'::regconfig, ?) q
-             WHERE m.search @@ q AND c.channel <> 'worker' AND m.conversation_id <> ?" . $where . '
+             WHERE m.search @@ q AND c.channel NOT IN ('worker', 'eval') AND m.conversation_id <> ?" . $where . '
              ORDER BY rank DESC, m.id DESC LIMIT ' . self::SCAN,
             [$query, $except, ...$params],
         ) as $row) {
@@ -56,7 +56,7 @@ final class PostgresEpisodeRepository implements EpisodeRepository {
     public function around(int $conversationId, int $messageId, HistoryScope $scope, int $window): array {
         [$where, $params] = self::scope($scope);
         $base = 'SELECT ' . self::COLUMNS . " FROM messages m JOIN conversations c ON c.id = m.conversation_id
-                 WHERE m.conversation_id = ? AND m.role IN ('user', 'assistant') AND c.channel <> 'worker'" . $where;
+                 WHERE m.conversation_id = ? AND m.role IN ('user', 'assistant') AND c.channel NOT IN ('worker', 'eval')" . $where;
         $anchor = $this->db->execute($base . ' AND m.id = ?', [$conversationId, ...$params, $messageId])->fetchRow();
         if ($anchor === null) {
             return [];

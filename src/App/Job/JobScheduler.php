@@ -53,6 +53,12 @@ use function Mercurius\I18n\t;
  */
 final class JobScheduler implements JobRuns {
     public const JOB_TOOLS = ['job_create', 'job_manage'];
+    /**
+     * The only tools of the self-review job: it reads traces, spend, history and skills and proposes changes.
+     *
+     * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the self-review has a white list of tools
+     */
+    public const SELF_REVIEW_TOOLS = ['trace_review', 'spending', 'self_info', 'history_search', 'experience_search', 'memory_search', 'skill_view', 'improvement_propose'];
     /** The answer of a run when there is nothing to tell: the result is kept, nothing is delivered. */
     public const SILENT = '[SILENT]';
     public const CHANNEL = 'job';
@@ -185,7 +191,7 @@ final class JobScheduler implements JobRuns {
         $number = (int) $m[2];
         async(function () use ($job, $principal, $run, $number): void {
             try {
-                $text = $this->complete($job, $number, $this->loop->run($run, $this->policy($principal), $principal, new SilentObserver(), new NullCancellation()));
+                $text = $this->complete($job, $number, $this->loop->run($run, $this->policy($principal, $job), $principal, new SilentObserver(), new NullCancellation()));
             } catch (Throwable $e) {
                 $this->logger->error('Job run failed', ['job' => $job->id, 'error' => $e::class]);
                 $text = t('job.job_scheduler.zapusk_ne_udalsya_vnutrennyaya_oshibka');
@@ -288,16 +294,19 @@ final class JobScheduler implements JobRuns {
     }
 
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
-    private function policy(Principal $principal): ParticipantPolicy {
+    private function policy(Principal $principal, Job $job): ParticipantPolicy {
         $owner = $this->policies->forPrincipal($principal);
         $tools = array_values(array_diff($this->registry->names($owner), self::JOB_TOOLS));
+        if ($job->title === 'self-review') {
+            $tools = array_values(array_intersect($tools, self::SELF_REVIEW_TOOLS));
+        }
         $limits = $owner->run->min(new RunLimits($owner->run->maxTurns, $this->tokenBudget, $owner->run->runTimeout, $owner->run->toolTimeout));
         return new ParticipantPolicy($tools, $limits, $owner->sandbox, $owner->mayRequestApproval, false, $owner->irreversible);
     }
 
     private function execute(Job $job, int $number, ?string $event, string $source = 'webhook'): ?string {
         $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
-        $policy = $this->policy($principal);
+        $policy = $this->policy($principal, $job);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
         $model = $job->modelRole !== '' && $this->modelOf !== null ? (($this->modelOf)($job->modelRole) ?? $this->model) : $this->model;
         $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $model);

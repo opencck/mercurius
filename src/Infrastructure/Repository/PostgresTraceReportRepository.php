@@ -142,7 +142,8 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
                     to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS started,
                     coalesce((SELECT sum(cost_usd) FROM llm_calls c
                               WHERE c.run_id IN (SELECT r.id UNION ALL SELECT w.id FROM runs w WHERE w.parent_run_id = r.id)), 0)::float8 AS cost
-             FROM runs r WHERE (cardinality(?::bigint[]) = 0 AND r.parent_run_id IS NULL OR r.id = ANY(?::bigint[]))
+             FROM runs r WHERE (cardinality(?::bigint[]) = 0 AND r.parent_run_id IS NULL
+                                AND r.conversation_id NOT IN (SELECT id FROM conversations WHERE channel = 'eval') OR r.id = ANY(?::bigint[]))
                AND (?::text IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT ?",
             [$ids, $ids, $status, $status, $limit],
         ) as $row) {

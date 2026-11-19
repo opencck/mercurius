@@ -385,6 +385,23 @@ description: Отчёт о диске таблицей
         self::assertSame('test/cheap', $this->stack->llm->requests[0]->model ?? null);
     }
 
+    public function testTheSelfReviewJobGetsOnlyTheToolsOfAReview(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the self-review reads and proposes, nothing else
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
+        foreach (['trace_review', 'spending', 'improvement_propose', 'shell', 'send_message'] as $name) {
+            $this->stack->registry->register(new FakeTool($name));
+        }
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'self-review', 'Разбери трассы', 'every:60', $this->now->modify('-5 minutes'));
+
+        $scheduler->tick(true);
+
+        $tools = array_map(static fn($d): string => $d->name, $this->stack->llm->requests[0]->tools ?? []);
+        self::assertContains('trace_review', $tools);
+        self::assertContains('improvement_propose', $tools);
+        self::assertNotContains('shell', $tools);
+        self::assertNotContains('send_message', $tools);
+    }
+
     public function testAJobByEventPassesTheSchemaOfJobCreate(): void {
         $this->scheduler(new ScriptedLlm([]));
         $schema = json_encode((new JobCreateTool($this->jobs, $this->stack->conversations, $this->scheduler(new ScriptedLlm([])), new ContentScreen()))->definition()->parameters, JSON_THROW_ON_ERROR);
