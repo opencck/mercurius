@@ -25,7 +25,7 @@ final class ForumTopicToolTest extends AsyncTestCase {
         $topic = $conversations->openConversation(1, 'telegram', '-100500', '77');
         $general = $conversations->openConversation(1, 'telegram', '-100500');
         $tool = new ForumTopicTool($channel, $conversations);
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $in = static fn(int $conversation): ToolContext => new ToolContext(1, $conversation, $owner, new NullCancellation());
 
         self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'delete']));

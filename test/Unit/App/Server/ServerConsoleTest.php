@@ -47,7 +47,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         $this->servers = new InMemoryServerRepository();
         $this->audit = new InMemoryCommandAuditRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $this->answer = new RemoteResult(0, "ok\n", '', false, 12);
         $secret = $this->vault->put('web-pass', 'password', 'hunter2-long-pass', $this->owner);
         $this->servers->add('web', '10.0.0.5', 22, 'deploy', $secret, 'prod');
@@ -156,7 +156,7 @@ final class ServerConsoleTest extends AsyncTestCase {
     }
 
     public function testAnotherParticipantCannotUseTheOwnersSecret(): void {
-        $guest = new Principal(2, PrincipalKind::Human, Role::User, 'Гость');
+        $guest = new Principal(2, PrincipalKind::Human, Role::user(), 'Гость');
 
         [$ok, $text] = $this->console()->run($guest, null, 'web', 'uptime', 30, new NullCancellation());
 

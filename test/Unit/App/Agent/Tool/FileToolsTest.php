@@ -34,7 +34,7 @@ final class FileToolsTest extends TestCase {
         return new ToolContext(
             3,
             1,
-            new Principal(7, PrincipalKind::Human, Role::Owner, null),
+            new Principal(7, PrincipalKind::Human, Role::owner(), null),
             new NullCancellation(),
             new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $sandbox, true),
             'c1',

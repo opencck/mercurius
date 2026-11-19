@@ -30,7 +30,7 @@ final class MediaPrefsTest extends AsyncTestCase {
         $this->repository = new InMemoryMediaPrefRepository();
         $settings = MediaSettings::fromEnv(['MEDIA_VISION_MODELS' => 'openrouter:z-ai/glm-5.3-flash, openrouter:anthropic/claude-haiku-5.5', 'MEDIA_AUTO' => 'voice,image,text,office']);
         $this->prefs = new MediaPrefs($this->repository, $settings);
-        $this->kostya = new Principal(5, PrincipalKind::Human, Role::User, 'Костя');
+        $this->kostya = new Principal(5, PrincipalKind::Human, Role::user(), 'Костя');
     }
 
     private function tool(): MediaPrefsTool {

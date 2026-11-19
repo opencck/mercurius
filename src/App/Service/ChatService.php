@@ -177,7 +177,7 @@ final class ChatService implements MessageHandler {
             // spec: BRIEF.md#фаза-7-по-частям — a secret goes to the vault and its message leaves the chat
             $argument = substr($text, strlen($command));
             $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
-            if ($principal->role === Role::Visitor) {
+            if ($principal->role === Role::visitor()) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, t(self::SECRET_PRIVATE));
@@ -274,7 +274,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {
-            $this->reply($message, $principal->role !== Role::Visitor && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
+            $this->reply($message, $principal->role !== Role::visitor() && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
             return;
         }
         if (in_array($command, ['/servers', '/audit'], true) && $this->servers !== null) {
@@ -335,7 +335,7 @@ final class ChatService implements MessageHandler {
         if ($masked === $message->text) {
             return $message;
         }
-        $name = $message->isPrivateChat && $principal->role !== Role::Visitor ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
+        $name = $message->isPrivateChat && $principal->role !== Role::visitor() ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
         $deleted = $this->channel->delete($message->chatId, $message->messageId);
         $this->reply($message, sprintf(
             t('service.chat.v_soobschenii_byl_sekret'),

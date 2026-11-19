@@ -32,8 +32,8 @@ final class HistoryToolsTest extends AsyncTestCase {
         $this->episodes = new InMemoryEpisodeRepository();
         $this->experience = new InMemoryExperienceRepository();
         $this->audience = new ConversationAudience($this->conversations);
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
-        $this->guest = new Principal(2, PrincipalKind::Human, Role::User, 'Гость');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->guest = new Principal(2, PrincipalKind::Human, Role::user(), 'Гость');
     }
 
     private function conversation(int $principal, string $chatId, bool $private): int {

@@ -116,7 +116,7 @@ final class JobsTest extends AsyncTestCase {
         $as = static fn(Principal $who): ToolContext => new ToolContext(1, 1, $who, new NullCancellation());
 
         self::assertSame(DangerClass::Irreversible, $manage->danger(['action' => 'trust', 'id' => $job->id]));
-        $refused = $manage->execute(['action' => 'trust', 'id' => $job->id], $as(new Principal(5, PrincipalKind::Human, Role::User, null)));
+        $refused = $manage->execute(['action' => 'trust', 'id' => $job->id], $as(new Principal(5, PrincipalKind::Human, Role::user(), null)));
         self::assertTrue($refused->isError);
         self::assertFalse($this->jobs->find($job->id)?->trusted);
 

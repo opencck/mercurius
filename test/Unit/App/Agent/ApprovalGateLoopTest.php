@@ -86,7 +86,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
     }
 
     private function execute(AgentLoop $loop, Run $run, bool $mayAsk = true): Run {
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, $mayAsk), $owner, $this->observer, new NullCancellation());
     }
 
@@ -181,7 +181,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         $this->registry->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($this->registry, $policies));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'request_tool', '{"tool":"read","reason":"нужно прочитать"}')), ScriptedLlm::text('выдали')]);
         $loop = $this->loop($llm);
-        $agent = new Principal(7, PrincipalKind::Agent, Role::Admin, 'rekryt');
+        $agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'rekryt');
         $none = static fn(Run $run): ParticipantPolicy => new ParticipantPolicy([], $run->limits, null, false);
 
         $first = $this->start();

@@ -29,7 +29,7 @@ final class PeerCommands {
         try {
             return match ($action) {
                 '' => $this->network->text(),
-                'allow' => $this->network->allow($parts[1] ?? '', $parts[2] ?? '', Role::tryFrom($parts[3] ?? 'user') ?? Role::Visitor),
+                'allow' => $this->network->allow($parts[1] ?? '', $parts[2] ?? '', Role::tryFrom($parts[3] ?? 'user') ?? Role::visitor()),
                 'revoke' => $this->network->revoke($parts[1] ?? '') ? sprintf(t('service.peer_commands.agent_bolshe_ne_podklyuchitsya'), $parts[1] ?? '') : t('service.peer_commands.takogo_dopuschennogo_agenta_net'),
                 'add' => $this->network->add($owner, $parts[1] ?? '', $parts[2] ?? '', $parts[3] ?? '', $parts[4] ?? ''),
                 // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — which key a neighbour sees

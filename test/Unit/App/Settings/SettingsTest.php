@@ -126,7 +126,7 @@ final class SettingsTest extends AsyncTestCase {
         self::assertSame('tvly-value', $this->settings->overlay()['TAVILY_API_KEY']);
 
         $guest = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '43', 'x');
-        $notOwner = new Principal($guest->id + 1, $guest->kind, \OpenCCK\Domain\Entity\Role::User, 'Гость');
+        $notOwner = new Principal($guest->id + 1, $guest->kind, \OpenCCK\Domain\Entity\Role::user(), 'Гость');
         self::assertTrue($tool->execute(['action' => 'list'], new ToolContext(1, 1, $notOwner, new NullCancellation()))->isError);
 
         $tool->execute(['action' => 'restart'], $context);

@@ -21,7 +21,7 @@ final class Principal {
     ) {}
 
     public function isOwner(): bool {
-        return $this->role === Role::Owner;
+        return $this->role->isOwner();
     }
 
     public function isAgent(): bool {

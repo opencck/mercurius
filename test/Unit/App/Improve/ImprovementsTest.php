@@ -42,7 +42,7 @@ final class ImprovementsTest extends AsyncTestCase {
         $this->store = new InMemoryImprovementRepository();
         $this->channel = new FakeChannel(4096);
         $this->notes = new PromptNotes($this->store);
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Owner');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
     }
 
     private function improvements(): Improvements {
@@ -183,7 +183,7 @@ final class ImprovementsTest extends AsyncTestCase {
 
     public function testOnlyTheOwnerProposesAndASecretIsNotAProposal(): void {
         $tool = new ImprovementProposeTool($this->improvements());
-        $user = new Principal(5, PrincipalKind::Human, Role::User, 'Вася');
+        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
 
         self::assertTrue($tool->execute(['kind' => 'idea', 'title' => 'x', 'text' => 'y', 'reason' => 'z'], new ToolContext(1, 1, $user, new NullCancellation()))->isError);
         self::assertTrue($tool->execute(['kind' => 'prompt', 'title' => 'x', 'text' => 'token=ghp_abcdefghijklmnopqrstuvwxyz0123', 'reason' => 'z'], new ToolContext(1, 1, $this->owner, new NullCancellation()))->isError);

@@ -76,7 +76,7 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         $run = $this->runs->start(1, 1, 'test/model', new RunLimits(30, 1_000_000, 900, 120));
         self::assertNotNull($run);
         $this->transcript->appendUser(1, $run->id, $task);
-        $owner = new Principal(1, PrincipalKind::Human, ParticipantRole::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, ParticipantRole::owner(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
     }
 

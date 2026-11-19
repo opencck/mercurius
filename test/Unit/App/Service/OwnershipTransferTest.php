@@ -31,7 +31,7 @@ final class OwnershipTransferTest extends AsyncTestCase {
         $this->principals = new InMemoryPrincipalRepository();
         $this->principals->ensureOwner('telegram', '100', 'Первый');
         $next = $this->principals->createVisitor('telegram', '200', 'Второй');
-        $this->principals->decideVisitor($next->id, Role::User, PrincipalStatus::Active);
+        $this->principals->decideVisitor($next->id, Role::user(), PrincipalStatus::Active);
         $this->channel = new FakeChannel();
         $this->owner = new OwnerDirectory($this->principals, 'telegram', '100');
         $this->transfer = new OwnershipTransfer($this->principals, $this->channel, $this->owner, new NullLogger(), fn(): int => $this->now);
@@ -64,7 +64,7 @@ final class OwnershipTransferTest extends AsyncTestCase {
         $this->press($this->button(\Mercurius\I18n\t('ownership.confirm')));
 
         self::assertSame(2, $this->principals->owner()?->id);
-        self::assertSame(Role::Admin, $this->principals->find($first->id)?->role);
+        self::assertSame(Role::admin(), $this->principals->find($first->id)?->role);
         self::assertSame('200', $this->owner->chatId(), 'the directory reads the new owner');
         self::assertContains(\Mercurius\I18n\t('ownership.welcome'), $this->channel->texts('send'));
     }

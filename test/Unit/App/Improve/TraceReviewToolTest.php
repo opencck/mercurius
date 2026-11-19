@@ -31,7 +31,7 @@ final class TraceReviewToolTest extends AsyncTestCase {
             }
         };
         $tool = new TraceReviewTool($repo);
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Owner');
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
 
         $result = $tool->execute(['days' => 3], new ToolContext(1, 1, $owner, new NullCancellation()));
 
@@ -45,7 +45,7 @@ final class TraceReviewToolTest extends AsyncTestCase {
         self::assertTrue($tool->untrusted());
         self::assertEqualsWithDelta((new DateTimeImmutable('-3 days'))->getTimestamp(), $repo->since?->getTimestamp() ?? 0, 5);
 
-        $user = new Principal(5, PrincipalKind::Human, Role::User, 'Вася');
+        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
         self::assertTrue($tool->execute([], new ToolContext(1, 1, $user, new NullCancellation()))->isError);
     }
 }

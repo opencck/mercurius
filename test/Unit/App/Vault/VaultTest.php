@@ -21,8 +21,8 @@ final class VaultTest extends TestCase {
     protected function setUp(): void {
         $this->store = new InMemorySecretRepository();
         $this->vault = new Vault($this->store, random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
-        $this->user = new Principal(2, PrincipalKind::Human, Role::User, 'u');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->user = new Principal(2, PrincipalKind::Human, Role::user(), 'u');
     }
 
     public function testValuesAreStoredEncryptedAndReadByAuthorAndOwner(): void {
@@ -31,9 +31,9 @@ final class VaultTest extends TestCase {
         self::assertStringNotContainsString('p@ss-word-1', $this->store->secrets[1]['ciphertext']);
         self::assertSame('p@ss-word-1', $this->vault->reveal('DB', $this->user));
         self::assertSame('p@ss-word-1', $this->vault->reveal('db', $this->owner));
-        self::assertNull($this->vault->reveal('db', new Principal(3, PrincipalKind::Human, Role::User, 'x')));
+        self::assertNull($this->vault->reveal('db', new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
         self::assertSame([['name' => 'db', 'kind' => 'password']], $this->vault->names($this->user));
-        self::assertSame([], $this->vault->names(new Principal(3, PrincipalKind::Human, Role::User, 'x')));
+        self::assertSame([], $this->vault->names(new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
     }
 
     public function testTheOwnerDoesNotReadTheSecretsOfAFormerOwner(): void {
@@ -76,7 +76,7 @@ final class VaultTest extends TestCase {
     public function testOnlyTheAuthorOrTheOwnerRemoves(): void {
         $this->vault->put('a', 'password', 'x', $this->user);
 
-        self::assertFalse($this->vault->remove('a', new Principal(3, PrincipalKind::Human, Role::User, 'x')));
+        self::assertFalse($this->vault->remove('a', new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
         self::assertTrue($this->vault->remove('a', $this->owner));
         self::assertNull($this->vault->reveal('a', $this->user));
     }

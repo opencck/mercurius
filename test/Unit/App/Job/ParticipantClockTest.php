@@ -32,7 +32,7 @@ final class ParticipantClockTest extends AsyncTestCase {
         $prefs = new InMemoryParticipantPrefRepository();
         $clock = new ParticipantClock($prefs, new DateTimeZone('+03:00'), [23, 8]);
         $tool = new MyPreferencesTool($prefs, $clock);
-        $user = new Principal(5, PrincipalKind::Human, Role::User, 'Вася');
+        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
         $context = new ToolContext(1, 1, $user, new NullCancellation());
 
         self::assertSame('+03:00', $clock->zone(5)->getName(), 'the owner\'s zone by default');
@@ -60,7 +60,7 @@ final class ParticipantClockTest extends AsyncTestCase {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Отчёт пользователя')]));
         $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
         $user = $stack->principals->createVisitor('telegram', '77', 'Вася');
-        $stack->principals->decideVisitor($user->id, Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $stack->principals->decideVisitor($user->id, Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
         $prefs->save($user->id, 'Asia/Bangkok', '22-7');
         $jobs = new InMemoryJobRepository();
         $clock = new ParticipantClock($prefs, new DateTimeZone('+03:00'), [23, 8]);

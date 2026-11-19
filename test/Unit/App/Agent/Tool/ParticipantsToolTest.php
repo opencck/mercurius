@@ -30,7 +30,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $inGroup = new ParticipantsTool($principals, $policies, privateChat: static fn(int $conversation): bool => false);
         self::assertTrue($inGroup->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError, 'only in the private chat of the owner');
         self::assertFalse($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError);
-        self::assertSame([Role::User, PrincipalStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
+        self::assertSame([Role::user(), PrincipalStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
 
         $tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'rejected'], $context);
         self::assertSame(PrincipalStatus::Rejected, $principals->find($roman->id)?->status, 'a decision can be changed');
@@ -42,7 +42,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
         $visitor = $principals->createVisitor('telegram', '451898468', 'Сергей Аринин');
-        $principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active);
+        $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $tool = new ParticipantsTool($principals, $policies);
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
@@ -61,8 +61,8 @@ final class ParticipantsToolTest extends AsyncTestCase {
     public function testAnAgentIsShownWithItsKeyAndFoundByIt(): void {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
-        $main = $principals->createAgent('mercurius', Role::User);
-        $orphan = $principals->createAgent('mercurius-03b8330c', Role::Admin);
+        $main = $principals->createAgent('mercurius', Role::user());
+        $orphan = $principals->createAgent('mercurius-03b8330c', Role::admin());
         $keys = [['name' => 'mercurius', 'fingerprint' => 'SHA256:03b8330cfa3e39768506b215efd119ac68fdadfcbb833e31be3545e84dd0fc0b', 'principal' => $main->id, 'revoked' => false]];
         $tool = new ParticipantsTool($principals, new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120)), static fn(): array => $keys);
         $context = new ToolContext(1, 1, $owner, new NullCancellation());

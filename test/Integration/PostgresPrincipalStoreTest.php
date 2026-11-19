@@ -25,7 +25,7 @@ final class PostgresPrincipalStoreTest extends PrincipalStoreContract {
     public function testThePersonalStaysWithTheFormerOwnerAndTheAgentGoesOn(): void {
         $owner = $this->principals->ensureOwner('telegram', 'owner-' . $this->externalId, 'Владелец');
         $next = $this->principals->createVisitor('telegram', $this->externalId, 'Преемник');
-        $this->principals->decideVisitor($next->id, \OpenCCK\Domain\Entity\Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->principals->decideVisitor($next->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
         $mark = 'transfer-' . $this->externalId;
         $fact = $this->db->execute("INSERT INTO facts (scope, text, keys, provenance) VALUES ('owner', ?, ARRAY['x'], 'owner_said') RETURNING id", [$mark])->fetchRow()['id'] ?? null;
         $project = $this->db->execute('INSERT INTO projects (name) VALUES (?) RETURNING id', [$mark])->fetchRow()['id'] ?? null;

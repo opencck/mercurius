@@ -34,11 +34,11 @@ final class HttpRequestToolTest extends AsyncTestCase {
     }
 
     private static function context(): ToolContext {
-        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
+        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
     }
 
     public function testASecretGoesByNameToItsHostAndIsMaskedInTheAnswer(): void {
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('openrouter-management', 'token', 'sk-or-v1-managementkeyvalue', $owner);
         $this->http = new FakeHttpClient(['https://example.com/api/v1/credits' => [200, ['content-type' => 'application/json'], '{"total_credits":10,"echo":"sk-or-v1-managementkeyvalue"}']]);
@@ -62,12 +62,12 @@ final class HttpRequestToolTest extends AsyncTestCase {
         $missing = $tool->execute(['url' => 'https://example.com/', 'secret' => 'nope'], self::context());
         self::assertTrue($missing->isError);
         self::assertStringContainsString('openrouter-management', $missing->content, 'the error lists the secrets there are');
-        $stranger = new Principal(2, PrincipalKind::Human, Role::User, null);
+        $stranger = new Principal(2, PrincipalKind::Human, Role::user(), null);
         self::assertTrue($tool->execute($args, new ToolContext(1, 1, $stranger, new NullCancellation()))->isError, 'only the owner of the secret uses it');
     }
 
     public function testASecretNeverFollowsARedirectAwayAndMayGoOverHttp(): void {
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('key', 'token', 'sk-or-v1-secretvalue', $owner);
         $this->http = new FakeHttpClient([
@@ -91,7 +91,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
     }
 
     public function testSecretsArePutIntoTheBodyByTheirNamesEscapedForItsType(): void {
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('panel-user', 'token', 'admin', $owner);
         $vault->put('panel-pass', 'token', 'p&ss="w0rd"', $owner);
@@ -148,9 +148,9 @@ final class HttpRequestToolTest extends AsyncTestCase {
 
         $tool->execute(['url' => 'http://other.com/x'], self::context());
         self::assertArrayNotHasKey('cookie', $this->http->headers[2], 'another host does not get it');
-        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(2, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(2, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation()));
         self::assertSame('3x-ui=SESSIONVALUE', $this->http->headers[3]['cookie'] ?? null, 'the next run of the participant keeps the session');
-        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(3, 1, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(3, 1, new Principal(2, PrincipalKind::Human, Role::user(), null), new NullCancellation()));
         self::assertArrayNotHasKey('cookie', $this->http->headers[4], 'another participant does not get it');
     }
 
@@ -187,10 +187,10 @@ final class HttpRequestToolTest extends AsyncTestCase {
         $scope = static fn(ToolContext $context): string => $context->conversationId === 7 ? 'project:3' : 'p' . $context->principal->id;
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), cookies: $cookies, cookieScope: $scope);
 
-        $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST'], new ToolContext(1, 7, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation()));
-        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(2, 7, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST'], new ToolContext(1, 7, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(2, 7, new Principal(2, PrincipalKind::Human, Role::user(), null), new NullCancellation()));
         self::assertSame('sid=PROJECTSESSION', $this->http->headers[1]['cookie'] ?? null, 'a participant of the project uses its session');
-        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(3, 8, new Principal(2, PrincipalKind::Human, Role::User, null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/list'], new ToolContext(3, 8, new Principal(2, PrincipalKind::Human, Role::user(), null), new NullCancellation()));
         self::assertArrayNotHasKey('cookie', $this->http->headers[2], 'outside the project — not');
         self::assertSame(['sid' => 'PROJECTSESSION'], $cookies->cookies('project:3', 'example.com'));
     }
@@ -304,7 +304,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
             $guards[] = $permitted;
             return $this->http;
         });
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
 
         $refused = $tool->execute(['url' => 'http://internal.example.com/status'], self::context());
         $allowed = $tool->execute(['url' => 'http://internal.example.com/status'], new ToolContext(1, 1, $owner, new NullCancellation(), approved: true));

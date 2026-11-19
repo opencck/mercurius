@@ -62,7 +62,7 @@ final class AttachmentModelsTest extends AsyncTestCase {
     private function take(AttachmentIntake $intake, Attachment ...$files): IntakeResult {
         $policy = new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true);
         $message = new IncomingMessage('telegram', '42', '42', 'kostya', 'Костя', '', '7', null, true, new DateTimeImmutable(), 'u7', attachments: array_values($files));
-        return $intake->intake(new Principal(5, PrincipalKind::Human, Role::User, 'Костя'), $policy, $message, new NullCancellation(), 12);
+        return $intake->intake(new Principal(5, PrincipalKind::Human, Role::user(), 'Костя'), $policy, $message, new NullCancellation(), 12);
     }
 
     /** @return array{int, array<non-empty-string, string>, string} */

@@ -32,11 +32,13 @@ final class PromptBuilder {
      */
     public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
-        $role = match ($principal->role) {
-            Role::Owner => t('agent.prompt_builder.vladelets'),
-            Role::Admin => t('agent.prompt_builder.administrator'),
-            Role::User => t('agent.prompt_builder.polzovatel'),
-            Role::Visitor => t('agent.prompt_builder.posetitel_tolko_razgovor_bez_instrumento'),
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — a role is named by the title the owner gave it
+        $role = $principal->role->title() !== '' ? $principal->role->title() : match ($principal->role->value) {
+            Role::OWNER => t('agent.prompt_builder.vladelets'),
+            'admin' => t('agent.prompt_builder.administrator'),
+            'user' => t('agent.prompt_builder.polzovatel'),
+            'visitor' => t('agent.prompt_builder.posetitel_tolko_razgovor_bez_instrumento'),
+            default => $principal->role->value,
         };
         return SystemPrompt::text() . (trim($notes) === '' ? '' : "\n\n" . t('agent.prompt_builder.notes') . "\n" . trim($notes)) . "\n\n" . sprintf(
             t('agent.prompt_builder.kontekst_sobesednik_dialog_nachat'),

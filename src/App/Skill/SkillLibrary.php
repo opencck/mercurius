@@ -59,7 +59,7 @@ final class SkillLibrary {
      * @return list<array{dir: string, owner: int, label: string}>
      */
     public function places(Principal $who, ?Project $project): array {
-        if ($who->role === Role::Visitor) {
+        if ($who->role === Role::visitor()) {
             return [];
         }
         $places = [];
@@ -94,7 +94,7 @@ final class SkillLibrary {
 
     /** The index for the system prompt; empty when there are no skills. */
     public function index(Principal $who, ?Project $project): string {
-        if ($who->role === Role::Visitor) {
+        if ($who->role === Role::visitor()) {
             return '';
         }
         $catalog = $this->catalog($who, $project);
@@ -168,7 +168,7 @@ final class SkillLibrary {
      * @return array{owner: int, dir: string, limits: SandboxLimits}|null
      */
     public function target(Principal $who, ?Project $project, string $where): ?array {
-        if ($this->sandbox === null || $who->role === Role::Visitor) {
+        if ($this->sandbox === null || $who->role === Role::visitor()) {
             return null;
         }
         $owner = $who->id;

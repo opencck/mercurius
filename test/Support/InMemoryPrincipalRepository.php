@@ -23,7 +23,7 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
 
     public function owner(): ?Principal {
         foreach ($this->principals as $principal) {
-            if ($principal->role === Role::Owner) {
+            if ($principal->role === Role::owner()) {
                 return $principal;
             }
         }
@@ -42,8 +42,8 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         if ($old === null || $new === null || $from === $to || !$old->isOwner() || $new->kind !== PrincipalKind::Human || $new->status !== PrincipalStatus::Active) {
             return false;
         }
-        $this->principals[$from] = new Principal($old->id, $old->kind, Role::Admin, $old->displayName, $old->status);
-        $this->principals[$to] = new Principal($new->id, $new->kind, Role::Owner, $new->displayName, $new->status);
+        $this->principals[$from] = new Principal($old->id, $old->kind, Role::admin(), $old->displayName, $old->status);
+        $this->principals[$to] = new Principal($new->id, $new->kind, Role::owner(), $new->displayName, $new->status);
         $this->ownerId = $to;
         $this->former[$from] = time();
         unset($this->former[$to]);
@@ -73,7 +73,7 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
     }
 
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
-        $owner = $this->ownerId === null ? $this->add(Role::Owner, $displayName, PrincipalStatus::Active) : $this->principals[$this->ownerId];
+        $owner = $this->ownerId === null ? $this->add(Role::owner(), $displayName, PrincipalStatus::Active) : $this->principals[$this->ownerId];
         $this->ownerId = $owner->id;
         $this->identities[$channel . ':' . $externalId] ??= $owner->id;
         return $owner;
@@ -84,7 +84,7 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         if ($existing !== null) {
             return $existing;
         }
-        $visitor = $this->add(Role::Visitor, $displayName, PrincipalStatus::Pending);
+        $visitor = $this->add(Role::visitor(), $displayName, PrincipalStatus::Pending);
         $this->identities[$channel . ':' . $externalId] = $visitor->id;
         return $visitor;
     }

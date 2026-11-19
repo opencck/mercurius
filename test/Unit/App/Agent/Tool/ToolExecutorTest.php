@@ -26,7 +26,7 @@ use function Amp\delay;
 
 final class ToolExecutorTest extends AsyncTestCase {
     private function context(?\Amp\Cancellation $cancellation = null): ToolContext {
-        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), $cancellation ?? new NullCancellation());
+        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), $cancellation ?? new NullCancellation());
     }
 
     /** @param array<string, mixed> $args */
@@ -82,7 +82,7 @@ final class ToolExecutorTest extends AsyncTestCase {
         return new ToolContext(
             5,
             1,
-            new Principal(7, PrincipalKind::Human, Role::Owner, null),
+            new Principal(7, PrincipalKind::Human, Role::owner(), null),
             new NullCancellation(),
             new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), $withSandbox ? new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1) : null, true),
             'call/1',

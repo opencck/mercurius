@@ -22,38 +22,38 @@ final class SetParticipantPolicyToolTest extends TestCase {
 
     protected function setUp(): void {
         $principals = new InMemoryPrincipalRepository();
-        $principals->put(new Principal(7, PrincipalKind::Human, Role::User, 'Гость'), 'telegram', '7');
+        $principals->put(new Principal(7, PrincipalKind::Human, Role::user(), 'Гость'), 'telegram', '7');
         $principals->ensureOwner('telegram', '42', 'Владелец');
         $this->policies = new InMemoryPolicyRepository();
         $this->tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)));
     }
 
     private static function context(Role $role): ToolContext {
-        return new ToolContext(1, 1, new Principal($role === Role::Owner ? 1 : 7, PrincipalKind::Human, $role, null), new NullCancellation());
+        return new ToolContext(1, 1, new Principal($role === Role::owner() ? 1 : 7, PrincipalKind::Human, $role, null), new NullCancellation());
     }
 
     public function testRightsAreGivenOnlyWithACardAndOnlyInTheOwnersPrivateChat(): void {
         $principals = new InMemoryPrincipalRepository();
-        $principals->put(new Principal(7, PrincipalKind::Human, Role::User, 'Гость'), 'telegram', '7');
+        $principals->put(new Principal(7, PrincipalKind::Human, Role::user(), 'Гость'), 'telegram', '7');
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
         $tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)), static fn(int $conversation): bool => $conversation === 1);
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['principal_id' => 7]));
-        $inGroup = new ToolContext(1, 2, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), approved: true);
+        $inGroup = new ToolContext(1, 2, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), approved: true);
         self::assertTrue($tool->execute(['principal_id' => 7, 'tools' => null], $inGroup)->isError, 'not in a group, even approved');
         self::assertSame([], $this->policies->policies);
-        self::assertFalse($tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::Owner))->isError);
+        self::assertFalse($tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::owner()))->isError);
     }
 
     public function testNonOwnerCannotChangePolicies(): void {
-        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::User));
+        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::user()));
 
         self::assertTrue($result->isError);
         self::assertSame([], $this->policies->policies);
     }
 
     public function testPolicyChangeIsCappedByOwner(): void {
-        $result = $this->tool->execute(['principal_id' => 7, 'tools' => ['http_request'], 'max_turns' => 100], self::context(Role::Owner));
+        $result = $this->tool->execute(['principal_id' => 7, 'tools' => ['http_request'], 'max_turns' => 100], self::context(Role::owner()));
 
         self::assertFalse($result->isError);
         self::assertStringContainsString('"max_turns":30', $result->content);
@@ -61,17 +61,17 @@ final class SetParticipantPolicyToolTest extends TestCase {
     }
 
     public function testOwnerPolicyIsNotEditable(): void {
-        self::assertTrue($this->tool->execute(['principal_id' => 1, 'max_turns' => 5], self::context(Role::Owner))->isError);
+        self::assertTrue($this->tool->execute(['principal_id' => 1, 'max_turns' => 5], self::context(Role::owner()))->isError);
     }
 
     public function testBadValueIsReported(): void {
-        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 0], self::context(Role::Owner));
+        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 0], self::context(Role::owner()));
 
         self::assertTrue($result->isError);
         self::assertStringContainsString('max_turns', $result->content);
     }
 
     public function testUnknownParticipant(): void {
-        self::assertSame('Участник 99 не найден.', $this->tool->execute(['principal_id' => 99], self::context(Role::Owner))->content);
+        self::assertSame('Участник 99 не найден.', $this->tool->execute(['principal_id' => 99], self::context(Role::owner()))->content);
     }
 }

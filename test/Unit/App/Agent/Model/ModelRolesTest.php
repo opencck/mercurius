@@ -35,8 +35,8 @@ final class ModelRolesTest extends AsyncTestCase {
         ]);
         $this->roles = new ModelRoles($this->stores, $this->stores);
         $this->roles->seed();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Владелец');
-        $this->user = new Principal(2, PrincipalKind::Human, Role::User, 'Помощник');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Владелец');
+        $this->user = new Principal(2, PrincipalKind::Human, Role::user(), 'Помощник');
     }
 
     /** @param array<string, mixed> $args */

@@ -127,7 +127,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $principal = $this->principals->findByIdentity($message->channel, $message->userId);
         // spec: BRIEF.md#группа — over its daily tokens a free group gets answers only when it asks; the owner pays for the
         //      agent, so their words are answered past the limit
-        if (!$addressed && $principal?->role !== \OpenCCK\Domain\Entity\Role::Owner && $this->overDailyTokens($message, $group)) {
+        if (!$addressed && $principal?->role !== \OpenCCK\Domain\Entity\Role::owner() && $this->overDailyTokens($message, $group)) {
             return null;
         }
         if ($principal === null || $principal->status !== PrincipalStatus::Active) {

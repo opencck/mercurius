@@ -66,7 +66,7 @@ final class AgentNetworkTest extends AsyncTestCase {
         );
         $this->follower->scheduler->useJobRuns($this->server);
         $network = $this->network($this->followerPeers, $this->follower, $this->followerKey, self::FOLLOWER, null);
-        self::assertStringContainsString('может подключаться', $network->allow('leader', $this->leaderKey->fingerprint(), Role::User));
+        self::assertStringContainsString('может подключаться', $network->allow('leader', $this->leaderKey->fingerprint(), Role::user()));
     }
 
     private function network(InMemoryPeerRepository $peers, AgentStack $stack, AgentIdentity $key, string $self, ?Principal $owner, ?Vault $vault = null): PeerNetwork {

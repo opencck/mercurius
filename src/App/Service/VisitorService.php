@@ -109,10 +109,10 @@ final class VisitorService implements CallbackHandler {
             return;
         }
         [$role, $status, $outcome] = match ($match[2]) {
-            't' => [Role::Visitor, PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
-            'u' => [Role::User, PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
-            'a' => [Role::Admin, PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
-            default => [Role::Visitor, PrincipalStatus::Rejected, t('service.visitor.otkazano')],
+            't' => [Role::visitor(), PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
+            'u' => [Role::user(), PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
+            'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
+            default => [Role::visitor(), PrincipalStatus::Rejected, t('service.visitor.otkazano')],
         };
         $decided = $this->principals->decideVisitor((int) $match[1], $role, $status);
         if ($decided === null) {
@@ -125,8 +125,8 @@ final class VisitorService implements CallbackHandler {
         }
         if ($status === PrincipalStatus::Active) {
             $this->tell($decided, $callback->channel, match ($role) {
-                Role::User => \Mercurius\I18n\t(self::LET_IN_USER),
-                Role::Admin => \Mercurius\I18n\t(self::LET_IN_ADMIN),
+                Role::user() => \Mercurius\I18n\t(self::LET_IN_USER),
+                Role::admin() => \Mercurius\I18n\t(self::LET_IN_ADMIN),
                 default => \Mercurius\I18n\t(self::LET_IN_TALK),
             });
         }
@@ -173,7 +173,7 @@ final class VisitorService implements CallbackHandler {
         }
         $decided = 0;
         foreach ($summary['visitors'] as $visitorId) {
-            $principal = $this->principals->decideVisitor($visitorId, Role::Visitor, $talk ? PrincipalStatus::Active : PrincipalStatus::Rejected);
+            $principal = $this->principals->decideVisitor($visitorId, Role::visitor(), $talk ? PrincipalStatus::Active : PrincipalStatus::Rejected);
             if ($principal !== null) {
                 $decided++;
                 if ($talk) {

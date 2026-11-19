@@ -48,7 +48,7 @@ final class SpendingToolTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '7', 'Гость');
-        $principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active);
+        $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
         $user = $principals->find($visitor->id);
         self::assertNotNull($user);
         $runs = new InMemoryRunRepository();
@@ -75,7 +75,7 @@ final class SpendingToolTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей');
         $visitor = $principals->createVisitor('telegram', '7', 'Артур');
-        $user = $principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active) ?? $visitor;
+        $user = $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? $visitor;
         $conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
         $topic = $conversations->openConversation($owner->id, 'telegram', '-100500', '119');
         $figures = new FakeTraceReports();

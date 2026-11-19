@@ -64,7 +64,7 @@ final class TracerTest extends AsyncTestCase {
             self::assertNotNull($run);
             $this->transcript->appendUser(1, $run->id, $task);
         }
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $final = $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
         $tracer->idle();
         return $final;

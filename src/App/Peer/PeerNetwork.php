@@ -215,7 +215,7 @@ final class PeerNetwork {
         if (preg_match('~^SHA256:[0-9a-f]{64}$~', $fingerprint) !== 1) {
             throw new DomainException(t('peer.peer_network.otpechatok_sha256_64_hex_ego'));
         }
-        if (!in_array($role, [Role::User, Role::Admin], true)) {
+        if (!in_array($role, [Role::user(), Role::admin()], true)) {
             throw new DomainException(t('peer.peer_network.rol_agenta_user_ili_admin'));
         }
         $agent = $this->principals->createAgent($name, $role);

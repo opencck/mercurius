@@ -36,7 +36,7 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertNull($tool->grantKey(['action' => 'open', 'url' => 'https://example.com/']));
 
         $tool->execute($args, self::context());
-        $tool->execute($args, new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), approved: true));
+        $tool->execute($args, new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), approved: true));
 
         self::assertStringNotContainsString('allow', $http->bodies[0], 'without the owner nothing is let through');
         self::assertStringContainsString('"allow":["nas.home.lan"]', $http->bodies[1]);
@@ -47,8 +47,8 @@ final class BrowserToolTest extends AsyncTestCase {
         $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], $page], 'http://browser:3000/close' => [200, ['content-type' => 'application/json'], '{"ok":true}']]);
         $this->channel = new FakeChannel();
         $tool = new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', projectOf: static fn(int $conversationId): ?int => $conversationId === 7 ? 3 : null);
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
-        $user = new Principal(5, PrincipalKind::Human, Role::User, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $user = new Principal(5, PrincipalKind::Human, Role::user(), null);
 
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the profile comes from the participant, the model names only
         //       a profile within their own set: a participant does not open the owner's "main"
@@ -66,7 +66,7 @@ final class BrowserToolTest extends AsyncTestCase {
     }
 
     private static function context(): ToolContext {
-        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
+        return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
     }
 
     public function testActingWaitsForTheOwnerOnlyWhenTheOwnerAskedForIt(): void {
@@ -120,7 +120,7 @@ final class BrowserToolTest extends AsyncTestCase {
         $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
         $this->channel = new FakeChannel();
         $tool = new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', null, $conversations, $sandbox);
-        $context = new ToolContext(1, $topic, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true));
+        $context = new ToolContext(1, $topic, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true));
 
         $shot = $tool->execute(['action' => 'screenshot'], $context);
 

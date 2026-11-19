@@ -24,7 +24,7 @@ final class InboxCleanerTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '55', 'Гость');
-        $user = $principals->decideVisitor($principals->createVisitor('telegram', '56', 'Костя')->id, Role::User, PrincipalStatus::Active);
+        $user = $principals->decideVisitor($principals->createVisitor('telegram', '56', 'Костя')->id, Role::user(), PrincipalStatus::Active);
         $sandbox = new FakeSandbox();
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4));
 

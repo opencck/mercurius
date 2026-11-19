@@ -26,13 +26,15 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#участники-люди-и-агенты — the owner manages participants in the dialog
  */
 final class ParticipantsTool implements Tool {
-    /** role argument => [role, status] */
-    private const DECISIONS = [
-        'talk' => [Role::Visitor, PrincipalStatus::Active],
-        'user' => [Role::User, PrincipalStatus::Active],
-        'admin' => [Role::Admin, PrincipalStatus::Active],
-        'rejected' => [Role::Visitor, PrincipalStatus::Rejected],
-    ];
+    /** @return array<string, array{Role, PrincipalStatus}> role argument => [role, status] */
+    private static function decisions(): array {
+        return [
+            'talk' => [Role::visitor(), PrincipalStatus::Active],
+            'user' => [Role::user(), PrincipalStatus::Active],
+            'admin' => [Role::admin(), PrincipalStatus::Active],
+            'rejected' => [Role::visitor(), PrincipalStatus::Rejected],
+        ];
+    }
 
     public const NAME = 'participants';
 
@@ -66,7 +68,7 @@ final class ParticipantsTool implements Tool {
                 'action' => ['type' => 'string', 'enum' => ['list', 'decide']],
                 'query' => ['type' => 'string', 'maxLength' => 100],
                 'id' => ['type' => 'integer', 'minimum' => 1],
-                'role' => ['type' => 'string', 'enum' => array_keys(self::DECISIONS)],
+                'role' => ['type' => 'string', 'enum' => array_keys(self::decisions())],
             ],
             'additionalProperties' => false,
         ]);
@@ -114,7 +116,7 @@ final class ParticipantsTool implements Tool {
      * spec: BRIEF.md#участники-люди-и-агенты — roles are the owner's decision
      */
     private function decide(?int $id, string $query, string $role): ToolResult {
-        $decision = self::DECISIONS[$role] ?? null;
+        $decision = self::decisions()[$role] ?? null;
         if ($decision === null) {
             return ToolResult::error(t('tool.participants.bad_role'));
         }

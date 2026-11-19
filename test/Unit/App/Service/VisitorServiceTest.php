@@ -89,7 +89,7 @@ final class VisitorServiceTest extends AsyncTestCase {
 
         $visitor = $this->stack->principals->find(2);
         self::assertNotNull($visitor);
-        self::assertSame(Role::Visitor, $visitor->role);
+        self::assertSame(Role::visitor(), $visitor->role);
         self::assertSame(PrincipalStatus::Active, $visitor->status);
         self::assertCount(1, $this->stack->llm->requests);
         self::assertSame([], $this->stack->llm->requests[0]->tools);
@@ -101,7 +101,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->say('привет', '99');
         $this->stack->press('pv:2:a');
 
-        self::assertSame(Role::Admin, $this->stack->principals->find(2)?->role);
+        self::assertSame(Role::admin(), $this->stack->principals->find(2)?->role);
     }
 
     public function testRejectedVisitorIsRefusedWithoutTheModel(): void {

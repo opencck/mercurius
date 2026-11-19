@@ -28,7 +28,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testOwnerHasAllToolsAndOwnerLimits(): void {
-        $policy = $this->service->forPrincipal($this->principal(Role::Owner, 1));
+        $policy = $this->service->forPrincipal($this->principal(Role::owner(), 1));
 
         self::assertNull($policy->tools);
         self::assertSame(30, $policy->run->maxTurns);
@@ -36,7 +36,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testUserHasNoToolsByDefault(): void {
-        $policy = $this->service->forPrincipal($this->principal(Role::User));
+        $policy = $this->service->forPrincipal($this->principal(Role::user()));
 
         self::assertSame([], $policy->tools);
         self::assertFalse($policy->mayRequestApproval);
@@ -44,7 +44,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testUpdateIsStoredAndCapped(): void {
-        $user = $this->principal(Role::User);
+        $user = $this->principal(Role::user());
         $policy = $this->service->update($user, ['tools' => ['http_request'], 'max_turns' => 100]);
 
         self::assertSame(['http_request'], $policy->tools);
@@ -54,7 +54,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testUpdateMergesWithEarlierOverrides(): void {
-        $user = $this->principal(Role::User);
+        $user = $this->principal(Role::user());
         $this->service->update($user, ['tools' => ['http_request']]);
         $policy = $this->service->update($user, ['max_turns' => 5]);
 
@@ -64,6 +64,6 @@ final class PolicyServiceTest extends TestCase {
 
     public function testOwnerPolicyCannotBeChanged(): void {
         $this->expectException(DomainException::class);
-        $this->service->update($this->principal(Role::Owner, 1), ['max_turns' => 5]);
+        $this->service->update($this->principal(Role::owner(), 1), ['max_turns' => 5]);
     }
 }

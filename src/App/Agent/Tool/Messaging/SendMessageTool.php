@@ -73,12 +73,12 @@ final class SendMessageTool implements Tool, GrantKeyed {
             return DangerClass::Write;
         }
         $recipient = $this->recipient($args);
-        return $recipient instanceof Principal && $recipient->role === Role::Owner ? DangerClass::Write : DangerClass::Irreversible;
+        return $recipient instanceof Principal && $recipient->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
     }
 
     public function grantKey(array $args): ?string {
         $recipient = $this->recipient($args);
-        return $recipient instanceof Principal && $recipient->role !== Role::Owner ? 'message:' . $recipient->id : null;
+        return $recipient instanceof Principal && $recipient->role !== Role::owner() ? 'message:' . $recipient->id : null;
     }
 
     public function describe(array $args): string {
@@ -135,7 +135,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
             }
         }
         // an answer of someone else comes back by default; the owner's private chat is their own conversation
-        $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && $recipient->role !== Role::Owner;
+        $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && $recipient->role !== Role::owner();
         if ($waits) {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }

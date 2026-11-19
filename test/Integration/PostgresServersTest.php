@@ -26,7 +26,7 @@ final class PostgresServersTest extends AsyncTestCase {
         parent::setUp();
         $this->db = TestDatabase::connect();
         [$id] = TestDatabase::conversation($this->db);
-        $this->owner = new Principal(max(1, $id), PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(max(1, $id), PrincipalKind::Human, Role::owner(), null);
     }
 
     protected function tearDown(): void {

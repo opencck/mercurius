@@ -43,7 +43,7 @@ final class SendContentToolTest extends AsyncTestCase {
         $this->principals = new InMemoryPrincipalRepository();
         $this->owner = $this->principals->ensureOwner('telegram', '42', 'Сергей');
         $visitor = $this->principals->createVisitor('telegram', '55', 'Konstantin');
-        $this->kostya = $this->principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active) ?? $visitor;
+        $this->kostya = $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? $visitor;
         $this->topic = $this->conversations->openConversation($this->owner->id, 'telegram', '-100500', '119');
     }
 

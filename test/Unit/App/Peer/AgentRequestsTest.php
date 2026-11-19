@@ -68,14 +68,14 @@ final class AgentRequestsTest extends AsyncTestCase {
         $id = $this->peers->principalByFingerprint($this->fingerprint);
         self::assertNotNull($id);
         $agent = $this->principals->find($id);
-        self::assertSame([PrincipalKind::Agent, Role::Admin, 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
+        self::assertSame([PrincipalKind::Agent, Role::admin(), 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
         self::assertSame('edit', $this->channel->log[1][0] ?? null, 'the card shows the decision');
         self::assertNotNull($this->channel->answers[1][1] ?? null, 'a second press is already decided');
-        self::assertSame(Role::Admin, $this->principals->find($id)?->role, 'the second press changes nothing');
+        self::assertSame(Role::admin(), $this->principals->find($id)?->role, 'the second press changes nothing');
     }
 
     public function testARevokedKeyLetInAgainGoesBackToItsAgentAndMakesNoNewOne(): void {
-        $agent = $this->principals->createAgent('mercurius', Role::User);
+        $agent = $this->principals->createAgent('mercurius', Role::user());
         $this->peers->allowKey($agent->id, 'mercurius', $this->fingerprint);
         $this->peers->revokeKey('mercurius');
         $before = count($this->principals->all());
@@ -90,7 +90,7 @@ final class AgentRequestsTest extends AsyncTestCase {
     }
 
     public function testATakenNameGetsATailOfTheKey(): void {
-        $doorotar = $this->principals->createAgent('doorotar', Role::User);
+        $doorotar = $this->principals->createAgent('doorotar', Role::user());
         $this->peers->allowKey($doorotar->id, 'doorotar', 'SHA256:' . str_repeat('0', 64));
 
         $this->requests->knock($this->fingerprint, 'doorotar', '', 'ws');

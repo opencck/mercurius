@@ -30,7 +30,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testASecretIsStoredAndItsMessageDeleted(): void {
         $this->stack->say('/secret web-pass Sup3r-secret-pass');
 
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         self::assertSame('Sup3r-secret-pass', $this->vault->reveal('web-pass', $owner));
         self::assertCount(1, $this->stack->channel->deleted, 'the message with the secret is gone');
         $replies = implode("\n", $this->stack->channel->texts('send'));
@@ -43,7 +43,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testInAGroupTheSecretIsRefusedButStillDeleted(): void {
         $this->stack->sayInGroup('/secret web-pass Sup3r-secret-pass');
 
-        self::assertSame([], $this->vault->names(new Principal(1, PrincipalKind::Human, Role::Owner, null)));
+        self::assertSame([], $this->vault->names(new Principal(1, PrincipalKind::Human, Role::owner(), null)));
         self::assertCount(1, $this->stack->channel->deleted);
         self::assertStringContainsString('только в личном чате', implode("\n", $this->stack->channel->texts('send')));
     }

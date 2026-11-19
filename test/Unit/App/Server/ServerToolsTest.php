@@ -43,7 +43,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $servers = new InMemoryServerRepository();
         $this->audit = new InMemoryCommandAuditRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass', 'password', 'login-password-1', $this->owner), 'prod');
         $this->vault->put('pg', 'password', 'pg-password-1', $this->owner);
         $test = $this;

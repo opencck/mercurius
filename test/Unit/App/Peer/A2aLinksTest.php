@@ -73,8 +73,8 @@ final class A2aLinksTest extends AsyncTestCase {
         $this->agent('a', 'A: готово');
         $this->agent('b', 'B: четыре');
         // each owner lets the other agent in; only a knows b as a neighbour to connect to
-        $this->agents['b']['network']->allow('agent-a', $this->agents['a']['key']->fingerprint(), Role::User);
-        $this->agents['a']['network']->allow('agent-b', $this->agents['b']['key']->fingerprint(), Role::User);
+        $this->agents['b']['network']->allow('agent-a', $this->agents['a']['key']->fingerprint(), Role::user());
+        $this->agents['a']['network']->allow('agent-b', $this->agents['b']['key']->fingerprint(), Role::user());
         $cardOfB = $this->agents['b']['server']->card();
         $this->agents['a']['peers']->addPeer('b', 'https://b.example', 'entrance', $this->agents['b']['key']->publicKey, $cardOfB);
     }
@@ -172,7 +172,7 @@ final class A2aLinksTest extends AsyncTestCase {
 
     public function testAParticipantTheOwnerGaveTheToolOpensAConnectionToo(): void {
         $a = $this->agents['a'];
-        $guest = $a['stack']->principals->createAgent('rekryt', Role::Admin);
+        $guest = $a['stack']->principals->createAgent('rekryt', Role::admin());
         $tool = new \OpenCCK\App\Agent\Tool\Agents\PeerLinksTool($a['network']);
         $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $guest, new \Amp\NullCancellation());
 

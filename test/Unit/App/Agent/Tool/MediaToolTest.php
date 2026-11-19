@@ -58,7 +58,7 @@ final class MediaToolTest extends AsyncTestCase {
     }
 
     private static function context(): ToolContext {
-        return new ToolContext(3, 9, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
+        return new ToolContext(3, 9, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
     }
 
     /** @return array{int, array<non-empty-string, string>, string} */

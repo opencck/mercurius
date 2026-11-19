@@ -33,7 +33,7 @@ final class ChannelPostToolTest extends AsyncTestCase {
         $this->channels->save(new PublicChannel('telegram', '-1002', 'Блог', true, true, false, true));
         $this->channels->save(new PublicChannel('telegram', '-1003', 'Старый', false, false, false, false));
         $this->tool = new ChannelPostTool($this->chat, $this->channels);
-        $this->context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
+        $this->context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
     }
 
     public function testChangesAreIrreversibleAndGrantedPerActionAndChannel(): void {

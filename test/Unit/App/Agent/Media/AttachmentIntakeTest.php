@@ -40,7 +40,7 @@ final class AttachmentIntakeTest extends AsyncTestCase {
         parent::setUp();
         $this->channel = new FakeChannel();
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Сергей');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Сергей');
     }
 
     /** @param array<string, string> $env */

@@ -32,7 +32,7 @@ final class ProjectsTest extends AsyncTestCase {
         parent::setUp();
         $this->projects = new InMemoryProjectRepository();
         $this->conversations = new InMemoryConversationRepository();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $this->conversation = $this->conversations->openConversation(1, 'telegram', '42');
     }
 
@@ -131,7 +131,7 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('Главный проект', $block);
         self::assertStringNotContainsString('Чужое отношение', $block);
         self::assertStringContainsString('#1 Память', $block);
-        self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::Visitor, null), 'telegram', '42'));
+        self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::visitor(), null), 'telegram', '42'));
         self::assertSame('', $context->block($this->owner, 'telegram', '43'));
     }
 

@@ -33,7 +33,7 @@ final class ProjectContext {
     }
 
     public function block(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
-        if ($principal->role === Role::Visitor) {
+        if ($principal->role === Role::visitor()) {
             return '';
         }
         $project = $this->projects->active($channel, $chatId, $threadId);

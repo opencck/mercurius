@@ -54,7 +54,7 @@ final class WebToolsTest extends AsyncTestCase {
             'https://evil.example/' => [302, ['location' => 'http://intranet/admin'], ''],
         ]);
         $tool = new WebReadTool($http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), new TextExtractor());
-        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::Owner, null), new NullCancellation());
+        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
 
         $result = $tool->execute(['url' => 'https://site.example/a'], $context);
         self::assertStringStartsWith("https://site.example/b\nHTTP 200\nЗаголовок: Цены", $result->content);
@@ -73,7 +73,7 @@ final class WebToolsTest extends AsyncTestCase {
             $used = $permitted;
             return $http;
         });
-        $owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $args = ['url' => 'http://nas.home.lan/'];
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args));

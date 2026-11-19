@@ -84,12 +84,12 @@ final class AgentKeysTest extends AsyncTestCase {
         $server = $this->server('http');
         [$network, $keys] = $this->leader($server);
         $network->add($this->owner, 'follower', 'https://follower.example', 'follower-entrance', 'work');
-        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::User);
+        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::user());
 
         $refused = $this->delegate($network);
         self::assertStringContainsString($keys->get('work')->fingerprint(), $refused, 'the follower sees the chosen key, not the main one');
 
-        $this->followerNetwork->allow('leader-work', $keys->get('work')->fingerprint(), Role::User);
+        $this->followerNetwork->allow('leader-work', $keys->get('work')->fingerprint(), Role::user());
         self::assertStringContainsString('отдана соседу', $this->delegate($network));
 
         self::assertStringContainsString('follower', $network->useKey('follower', ''));
@@ -99,7 +99,7 @@ final class AgentKeysTest extends AsyncTestCase {
     public function testAFollowerOnWebsocketIsReachedThereAndNotByHttp(): void {
         $server = $this->server('ws');
         [$network, , $peers] = $this->leader($server);
-        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::User);
+        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::user());
 
         $network->add($this->owner, 'follower', 'https://follower.example', 'follower-entrance');
 
@@ -112,7 +112,7 @@ final class AgentKeysTest extends AsyncTestCase {
     public function testANeighbourThatMovedToWebsocketIsFollowedByItsCard(): void {
         $server = $this->server('ws');
         [$network, , $peers] = $this->leader($server);
-        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::User);
+        $this->followerNetwork->allow('leader', $this->main->fingerprint(), Role::user());
         $card = $server->card();
         $card['mercurius'] = ['publicKey' => $this->followerKeyOf($server)];
         $peers->addPeer('follower', 'https://follower.example', 'follower-entrance', $this->followerKeyOf($server), $card);

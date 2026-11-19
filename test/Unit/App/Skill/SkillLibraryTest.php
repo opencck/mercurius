@@ -47,8 +47,8 @@ final class SkillLibraryTest extends AsyncTestCase {
     protected function setUp(): void {
         parent::setUp();
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, 'Owner');
-        $this->user = new Principal(5, PrincipalKind::Human, Role::User, 'Вася');
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
+        $this->user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
         $this->projects['Сайт'] = new Project(12, 'Сайт', '', Project::ACTIVE, '', time());
     }
 
@@ -93,7 +93,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertStringContainsString('seo', $library->index($this->owner, $this->projects['Сайт']));
 
         self::assertArrayNotHasKey('seo', $library->catalog($this->user, $this->projects['Сайт']), 'a project the participant cannot see gives nothing');
-        self::assertSame('', $library->index(new Principal(9, PrincipalKind::Human, Role::Visitor, 'Гость'), null));
+        self::assertSame('', $library->index(new Principal(9, PrincipalKind::Human, Role::visitor(), 'Гость'), null));
     }
 
     public function testAFolderSkillIsCheckedForTheIndexAndForEachFileItGives(): void {

@@ -185,7 +185,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->press('gr:' . self::GROUP . ':f');
 
         $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
-        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
 
         $this->say('просто болтаем', '77');
         self::assertCount(0, $this->stack->llm->requests, 'over the limit the agent does not join in by itself');
@@ -200,7 +200,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->say('первое');
         $this->press('gr:' . self::GROUP . ':f');
         $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
-        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::User, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
 
         $this->say('болтаем', '77');
         $this->say('и ещё', '77');
@@ -253,7 +253,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->stack(new ScriptedLlm([ScriptedLlm::text('раз'), ScriptedLlm::text('два')]));
         $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('read_file'));
         $visitor = $this->stack->principals->createVisitor('telegram', '77', 'Гость');
-        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::Visitor, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
         $this->say('первое сообщение');
         $this->press('gr:' . self::GROUP . ':m');
 
@@ -287,7 +287,7 @@ final class GroupGateTest extends AsyncTestCase {
         ]));
         $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('slow', delay: 0.2));
         $visitor = $this->stack->principals->createVisitor('telegram', '77', 'Гость');
-        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::Visitor, \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
         $this->say('первое сообщение');
         $this->press('gr:' . self::GROUP . ':m');
 

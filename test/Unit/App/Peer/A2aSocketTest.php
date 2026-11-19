@@ -54,7 +54,7 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox, requests: $this->requests);
         $follower->scheduler->useJobRuns($this->server);
         $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \OpenCCK\App\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
-        $network->allow('leader', $this->leaderKey->fingerprint(), Role::User);
+        $network->allow('leader', $this->leaderKey->fingerprint(), Role::user());
     }
 
     /** @return array{InProcessA2aChannel, InProcessA2aChannel} the leader's end and the follower's end, served */

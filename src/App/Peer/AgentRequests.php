@@ -96,8 +96,8 @@ final class AgentRequests implements CallbackHandler {
             return;
         }
         $role = match ($match[2]) {
-            'u' => Role::User,
-            'a' => Role::Admin,
+            'u' => Role::user(),
+            'a' => Role::admin(),
             default => null,
         };
         $decided = $this->peers->decideRequest((int) $match[1], $role === null ? AgentRequest::REJECTED : AgentRequest::ALLOWED);

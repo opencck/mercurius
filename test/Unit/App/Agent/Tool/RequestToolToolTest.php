@@ -36,7 +36,7 @@ final class RequestToolToolTest extends AsyncTestCase {
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $this->tool = new RequestToolTool($this->registry, $this->policies);
         $this->registry->register($this->tool);
-        $this->agent = new Principal(7, PrincipalKind::Agent, Role::Admin, 'mercurius-rekryt');
+        $this->agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'mercurius-rekryt');
     }
 
     private function context(): ToolContext {

@@ -574,7 +574,7 @@ final class RunScheduler {
      *       next message, the prompt stays as it was
      */
     private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
-        if ($this->skills === null || $principal->role === Role::Visitor) {
+        if ($this->skills === null || $principal->role === Role::visitor()) {
             return $text;
         }
         try {
@@ -632,7 +632,7 @@ final class RunScheduler {
             // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
             $skills = '';
-            if ($this->skills !== null && $principal->role !== Role::Visitor) {
+            if ($this->skills !== null && $principal->role !== Role::visitor()) {
                 try {
                     $skills = $this->skills->index($principal, $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId));
                     $this->skillSnapshots[$conversationId] = $skills;

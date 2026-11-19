@@ -54,7 +54,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->observer = new RecordingObserver();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $this->conversationId = $this->conversations->openConversation(1, 'test', '1');
         $this->conversations->setMeta($this->conversationId, 'системный промпт', 'test/model');
     }
@@ -536,7 +536,7 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame(0.5, $capped->capTo(new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true))->dailySpendUsd, 'the owner has no cap of their own');
         self::assertSame(0.5, $capped->toArray()['daily_spend_usd']);
 
-        $user = new \OpenCCK\Domain\Entity\Principal(5, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::User, 'Вася');
+        $user = new \OpenCCK\Domain\Entity\Principal(5, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Вася');
         $conversation = $this->conversations->openConversation(5, 'telegram', '5');
         $run = $this->runs->start($conversation, 5, 'm', new RunLimits(30, 100_000, 900, 120));
         self::assertNotNull($run);

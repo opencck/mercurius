@@ -32,7 +32,7 @@ final class GitToolTest extends AsyncTestCase {
 
     private function tool(): GitTool {
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::Owner, null);
+        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('github', 'token', self::TOKEN, $this->owner);
         return new GitTool($this->sandbox, $this->sandbox, $this->vault, 120);
@@ -120,7 +120,7 @@ final class GitToolTest extends AsyncTestCase {
     public function testAnotherParticipantDoesNotGetTheOwnersSecret(): void {
         $tool = $this->tool();
 
-        $result = $tool->execute(['args' => ['pull'], 'secret' => 'github', 'origin' => 'https://github.com'], $this->context(new Principal(5, PrincipalKind::Human, Role::User, null)));
+        $result = $tool->execute(['args' => ['pull'], 'secret' => 'github', 'origin' => 'https://github.com'], $this->context(new Principal(5, PrincipalKind::Human, Role::user(), null)));
 
         self::assertTrue($result->isError);
         self::assertSame([], $this->sandbox->calls);

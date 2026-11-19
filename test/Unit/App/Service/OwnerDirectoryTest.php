@@ -25,7 +25,7 @@ final class OwnerDirectoryTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $first = $principals->ensureOwner('telegram', '100', 'Первый');
         $next = $principals->createVisitor('telegram', '200', 'Второй');
-        $principals->decideVisitor($next->id, Role::User, PrincipalStatus::Active);
+        $principals->decideVisitor($next->id, Role::user(), PrincipalStatus::Active);
         $owner = new OwnerDirectory($principals, 'telegram', '100');
         $channel = new FakeChannel();
         $handler = new class implements CallbackHandler {

@@ -34,9 +34,9 @@ final class SendMessageToolTest extends AsyncTestCase {
         $this->relays = new InMemoryMessageRelayRepository();
         $this->stack->principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
         $roman = $this->stack->principals->createVisitor('telegram', '77', 'Roman');
-        $this->roman = $this->stack->principals->decideVisitor($roman->id, Role::User, PrincipalStatus::Active) ?? $roman;
+        $this->roman = $this->stack->principals->decideVisitor($roman->id, Role::user(), PrincipalStatus::Active) ?? $roman;
         $arinin = $this->stack->principals->createVisitor('telegram', '78', 'Сергей Аринин');
-        $this->stack->principals->decideVisitor($arinin->id, Role::User, PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($arinin->id, Role::user(), PrincipalStatus::Active);
         $this->tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays);
         $this->stack->registry->register($this->tool);
         $this->stack->useRelays($this->relays);

@@ -29,9 +29,9 @@ final class OwnFactsTest extends AsyncTestCase {
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $vasya = $principals->createVisitor('telegram', '77', 'Вася');
-        $principals->decideVisitor($vasya->id, Role::User, PrincipalStatus::Active);
+        $principals->decideVisitor($vasya->id, Role::user(), PrincipalStatus::Active);
         $petya = $principals->createVisitor('telegram', '88', 'Петя');
-        $principals->decideVisitor($petya->id, Role::User, PrincipalStatus::Active);
+        $principals->decideVisitor($petya->id, Role::user(), PrincipalStatus::Active);
         $store = new InMemoryMemoryStore();
         $proposals = new Proposals($store, new TextAnalyzer(), new ContentScreen(), 'k');
         $channel = new FakeChannel(4096);

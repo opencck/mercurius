@@ -25,7 +25,7 @@ final class MultiUserTest extends AsyncTestCase {
         $principals = new \OpenCCK\Test\Support\InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '7', 'Сергей');
-        $user = $principals->decideVisitor($visitor->id, Role::User, PrincipalStatus::Active);
+        $user = $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
         self::assertNotNull($user);
         $projects = new InMemoryProjectRepository();
         $conversations = new InMemoryConversationRepository();

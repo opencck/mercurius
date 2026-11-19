@@ -39,7 +39,7 @@ final class PolicyService {
             return $owner;
         }
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
-        if ($principal->role === Role::Visitor) {
+        if ($principal->role === Role::visitor()) {
             // spec: BRIEF.md#участники-люди-и-агенты — a visitor talks, nothing more; for tools the owner makes them a user
             return $base->capTo($owner);
         }
