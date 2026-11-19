@@ -65,6 +65,14 @@ final class PolicyServiceTest extends TestCase {
         }
     }
 
+    public function testToolsOfAPowerStayOutOfARoleWithoutIt(): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — publishing and managing participants are powers of a role
+        $this->repository->save(2, ['tools' => ['channel_post', 'participants', 'web_search']]);
+
+        self::assertSame(['web_search'], $this->service->forPrincipal($this->principal(Role::user()))->tools);
+        self::assertSame(['channel_post', 'participants', 'web_search'], $this->service->forPrincipal($this->principal(Role::admin()))->tools);
+    }
+
     public function testUpdateIsStoredAndCapped(): void {
         $user = $this->principal(Role::user());
         $policy = $this->service->update($user, ['tools' => ['http_request'], 'max_turns' => 100]);

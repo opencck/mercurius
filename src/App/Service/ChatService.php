@@ -88,6 +88,14 @@ final class ChatService implements MessageHandler {
         $this->ownership = $ownership;
     }
 
+    /** @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): bool)|null whether a participant who is not the owner may see the trace of a run */
+    private ?\Closure $runVisible = null;
+
+    /** @param \Closure(int, \OpenCCK\Domain\Entity\Principal): bool $visible */
+    public function useRunVisibility(\Closure $visible): void {
+        $this->runVisible = $visible;
+    }
+
     /** the owner's list of roles: /roles and /role */
     private ?RoleCatalog $roles = null;
 
@@ -177,7 +185,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/usage', '/runs', '/trace', '/delegation'], true) && $this->reports !== null) {
-            $this->report($principal->isOwner(), $command, trim(substr($text, strlen($command))), $message);
+            $this->report($principal, $command, trim(substr($text, strlen($command))), $message);
             return;
         }
         if (in_array($command, ['/memory', '/forget', '/consolidate'], true) && $this->memory !== null) {
@@ -400,8 +408,9 @@ final class ChatService implements MessageHandler {
     }
 
     /** spec: BRIEF.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */
-    private function report(bool $owner, string $command, string $argument, IncomingMessage $message): void {
-        if (!$owner || $this->reports === null) {
+    private function report(\OpenCCK\Domain\Entity\Principal $principal, string $command, string $argument, IncomingMessage $message): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — reports are a power of a role too
+        if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Power::Reports)) || $this->reports === null) {
             $this->reply($message, t(self::OWNER_ONLY));
             return;
         }
@@ -414,7 +423,8 @@ final class ChatService implements MessageHandler {
             '/usage' => $this->reports->usage(ctype_digit($argument) ? (int) $argument : 7),
             '/runs' => $this->reports->runs(),
             '/delegation' => $this->reports->delegation(ctype_digit($argument) ? (int) $argument : 14),
-            default => ctype_digit($argument) ? $this->reports->trace((int) $argument) : null,
+            // the trace of a run in another one's private chat is the owner's to see
+            default => ctype_digit($argument) && ($principal->isOwner() || $this->runVisible === null || ($this->runVisible)((int) $argument, $principal)) ? $this->reports->trace((int) $argument) : null,
         } ?? \Mercurius\I18n\t(TraceReports::NO_RUN);
         if (mb_strlen($text) > self::REPORT_LIMIT) {
             $this->channel->sendFile($message->chatId, sprintf('%s-%s.txt', ltrim($command, '/'), $argument === '' ? 'report' : $argument), $text, t('service.chat.otchet_tselikom'));

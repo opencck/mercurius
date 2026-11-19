@@ -85,7 +85,7 @@ final class AgentStack {
         $this->scheduler->useApprovals($this->approvalService);
         $this->approvalService->onDecision($this->scheduler->resumeRun(...));
         $this->visitors = new VisitorService($this->principals, $this->channel, '42', retryDelays: [0.01, 0.01]);
-        $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'pv' => $this->visitors]);
+        $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'pv' => $this->visitors], openPrefixes: ['pv']);
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, reports: $reports);
     }
 

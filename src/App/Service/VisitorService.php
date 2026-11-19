@@ -13,6 +13,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use OpenCCK\Domain\Entity\Power;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
@@ -93,11 +94,43 @@ final class VisitorService implements CallbackHandler {
         if (!$result->success) {
             $this->logger->warning('Visitor card was not delivered', ['visitor' => $visitor->id]);
         }
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — those whose role may admit visitors get the card too
+        foreach ($this->admitters($message->channel) as $chat) {
+            $this->channel->send(new OutgoingMessage($chat, $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
+        }
         $this->logger->notice('New visitor waits for the owner', ['visitor' => $visitor->id, 'channel' => $message->channel]);
         return $visitor;
     }
 
+    /** @return list<string> the chats of the participants whose role may admit visitors, the owner left out */
+    private function admitters(string $channel): array {
+        $chats = [];
+        foreach ($this->principals->all() as $p) {
+            if (!$p->isOwner() && $p->status === PrincipalStatus::Active && $p->role->may(Power::Admit)) {
+                $chat = $this->principals->externalId($p->id, $channel);
+                if ($chat !== null) {
+                    $chats[] = $chat;
+                }
+            }
+        }
+        return $chats;
+    }
+
+    /** Who pressed: the owner (null) or a participant whose role may admit visitors; false — nobody who may. */
+    private function presser(IncomingCallback $callback): Principal|false|null {
+        if ($callback->userId === OwnerDirectory::chat($this->ownerChatId)) {
+            return null;
+        }
+        $who = $this->principals->findByIdentity($callback->channel, $callback->userId);
+        return $who !== null && $who->status === PrincipalStatus::Active && ($who->isOwner() || $who->role->may(Power::Admit)) ? ($who->isOwner() ? null : $who) : false;
+    }
+
     public function handleCallback(IncomingCallback $callback): void {
+        $presser = $this->presser($callback);
+        if ($presser === false || ($presser !== null && str_starts_with($callback->data, 'pv:g'))) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
+            return;
+        }
         if (preg_match('/^pv:g(\d+):([tr])$/', $callback->data, $match) === 1) {
             $this->decideSummary($callback, (int) $match[1], $match[2] === 't');
             return;
@@ -118,6 +151,11 @@ final class VisitorService implements CallbackHandler {
             ($match[2] ?? '') === 'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
             default => [Role::visitor(), PrincipalStatus::Rejected, t('service.visitor.otkazano')],
         };
+        // a participant who admits gives no role with a power they lack
+        if ($presser !== null && $status === PrincipalStatus::Active && array_diff(array_map(static fn(Power $p): string => $p->value, $role->powers()), array_map(static fn(Power $p): string => $p->value, $presser->role->powers())) !== []) {
+            $this->channel->answerCallback($callback->callbackId, t('tool.participants.above_own'), true);
+            return;
+        }
         $decided = $this->principals->decideVisitor((int) $match[1], $role, $status);
         if ($decided === null) {
             $this->channel->answerCallback($callback->callbackId, t('service.visitor.uzhe_resheno'));

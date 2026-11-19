@@ -27,6 +27,13 @@ final class PolicyService {
         private readonly ?\Closure $template = null,
     ) {}
 
+    /** tools that are a power of a role, not only a tool */
+    private const POWER_TOOLS = [
+        'channel_post' => Power::Publish,
+        'participants' => Power::Participants,
+        'set_participant_policy' => Power::Participants,
+    ];
+
     public function owner(): ParticipantPolicy {
         return new ParticipantPolicy(null, $this->ownerLimits, $this->ownerSandbox, true);
     }
@@ -46,7 +53,9 @@ final class PolicyService {
         if (!$principal->role->may(Power::Tools)) {
             return $base->capTo($owner);
         }
-        return ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
+        $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — a tool of a power stays out of a role without it
+        return $policy->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Power $p): bool => !$principal->role->may($p))));
     }
 
     /** @return array<string, mixed> */

@@ -35,4 +35,21 @@ final class Args {
         }
         return $map;
     }
+
+    /**
+     * String items of a list argument; other items are skipped.
+     *
+     * @param array<string, mixed> $args
+     * @return list<string>
+     */
+    public static function strings(array $args, string $key): array {
+        $value = isset($args[$key]) && is_array($args[$key]) ? $args[$key] : [];
+        $list = [];
+        foreach (array_keys($value) as $i) {
+            if (isset($value[$i]) && is_string($value[$i])) {
+                $list[] = $value[$i];
+            }
+        }
+        return $list;
+    }
 }

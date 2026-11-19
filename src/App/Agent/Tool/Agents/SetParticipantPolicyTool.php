@@ -14,6 +14,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Entity\Power;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 
 use function Mercurius\I18n\t;
@@ -72,9 +73,34 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
         return 10;
     }
 
+    /**
+     * The owner changes anyone's settings; a participant whose role has the power over participants changes others',
+     * never the owner's or their own, and gives no tool they lack.
+     *
+     * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+     *
+     * @param array<string, mixed> $args
+     */
+    private function forbidden(array $args, ToolContext $context): ?string {
+        $who = $context->principal;
+        if ($who->isOwner()) {
+            return null;
+        }
+        if (!$who->role->may(Power::Participants)) {
+            return t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet');
+        }
+        $target = Args::int($args, 'principal_id');
+        $granted = Args::strings($args, 'tools');
+        $foreign = array_filter($granted, static fn(string $tool): bool => !$context->policy?->allowsTool($tool));
+        return $target === $who->id || $this->principals->find($target ?? 0)?->isOwner() === true || $foreign !== []
+            ? t('tool.participants.above_own')
+            : null;
+    }
+
     public function refuseEarly(array $args, ToolContext $context): ?ToolResult {
-        if (!$context->principal->isOwner()) {
-            return ToolResult::error(t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet'));
+        $forbidden = $this->forbidden($args, $context);
+        if ($forbidden !== null) {
+            return ToolResult::error($forbidden);
         }
         if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
             return ToolResult::error(t('tool.participants.private_chat_only'));
@@ -83,8 +109,9 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
-        if (!$context->principal->isOwner()) {
-            return ToolResult::error(t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet'));
+        $forbidden = $this->forbidden($args, $context);
+        if ($forbidden !== null) {
+            return ToolResult::error($forbidden);
         }
         if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
             return ToolResult::error(t('tool.participants.private_chat_only'));

@@ -33,6 +33,14 @@ final class ParticipantPolicy {
     ) {}
 
     /** The same policy with one more tool; every tool already — the same. */
+    /** @param list<string> $names tools taken out */
+    public function without(array $names): self {
+        if ($this->tools === null || array_intersect($this->tools, $names) === []) {
+            return $this;
+        }
+        return new self(array_values(array_diff($this->tools, $names)), $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd);
+    }
+
     public function withTool(string $name): self {
         if ($this->tools === null || in_array($name, $this->tools, true) || $name === '') {
             return $this;

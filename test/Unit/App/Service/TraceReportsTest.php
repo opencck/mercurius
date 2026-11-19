@@ -9,6 +9,11 @@ use DateTimeImmutable;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\Domain\Agent\TraceSpan;
+use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeTraceReports;
 use OpenCCK\Test\Support\InMemoryTraceRepository;
@@ -138,6 +143,28 @@ final class TraceReportsTest extends AsyncTestCase {
         foreach (['/usage', '/runs', '/trace 42'] as $command) {
             $this->stack->say($command, '99');
             self::assertSame(\Mercurius\I18n\t(ChatService::OWNER_ONLY), $this->lastText(), $command);
+        }
+    }
+
+    public function testAHolderOfTheReportsPowerSeesReportsButNotTheTracesOfOthersPrivateChats(): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        Role::define('analyst', 'Аналитик', 15, [Power::Reports]);
+        try {
+            $this->stack->principals->put(new Principal(5, PrincipalKind::Human, Role::of('analyst'), 'Аналитик', PrincipalStatus::Active), 'telegram', '55');
+            $this->stack->chat->useRunVisibility(static fn(int $runId, Principal $viewer): bool => $runId !== 42);
+            $this->traces->openRun(42, 'openrouter:x/model');
+            $this->traces->closeRun(42, TraceSpan::OK, 100, null);
+            $this->traces->openRun(43, 'openrouter:x/model');
+            $this->traces->closeRun(43, TraceSpan::OK, 100, null);
+
+            $this->stack->say('/runs', '55');
+            self::assertStringContainsString('#42', $this->lastText());
+            $this->stack->say('/trace 42', '55');
+            self::assertSame(\Mercurius\I18n\t(TraceReports::NO_RUN), $this->lastText(), 'a private chat of another');
+            $this->stack->say('/trace 43', '55');
+            self::assertStringContainsString('Запуск #43', $this->lastText());
+        } finally {
+            Role::reset();
         }
     }
 }
