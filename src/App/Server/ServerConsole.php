@@ -87,7 +87,7 @@ final class ServerConsole {
         $class = $this->classify($command, $server->name);
         $record = ['principal' => $principal->id, 'run' => $runId, 'server' => $server->name, 'command' => SecretMasker::mask($command), 'class' => $class->class, 'exit' => null, 'ms' => null, 'error' => null];
         if ($class->class === Classification::NEVER && !$approved) {
-            $this->journal($record + ['event' => 'refused', 'error' => $class->reason]);
+            $this->journal(['event' => 'refused', 'error' => $class->reason] + $record);
             return [false, sprintf(t('server.server_console.eta_komanda_zapreschena_vsegda'), $class->reason)];
         }
         $connection = $this->connection($server, $principal, true);
@@ -96,7 +96,7 @@ final class ServerConsole {
         }
         [$command, $stdin] = $this->sudo($command, $class, $connection);
         try {
-            $this->audit->append($record + ['event' => 'start']);
+            $this->audit->append(['event' => 'start'] + $record);
         } catch (Throwable $e) {
             $this->logger->error('Command journal is down; the command did not run', ['server' => $server->name, 'error' => $e::class]);
             return [false, t('server.server_console.zhurnal_komand_nedostupen_komanda_ne')];
@@ -105,7 +105,7 @@ final class ServerConsole {
         try {
             $result = $this->shell->run($connection, $command, $timeout, self::OUTPUT_MAX, $cancellation, $stdin);
         } catch (UnknownHostKey $e) {
-            $this->journal($record + ['event' => 'refused', 'error' => $e->changed ? 'host key changed' : 'host key unknown']);
+            $this->journal(['event' => 'refused', 'error' => $e->changed ? 'host key changed' : 'host key unknown'] + $record);
             $at = $this->servers->byName($e->server ?? $server->name) ?? $server;
             if (!$e->changed) {
                 $this->servers->setPendingHostKey($at->id, $e->fingerprint);
@@ -115,10 +115,10 @@ final class ServerConsole {
                 ? sprintf(t('server.server_console.klyuch_hosta_izmenilsya_podklyuchenie_ot'), $at->name, $e->fingerprint)
                 : sprintf(t('server.server_console.server_esche_ne_znakom_vladeltsu'), $at->name, $e->fingerprint)];
         } catch (RemoteFailure $e) {
-            $this->journal($record + ['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())]);
+            $this->journal(['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())] + $record);
             return [false, SecretMasker::mask($e->getMessage())];
         }
-        $journalled = $this->journal($record + ['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs]);
+        $journalled = $this->journal(['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs] + $record);
         return [true, $this->report($result, $timeout, $journalled, $connection)];
     }
 
@@ -139,7 +139,7 @@ final class ServerConsole {
             return [false, $connection];
         }
         try {
-            $this->audit->append($record + ['event' => 'start']);
+            $this->audit->append(['event' => 'start'] + $record);
         } catch (Throwable $e) {
             $this->logger->error('Command journal is down; the command did not run', ['server' => $server->name, 'error' => $e::class]);
             return [false, t('server.server_console.zhurnal_komand_nedostupen_komanda_ne')];
@@ -148,7 +148,7 @@ final class ServerConsole {
         try {
             $result = $this->shell->run($connection, $command, $timeout, self::OUTPUT_MAX, $cancellation, $stdin);
         } catch (UnknownHostKey $e) {
-            $this->journal($record + ['event' => 'refused', 'error' => 'host key']);
+            $this->journal(['event' => 'refused', 'error' => 'host key'] + $record);
             $at = $this->servers->byName($e->server ?? $server->name) ?? $server;
             if (!$e->changed) {
                 $this->servers->setPendingHostKey($at->id, $e->fingerprint);
@@ -156,10 +156,10 @@ final class ServerConsole {
             ($this->askHostKey)($at, $e->fingerprint, $e->changed);
             return [false, sprintf(t('server.server_console.klyuch_hosta_ne_podtverzhden_vladeltsu'), $at->name, $e->fingerprint)];
         } catch (RemoteFailure $e) {
-            $this->journal($record + ['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())]);
+            $this->journal(['event' => 'failed', 'error' => SecretMasker::mask($e->getMessage())] + $record);
             return [false, SecretMasker::mask($e->getMessage())];
         }
-        $journalled = $this->journal($record + ['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs]);
+        $journalled = $this->journal(['event' => 'done', 'exit' => $result->exitCode, 'ms' => $result->durationMs] + $record);
         return [$result->exitCode === 0, $this->report($result, $timeout, $journalled, $connection)];
     }
 

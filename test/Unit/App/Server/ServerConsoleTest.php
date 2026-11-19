@@ -87,6 +87,9 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame(['start', 'done'], array_column($this->audit->records, 'event'));
         self::assertSame('read', $this->audit->records[0]['class']);
         self::assertSame(7, $this->audit->records[1]['run']);
+        // spec: BRIEF.md#фаза-7-по-частям — the record of the end keeps the exit code and the time
+        self::assertSame(0, $this->audit->records[1]['exit']);
+        self::assertNotNull($this->audit->records[1]['ms']);
         self::assertNull($this->audit->verify());
     }
 
@@ -97,6 +100,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertStringContainsString('запрещена всегда', $text);
         self::assertSame([], $this->ran);
         self::assertSame(['refused'], array_column($this->audit->records, 'event'));
+        self::assertNotNull($this->audit->records[0]['error'], 'the reason of the refusal is kept');
     }
 
     public function testNeverRunsWhenTheOwnerAllowedIt(): void {
