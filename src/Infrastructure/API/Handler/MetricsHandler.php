@@ -18,9 +18,17 @@ use SensitiveParameter;
  * spec: BRIEF.md#трассировка-и-метрики — /metrics behind METRICS_TOKEN
  */
 final class MetricsHandler implements RequestHandler {
+    /** seconds a rendered answer is kept: every scrape does not read the database */
+    private const KEEP = 30.0;
+
+    private ?string $kept = null;
+    private float $keptAt = 0.0;
+
+    /** @param (\Closure(): float)|null $now seconds, for tests; null — the clock */
     public function __construct(
         private readonly MetricsText $metrics,
         #[SensitiveParameter] private readonly ?string $token,
+        private readonly ?\Closure $now = null,
     ) {}
 
     public function handleRequest(Request $request): Response {
@@ -34,7 +42,17 @@ final class MetricsHandler implements RequestHandler {
         return new Response(
             HttpStatus::OK,
             ['content-type' => 'text/plain; version=0.0.4; charset=utf-8', 'cache-control' => 'no-store'],
-            $this->metrics->render(),
+            $this->text(),
         );
+    }
+
+    /** spec: BRIEF.md#трассировка-и-метрики — the answer is kept for 30 s */
+    private function text(): string {
+        $now = $this->now === null ? microtime(true) : ($this->now)();
+        if ($this->kept === null || $now - $this->keptAt >= self::KEEP) {
+            $this->kept = $this->metrics->render();
+            $this->keptAt = $now;
+        }
+        return $this->kept;
     }
 }

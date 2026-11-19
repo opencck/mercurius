@@ -19,6 +19,9 @@ final class MetricsText {
     private const BUCKETS = ['input', 'output', 'cache_read', 'cache_write', 'reasoning'];
     private const ACTIVE = ['running', 'waiting_approval'];
 
+    /** workers a run may start: none, one, the parallel three, a full delegation and its retries */
+    private const WORKER_BOUNDS = [0, 1, 2, 3, 5, 10];
+
     public function __construct(private readonly MetricsRepository $figures) {}
 
     public function render(): string {
@@ -68,6 +71,15 @@ final class MetricsText {
             $out[] = self::line('mercurius_step_duration_seconds_sum', ['kind' => $row['kind']], $row['sum']);
             $out[] = self::line('mercurius_step_duration_seconds_count', ['kind' => $row['kind']], $row['count']);
         }
+        // spec: BRIEF.md#трассировка-и-метрики — how many workers a run starts
+        $workers = $this->figures->workersPerRun(self::WORKER_BOUNDS);
+        self::head($out, 'mercurius_workers_per_run', 'histogram', 'Worker runs started by each finished top-level run');
+        foreach (self::WORKER_BOUNDS as $i => $bound) {
+            $out[] = self::line('mercurius_workers_per_run_bucket', ['le' => (string) $bound], $workers['buckets'][$i] ?? 0);
+        }
+        $out[] = self::line('mercurius_workers_per_run_bucket', ['le' => '+Inf'], $workers['count']);
+        $out[] = self::line('mercurius_workers_per_run_sum', [], $workers['sum']);
+        $out[] = self::line('mercurius_workers_per_run_count', [], $workers['count']);
         return implode("\n", $out) . "\n";
     }
 
@@ -88,7 +100,7 @@ final class MetricsText {
         foreach ($labels as $key => $label) {
             $pairs[] = sprintf('%s="%s"', $key, self::label($label));
         }
-        return sprintf('%s{%s} %s', $name, implode(',', $pairs), self::number($value));
+        return $pairs === [] ? sprintf('%s %s', $name, self::number($value)) : sprintf('%s{%s} %s', $name, implode(',', $pairs), self::number($value));
     }
 
     private static function number(int|float $value): string {

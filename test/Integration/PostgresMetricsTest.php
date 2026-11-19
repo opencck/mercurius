@@ -23,5 +23,10 @@ final class PostgresMetricsTest extends AsyncTestCase {
 
         self::assertStringContainsString('# TYPE mercurius_runs_total counter', $text);
         self::assertStringContainsString('# TYPE mercurius_step_duration_seconds histogram', $text);
+        // spec: BRIEF.md#трассировка-и-метрики — workers per run; every run has at most +Inf workers
+        self::assertMatchesRegularExpression('/^mercurius_workers_per_run_count (\d+)$/m', $text);
+        preg_match('/^mercurius_workers_per_run_bucket\{le="\+Inf"\} (\d+)$/m', $text, $all);
+        preg_match('/^mercurius_workers_per_run_count (\d+)$/m', $text, $count);
+        self::assertSame($count[1] ?? null, $all[1] ?? null);
     }
 }

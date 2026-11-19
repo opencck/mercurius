@@ -32,4 +32,15 @@ interface MetricsRepository {
      * @return list<array{kind: string, buckets: list<int>, sum: float, count: int}>
      */
     public function durations(array $bounds): array;
+
+    /**
+     * How many worker runs each finished top-level run started, as a histogram: runs with at most each bound of
+     * workers, the total of workers and the number of runs.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — workers per run
+     *
+     * @param list<int> $bounds
+     * @return array{buckets: list<int>, sum: int, count: int}
+     */
+    public function workersPerRun(array $bounds): array;
 }

@@ -86,6 +86,23 @@ final class PostgresMetricsRepository implements MetricsRepository {
         return $rows;
     }
 
+    public function workersPerRun(array $bounds): array {
+        $columns = [];
+        foreach ($bounds as $i => $bound) {
+            $columns[] = sprintf('count(*) FILTER (WHERE workers <= %d)::int AS b%d', $bound, $i);
+        }
+        $row = $this->db->query(
+            'SELECT ' . ($columns === [] ? '' : implode(', ', $columns) . ', ') . 'coalesce(sum(workers), 0)::int AS sum, count(*)::int AS count
+             FROM (SELECT (SELECT count(*) FROM runs w WHERE w.parent_run_id = r.id) AS workers
+                   FROM runs r WHERE r.parent_run_id IS NULL AND r.status NOT IN (\'running\', \'waiting_approval\')) per_run',
+        )->fetchRow() ?? [];
+        $buckets = [];
+        foreach (array_keys($bounds) as $i) {
+            $buckets[] = self::int($row, 'b' . $i);
+        }
+        return ['buckets' => $buckets, 'sum' => self::int($row, 'sum'), 'count' => self::int($row, 'count')];
+    }
+
     /** @param array<string, mixed> $row */
     private static function int(array $row, string $key): int {
         return isset($row[$key]) && is_int($row[$key]) ? $row[$key] : 0;
