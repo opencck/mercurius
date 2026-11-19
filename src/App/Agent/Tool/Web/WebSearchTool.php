@@ -36,6 +36,20 @@ final class WebSearchTool implements Tool, ReadsOutside {
         private readonly array $about = [],
     ) {}
 
+    private ?\OpenCCK\Domain\Repository\LlmCallRepository $calls = null;
+    private ?\OpenCCK\Domain\Repository\RunRepository $runs = null;
+
+    /**
+     * A search that calls a model (OpenRouter with its web plugin) is a model call of the run: it goes to llm_calls with
+     * the run and its tokens into the run's budget.
+     *
+     * spec: BRIEF.md#интернет-и-браузер — the spend of web_search in llm_calls and the run budget
+     */
+    public function useAccounting(\OpenCCK\Domain\Repository\LlmCallRepository $calls, \OpenCCK\Domain\Repository\RunRepository $runs): void {
+        $this->calls = $calls;
+        $this->runs = $runs;
+    }
+
     public function definition(): ToolDefinition {
         $properties = [
             'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 500],
@@ -82,10 +96,40 @@ final class WebSearchTool implements Tool, ReadsOutside {
         if ($search === null) {
             return ToolResult::error(sprintf(t('tool.web_search.poiska_net_est'), (string) $name, implode(', ', array_keys($this->providers))));
         }
+        $started = hrtime(true);
         try {
-            return ToolResult::ok($search->search(Args::string($args, 'query') ?? '', $limit, $context->cancellation)->toText());
+            $result = $search->search(Args::string($args, 'query') ?? '', $limit, $context->cancellation);
         } catch (SearchException $e) {
             return ToolResult::error($e->getMessage());
+        }
+        $this->account($result, $context, intdiv(hrtime(true) - $started, 1_000_000));
+        return ToolResult::ok($result->toText());
+    }
+
+    private function account(\Mercurius\Search\SearchResult $result, ToolContext $context, int $ms): void {
+        $usage = $result->usage;
+        if ($usage === null) {
+            return;
+        }
+        try {
+            $this->calls?->record(new \OpenCCK\Domain\Entity\LlmCallRecord(
+                $context->conversationId,
+                self::NAME,
+                $result->provider . ':' . $usage->model,
+                'stop',
+                null,
+                max(0, $usage->inputTokens),
+                max(0, $usage->outputTokens),
+                0,
+                0,
+                0,
+                $usage->costUsd,
+                max(0, $ms),
+                $context->runId,
+            ));
+            $this->runs?->settleAuxiliary($context->runId, 0, $usage->inputTokens + $usage->outputTokens);
+        } catch (\Throwable) {
+            // the answer matters more than its accounting: a failed record does not take it away
         }
     }
 }

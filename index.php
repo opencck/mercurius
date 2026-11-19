@@ -368,7 +368,9 @@ if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
 }
 if ($webSearch !== null) {
-    $tools->register(new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT)));
+    $webSearchTool = new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
+    $webSearchTool->useAccounting($llmCalls, $runs);
+    $tools->register($webSearchTool);
 }
 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — rights are given only in the owner's private chat: the owner's own
 //      chat in Telegram or over the WebSocket API, not a group, a channel, a job or a neighbour's task
