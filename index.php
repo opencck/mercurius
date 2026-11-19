@@ -833,10 +833,10 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
 });
 $jobScheduler->useSkills($skillLibrary);
 // spec: BRIEF.md#планировщик-и-проекты — a job marked cheap runs on the model of the cheap role
-$jobScheduler->useModels(static fn(string $role): ?string => (string) $modelRoles->model($role));
+$jobScheduler->useModels(static fn(string $role): string => (string) $modelRoles->model($role));
 // spec: BRIEF.md#контекст-по-месту-и-аудитории — the memory core only for a job that reports to its owner's private chat
 $jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job $job) use ($scheduler, $principals): string {
-    $private = $job->threadId === '' && $principals->externalId($who, $job->channel) === $job->chatId;
+    $private = $job->threadId === '' && $principals->externalId($who->id, $job->channel) === $job->chatId;
     return $private ? $scheduler->coreOf($who) : '';
 });
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
