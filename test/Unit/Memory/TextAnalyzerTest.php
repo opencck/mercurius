@@ -19,6 +19,17 @@ final class TextAnalyzerTest extends TestCase {
         self::assertSame($analyzer->keys('ёлка'), $analyzer->keys('елки'));
     }
 
+    public function testALoanwordMeetsItsOtherSpelling(): void {
+        // spec: BRIEF.md#анализ-текста — «впн» and «VPN», «бэкап» and «backup» are one word
+        $analyzer = new TextAnalyzer();
+
+        self::assertContains('loan:vpn', $analyzer->keys('Настрой впн на сервере'));
+        self::assertContains('loan:vpn', $analyzer->keys('VPN не работает'));
+        self::assertContains('loan:server', $analyzer->keys('Настрой впн на сервере'), 'a Russian case form of a spelling');
+        self::assertContains('loan:backup', $analyzer->keys('бекапы по ночам'), 'and its plural');
+        self::assertNotContains('loan:token', $analyzer->keys('ток в сети'), 'by the form, never by the stem');
+    }
+
     public function testChatterHasNoKeys(): void {
         self::assertSame([], (new TextAnalyzer())->keys('ну и что это же было бы, а?'));
         self::assertSame([], (new TextAnalyzer())->keys('ok, and so it is'));

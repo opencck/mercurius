@@ -66,6 +66,19 @@ abstract class MemoryStoreContract extends AsyncTestCase {
         self::assertCount(2, array_filter($this->store->faded([$this->scope], 0.3, 10), static fn(Fact $f): bool => in_array($f->text, ['слабый', 'слабее', 'крепкий', 'чужой слабый'], true)));
     }
 
+    public function testFactsAreKeyedAgainWhenTheAnalyzerChanges(): void {
+        // spec: BRIEF.md#анализ-текста — facts written before a new rule of the analyzer get its keys too
+        $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'Настроен VPN', ['настро', 'vpn'], 0.5, Fact::AGENT, null);
+        $keys = static fn(string $text): array => $text === 'Настроен VPN' ? ['настро', 'vpn', 'loan:vpn'] : [];
+
+        self::assertGreaterThanOrEqual(1, $this->store->rekey($keys));
+        $after = $this->store->fact($fact->id);
+        self::assertNotNull($after);
+        self::assertSame(['настро', 'vpn', 'loan:vpn'], $after->keys);
+        self::assertSame(1, $after->version, 'not a new version');
+        self::assertSame(0, $this->store->rekey($keys), 'nothing left to change');
+    }
+
     public function testEachVersionKeepsWhoMadeIt(): void {
         // spec: BRIEF.md#факты — the source of a version
         $fact = $this->store->addFact($this->scope, Fact::KNOWLEDGE, 'было', ['было'], 0.5, Fact::OWNER_SAID, null);

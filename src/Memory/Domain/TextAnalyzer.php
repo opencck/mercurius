@@ -34,6 +34,29 @@ final class TextAnalyzer {
         'i', 'you', 'he', 'she', 'we', 'they', 'me', 'my', 'your', 'our', 'their', 'what', 'which', 'who', 'please', 'thanks',
     ];
 
+    /**
+     * A borrowed word written either way, Latin or Cyrillic: each group is one word. A word belongs to a group by its
+     * exact form — the spelling, an English plural, a Russian case ending — never by its stem: Snowball cuts «токен» to
+     * «ток» and «виза» to «виз».
+     *
+     * spec: BRIEF.md#анализ-текста — loanwords
+     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L670-L719 (_LOANWORDS, _RU_ENDINGS, _loan_forms) — the
+     *      table and the forms; holographic also keeps search prefixes for FTS5, here the group's key is enough
+     */
+    private const LOANWORDS = 'telegram телеграм телеграмм | whatsapp вотсап вотсапп ватсап ватсапп вацап | youtube ютуб'
+        . ' | instagram инстаграм инстаграмм | facebook фейсбук | google гугл | gmail гмейл | iphone айфон | ipad айпад'
+        . ' | android андроид | windows виндовс | linux линукс | macbook макбук | backup бэкап бекап | server сервер | vpn впн'
+        . ' | wifi вайфай | bluetooth блютуз | email имейл емейл эмейл | zoom зум | skype скайп | excel эксель | notion ношн'
+        . ' | github гитхаб | docker докер | python питон | deploy деплой | commit коммит | token токен | prompt промпт'
+        . ' | chatgpt чатгпт | dashboard дашборд | bitcoin биткоин биткойн | hotel отель | condo кондо | visa виза'
+        . ' | netflix нетфликс | spotify спотифай | tiktok тикток | twitter твиттер | samsung самсунг | xiaomi сяоми'
+        . ' | booking букинг | laptop лэптоп ноутбук | smartphone смартфон | router роутер | chat чат | online онлайн | site сайт'
+        . ' | bot бот | marketplace маркетплейс | startup стартап | meetup митап | coworking коворкинг | freelance фриланс';
+    private const RU_ENDINGS = ['а', 'я', 'у', 'ю', 'е', 'и', 'ы', 'ой', 'ей', 'ою', 'ею', 'ом', 'ем', 'ам', 'ям', 'ами', 'ями', 'ах', 'ях', 'ов', 'ев'];
+
+    /** @var array<string, string>|null form => the key of its group */
+    private static ?array $loans = null;
+
     /** @var array<string, true> */
     private readonly array $stop;
     private ?Stemmer $russian = null;
@@ -56,6 +79,10 @@ final class TextAnalyzer {
             $key = self::isIdentifier($word) || preg_match('~\d~', $word) === 1 ? $word : $this->stem($word);
             if ($key !== '' && !isset($this->stop[$key])) {
                 $keys[$key] = true;
+            }
+            $loan = self::loans()[$word] ?? null;
+            if ($loan !== null) {
+                $keys[$loan] = true;
             }
             // A hyphenated word ("vpn-сервер", "telegram-бот") is also its parts: the question says "VPN" or "бот".
             if (str_contains($word, '-') && !self::isIdentifier($word)) {
@@ -81,6 +108,41 @@ final class TextAnalyzer {
             return true;
         }
         return preg_match('~\p{L}~u', $key) === 1 && preg_match('~\d~', $key) === 1;
+    }
+
+    /** @return array<string, string> every form of a borrowed word => "loan:<its first spelling>" */
+    private static function loans(): array {
+        if (self::$loans !== null) {
+            return self::$loans;
+        }
+        $table = [];
+        foreach (explode('|', self::LOANWORDS) as $group) {
+            $spellings = preg_split('/\s+/', trim($group), -1, PREG_SPLIT_NO_EMPTY);
+            if ($spellings === false || $spellings === []) {
+                continue;
+            }
+            $key = 'loan:' . $spellings[0];
+            foreach ($spellings as $spelling) {
+                foreach (self::forms($spelling) as $form) {
+                    $table[$form] = $key;
+                }
+            }
+        }
+        return self::$loans = $table;
+    }
+
+    /** @return list<string> the forms that make a word a spelling of its group */
+    private static function forms(string $spelling): array {
+        if (preg_match('~\p{Cyrillic}~u', $spelling) !== 1) {
+            return [$spelling, $spelling . (preg_match('/(s|x|z|ch|sh)$/', $spelling) === 1 ? 'es' : 's')];
+        }
+        $last = mb_substr($spelling, -1);
+        // a word Russian does not decline ("кондо")
+        if (in_array($last, ['о', 'и', 'у', 'э', 'ю'], true)) {
+            return [$spelling];
+        }
+        $base = in_array($last, ['а', 'я', 'ь', 'й'], true) ? mb_substr($spelling, 0, -1) : $spelling;
+        return [$spelling, ...array_map(static fn(string $e): string => $base . $e, self::RU_ENDINGS)];
     }
 
     private function stem(string $word): string {

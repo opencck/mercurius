@@ -115,6 +115,19 @@ final class InMemoryMemoryStore implements MemoryStore {
         return array_slice($facts, 0, $limit);
     }
 
+    public function rekey(\Closure $keys): int {
+        $changed = 0;
+        foreach ($this->facts as $id => $f) {
+            $new = $keys($f->text);
+            if (!$f->active || $new === [] || $new === $f->keys) {
+                continue;
+            }
+            $this->facts[$id] = new Fact($id, $f->scope, $f->category, $f->text, $new, $f->trust, $f->provenance, $f->active, $f->version, $f->updatedAt);
+            $changed++;
+        }
+        return $changed;
+    }
+
     public function versions(int $factId): array {
         return $this->history[$factId] ?? [];
     }

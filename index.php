@@ -559,6 +559,17 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
 }
+// spec: BRIEF.md#анализ-текста — facts written before a new rule of the analyzer get its keys; in the background
+\Amp\async(static function () use ($memoryStore, $textAnalyzer, $logger): void {
+    try {
+        $rekeyed = $memoryStore->rekey($textAnalyzer->keys(...));
+        if ($rekeyed > 0) {
+            $logger->info('Memory facts keyed again', ['facts' => $rekeyed]);
+        }
+    } catch (Throwable $e) {
+        $logger->warning('Memory facts were not keyed again', ['error' => $e::class]);
+    }
+})->ignore();
 $projectRepository = new PostgresProjectRepository($db);
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
 // those who may see the project

@@ -54,6 +54,13 @@ final class RecallTest extends TestCase {
         self::assertSame([], self::texts($this->recall->find('как дела у ани?', ['owner'], 8)), 'not a name in lower case');
     }
 
+    public function testALoanwordFindsAFactWrittenTheOtherWay(): void {
+        // spec: BRIEF.md#анализ-текста — a question with «впн» finds a fact that says «VPN»
+        $this->add('owner', 'На ноутбуке настроен VPN WireGuard');
+
+        self::assertSame(['На ноутбуке настроен VPN WireGuard'], self::texts($this->recall->find('Что с впн?', ['owner'])));
+    }
+
     public function testRelatedFindsWhatIsTiedToAName(): void {
         $this->add('owner', 'Сервер pve-01 стоит в Хельсинки');
         $this->add('owner', 'На pve-01 диск NVMe на 2 ТБ');

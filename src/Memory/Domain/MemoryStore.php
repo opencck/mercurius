@@ -55,6 +55,16 @@ interface MemoryStore {
     public function encodeMissing(int $limit): int;
 
     /**
+     * Keys every active fact again where they differ from those of its text now (a new rule of the analyzer); not a
+     * new version. Returns how many changed.
+     *
+     * spec: BRIEF.md#анализ-текста
+     *
+     * @param \Closure(string): list<string> $keys
+     */
+    public function rekey(\Closure $keys): int;
+
+    /**
      * Active facts of the scopes sharing at least one key, newest first.
      *
      * @param list<string> $scopes

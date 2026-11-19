@@ -104,6 +104,21 @@ final class PostgresMemoryStore implements MemoryStore {
         return $found;
     }
 
+    public function rekey(\Closure $keys): int {
+        $changed = 0;
+        foreach ($this->db->query("SELECT id, text, array_to_json(keys)::text AS keys FROM facts WHERE status = 'active' ORDER BY id") as $row) {
+            /** @var mixed $old */
+            $old = json_decode(self::str($row, 'keys'), true, 4);
+            $new = $keys(self::str($row, 'text'));
+            if ($new === [] || $old === $new) {
+                continue;
+            }
+            $this->db->execute('UPDATE facts SET keys = ?::text[], hrr = ?::vector WHERE id = ?', [$new, self::vector($new), self::int($row, 'id')]);
+            $changed++;
+        }
+        return $changed;
+    }
+
     public function encodeMissing(int $limit): int {
         $done = 0;
         foreach ($this->db->execute('SELECT id, array_to_json(keys)::text AS keys FROM facts WHERE hrr IS NULL ORDER BY id LIMIT ?', [$limit]) as $row) {
