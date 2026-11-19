@@ -863,6 +863,8 @@ if ($a2aServer !== null) {
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
 }
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
+// spec: BRIEF.md#трассировка-и-метрики — the summary counts the memory proposals waiting for the owner
+$dailyDigest->useMemory($memoryStore);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));

@@ -53,6 +53,17 @@ final class DailyDigest {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
 
+    private ?\OpenCCK\Memory\Domain\MemoryStore $memory = null;
+
+    /**
+     * The memory whose waiting proposals the summary counts.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
+     */
+    public function useMemory(\OpenCCK\Memory\Domain\MemoryStore $memory): void {
+        $this->memory = $memory;
+    }
+
     /** Sends the summary of today once, when its time has come and the quiet hours are over. */
     public function tick(): void {
         if ($this->time === null) {
@@ -93,7 +104,8 @@ final class DailyDigest {
             static fn(Job $j): string => sprintf('%s — #%d «%s»', $j->nextRunAt?->setTimezone($zone)->format('H:i') ?? '—', $j->id, $j->title),
             $this->jobs->due($endToday, self::JOBS),
         );
-        if (array_merge(...array_values($groups)) === [] && $jobs === []) {
+        $waiting = $this->waiting($now);
+        if (array_merge(...array_values($groups)) === [] && $jobs === [] && $waiting === null) {
             return null;
         }
         $parts = [sprintf(t('job.daily_digest.svodka_na'), $local->format('Y-m-d'))];
@@ -105,7 +117,28 @@ final class DailyDigest {
         if ($jobs !== []) {
             $parts[] = t('job.daily_digest.zadaniya_segodnya') . implode("\n", $jobs);
         }
+        if ($waiting !== null) {
+            $parts[] = $waiting;
+        }
         return implode("\n\n", $parts);
+    }
+
+    /** "memory: N wait for a decision, the oldest D days"; null — none wait or no memory. */
+    private function waiting(DateTimeImmutable $now): ?string {
+        if ($this->memory === null) {
+            return null;
+        }
+        try {
+            $pending = $this->memory->pending();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Memory proposals were not counted', ['error' => $e::class]);
+            return null;
+        }
+        if ($pending === []) {
+            return null;
+        }
+        $oldest = min(array_map(static fn(\OpenCCK\Memory\Domain\Proposal $p): int => $p->createdAt ?? $now->getTimestamp(), $pending));
+        return sprintf(t('job.daily_digest.memory_waiting'), count($pending), intdiv(max(0, $now->getTimestamp() - $oldest), 86400));
     }
 
     private function zone(): DateTimeZone {

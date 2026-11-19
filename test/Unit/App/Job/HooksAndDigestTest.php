@@ -183,6 +183,21 @@ final class HooksAndDigestTest extends AsyncTestCase {
         );
     }
 
+    public function testTheSummarySaysHowLongMemoryProposalsWait(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
+        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
+        $memory = new \OpenCCK\Test\Support\InMemoryMemoryStore();
+        $memory->propose('add', null, 'owner', 'кот — Барсик', 'сказал', null, null);
+        $memory->propose('add', null, 'owner', 'пёс — Шарик', 'сказал', null, null);
+        $later = new DateTimeImmutable('+3 days');
+        $digest = new DailyDigest(new InMemoryProjectRepository(), $this->jobs, new InMemoryDigestJournal(), $this->scheduler, $this->stack->channel, '42', '09:00', new NullLogger(), static fn(): DateTimeImmutable => $later);
+        self::assertNull($digest->text($later), 'without the memory nothing to say');
+
+        $digest->useMemory($memory);
+
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.daily_digest.memory_waiting'), 2, 3), (string) $digest->text($later));
+    }
+
     public function testTheSummaryWaitsForItsTimeAndTheEndOfQuietHours(): void {
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
         $projects = new InMemoryProjectRepository();

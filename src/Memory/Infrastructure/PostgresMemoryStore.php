@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  */
 final class PostgresMemoryStore implements MemoryStore {
     private const FACT = 'id, scope, category, text, array_to_json(keys)::text AS keys, trust::float8 AS trust, provenance, status, version, extract(epoch FROM updated_at)::bigint AS updated';
-    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person';
+    private const PROPOSAL = 'id, kind, fact_id, scope, text, reason, status, principal_id, run_id, about_person, extract(epoch FROM created_at)::bigint AS created_epoch';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -389,6 +389,7 @@ final class PostgresMemoryStore implements MemoryStore {
             isset($row['principal_id']) ? self::int($row, 'principal_id') : null,
             isset($row['run_id']) ? self::int($row, 'run_id') : null,
             ($row['about_person'] ?? false) === true,
+            isset($row['created_epoch']) && is_int($row['created_epoch']) ? $row['created_epoch'] : null,
         );
     }
 

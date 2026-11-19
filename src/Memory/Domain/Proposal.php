@@ -34,5 +34,7 @@ final class Proposal {
         public readonly ?int $runId,
         /** the fact is about another person: it goes only to the owner's memory, the card says so */
         public readonly bool $aboutPerson = false,
+        /** when it was proposed, unix seconds; null — not known */
+        public readonly ?int $createdAt = null,
     ) {}
 }
