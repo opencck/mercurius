@@ -10,7 +10,7 @@ use OpenCCK\Domain\Agent\ModelRef;
 use SensitiveParameter;
 
 /**
- * Model provider settings (OpenRouter). The route is VLESS when VLESS_URI is set, direct otherwise.
+ * Model provider settings (OpenRouter, the OpenAI API, the Anthropic API). The route is VLESS when VLESS_URI is set, direct otherwise.
  *
  * spec: BRIEF.md#решения — route to the model through VLESS_URI
  */
@@ -21,8 +21,13 @@ final class LlmSettings {
     private const OPENAI_MODEL = 'openai:gpt-6.1-terra';
     private const OPENAI_CHEAP_MODEL = 'openai:gpt-6-luna';
 
+    /** Defaults when only the Anthropic API has a key. */
+    private const ANTHROPIC_MODEL = 'anthropic:claude-sonnet-5-5';
+    private const ANTHROPIC_CHEAP_MODEL = 'anthropic:claude-haiku-5-5';
+
     private readonly ?string $openRouterKey;
     private readonly ?string $openAiKey;
+    private readonly ?string $anthropicKey;
     private readonly ?string $routeUri;
 
     /**
@@ -36,6 +41,7 @@ final class LlmSettings {
     private function __construct(
         #[SensitiveParameter] ?string $openRouterKey,
         #[SensitiveParameter] ?string $openAiKey,
+        #[SensitiveParameter] ?string $anthropicKey,
         #[SensitiveParameter] ?string $routeUri,
         public readonly string $model,
         public readonly string $reasoningEffort,
@@ -46,6 +52,7 @@ final class LlmSettings {
     ) {
         $this->openRouterKey = $openRouterKey;
         $this->openAiKey = $openAiKey;
+        $this->anthropicKey = $anthropicKey;
         $this->routeUri = $routeUri;
     }
 
@@ -57,12 +64,17 @@ final class LlmSettings {
         // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — either key is enough, one of them is needed
         $openRouterKey = Env::raw($env, 'OPENROUTER_API_KEY');
         $openAiKey = Env::raw($env, 'OPENAI_API_KEY');
-        if ($openRouterKey === null && $openAiKey === null) {
-            throw ConfigException::invalid('OPENROUTER_API_KEY', 'set it or OPENAI_API_KEY: the agent needs at least one model provider');
+        $anthropicKey = Env::raw($env, 'ANTHROPIC_API_KEY');
+        if ($openRouterKey === null && $openAiKey === null && $anthropicKey === null) {
+            throw ConfigException::invalid('OPENROUTER_API_KEY', 'set it, OPENAI_API_KEY or ANTHROPIC_API_KEY: the agent needs at least one model provider');
         }
-        $providers = array_keys(array_filter([ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey], static fn(?string $k): bool => $k !== null));
-        $openRouter = $openRouterKey !== null;
-        $model = self::model($env, 'LLM_MODEL', $openRouter ? 'z-ai/glm-5.3-flash' : self::OPENAI_MODEL, $providers);
+        $providers = self::withKeys($openRouterKey, $openAiKey, $anthropicKey);
+        [$defaultModel, $defaultCheap] = match ($providers[0]) {
+            ModelRef::OPENROUTER => ['z-ai/glm-5.3-flash', 'openai/gpt-5.6-luna'],
+            ModelRef::OPENAI => [self::OPENAI_MODEL, self::OPENAI_CHEAP_MODEL],
+            default => [self::ANTHROPIC_MODEL, self::ANTHROPIC_CHEAP_MODEL],
+        };
+        $model = self::model($env, 'LLM_MODEL', $defaultModel, $providers);
         $window = Env::positiveInt($env, 'LLM_CONTEXT_WINDOW', 131_072, 10_000_000);
         if ($window < 4096) {
             throw ConfigException::invalid('LLM_CONTEXT_WINDOW', 'at least 4096 tokens');
@@ -71,13 +83,14 @@ final class LlmSettings {
         return new self(
             openRouterKey: $openRouterKey,
             openAiKey: $openAiKey,
+            anthropicKey: $anthropicKey,
             routeUri: Env::raw($env, 'VLESS_URI'),
             model: $model,
             reasoningEffort: self::effort(Env::oneOf($env, 'LLM_REASONING_EFFORT', self::EFFORTS, 'low')),
             maxTokens: Env::positiveInt($env, 'LLM_MAX_TOKENS', 4096, 200_000),
             historyLimit: Env::positiveInt($env, 'LLM_HISTORY_LIMIT', 40, 1000),
             contextWindow: $window,
-            cheapModel: self::model($env, 'LLM_CHEAP_MODEL', $openRouter ? 'openai/gpt-5.6-luna' : self::OPENAI_CHEAP_MODEL, $providers),
+            cheapModel: self::model($env, 'LLM_CHEAP_MODEL', $defaultCheap, $providers),
         );
     }
 
@@ -125,9 +138,21 @@ final class LlmSettings {
         return $this->openAiKey;
     }
 
+    public function anthropicKey(): ?string {
+        return $this->anthropicKey;
+    }
+
     /** @return list<string> providers with a key, OpenRouter first */
     public function providers(): array {
-        return array_keys(array_filter([ModelRef::OPENROUTER => $this->openRouterKey, ModelRef::OPENAI => $this->openAiKey], static fn(?string $k): bool => $k !== null));
+        return self::withKeys($this->openRouterKey, $this->openAiKey, $this->anthropicKey);
+    }
+
+    /** @return list<string> */
+    private static function withKeys(?string $openRouterKey, ?string $openAiKey, ?string $anthropicKey): array {
+        return array_keys(array_filter(
+            [ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey, ModelRef::ANTHROPIC => $anthropicKey],
+            static fn(?string $k): bool => $k !== null,
+        ));
     }
 
     /** Outbound route for model requests; null means direct. */
@@ -140,6 +165,7 @@ final class LlmSettings {
         return [
             'openRouterKey' => $this->openRouterKey === null ? null : '***',
             'openAiKey' => $this->openAiKey === null ? null : '***',
+            'anthropicKey' => $this->anthropicKey === null ? null : '***',
             'route' => $this->routeUri === null ? 'direct' : 'vless',
             'model' => $this->model,
             'reasoningEffort' => $this->reasoningEffort,

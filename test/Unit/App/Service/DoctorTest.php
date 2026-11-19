@@ -46,7 +46,7 @@ final class DoctorTest extends AsyncTestCase {
         ]);
 
         foreach ([
-            '❌ Токен бота', '❌ Владелец', '❌ Модели: нужен OPENROUTER_API_KEY или OPENAI_API_KEY',
+            '❌ Токен бота', '❌ Владелец', '❌ Модели: нужен OPENROUTER_API_KEY, OPENAI_API_KEY или ANTHROPIC_API_KEY',
             '❌ Хранилище секретов: SECRETS_KEY — 32 байта', '❌ Telegram: APP_URL задан, а TELEGRAM_WEBHOOK_SECRET пуст',
             '❌ Часовой пояс: OWNER_TIMEZONE не распознан', '⚠️ Тихие часы', '⚠️ Сводка',
         ] as $line) {

@@ -262,7 +262,7 @@ try {
     exit(78); // EX_CONFIG
 }
 
-// Models: one client per provider with a key, chosen by the model's prefix; both go through VLESS when VLESS_URI is set.
+// Models: one client per provider with a key, chosen by the model's prefix; all go through VLESS when VLESS_URI is set.
 // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
 $modelHttp = HttpClients::create($llmSettings->routeUri(), $logger);
 $onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logger->warning(
@@ -284,6 +284,12 @@ if ($openAiKey !== null) {
     $clients[ModelRef::OPENAI] = new RetryingClient(new OpenAIClient($modelHttp, $openAiKey), onRetry: $onRetry);
     // The OpenAI list has ids only: the public OpenRouter catalog describes them.
     $catalogSources[ModelRef::OPENAI] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
+}
+$anthropicKey = $llmSettings->anthropicKey();
+if ($anthropicKey !== null) {
+    $clients[ModelRef::ANTHROPIC] = new RetryingClient(new \Mercurius\Llm\Anthropic\AnthropicClient($modelHttp, $anthropicKey), onRetry: $onRetry);
+    // The Anthropic list has ids and names only: the public OpenRouter catalog describes them.
+    $catalogSources[ModelRef::ANTHROPIC] = (new \Mercurius\Llm\ModelCatalog\AnthropicCatalog($modelHttp, $anthropicKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
 }
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);

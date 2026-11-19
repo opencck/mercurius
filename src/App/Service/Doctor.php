@@ -62,8 +62,12 @@ final class Doctor {
         $out[] = ctype_digit((string) $raw('TELEGRAM_ADMIN_ID'))
             ? [self::OK, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_zadan')]
             : [self::FAIL, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_chislovoy_id')];
-        $out[] = $raw('OPENROUTER_API_KEY') !== null || $raw('OPENAI_API_KEY') !== null
-            ? [self::OK, t('service.doctor.modeli'), $raw('OPENROUTER_API_KEY') !== null ? t('service.doctor.klyuch_openrouter_zadan') : t('service.doctor.klyuch_openai_zadan')]
+        $out[] = $raw('OPENROUTER_API_KEY') !== null || $raw('OPENAI_API_KEY') !== null || $raw('ANTHROPIC_API_KEY') !== null
+            ? [self::OK, t('service.doctor.modeli'), match (true) {
+                $raw('OPENROUTER_API_KEY') !== null => t('service.doctor.klyuch_openrouter_zadan'),
+                $raw('OPENAI_API_KEY') !== null => t('service.doctor.klyuch_openai_zadan'),
+                default => t('service.doctor.klyuch_anthropic_zadan'),
+            }]
             : [self::FAIL, t('service.doctor.modeli'), t('service.doctor.nuzhen_openrouter_api_key_ili')];
         $key = $raw('SECRETS_KEY');
         $out[] = match (true) {

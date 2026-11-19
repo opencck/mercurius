@@ -101,6 +101,20 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('z-ai/glm-5.3-flash', $both->model);
     }
 
+    public function testAnAnthropicKeyAloneIsEnough(): void {
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        $anthropic = LlmSettings::fromEnv(['ANTHROPIC_API_KEY' => 'sk-ant-secret']);
+        $all = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'OPENAI_API_KEY' => 'sk-proj', 'ANTHROPIC_API_KEY' => 'sk-ant', 'LLM_MODEL' => 'anthropic:claude-opus-5-5']);
+
+        self::assertSame(['anthropic'], $anthropic->providers());
+        self::assertSame('sk-ant-secret', $anthropic->anthropicKey());
+        self::assertSame('anthropic:claude-sonnet-5-5', $anthropic->model, 'only Anthropic: a Claude model by default');
+        self::assertSame('anthropic:claude-haiku-5-5', $anthropic->cheapModel);
+        self::assertStringNotContainsString('sk-ant-secret', print_r($anthropic, true));
+        self::assertSame(['openrouter', 'openai', 'anthropic'], $all->providers());
+        self::assertSame('anthropic:claude-opus-5-5', $all->model);
+    }
+
     public function testSomeProviderKeyIsNeeded(): void {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('OPENAI_API_KEY');

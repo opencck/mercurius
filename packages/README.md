@@ -8,11 +8,11 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `832c2ef` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter и OpenAI |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `7d1af68` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI и Anthropic |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `efdba72` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `962faa0` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `792cd92` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
 
@@ -47,6 +47,16 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 
 - `mercurius-i18n` `962faa0`: описание `set_model_role` — новая модель действует и для открытых бесед роли со следующего
   запуска; ответ называет число переведённых бесед.
+
+### 2026-11-19 — llm: провайдер Anthropic
+
+- `mercurius-llm` `7a16bdf`: `Anthropic\AnthropicClient` — Messages API на HTTP-клиенте AMPHP (`x-api-key`,
+  `anthropic-version: 2026-10-21`, усилие в `output_config.effort`, без температуры, слияние реплик одной роли,
+  картинки base64, разбор потока); `HttpTransport` принимает дополнительные заголовки.
+- `mercurius-llm` `7d1af68`: `ModelCatalog\AnthropicCatalog` — модели ключа, описанные каталогом OpenRouter (версии
+  через точку, идентификатор с датой — без даты).
+- `mercurius-i18n` `792cd92`: тексты `settings.about.anthropic_api_key`, `service.doctor.klyuch_anthropic_zadan`, проверка
+  ключей в `doctor` называет `ANTHROPIC_API_KEY`.
 
 ### 2026-11-19 — llm: изображения и видео в сообщении
 
