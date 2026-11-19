@@ -47,6 +47,24 @@ final class WebToolsTest extends AsyncTestCase {
         self::assertSame("Имя\tСумма\nАнна\t42", $text);
     }
 
+    public function testALongPageIsReadInWindowsFromOneDownload(): void {
+        // spec: BRIEF.md#интернет-и-браузер — offset in web_read and a cache of read pages
+        $long = '<html><body><main><p>' . str_repeat('а', 20_000) . '</p><p>КОНЕЦ</p></main></body></html>';
+        $http = new FakeHttpClient(['https://example.com/long' => [200, ['content-type' => 'text/html'], $long]]);
+        $tool = new WebReadTool($http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), new TextExtractor());
+        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
+
+        $first = $tool->execute(['url' => 'https://example.com/long'], $context);
+        self::assertStringNotContainsString('КОНЕЦ', $first->content);
+        self::assertStringContainsString('offset=15000', $first->content, 'where to go on');
+
+        $second = $tool->execute(['url' => 'https://example.com/long', 'offset' => 15000], $context);
+        self::assertStringContainsString('КОНЕЦ', $second->content);
+        self::assertStringNotContainsString('offset=30000', $second->content, 'the end: nothing more');
+        self::assertCount(1, $http->requested, 'the page was downloaded once');
+        self::assertTrue($tool->execute(['url' => 'https://example.com/long', 'offset' => 90000], $context)->isError, 'past the end');
+    }
+
     public function testRedirectsAreFollowedAndCheckedAgainEachTime(): void {
         $http = new FakeHttpClient([
             'https://site.example/a' => [302, ['location' => '/b'], ''],

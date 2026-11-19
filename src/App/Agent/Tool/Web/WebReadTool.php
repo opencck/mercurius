@@ -30,6 +30,24 @@ final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
     public const NAME = 'web_read';
     private const MAX_REDIRECTS = 5;
     private const MAX_BYTES = 5_242_880;
+    /**
+     * Characters of a page in one answer; the rest by offset.
+     *
+     * ref: references/hermes-agent/tools/web_tools.py@e96221fa:L399-L443 — web_extract gives 15000 characters a page
+     *      and stores the full text on disk; here the next window is read by offset from the cached page
+     */
+    public const WINDOW = 15_000;
+    /**
+     * How long a read page is kept for its next windows, and how many pages.
+     *
+     * ref: references/hermes-agent/tools/web_result_cache.py@e96221fa:L1-L2, L27 (DEFAULT_TTL_MINUTES) — 20 minutes,
+     *      only a successful answer is kept
+     */
+    private const CACHE_SECONDS = 1200;
+    private const CACHE_PAGES = 32;
+
+    /** @var array<string, array{int, string, int, string, string}> url => expires, final url, status, title, text */
+    private array $cache = [];
 
     public function __construct(
         private readonly DelegateHttpClient $http,
@@ -45,6 +63,7 @@ final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
             'type' => 'object',
             'properties' => [
                 'url' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 2048],
+                'offset' => ['type' => 'integer', 'minimum' => 0, 'description' => t('tool.web_read.offset')],
             ],
             'required' => ['url'],
             'additionalProperties' => false,
@@ -89,7 +108,14 @@ final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $url = Args::string($args, 'url') ?? '';
+        $offset = max(0, Args::int($args, 'offset') ?? 0);
         $permitted = $context->approved ? $this->internalHost($args) : null;
+        // spec: BRIEF.md#интернет-и-браузер — a public page read lately is read on from memory; an internal one the owner
+        //       allowed is fetched again each time
+        $cached = $permitted === null ? ($this->cache[$url] ?? null) : null;
+        if ($cached !== null && $cached[0] > time()) {
+            return self::window($cached[1], $cached[2], $cached[3], $cached[4], $offset);
+        }
         $guard = $permitted === null ? $this->guard : $this->guard->permitting($permitted);
         $http = $permitted === null || $this->clientFor === null ? $this->http : ($this->clientFor)($guard);
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
@@ -115,8 +141,37 @@ final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
             }
             $body = $response->getBody()->buffer($context->cancellation);
             [$title, $text] = $this->extractor->extract($body, $response->getHeader('content-type') ?? '', $url);
-            return ToolResult::ok(sprintf("%s\nHTTP %d%s\n\n%s", $url, $response->getStatus(), $title === '' ? '' : t('tool.web_read.zagolovok') . $title, $text));
+            if ($permitted === null && $response->getStatus() === 200) {
+                $this->keep(Args::string($args, 'url') ?? '', [time() + self::CACHE_SECONDS, $url, $response->getStatus(), $title, $text]);
+            }
+            return self::window($url, $response->getStatus(), $title, $text, $offset);
         }
         return ToolResult::error(sprintf(t('tool.web_read.slishkom_mnogo_perenapravleniy_bolshe'), self::MAX_REDIRECTS));
+    }
+
+    /** One window of the page's text from $offset, and where the next one starts. */
+    private static function window(string $url, int $status, string $title, string $text, int $offset): ToolResult {
+        $length = mb_strlen($text);
+        if ($offset > 0 && $offset >= $length) {
+            return ToolResult::error(sprintf(t('tool.web_read.past_end'), $length));
+        }
+        $part = mb_substr($text, $offset, self::WINDOW);
+        $next = $offset + self::WINDOW;
+        $head = sprintf("%s\nHTTP %d%s", $url, $status, $title === '' ? '' : t('tool.web_read.zagolovok') . $title);
+        if ($length > self::WINDOW) {
+            $head .= "\n" . sprintf(t('tool.web_read.window'), $offset + 1, min($length, $next), $length);
+        }
+        return ToolResult::ok($head . "\n\n" . $part . ($next < $length ? "\n\n" . sprintf(t('tool.web_read.more'), $length - $next, $next) : ''));
+    }
+
+    /** @param array{int, string, int, string, string} $page */
+    private function keep(string $url, array $page): void {
+        unset($this->cache[$url]);
+        $this->cache[$url] = $page;
+        $now = time();
+        $this->cache = array_filter($this->cache, static fn(array $p): bool => $p[0] > $now);
+        while (count($this->cache) > self::CACHE_PAGES) {
+            array_shift($this->cache);
+        }
     }
 }
