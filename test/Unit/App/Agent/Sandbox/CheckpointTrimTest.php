@@ -32,7 +32,8 @@ final class CheckpointTrimTest extends TestCase {
             self::markTestSkipped('no git');
         }
         $g = Checkpoints::GIT;
-        $this->sh("git init -q --bare --template= .checkpoints");
+        // as the store is made in use: the store itself is never part of a snapshot
+        $this->sh("git init -q --bare --template= .checkpoints && mkdir -p .checkpoints/info && printf '.checkpoints/\n' > .checkpoints/info/exclude");
         for ($i = 1; $i <= 25; $i++) {
             $date = sprintf('2026-11-%02dT10:00:00+00:00', $i);
             $this->sh("echo $i > f && $g add -A && GIT_AUTHOR_DATE=$date GIT_COMMITTER_DATE=$date $g -c user.name=m -c user.email=m@m commit -q -m 'snap $i'");
