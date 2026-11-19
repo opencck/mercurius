@@ -218,10 +218,15 @@ final class InMemoryMemoryStore implements MemoryStore {
         $this->coreTexts[$section] = $text;
     }
 
-    public function markRecalled(int $conversationId, array $factIds): void {
+    public function markRecalled(int $conversationId, array $factIds, array $versions = []): void {
         foreach ($factIds as $id) {
             $this->recalls[] = [$conversationId, $id];
         }
+    }
+
+    /** Runs are not known here: the database ties a recall to its run. */
+    public function receipt(int $runId): array {
+        return [];
     }
 
     public function recalled(int $conversationId, int $window): array {

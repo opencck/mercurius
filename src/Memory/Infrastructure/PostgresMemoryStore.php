@@ -326,10 +326,19 @@ final class PostgresMemoryStore implements MemoryStore {
         }
     }
 
-    public function markRecalled(int $conversationId, array $factIds): void {
+    public function markRecalled(int $conversationId, array $factIds, array $versions = []): void {
         foreach ($factIds as $id) {
-            $this->db->execute('INSERT INTO memory_recalls (conversation_id, fact_id) VALUES (?, ?)', [$conversationId, $id]);
+            $this->db->execute('INSERT INTO memory_recalls (conversation_id, fact_id, version) VALUES (?, ?, ?)', [$conversationId, $id, $versions[$id] ?? null]);
         }
+    }
+
+    public function receipt(int $runId): array {
+        $rows = [];
+        foreach ($this->db->execute('SELECT fact_id, version FROM memory_recalls WHERE run_id = ? ORDER BY id', [$runId]) as $row) {
+            $version = $row['version'] ?? null;
+            $rows[] = ['fact' => self::int($row, 'fact_id'), 'version' => is_int($version) ? $version : null];
+        }
+        return $rows;
     }
 
     public function recalled(int $conversationId, int $window): array {

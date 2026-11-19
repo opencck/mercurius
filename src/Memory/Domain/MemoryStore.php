@@ -124,8 +124,20 @@ interface MemoryStore {
 
     public function setCore(string $section, string $text): void;
 
-    /** @param list<int> $factIds */
-    public function markRecalled(int $conversationId, array $factIds): void;
+    /**
+     * @param list<int> $factIds
+     * @param array<int, int> $versions fact id => the version given; a fact not in it — version not kept
+     */
+    public function markRecalled(int $conversationId, array $factIds, array $versions = []): void;
+
+    /**
+     * The receipt of recall of a run: the facts it was given and their versions, in order.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики
+     *
+     * @return list<array{fact: int, version: ?int}>
+     */
+    public function receipt(int $runId): array;
 
     /** @return list<int> facts given in the conversation among its last $window recalls */
     public function recalled(int $conversationId, int $window): array;

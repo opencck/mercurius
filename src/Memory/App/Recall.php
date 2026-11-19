@@ -124,7 +124,12 @@ final class Recall {
             $found[] = $fact;
         }
         if ($conversationId !== null && $found !== []) {
-            $this->store->markRecalled($conversationId, array_map(static fn(Fact $f): int => $f->id, $found));
+            // spec: BRIEF.md#трассировка-и-метрики — the version given goes into the receipt of recall
+            $versions = [];
+            foreach ($found as $fact) {
+                $versions[$fact->id] = $fact->version;
+            }
+            $this->store->markRecalled($conversationId, array_map(static fn(Fact $f): int => $f->id, $found), $versions);
         }
         return $found;
     }
