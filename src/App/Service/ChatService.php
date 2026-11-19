@@ -81,6 +81,13 @@ final class ChatService implements MessageHandler {
         $this->improvements = $improvements;
     }
 
+    /** the owner passes ownership on: /owner <number> */
+    private ?OwnershipTransfer $ownership = null;
+
+    public function useOwnership(OwnershipTransfer $ownership): void {
+        $this->ownership = $ownership;
+    }
+
     /** The run that wrote the agent's message this one answers; null when it is not known. */
     private function runOfReply(IncomingMessage $message): ?int {
         $replied = MessageMeta::repliedToAgent($message, $this->botId);
@@ -208,6 +215,18 @@ final class ChatService implements MessageHandler {
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
                 default => $this->peers->handle($principal, $command === '/peers' ? '' : substr($text, strlen($command))),
             });
+            return;
+        }
+        if ($command === '/owner' && $this->ownership !== null) {
+            // spec: BRIEF.md#несколько-пользователей — only the owner, only in the private chat, always by a card
+            $answer = match (true) {
+                !$principal->isOwner() => t(self::OWNER_ONLY),
+                !$message->isPrivateChat => t(self::PRIVATE_ONLY),
+                default => $this->ownership->ask($principal, $message->chatId, trim(substr($text, strlen($command)))),
+            };
+            if ($answer !== null) {
+                $this->reply($message, $answer);
+            }
             return;
         }
         if ($command === '/proposals' && $this->improvements !== null) {
