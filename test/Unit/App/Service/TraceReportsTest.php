@@ -109,6 +109,42 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.orchestrator_share'), '25%', '30 000', '90 000'), $delegation);
     }
 
+    public function testRunsTakeACountAndAStatus(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — /runs <count> <status>
+        $this->stack->say('/runs 3 failed');
+        $this->lastText();
+
+        self::assertSame([3, 'failed'], [$this->figures->runsAsked[0] ?? null, $this->figures->runsAsked[1] ?? null]);
+
+        $this->stack->say('/runs 500');
+        $this->lastText();
+        self::assertSame([50, null], $this->figures->runsAsked, 'at most 50');
+    }
+
+    public function testAStepGivesItsPromptAndAnswerAsAFile(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — /trace <run> <step>: the payload of the step
+        $run = $this->traces->openRun(42, 'openrouter:x/model');
+        $this->traces->record(new TraceSpan(42, $run, TraceSpan::TOOL, 'web_read', new DateTimeImmutable(), 300, TraceSpan::OK));
+        $model = $this->traces->record(new TraceSpan(42, $run, TraceSpan::MODEL, 'openrouter:x/model', new DateTimeImmutable(), 1200, TraceSpan::OK));
+        $this->traces->payload($model, ['messages' => [['role' => 'user', 'content' => 'вопрос']]], ['text' => 'ответ']);
+        $this->traces->closeRun(42, TraceSpan::OK, 1600, null);
+
+        $this->stack->say('/trace 42');
+        $trace = $this->lastText();
+        $this->stack->say('/trace 42 2');
+        $file = array_slice($this->stack->channel->files, -1)[0] ?? null;
+        $this->stack->say('/trace 42 1');
+        $none = $this->lastText();
+
+        self::assertStringContainsString('1. tool web_read', $trace, 'the steps are numbered');
+        self::assertStringContainsString('2. model openrouter:x/model', $trace);
+        self::assertNotNull($file);
+        self::assertSame('trace-42-2.json', $file[1]);
+        self::assertStringContainsString('вопрос', $file[2]);
+        self::assertStringContainsString('ответ', $file[2]);
+        self::assertSame(\Mercurius\I18n\t('service.trace_reports.no_payload'), $none);
+    }
+
     public function testRunsListsTheLatest(): void {
         $this->stack->say('/runs');
 

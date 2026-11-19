@@ -101,7 +101,11 @@ final class FakeTraceReports implements TraceReportRepository {
         return $this->decisions[$runId] ?? [];
     }
 
-    public function recentRuns(int $limit): array {
+    /** @var array{0?: int, 1?: ?string} the count and status /runs asked for */
+    public array $runsAsked = [];
+
+    public function recentRuns(int $limit, ?string $status = null): array {
+        $this->runsAsked = [$limit, $status];
         return array_slice($this->runs, 0, $limit);
     }
 }

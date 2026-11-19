@@ -130,8 +130,15 @@ final class TraceReports {
         };
     }
 
-    public function runs(int $limit = 10): string {
-        $rows = $this->figures->recentRuns($limit);
+    public const RUN_STATUSES = ['running', 'waiting_approval', 'done', 'failed', 'stopped'];
+
+    /**
+     * The latest top-level runs, of a status if one is named.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /runs <count> <status>
+     */
+    public function runs(int $limit = 10, ?string $status = null): string {
+        $rows = $this->figures->recentRuns(max(1, min(50, $limit)), $status !== null && in_array($status, self::RUN_STATUSES, true) ? $status : null);
         if ($rows === []) {
             return t('service.trace_reports.zapuskov_esche_ne_bylo');
         }
@@ -217,11 +224,16 @@ final class TraceReports {
         }
         $lines = [];
         $cost = 0.0;
+        $number = 0;
         foreach ($spans as $span) {
             $cost += $span->costUsd ?? 0.0;
+            if ($span->kind !== TraceSpan::RUN) {
+                // spec: BRIEF.md#трассировка-и-метрики — numbered, so /trace <run> <step> can name one
+                $number++;
+            }
             // spec: BRIEF.md#трассировка-и-метрики — nested traces: a worker's steps under its step, its spend in the sum
             if ($span->kind === TraceSpan::WORKER) {
-                $lines[] = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0))
+                $lines[] = $number . '. ' . sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0))
                     . (isset($span->attrs['model']) && is_string($span->attrs['model']) ? ', ' . $span->attrs['model'] : '');
                 $child = isset($span->attrs['run']) && is_int($span->attrs['run']) ? $span->attrs['run'] : null;
                 foreach ($child === null ? [] : $this->traces->spans($child) as $step) {
@@ -239,7 +251,7 @@ final class TraceReports {
                 array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), ...$why, ...['']);
                 continue;
             }
-            $lines[] = self::step($span);
+            $lines[] = $number . '. ' . self::step($span);
         }
         // spec: BRIEF.md#сеть-агентов — the spend of the neighbours in the same unit as the own steps
         foreach ($this->peers?->outgoingOfRun($runId) ?? [] as $remote) {
@@ -249,6 +261,31 @@ final class TraceReports {
         $lines[] = '';
         $lines[] = t('service.trace_reports.stoimost_shagov') . self::usd($cost);
         return implode("\n", $lines);
+    }
+
+    /**
+     * The full prompt and answer of a numbered step of a run, as JSON; null — there is no such step. A step without
+     * them (a tool, or a payload past its keeping time) says so.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /trace <run> <step>
+     *
+     * @return array{json: ?string, note: ?string}|null
+     */
+    public function payload(int $runId, int $step): ?array {
+        if ($this->hiddenRun !== null && ($this->hiddenRun)($runId)) {
+            return null;
+        }
+        $steps = array_values(array_filter($this->traces->spans($runId), static fn(TraceSpan $s): bool => $s->kind !== TraceSpan::RUN));
+        $span = $steps[$step - 1] ?? null;
+        if ($span === null) {
+            return null;
+        }
+        $payload = $span->id === null ? null : $this->traces->payloadOf($span->id);
+        if ($payload === null) {
+            return ['json' => null, 'note' => t('service.trace_reports.no_payload')];
+        }
+        $json = json_encode(['step' => $step, 'kind' => $span->kind, 'name' => $span->name, ...$payload], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        return $json === false ? ['json' => null, 'note' => t('service.trace_reports.no_payload')] : ['json' => $json, 'note' => null];
     }
 
     /** One step: kind, name, status, time, tokens, cost and error. */

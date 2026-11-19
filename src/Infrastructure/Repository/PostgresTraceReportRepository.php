@@ -135,15 +135,15 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         return $found;
     }
 
-    public function recentRuns(int $limit): array {
+    public function recentRuns(int $limit, ?string $status = null): array {
         $rows = [];
         foreach ($this->db->execute(
             "SELECT r.id, r.status, r.stop_reason, r.model, r.turns, r.tokens_used AS tokens, r.active_ms::int AS active_ms,
                     to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS started,
                     coalesce((SELECT sum(cost_usd) FROM llm_calls c
                               WHERE c.run_id IN (SELECT r.id UNION ALL SELECT w.id FROM runs w WHERE w.parent_run_id = r.id)), 0)::float8 AS cost
-             FROM runs r WHERE r.parent_run_id IS NULL ORDER BY r.id DESC LIMIT ?",
-            [$limit],
+             FROM runs r WHERE r.parent_run_id IS NULL AND (?::text IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT ?",
+            [$status, $status, $limit],
         ) as $row) {
             $reason = $row['stop_reason'] ?? null;
             $rows[] = [

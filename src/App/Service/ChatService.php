@@ -419,9 +419,25 @@ final class ChatService implements MessageHandler {
             $this->reply($message, t(self::PRIVATE_ONLY));
             return;
         }
+        $words = preg_split('/\s+/', trim($argument)) ?: [];
+        // spec: BRIEF.md#трассировка-и-метрики — /trace <run> <step>: the step's prompt and answer as a file
+        if ($command === '/trace' && count($words) === 2 && ctype_digit($words[0]) && ctype_digit($words[1])) {
+            $run = (int) $words[0];
+            $visible = $principal->isOwner() || $this->runVisible === null || ($this->runVisible)($run, $principal);
+            $payload = $visible ? $this->reports->payload($run, (int) $words[1]) : null;
+            if ($payload !== null && $payload['json'] !== null) {
+                $this->channel->sendFile($message->chatId, sprintf('trace-%d-%d.json', $run, (int) $words[1]), $payload['json'], t('service.chat.otchet_tselikom'));
+                return;
+            }
+            $this->reply($message, $payload['note'] ?? \Mercurius\I18n\t(TraceReports::NO_RUN));
+            return;
+        }
         $text = match ($command) {
             '/usage' => $this->reports->usage(ctype_digit($argument) ? (int) $argument : 7),
-            '/runs' => $this->reports->runs(),
+            '/runs' => $this->reports->runs(
+                isset($words[0]) && ctype_digit($words[0]) ? (int) $words[0] : 10,
+                isset($words[0]) && !ctype_digit($words[0]) ? $words[0] : ($words[1] ?? null),
+            ),
             '/delegation' => $this->reports->delegation(ctype_digit($argument) ? (int) $argument : 14),
             // the trace of a run in another one's private chat is the owner's to see
             default => ctype_digit($argument) && ($principal->isOwner() || $this->runVisible === null || ($this->runVisible)((int) $argument, $principal)) ? $this->reports->trace((int) $argument) : null,
