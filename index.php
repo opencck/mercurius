@@ -710,6 +710,33 @@ $skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
     $logger,
 );
 $scheduler->useSkills($skillLibrary);
+// spec: BRIEF.md#скиллы-и-mcp — skills of the old layout move to .mercurius/skills at start, the old folder kept
+if ($sandbox !== null) {
+    \Amp\async(static function () use ($sandbox, $principals, $policies, $skillProjects, $ownerDirectory, $logger): void {
+        $limitsOf = static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principals->find($id);
+            return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+        };
+        try {
+            $people = array_values(array_map(
+                static fn(Principal $p): int => $p->id,
+                array_filter($principals->all(), static fn(Principal $p): bool => $p->role->may(\OpenCCK\Domain\Entity\Power::Skills)),
+            ));
+            $owner = $ownerDirectory->principal()?->id;
+            $projects = [];
+            foreach ($skillProjects->all(1000) as $project) {
+                $holder = $project->ownerId ?? $owner;
+                if ($holder !== null) {
+                    $projects[] = [$project->id, $holder];
+                }
+            }
+            $moved = (new \OpenCCK\App\Skill\SkillFolders($sandbox, $limitsOf, null, $logger))->migrate($people, $projects);
+            $logger->info('Skill folders checked', ['moved' => $moved]);
+        } catch (Throwable $e) {
+            $logger->warning('Skill folders were not checked', ['error' => $e::class]);
+        }
+    })->ignore();
+}
 // spec: BRIEF.md#скиллы-и-mcp — a project named by the agent (a private chat about it), else the conversation's active one
 $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $skillProjects): ?\OpenCCK\Domain\Project\Project {
     if ($name !== null && trim($name) !== '') {

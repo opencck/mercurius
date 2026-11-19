@@ -21,8 +21,8 @@ use function Mercurius\I18n\t;
 /**
  * Where the agent's skills are: all are ordinary directories with a SKILL.md and files next to it, in three places —
  * - built-in: `skills/<name>/` of the code (submodules), the same everywhere, read-only;
- * - the participant's: `skills/<name>/` in their sandbox folder — for their private chat with the agent;
- * - the project's: `projects/<number>/skills/<name>/` in the sandbox folder of the project's owner — for every chat
+ * - the participant's: `.mercurius/skills/<name>/` in their sandbox folder — for their private chat with the agent;
+ * - the project's: `projects/<number>/.mercurius/skills/<name>/` in the sandbox folder of the project's owner — for every chat
  *   and forum topic the project is active in.
  * They add up; the same name in a nearer place wins (project → participant → built-in), like the tiers of hermes
  * (references/hermes-agent/agent/skill_utils.py@e96221fa:L400-L423, get_skill_search_roots: project > local > …). A skill moves between places as
@@ -31,7 +31,10 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#скиллы-и-mcp — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillLibrary {
-    public const MINE = 'skills';
+    /** spec: BRIEF.md#скиллы-и-mcp — the layout of skills (owner's decision В14) */
+    public const MINE = '.mercurius/skills';
+    /** where the participant's skills were before 2026-11-19; SkillFolders moves them */
+    public const LEGACY_MINE = 'skills';
     /** skills read from one folder; more are left out of the index */
     private const PER_PLACE = 40;
 
@@ -50,7 +53,7 @@ final class SkillLibrary {
 
     /** The folder of a project's skills, in the sandbox of the project's owner. */
     public static function projectDir(Project $project): string {
-        return 'projects/' . $project->id . '/skills';
+        return 'projects/' . $project->id . '/' . self::MINE;
     }
 
     /**
