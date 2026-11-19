@@ -10,7 +10,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\ParseMode;
 use Mercurius\Messenger\SendResult;
 
-final class FakeChannel implements Channel {
+final class FakeChannel implements Channel, \Mercurius\Messenger\ForumChannel, \Mercurius\Messenger\PollChannel, \Mercurius\Messenger\ContactChannel, \Mercurius\Messenger\LocationChannel {
     /** @var list<array{string, string, string}> [action, chatId or messageId, text] */
     public array $log = [];
     /** @var list<array{string, string, ParseMode}> [action, text, parse mode] */
@@ -18,7 +18,7 @@ final class FakeChannel implements Channel {
     private int $nextId = 100;
 
     /** @param positive-int $maxLength */
-    public function __construct(private readonly int $maxLength = 4096, private readonly bool $sendFails = false) {}
+    public function __construct(private readonly int $maxLength = 4096, private readonly bool $sendFails = false, private readonly bool $canEdit = true) {}
 
     public function name(): string {
         return 'telegram';
@@ -89,7 +89,7 @@ final class FakeChannel implements Channel {
     }
 
     public function capabilities(): Capabilities {
-        return new Capabilities(true, $this->maxLength, false);
+        return new Capabilities($this->canEdit, $this->maxLength, true);
     }
 
     /** Whether the link preview was off for the first sent message that contains $needle. */

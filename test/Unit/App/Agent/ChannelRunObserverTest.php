@@ -31,6 +31,21 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         return new Run(1, 1, 1, null, 'm', RunStatus::Done, StopReason::Answered, new RunLimits(30, 1000, 900, 120));
     }
 
+    public function testAChannelWithoutEditsGetsOnlyWhatIsFinal(): void {
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — the core reads what a channel can do: no edits, no status message
+        $channel = new FakeChannel(canEdit: false);
+        $observer = $this->observer($channel);
+        $observer->start();
+
+        $observer->textDelta(self::finishedRun(), 'Сейчас посмотрю.');
+        $observer->commentary(self::finishedRun(), 'Сейчас посмотрю.');
+        $observer->toolStarted(self::finishedRun(), 'spending', '{}');
+        $observer->finished(self::finishedRun(), 'Токены: 9012.', StopReason::Answered);
+
+        self::assertSame([['send', '42', 'Сейчас посмотрю.'], ['send', '42', 'Токены: 9012.']], array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'send')));
+        self::assertSame([], array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'edit')));
+    }
+
     public function testCommentaryStaysAsItsOwnMessageAndTheRunGoesOnBelow(): void {
         $channel = new FakeChannel();
         $observer = $this->observer($channel);

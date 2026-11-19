@@ -6,6 +6,9 @@ namespace OpenCCK\App\Agent\Tool\Messaging;
 
 use Mercurius\Llm\ToolDefinition;
 use Mercurius\Messenger\Channel;
+use Mercurius\Messenger\ContactChannel;
+use Mercurius\Messenger\LocationChannel;
+use Mercurius\Messenger\PollChannel;
 use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\ParseMode;
 use OpenCCK\App\Agent\Tool\Args;
@@ -106,7 +109,7 @@ final class SendContentTool implements Tool, GrantKeyed {
         if ($lat === null || $lon === null || abs($lat) > 90 || abs($lon) > 180) {
             return t('tool.send_content.bad_location');
         }
-        return $this->channel->sendLocation($chat, $lat, $lon, $thread);
+        return $this->channel instanceof LocationChannel ? $this->channel->sendLocation($chat, $lat, $lon, $thread) : t('tool.send_content.unsupported');
     }
 
     /** @param array<string, mixed> $args */
@@ -117,7 +120,7 @@ final class SendContentTool implements Tool, GrantKeyed {
             return t('tool.send_content.bad_contact');
         }
         $last = trim(Args::string($args, 'last_name') ?? '');
-        return $this->channel->sendContact($chat, $phone, $first, $last === '' ? null : $last, $thread);
+        return $this->channel instanceof ContactChannel ? $this->channel->sendContact($chat, $phone, $first, $last === '' ? null : $last, $thread) : t('tool.send_content.unsupported');
     }
 
     /** @param array<string, mixed> $args */
@@ -129,7 +132,7 @@ final class SendContentTool implements Tool, GrantKeyed {
         if ($question === '' || count($options) < 2 || count($options) > 10) {
             return t('tool.send_content.bad_poll');
         }
-        return $this->channel->sendPoll($chat, $question, $options, ($args['anonymous'] ?? true) !== false, ($args['multiple'] ?? false) === true, $thread);
+        return $this->channel instanceof PollChannel ? $this->channel->sendPoll($chat, $question, $options, ($args['anonymous'] ?? true) !== false, ($args['multiple'] ?? false) === true, $thread) : t('tool.send_content.unsupported');
     }
 
     /** @param array<string, mixed> $args */

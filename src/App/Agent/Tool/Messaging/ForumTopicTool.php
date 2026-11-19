@@ -6,6 +6,7 @@ namespace OpenCCK\App\Agent\Tool\Messaging;
 
 use Mercurius\Llm\ToolDefinition;
 use Mercurius\Messenger\Channel;
+use Mercurius\Messenger\ForumChannel;
 use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\Tool;
@@ -73,6 +74,9 @@ final class ForumTopicTool implements Tool, GrantKeyed {
         $meta = $this->conversations->meta($context->conversationId);
         if ($meta === null || $meta->threadId === '') {
             return ToolResult::error(t('tool.forum_topic.eta_beseda_idet_ne_v'));
+        }
+        if (!$this->channel instanceof ForumChannel) {
+            return ToolResult::error(t('tool.forum_topic.no_topics'));
         }
         $action = Args::string($args, 'action') ?? '';
         $name = trim(Args::string($args, 'name') ?? '');

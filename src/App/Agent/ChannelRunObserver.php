@@ -70,6 +70,14 @@ final class ChannelRunObserver implements RunObserver {
         $this->started = true;
         $this->startedAt = ($this->clock)();
         $this->channel->typing($this->chatId);
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — a channel that cannot edit gets no status message, only what is final
+        if (!$this->channel->capabilities()->canEdit) {
+            if ($notice !== null) {
+                $this->channel->send(new OutgoingMessage($this->chatId, $notice, $this->replyTo, threadId: $this->threadId));
+            }
+            $this->messageId = null;
+            return;
+        }
         $result = $this->channel->send(new OutgoingMessage($this->chatId, $notice ?? self::PLACEHOLDER, $this->replyTo, threadId: $this->threadId));
         $this->messageId = $result->success ? $result->messageId : null;
     }
@@ -97,8 +105,8 @@ final class ChannelRunObserver implements RunObserver {
         foreach ($parts as $part) {
             $this->sendPart($run, $part, ParseMode::Markdown);
         }
-        $result = $this->channel->send(new OutgoingMessage($this->chatId, self::PLACEHOLDER, threadId: $this->threadId));
-        $this->messageId = $result->success ? $result->messageId : null;
+        $result = $this->channel->capabilities()->canEdit ? $this->channel->send(new OutgoingMessage($this->chatId, self::PLACEHOLDER, threadId: $this->threadId)) : null;
+        $this->messageId = $result !== null && $result->success ? $result->messageId : null;
         $this->lastEdit = 0.0;
     }
 

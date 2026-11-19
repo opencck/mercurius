@@ -6,6 +6,7 @@ namespace OpenCCK\App\Service;
 
 use DomainException;
 use Mercurius\Messenger\Channel;
+use Mercurius\Messenger\ForumChannel;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\Domain\Agent\ConversationMeta;
 use OpenCCK\Domain\Group\Group;
@@ -36,7 +37,8 @@ final class ForumTopics {
 
     /** After a project was created in a conversation; a line for the agent, '' when the chat is not a forum. */
     public function created(Project $project, ConversationMeta $meta): string {
-        if (!$this->forum($meta->channel, $meta->chatId)) {
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — topics are an optional part of a channel
+        if (!$this->channel instanceof ForumChannel || !$this->forum($meta->channel, $meta->chatId)) {
             return '';
         }
         if ($meta->threadId !== '' && $this->projects->active($meta->channel, $meta->chatId, $meta->threadId) === null) {
@@ -59,7 +61,7 @@ final class ForumTopics {
     public function statusChanged(Project $before, string $status): void {
         $closing = $status === Project::DONE && $before->status !== Project::DONE;
         $reopening = $before->status === Project::DONE && $status !== Project::DONE;
-        if (!$closing && !$reopening) {
+        if ((!$closing && !$reopening) || !$this->channel instanceof ForumChannel) {
             return;
         }
         foreach ($this->projects->topicsOf($before->id) as $topic) {
