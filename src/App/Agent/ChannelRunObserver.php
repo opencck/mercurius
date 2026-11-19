@@ -87,7 +87,8 @@ final class ChannelRunObserver implements RunObserver {
         $messageId = $this->messageId;
         $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split(trim($text));
         $first = array_shift($parts) ?? trim($text);
-        $kept = $messageId !== null && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, ParseMode::Markdown));
+        // a commentary sitting out a flood counts as kept: it is not sent a second time
+        $kept = $messageId !== null && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, ParseMode::Markdown)) !== false;
         if ($kept) {
             $this->remember($run, $messageId);
         } else {
@@ -158,42 +159,87 @@ final class ChannelRunObserver implements RunObserver {
         $first = array_shift($parts) ?? $finalText;
         // spec: BRIEF.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
         $obligation = $this->obligation($run, $finalText, $mode);
-        $sentParts = 0;
         $messageId = $this->messageId;
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)
         //      — the answer of a long run goes as a new message, so the owner is notified
         $fresh = $messageId !== null && ($this->clock)() - $this->startedAt >= $this->freshAfter;
-        $delivered = $messageId !== null && !$fresh
-            && $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode));
-        if ($delivered) {
-            $sentParts = 1;
-            $this->remember($run, $messageId);
-            $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'edit', 'message' => $messageId]);
-        } else {
-            $sent = $this->sendPart($run, $first, $mode, $this->replyTo);
-            if ($sent) {
-                $sentParts = 1;
-                $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => 'send']);
+        if ($messageId !== null && !$fresh) {
+            $then = function (bool $ok) use ($run, $messageId, $parts, $mode, $obligation): void {
+                $ok ? $this->firstDelivered($run, $messageId, null, $parts, $mode, $obligation) : $this->notDelivered($run, $obligation);
+            };
+            $edited = $this->delivered(fn(): SendResult => $this->channel->edit($this->chatId, $messageId, $first, $mode), $then);
+            if ($edited === null) {
+                return;
             }
-            if (!$sent) {
-                $this->logger->warning('Run answer was not delivered', ['run' => $run->id, 'chat' => $this->chatId]);
-            }
-            // The preview points below only once something is below.
-            $preview = $fresh ? $messageId : null;
-            if ($sent && $preview !== null) {
-                $this->channel->edit($this->chatId, $preview, \Mercurius\I18n\t(self::ANSWER_BELOW), ParseMode::Plain);
+            if ($edited) {
+                $this->firstDelivered($run, $messageId, null, $parts, $mode, $obligation);
+                return;
             }
         }
-        $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, $sentParts));
-        foreach ($parts as $part) {
-            // parts go in order: after a lost part the rest waits for the redelivery, which goes on from it
-            if ($sentParts === 0 || !$this->sendPart($run, $part, $mode)) {
-                break;
-            }
-            $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, ++$sentParts));
+        // The preview points below only once something is below.
+        $preview = $fresh ? $messageId : null;
+        $then = function (bool $ok) use ($run, $preview, $parts, $mode, $obligation): void {
+            $ok ? $this->firstDelivered($run, null, $preview, $parts, $mode, $obligation) : $this->notDelivered($run, $obligation);
+        };
+        $sent = $this->sendPart($run, $first, $mode, $this->replyTo, $then);
+        if ($sent !== null) {
+            $then($sent);
         }
-        $complete = $sentParts === count($parts) + 1;
-        $this->note($obligation, fn(int $id) => $complete ? $this->deliveries?->delivered($id) : $this->deliveries?->failed($id, 'not delivered'));
+    }
+
+    /**
+     * The first part of the answer is in the chat: the rest follows it in order.
+     *
+     * @param list<string> $parts the parts after the first
+     */
+    private function firstDelivered(Run $run, ?string $edited, ?string $preview, array $parts, ParseMode $mode, ?int $obligation): void {
+        if ($edited !== null) {
+            $this->remember($run, $edited);
+        }
+        $this->logger->info('Run answer delivered', ['run' => $run->id, 'chat' => $this->chatId, 'how' => $edited !== null ? 'edit' : 'send'] + ($edited !== null ? ['message' => $edited] : []));
+        if ($preview !== null) {
+            $this->channel->edit($this->chatId, $preview, \Mercurius\I18n\t(self::ANSWER_BELOW), ParseMode::Plain);
+        }
+        $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, 1));
+        $this->sendRest($run, $parts, $mode, $obligation, 1);
+    }
+
+    /**
+     * Parts go in order: after a lost part the rest waits for the redelivery, which goes on from it. A part that sits
+     * out a long flood carries the rest with it, and the obligation is closed only after the last one is really sent.
+     *
+     * @param list<string> $left
+     */
+    private function sendRest(Run $run, array $left, ParseMode $mode, ?int $obligation, int $sent): void {
+        while ($left !== []) {
+            $part = array_shift($left);
+            $rest = $left;
+            $done = $sent + 1;
+            $later = function (bool $ok) use ($run, $rest, $mode, $obligation, $done): void {
+                if (!$ok) {
+                    $this->notDelivered($run, $obligation);
+                    return;
+                }
+                $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, $done));
+                $this->sendRest($run, $rest, $mode, $obligation, $done);
+            };
+            $result = $this->sendPart($run, $part, $mode, null, $later);
+            if ($result === null) {
+                return;
+            }
+            if (!$result) {
+                $this->notDelivered($run, $obligation);
+                return;
+            }
+            $this->note($obligation, fn(int $id) => $this->deliveries?->progress($id, $done));
+            $sent = $done;
+        }
+        $this->note($obligation, fn(int $id) => $this->deliveries?->delivered($id));
+    }
+
+    private function notDelivered(Run $run, ?int $obligation): void {
+        $this->logger->warning('Run answer was not delivered', ['run' => $run->id, 'chat' => $this->chatId]);
+        $this->note($obligation, fn(int $id) => $this->deliveries?->failed($id, 'not delivered'));
     }
 
     /** The obligation of this answer; null when none is kept or it could not be written. */
@@ -228,16 +274,31 @@ final class ChannelRunObserver implements RunObserver {
         return str_starts_with($this->chatId, '-');
     }
 
-    /** Sends one message of the run and remembers that the run wrote it. */
-    private function sendPart(Run $run, string $text, ParseMode $mode, ?string $replyTo = null): bool {
-        $id = null;
-        $sent = $this->delivered(function () use ($text, $mode, $replyTo, &$id): SendResult {
+    /**
+     * Sends one message of the run and remembers that the run wrote it.
+     *
+     * @param (Closure(bool): void)|null $later gets the result when the message goes after a long flood
+     * @return bool|null null — goes after a long flood
+     */
+    private function sendPart(Run $run, string $text, ParseMode $mode, ?string $replyTo = null, ?Closure $later = null): ?bool {
+        /** @var \ArrayObject<int, string> $id the id of the sent message, once there is one */
+        $id = new \ArrayObject();
+        $sent = $this->delivered(function () use ($text, $mode, $replyTo, $id): SendResult {
             $result = $this->channel->send(new OutgoingMessage($this->chatId, $text, $replyTo, $mode, threadId: $this->threadId));
-            $id = $result->messageId;
+            if ($result->messageId !== null) {
+                $id[0] = $result->messageId;
+            }
             return $result;
+        }, function (bool $ok) use ($run, $id, $later): void {
+            if ($ok && isset($id[0])) {
+                $this->remember($run, $id[0]);
+            }
+            if ($later !== null) {
+                $later($ok);
+            }
         });
-        if ($sent && is_string($id)) {
-            $this->remember($run, $id);
+        if ($sent === true && isset($id[0])) {
+            $this->remember($run, $id[0]);
         }
         return $sent;
     }
@@ -260,8 +321,10 @@ final class ChannelRunObserver implements RunObserver {
      *      answer goes as a new message; a flood up to a few seconds is waited out (L475-L487)
      *
      * @param Closure(): SendResult $attempt
+     * @param (Closure(bool): void)|null $later gets the result of the attempt made after a long flood
+     * @return bool|null null — the attempt is made after a long flood
      */
-    private function delivered(Closure $attempt): bool {
+    private function delivered(Closure $attempt, ?Closure $later = null): ?bool {
         $result = $attempt();
         if ($result->success) {
             return true;
@@ -276,12 +339,17 @@ final class ChannelRunObserver implements RunObserver {
             $this->logger->notice('Run answer waits out a flood', ['chat' => $this->chatId, 'seconds' => $result->retryAfter]);
             $logger = $this->logger;
             $chatId = $this->chatId;
-            EventLoop::unreference(EventLoop::delay((float) $result->retryAfter + 1.0, static function () use ($attempt, $logger, $chatId): void {
-                if (!$attempt()->success) {
+            // The obligation stays open meanwhile: a restart before the timer redelivers the answer.
+            EventLoop::unreference(EventLoop::delay((float) $result->retryAfter + 1.0, static function () use ($attempt, $logger, $chatId, $later): void {
+                $ok = $attempt()->success;
+                if (!$ok) {
                     $logger->warning('Run answer was not delivered after a flood', ['chat' => $chatId]);
                 }
+                if ($later !== null) {
+                    $later($ok);
+                }
             }));
-            return true;
+            return null;
         }
         return false;
     }

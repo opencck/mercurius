@@ -8,11 +8,13 @@ use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
 use OpenCCK\App\Agent\ChannelRunObserver;
+use OpenCCK\Domain\Agent\Delivery;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Test\Support\FakeChannel;
+use OpenCCK\Test\Support\InMemoryDeliveryRepository;
 use OpenCCK\Test\Support\RecordingLogger;
 
 /**
@@ -93,6 +95,26 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         \Amp\delay(2.2);
 
         self::assertContains('Итог', $channel->texts('edit'));
+    }
+
+    public function testAnAnswerWaitingOutAFloodIsDeliveredOnlyOnceItIsSent(): void {
+        $channel = new FakeChannel(maxLength: 20);
+        $channel->editResults = [SendResult::failed(SendErrorKind::RateLimited, 'flood', 1)];
+        $deliveries = new InMemoryDeliveryRepository();
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now, maxFloodWait: 0.5, deliveries: $deliveries);
+        $observer->start();
+
+        $observer->finished(self::finishedRun(), str_repeat('а', 15) . "
+
+" . str_repeat('б', 15), StopReason::Answered);
+
+        self::assertSame(Delivery::ATTEMPTING, $deliveries->all()[0]->status, 'nothing has reached the chat yet');
+        self::assertNotContains(str_repeat('б', 15), $channel->texts('send'), 'the rest waits for the first part');
+        \Amp\delay(2.2);
+
+        self::assertSame(Delivery::DELIVERED, $deliveries->all()[0]->status);
+        self::assertSame(2, $deliveries->all()[0]->sent);
+        self::assertContains(str_repeat('б', 15), $channel->texts('send'), 'the rest follows the first part');
     }
 
     public function testSilenceIsShownWhereAnAnswerIsExpected(): void {
