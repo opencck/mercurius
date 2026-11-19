@@ -34,6 +34,9 @@ final class MemoryCards implements CallbackHandler {
     /** the button that forgets a fact the agent wrote itself */
     public const FORGET = 'mf';
 
+    /** @var (\Closure(int, string): int)|null in how many days the person said a text in their own messages */
+    private ?\Closure $days = null;
+
     public function __construct(
         private readonly Proposals $proposals,
         private readonly MemoryStore $store,
@@ -42,6 +45,16 @@ final class MemoryCards implements CallbackHandler {
         private readonly PrincipalRepository $principals,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
+
+    /**
+     * spec: BRIEF.md#консолидация-dreaming — the card says on how many days the person said it: code tells what holds
+     *       from what was said once
+     *
+     * @param \Closure(int, string): int $days the person and the text => the number of days
+     */
+    public function useCorroboration(\Closure $days): void {
+        $this->days = $days;
+    }
 
     /**
      * spec: BRIEF.md#несколько-пользователей — a fact of a participant's own memory is theirs to approve: the card goes
@@ -176,7 +189,30 @@ final class MemoryCards implements CallbackHandler {
             $text,
             SecretMasker::mask($proposal->reason),
         ) . ($proposal->aboutPerson ? "
-" . t('agent.memory_cards.about_person') : '');
+" . t('agent.memory_cards.about_person') : '') . $this->origin($proposal);
+    }
+
+    /** Where the fact came from and on how many days the person said it — for a new or a changed fact. */
+    private function origin(Proposal $proposal): string {
+        if (!in_array($proposal->kind, [Proposal::ADD, Proposal::CHANGE], true)) {
+            return '';
+        }
+        $lines = '';
+        if ($proposal->provenance !== null && $proposal->provenance !== '') {
+            $lines .= "\n" . sprintf(t('agent.memory_cards.provenance'), t('memory.provenance.' . $proposal->provenance));
+        }
+        $person = $this->ownerOf($proposal) ?? $this->principals->owner()?->id;
+        if ($this->days === null || $person === null) {
+            return $lines;
+        }
+        try {
+            $days = ($this->days)($person, $proposal->text);
+        } catch (Throwable $e) {
+            $this->logger->warning('Repeats of a memory proposal were not counted', ['proposal' => $proposal->id, 'error' => $e::class]);
+            return $lines;
+        }
+        $key = $days >= 2 ? 'agent.memory_cards.days_many' : ($days === 1 ? 'agent.memory_cards.days_one' : 'agent.memory_cards.days_none');
+        return $lines . "\n" . sprintf(t($key), $days, \OpenCCK\Memory\App\Corroboration::WINDOW_DAYS);
     }
 
     private function who(?int $principalId): string {

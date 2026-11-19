@@ -35,6 +35,17 @@ interface TranscriptRepository {
     public function runMessages(int $runId): array;
 
     /**
+     * What a person sent themselves through a channel since a moment, newest first: lines that came with a message id
+     * of the channel, in their conversations outside groups. Lines of jobs, workers and neighbours have none.
+     *
+     * spec: BRIEF.md#консолидация-dreaming — machine text is no confirmation
+     *
+     * @param positive-int $limit
+     * @return list<array{string, int}> the stored text and unix seconds
+     */
+    public function spokenBy(int $principalId, int $since, int $limit): array;
+
+    /**
      * Earlier runs and messages before them: user messages and final answers only, the last $limit in order.
      *
      * @param positive-int $limit

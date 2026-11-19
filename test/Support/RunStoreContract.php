@@ -326,6 +326,21 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(0, $run->promptAnchor);
     }
 
+    public function testSpokenLinesAreWhatThePersonSentThemselves(): void {
+        // spec: BRIEF.md#консолидация-dreaming — only a person's own messages count as said on a day
+        $this->transcript->appendUser($this->conversationId, null, 'бэкапы базы делаются ночью', '501');
+        $this->transcript->appendUser($this->conversationId, null, 'итог задания по расписанию');
+        $this->transcript->appendUser($this->conversationId, null, 'проверь бэкапы', '502');
+
+        $lines = $this->transcript->spokenBy($this->principalId, time() - 3600, 10);
+
+        self::assertSame(['проверь бэкапы', 'бэкапы базы делаются ночью'], array_column($lines, 0), 'newest first, no machine lines');
+        self::assertEqualsWithDelta(time(), $lines[0][1], 120);
+        self::assertCount(1, $this->transcript->spokenBy($this->principalId, time() - 3600, 1), 'the limit');
+        self::assertSame([], $this->transcript->spokenBy($this->principalId, time() + 3600, 10), 'the window');
+        self::assertSame([], $this->transcript->spokenBy($this->principalId + 1000, time() - 3600, 10), 'another person');
+    }
+
     public function testConsumeInboxReturnsEachMessageOnce(): void {
         $id = $this->startRun();
         $this->transcript->inbox($id, 'раз');

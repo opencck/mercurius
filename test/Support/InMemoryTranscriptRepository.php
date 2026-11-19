@@ -28,12 +28,29 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
     public ?Closure $beforeToolResult = null;
     /** @var (Closure(): void)|null called first in appendUser */
     public ?Closure $beforeUser = null;
+    /** @var list<array{int, string, int}> lines with a channel message id: conversation, text, unix seconds */
+    private array $spoken = [];
+    /** @var array<int, int> conversation => its person; a conversation not here belongs to the person of its number */
+    public array $owners = [];
 
     public function appendUser(int $conversationId, ?int $runId, string $content, ?string $externalId = null): void {
         if ($this->beforeUser !== null) {
             ($this->beforeUser)();
         }
         $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::user($content)];
+        if ($externalId !== null) {
+            $this->spoken[] = [$conversationId, $content, time()];
+        }
+    }
+
+    public function spokenBy(int $principalId, int $since, int $limit): array {
+        $lines = [];
+        foreach (array_reverse($this->spoken) as [$conversation, $content, $at]) {
+            if (($this->owners[$conversation] ?? $conversation) === $principalId && $at >= $since && count($lines) < $limit) {
+                $lines[] = [$content, $at];
+            }
+        }
+        return $lines;
     }
 
     public function appendAssistant(int $conversationId, int $runId, string $text, array $calls): void {

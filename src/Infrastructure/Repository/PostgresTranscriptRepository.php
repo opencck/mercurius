@@ -96,6 +96,23 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         }
     }
 
+    public function spokenBy(int $principalId, int $since, int $limit): array {
+        $lines = [];
+        foreach ($this->db->execute(
+            "SELECT m.content, extract(epoch FROM m.created_at)::bigint AS at FROM messages m
+             JOIN conversations c ON c.id = m.conversation_id
+             WHERE c.principal_id = ? AND c.private_chat IS NOT FALSE AND m.role = 'user' AND m.external_message_id IS NOT NULL
+               AND m.created_at >= to_timestamp(?)
+             ORDER BY m.id DESC LIMIT ?",
+            [$principalId, $since, $limit],
+        ) as $row) {
+            $content = $row['content'] ?? null;
+            $at = $row['at'] ?? null;
+            $lines[] = [is_string($content) ? $content : '', is_int($at) ? $at : 0];
+        }
+        return $lines;
+    }
+
     public function runMessages(int $runId): array {
         $messages = [];
         foreach ($this->db->execute(

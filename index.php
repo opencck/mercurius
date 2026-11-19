@@ -607,6 +607,13 @@ $proposals = new Proposals(
 );
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $ownerDirectory, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
+// spec: BRIEF.md#консолидация-dreaming — the card says on how many days the person said it, by their own messages
+$corroboration = new \OpenCCK\Memory\App\Corroboration($textAnalyzer);
+$memoryCards->useCorroboration(static function (int $principalId, string $text) use ($corroboration, $transcript): int {
+    $zone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');
+    $since = time() - \OpenCCK\Memory\App\Corroboration::WINDOW_DAYS * 86400;
+    return $corroboration->days($text, $transcript->spokenBy($principalId, $since, \OpenCCK\Memory\App\Corroboration::LINES), $zone);
+});
 // spec: BRIEF.md#память-слои — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
 $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
