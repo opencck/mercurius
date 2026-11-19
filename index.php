@@ -288,9 +288,10 @@ if ($openAiKey !== null) {
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);
-$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $llmSettings->providers());
-$modelRoles->seed();
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
+// spec: BRIEF.md#модели — a change of the model of a role reaches the open conversations of that role
+$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $llmSettings->providers(), new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
+$modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);
 $modelRouter = new ModelRouter(
     new RequestClassifier($llm, static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP), $logger, calls: $llmCalls),

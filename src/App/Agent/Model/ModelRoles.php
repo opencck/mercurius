@@ -51,6 +51,8 @@ final class ModelRoles {
         private readonly ModelRoleRepository $roles,
         private readonly ModelCatalogRepository $catalog,
         private readonly array $providers = [ModelRef::OPENROUTER],
+        /** moves the open conversations of a role to its new model; null — they keep theirs */
+        private readonly ?RoleConversations $conversations = null,
     ) {}
 
     /** @return list<string> */
@@ -102,11 +104,14 @@ final class ModelRoles {
     }
 
     /**
-     * Puts a model into a role. A fix (owner only) stops anyone else from changing the role later.
+     * Puts a model into a role. A fix (owner only) stops anyone else from changing the role later. The open
+     * conversations of the role move to the new model from their next run.
+     *
+     * spec: BRIEF.md#модели — a change of the model of a role reaches the open conversations of that role
      *
      * @throws DomainException with a message for the model when the change is refused
      */
-    public function set(string $role, string $model, string $reason, Principal $by, bool $fix): ModelRef {
+    public function set(string $role, string $model, string $reason, Principal $by, bool $fix): RoleChange {
         if (!in_array($role, ModelRole::ALL, true)) {
             throw new DomainException(sprintf(t('model.model_roles.net_roli_roli'), $role, implode(', ', ModelRole::ALL)));
         }
@@ -131,10 +136,13 @@ final class ModelRoles {
         if ($role !== ModelRole::CHEAP && !$info->supportsTools()) {
             throw new DomainException(sprintf(t('model.model_roles.model_ne_vyzyvaet_instrumenty_a'), $ref, $role));
         }
+        // read before the write: the conversations to move are those of the old model
+        $old = $this->model($role);
+        $holders = count(array_filter(ModelRole::ALL, fn(string $r): bool => (string) $this->model($r) === (string) $old));
         $setBy = $fix ? ModelRole::SET_BY_OWNER : ModelRole::SET_BY_AGENT;
         if (!$this->roles->set($role, $ref, trim($reason), $setBy, $by->id, $by->isOwner())) {
             throw new DomainException(sprintf(t('model.model_roles.rol_zafiksiroval_vladelets_izmenit_ee'), $role));
         }
-        return $ref;
+        return new RoleChange($ref, $this->conversations?->move($role, $old, $ref, $holders === 1) ?? 0);
     }
 }

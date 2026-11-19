@@ -80,7 +80,7 @@ final class SetModelRoleTool implements Tool, GrantKeyed {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         try {
-            $this->roles->set(
+            $change = $this->roles->set(
                 Args::string($args, 'role') ?? '',
                 Args::string($args, 'model') ?? '',
                 Args::string($args, 'reason') ?? '',
@@ -94,6 +94,6 @@ final class SetModelRoleTool implements Tool, GrantKeyed {
         foreach ($this->roles->all() as $role) {
             $lines[] = sprintf('%s: %s (%s; %s)', $role->role, $role->model, $role->setBy, $role->reason);
         }
-        return ToolResult::ok(t('tool.set_model_role.roli_modeley') . implode("\n", $lines));
+        return ToolResult::ok(t('tool.set_model_role.roli_modeley') . implode("\n", $lines) . "\n" . sprintf(t('tool.set_model_role.moved'), $change->moved));
     }
 }

@@ -99,6 +99,22 @@ final class PostgresConversationRepository implements ConversationRepository {
         return is_int($failures) ? $failures : 0;
     }
 
+    public function openModels(): array {
+        $models = [];
+        foreach ($this->db->query('SELECT id, model FROM conversations WHERE closed_at IS NULL AND model IS NOT NULL') as $row) {
+            $id = $row['id'] ?? null;
+            $model = $row['model'] ?? null;
+            if (is_int($id) && is_string($model)) {
+                $models[$id] = $model;
+            }
+        }
+        return $models;
+    }
+
+    public function switchModel(int $conversationId, string $model): void {
+        $this->db->execute('UPDATE conversations SET model = ? WHERE id = ? AND closed_at IS NULL', [$model, $conversationId]);
+    }
+
     public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void {
         $this->db->execute(
             'UPDATE conversations SET system_prompt = ?, model = ?, prompt_version = ? WHERE id = ? AND system_prompt IS NULL',

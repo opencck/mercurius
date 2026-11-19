@@ -17,9 +17,11 @@ use function Mercurius\I18n\t;
 
 /**
  * Chooses the model of a conversation when it opens: the class of the first request picks a role, the role table
- * picks the model. Every choice is logged with its reason — data for the full model selection later.
+ * picks the model. Every choice is logged with its reason — data for the full model selection later. The role chosen
+ * here stays with the conversation: when its model changes, the open conversation moves to the new one
+ * (RoleConversations).
  *
- * spec: BRIEF.md#модели — class picks the role; the model is fixed for the conversation; choices are logged
+ * spec: BRIEF.md#модели — class picks the role; the model stays while the model of the role stays; choices are logged
  * spec: BRIEF.md#начальная-таблица-ролей-моделей — short and typical requests go to the default model
  */
 final class ModelRouter {

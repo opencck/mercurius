@@ -27,6 +27,22 @@ final class PostgresModelStoreTest extends ModelStoreContract {
         $this->decisions = new PostgresRoutingDecisionRepository($this->db);
     }
 
+    public function testTheRoleAConversationOpenedWithIsReadAndItsModelSwitched(): void {
+        // spec: BRIEF.md#модели
+        [, $id] = \OpenCCK\Test\Support\TestDatabase::conversation($this->db, 'role-' . bin2hex(random_bytes(4)));
+        $conversations = new \OpenCCK\Infrastructure\Repository\PostgresConversationRepository($this->db);
+        $conversations->setMeta($id, 'промпт', 'openrouter:x/a');
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($id, 'complex', 'heuristic', 'strong', 'openrouter:x/a', 'при открытии'));
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($id, 'fallback', 'failure', 'fallback', 'openrouter:x/c', 'отказ'));
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($id, 'profile', 'profile', 'main', 'openrouter:x/w', 'воркер'));
+
+        self::assertSame([$id => 'strong'], $this->decisions->openingRoles([$id]), 'a failure and a worker are not the role');
+        self::assertSame('openrouter:x/a', $conversations->openModels()[$id] ?? null);
+
+        $conversations->switchModel($id, 'openrouter:x/b');
+        self::assertSame('openrouter:x/b', $conversations->meta($id)?->model);
+    }
+
     public function testModelsThatCallToolsBadlyAreMarkedAfterTheCatalog(): void {
         // spec: BRIEF.md#выбор-моделей-под-задачу
         $info = static fn(string $id): \Mercurius\Llm\ModelCatalog\ModelInfo => new \Mercurius\Llm\ModelCatalog\ModelInfo($id, $id, 1000, 0.0, 0.0, ['text'], ['text'], ['tools']);

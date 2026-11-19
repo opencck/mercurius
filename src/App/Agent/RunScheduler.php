@@ -629,7 +629,8 @@ final class RunScheduler {
             $model = $this->model;
         }
         if ($meta->systemPrompt === null) {
-            // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept till its end
+            // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept while the model of its role
+            //       stays; a change of the role moves the open conversation (RoleConversations), its next run reads it here
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
             $skills = '';
             if ($this->skills !== null && $principal->role->may(Power::Skills)) {

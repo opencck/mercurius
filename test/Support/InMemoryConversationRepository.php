@@ -52,6 +52,24 @@ final class InMemoryConversationRepository implements ConversationRepository {
     /** @var array<int, int|null> */
     public array $promptVersions = [];
 
+    public function openModels(): array {
+        $models = [];
+        foreach ($this->open as $id) {
+            $model = $this->meta[$id]->model ?? null;
+            if ($model !== null) {
+                $models[$id] = $model;
+            }
+        }
+        return $models;
+    }
+
+    public function switchModel(int $conversationId, string $model): void {
+        $meta = $this->meta[$conversationId] ?? null;
+        if ($meta !== null && in_array($conversationId, $this->open, true)) {
+            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $meta->systemPrompt, $model, $meta->threadId);
+        }
+    }
+
     public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void {
         $this->promptVersions[$conversationId] ??= $promptVersion;
         $meta = $this->meta[$conversationId];

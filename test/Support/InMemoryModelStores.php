@@ -77,6 +77,17 @@ final class InMemoryModelStores implements ModelCatalogRepository, ModelRoleRepo
         }
     }
 
+    public function openingRoles(array $conversationIds): array {
+        $roles = [];
+        foreach ($this->decisions as $d) {
+            if ($d->conversationId !== null && in_array($d->conversationId, $conversationIds, true)
+                && (in_array($d->class, ['short', 'normal', 'complex'], true) || $d->method === 'role_change')) {
+                $roles[$d->conversationId] = $d->role;
+            }
+        }
+        return $roles;
+    }
+
     public function record(RoutingDecision $decision): void {
         $this->decisions[] = $decision;
     }

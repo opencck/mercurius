@@ -27,6 +27,12 @@ interface ConversationRepository {
     /** Fixes the system prompt and model of the conversation when it opens; they do not change afterwards. */
     public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void;
 
+    /** @return array<int, string> the open conversations that have a model => the model */
+    public function openModels(): array;
+
+    /** An open conversation goes on with another model from its next run. */
+    public function switchModel(int $conversationId, string $model): void;
+
     public function compaction(int $conversationId): Compaction;
 
     /** Saves a new summary covering messages up to $uptoId and clears failed attempts. */
