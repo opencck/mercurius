@@ -11,7 +11,6 @@ namespace OpenCCK\Memory\Domain;
  */
 final class Fact {
     public const KNOWLEDGE = 'knowledge';
-    public const RULE = 'rule';
 
     public const OWNER_SAID = 'owner_said';
     public const OWNER_CONFIRMED = 'owner_confirmed';

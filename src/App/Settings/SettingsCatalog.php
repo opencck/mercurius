@@ -48,6 +48,7 @@ final class SettingsCatalog {
         'MEDIA_TEXT_LIMIT' => '20000',
         'MEDIA_INBOX_DAYS' => '30',
         'MEMORY_NUDGE_TURNS' => '10',
+        'MEMORY_FILE_LIMIT' => '8000',
     ];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
@@ -108,6 +109,7 @@ final class SettingsCatalog {
         'MEMORY_CHECK_HOUR' => ['memory', self::INT, 'settings.about.memory_check_hour'],
         'MEMORY_HRR_WEIGHT' => ['memory', self::FLOAT, 'settings.about.memory_hrr_weight'],
         'MEMORY_NUDGE_TURNS' => ['memory', self::INT, 'settings.about.memory_nudge_turns'],
+        'MEMORY_FILE_LIMIT' => ['memory', self::INT, 'settings.about.memory_file_limit'],
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
         'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
         'BROWSER_CONFIRM' => ['agent', self::INT, 'settings.about.browser_confirm'],

@@ -592,16 +592,59 @@ final class RunScheduler {
     }
 
     private function core(Principal $principal, int $conversationId): string {
-        if ($this->memory === null || !$this->audience()->isPrivate($conversationId)) {
+        if (($this->memory === null && $this->memoryFile === null) || !$this->audience()->isPrivate($conversationId)) {
+            return '';
+        }
+        $parts = [];
+        if ($this->memory !== null) {
+            try {
+                // spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
+                $parts[] = $this->memory->core($principal->isOwner() ? \OpenCCK\Memory\App\Audience::OWNER : \OpenCCK\Memory\App\Audience::principal($principal->id));
+            } catch (Throwable $e) {
+                $this->logger->warning('Memory core is not available', ['error' => $e::class]);
+            }
+        }
+        $parts[] = $this->memoryFile($principal);
+        return implode("\n\n", array_filter($parts, static fn(string $p): bool => $p !== ''));
+    }
+
+    /** @var (Closure(Principal): string)|null the participant's MEMORY.md; null — no such file */
+    private ?Closure $memoryFile = null;
+    private int $memoryFileLimit = 8000;
+
+    /**
+     * The participant's MEMORY.md, whole in the prompt of their private chat next to layer 1; over its limit its head
+     * goes in with a word to the agent to compress it.
+     *
+     * spec: BRIEF.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
+     *
+     * @param Closure(Principal): string $read the file, '' when there is none
+     * @param positive-int $limit characters
+     */
+    public function useMemoryFile(Closure $read, int $limit): void {
+        $this->memoryFile = $read;
+        $this->memoryFileLimit = $limit;
+    }
+
+    private function memoryFile(Principal $principal): string {
+        if ($this->memoryFile === null) {
             return '';
         }
         try {
-            // spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
-            return $this->memory->core($principal->isOwner() ? \OpenCCK\Memory\App\Audience::OWNER : \OpenCCK\Memory\App\Audience::principal($principal->id));
+            $text = trim(($this->memoryFile)($principal));
         } catch (Throwable $e) {
-            $this->logger->warning('Memory core is not available', ['error' => $e::class]);
+            $this->logger->warning('MEMORY.md is not available', ['error' => $e::class]);
             return '';
         }
+        if ($text === '') {
+            return '';
+        }
+        $length = mb_strlen($text);
+        $over = $length > $this->memoryFileLimit;
+        // ref: references/hermes-agent/tools/memory_tool_store.py@e96221fa:L403-L418 (add, _add_overflow) — hermes
+        //      refuses an entry past the limit; here the file is the agent's to compress, as the owner decided
+        return t('memory.file.head') . "\n" . ($over ? mb_substr($text, 0, $this->memoryFileLimit) : $text)
+            . ($over ? "\n\n" . sprintf(t('memory.file.over'), $length, $this->memoryFileLimit) : '');
     }
 
     /** The facts that answer the text go after it as reference data; memory failing never stops the run. */

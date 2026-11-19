@@ -45,6 +45,38 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
         self::assertStringContainsString('Владелец любит короткие ответы', $this->stack->llm->requests[0]->messages[0]->content);
     }
 
+    public function testTheMemoryFileGoesWholeIntoThePromptOfAPrivateChat(): void {
+        // spec: BRIEF.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "Дочь — Аня\nПароль от Wi-Fi в заметках", 1000);
+
+        $this->stack->say('привет');
+        $this->stack->scheduler->awaitIdle();
+
+        $system = $this->stack->llm->requests[0]->messages[0]->content;
+        self::assertStringContainsString('Дочь — Аня', $system);
+        self::assertStringNotContainsString(\Mercurius\I18n\t('memory.file.over'), $system);
+    }
+
+    public function testAMemoryFileOverItsLimitIsCutAndTheAgentToldToCompressIt(): void {
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => str_repeat('запись ', 400), 600);
+
+        $this->stack->say('привет');
+        $this->stack->scheduler->awaitIdle();
+
+        $system = $this->stack->llm->requests[0]->messages[0]->content;
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('memory.file.over'), 2799, 600), $system, 'the file is trimmed: the last space goes');
+        self::assertLessThan(2800, mb_substr_count($system, 'запись') * 7, 'only the head of the file');
+    }
+
+    public function testAGroupDoesNotGetTheMemoryFile(): void {
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => 'Дочь — Аня', 1000);
+
+        $this->stack->sayInGroup('привет');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertStringNotContainsString('Дочь — Аня', $this->stack->llm->requests[0]->messages[0]->content);
+    }
+
     public function testGroupGetsNeitherOwnerFactsNorTheCore(): void {
         $this->stack->sayInGroup('Какой кофе я пью?');
         $this->stack->scheduler->awaitIdle();

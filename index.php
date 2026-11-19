@@ -562,6 +562,20 @@ try {
 $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...));
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
+// spec: BRIEF.md#всегда-в-контексте — the participant's MEMORY.md, whole, with a limit; no sandbox — no file
+if ($sandbox !== null) {
+    $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Principal $principal) use ($sandbox, $policies): string {
+        $limits = $policies->forPrincipal($principal)->sandbox;
+        if ($limits === null) {
+            return '';
+        }
+        try {
+            return $sandbox->fetch($principal->id, $limits, 'MEMORY.md', 400_000, new \Amp\TimeoutCancellation(5));
+        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+            return ''; // no file yet
+        }
+    }, $memorySettings->fileLimit);
+}
 if (!$memorySettings->hasSecret()) {
     $logger->warning('MEMORY_SECRET is not set: the key of forgotten texts comes from the bot token');
 }

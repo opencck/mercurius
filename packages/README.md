@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `efdba72` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `d112293` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b097325` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
 
@@ -47,6 +47,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 
 - `mercurius-i18n` `962faa0`: описание `set_model_role` — новая модель действует и для открытых бесед роли со следующего
   запуска; ответ называет число переведённых бесед.
+
+### 2026-11-19 — i18n: файл памяти MEMORY.md
+
+- `mercurius-i18n` `b097325`: блок `MEMORY.md` в промпте, слово о сжатии, настройка `MEMORY_FILE_LIMIT`.
 
 ### 2026-11-19 — i18n: правки слоя 1 по записям
 
