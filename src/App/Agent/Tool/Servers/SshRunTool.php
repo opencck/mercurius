@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\CommandPolicy\Classification;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 
 use function Mercurius\I18n\t;
@@ -74,7 +74,7 @@ final class SshRunTool implements Tool, GrantKeyed {
             Classification::PRIVILEGED => 'ssh-sudo',
             default => null,
         };
-        return $prefix === null ? null : sprintf('%s:v%d:%s:%s', $prefix, CommandClassifier::VERSION, $server, hash('sha256', $command));
+        return $prefix === null ? null : sprintf('%s:v%d:%s:%s', $prefix, SshCommandClassifier::VERSION, $server, hash('sha256', $command));
     }
 
     public function describe(array $args): string {

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Agent\Tool;
 
-use OpenCCK\App\Agent\Tool\Guard\CommandClassifier;
+use OpenCCK\App\Agent\Tool\Guard\OutwardActionClassifier;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Agent\DangerClass;
 use PHPUnit\Framework\TestCase;
 
-final class CommandClassifierTest extends TestCase {
+final class OutwardActionClassifierTest extends TestCase {
     /** @return iterable<string, array{string}> */
     public static function local(): iterable {
         yield 'ls' => ['ls -la'];
@@ -22,7 +22,7 @@ final class CommandClassifierTest extends TestCase {
 
     /** @dataProvider local */
     public function testLocalCommandsAreWrites(string $command): void {
-        $result = (new CommandClassifier())->classify($command);
+        $result = (new OutwardActionClassifier())->classify($command);
 
         self::assertSame(DangerClass::Write, $result->danger, $command);
         self::assertNull($result->key);
@@ -44,7 +44,7 @@ final class CommandClassifierTest extends TestCase {
 
     /** @dataProvider outward */
     public function testOutwardActionsAreIrreversibleWithKey(string $command, string $key): void {
-        $result = (new CommandClassifier())->classify($command);
+        $result = (new OutwardActionClassifier())->classify($command);
 
         self::assertSame(DangerClass::Irreversible, $result->danger, $command);
         self::assertSame($key, $result->key, $command);
@@ -84,7 +84,7 @@ final class CommandClassifierTest extends TestCase {
 
     /** @dataProvider opaque */
     public function testOpaqueCommandsAreIrreversibleWithoutKey(string $command): void {
-        $result = (new CommandClassifier())->classify($command);
+        $result = (new OutwardActionClassifier())->classify($command);
 
         self::assertSame(DangerClass::Irreversible, $result->danger, $command);
         self::assertNull($result->key, $command);

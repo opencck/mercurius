@@ -15,7 +15,7 @@ use OpenCCK\App\Server\RemoteShell;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\App\Server\UnknownHostKey;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -61,7 +61,7 @@ final class ServerConsoleTest extends AsyncTestCase {
                 return $this->test->remote($target, $command, $stdin);
             }
         };
-        return new ServerConsole($this->servers, $this->vault, new CommandClassifier(), $this->audit, $shell, function (Server $s, string $f, bool $changed): void {
+        return new ServerConsole($this->servers, $this->vault, new SshCommandClassifier(), $this->audit, $shell, function (Server $s, string $f, bool $changed): void {
             $this->asked[] = [$s->name, $f, $changed];
         }, new NullLogger());
     }
@@ -113,7 +113,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         $args = ['server' => 'web', 'command' => 'rm -rf /'];
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args));
-        self::assertStringStartsWith('ssh-never:v' . CommandClassifier::VERSION . ':web:', (string) $tool->grantKey($args));
+        self::assertStringStartsWith('ssh-never:v' . SshCommandClassifier::VERSION . ':web:', (string) $tool->grantKey($args));
         self::assertNotSame($tool->grantKey($args), $tool->grantKey(['server' => 'web', 'command' => 'rm -rf /home']));
         self::assertStringContainsString('ОПАСНО', $tool->describe($args));
     }
@@ -223,7 +223,7 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
     }
 
     public function testAConfirmedGroupAsksEvenForReads(): void {
-        $console = new ServerConsole($this->servers, $this->vault, new CommandClassifier(), $this->audit, new class implements RemoteShell {
+        $console = new ServerConsole($this->servers, $this->vault, new SshCommandClassifier(), $this->audit, new class implements RemoteShell {
             public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
                 return new RemoteResult(0, '', '', false, 1);
             }
@@ -241,9 +241,9 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
         $key = $tool->grantKey(['server' => 'Web', 'command' => 'systemctl restart nginx']);
         self::assertSame($key, $tool->grantKey(['server' => 'web', 'command' => ' systemctl restart nginx ']));
         self::assertNotSame($key, $tool->grantKey(['server' => 'web', 'command' => 'systemctl restart php']));
-        self::assertStringContainsString(':v' . CommandClassifier::VERSION . ':', (string) $key);
+        self::assertStringContainsString(':v' . SshCommandClassifier::VERSION . ':', (string) $key);
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good; sudo apart
-        self::assertStringStartsWith('ssh-sudo:v' . CommandClassifier::VERSION . ':web:', (string) $tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
+        self::assertStringStartsWith('ssh-sudo:v' . SshCommandClassifier::VERSION . ':web:', (string) $tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
         self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'df -h']), 'a read needs no grant');
     }
 

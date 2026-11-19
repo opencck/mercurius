@@ -9,7 +9,7 @@ use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxEnv;
 use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
-use OpenCCK\App\Agent\Tool\Guard\CommandClassifier;
+use OpenCCK\App\Agent\Tool\Guard\OutwardActionClassifier;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Vault\Vault;
@@ -89,7 +89,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             return DangerClass::Irreversible;
         }
         $list = self::args($args);
-        if ((new CommandClassifier())->classify(self::command($list))->danger === DangerClass::Irreversible) {
+        if ((new OutwardActionClassifier())->classify(self::command($list))->danger === DangerClass::Irreversible) {
             return DangerClass::Irreversible;
         }
         if (in_array($list[0] ?? '', self::READS, true)) {
@@ -115,7 +115,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             $origin = self::origin(Args::string($args, 'origin') ?? '');
             return $origin === null ? null : sprintf('git-secret:%s %s', $secret, $origin);
         }
-        return (new CommandClassifier())->classify(self::command(self::args($args)))->key;
+        return (new OutwardActionClassifier())->classify(self::command(self::args($args)))->key;
     }
 
     public function describe(array $args): string {

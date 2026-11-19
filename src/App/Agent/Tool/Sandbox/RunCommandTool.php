@@ -9,7 +9,7 @@ use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\GrantKeyed;
 use OpenCCK\App\Agent\Tool\Guard\Classification;
-use OpenCCK\App\Agent\Tool\Guard\CommandClassifier;
+use OpenCCK\App\Agent\Tool\Guard\OutwardActionClassifier;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
@@ -61,7 +61,7 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
 
     /** @param array<string, mixed> $args */
     private function classify(array $args): Classification {
-        return (new CommandClassifier())->classify(Args::string($args, 'command') ?? '');
+        return (new OutwardActionClassifier())->classify(Args::string($args, 'command') ?? '');
     }
 
     public function timeout(): int {

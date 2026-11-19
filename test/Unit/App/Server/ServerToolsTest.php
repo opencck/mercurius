@@ -18,7 +18,7 @@ use OpenCCK\App\Server\RemoteShell;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
@@ -47,7 +47,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass', 'password', 'login-password-1', $this->owner), 'prod');
         $this->vault->put('pg', 'password', 'pg-password-1', $this->owner);
         $test = $this;
-        $this->console = new ServerConsole($servers, $this->vault, new CommandClassifier(), $this->audit, new class($test) implements RemoteShell {
+        $this->console = new ServerConsole($servers, $this->vault, new SshCommandClassifier(), $this->audit, new class($test) implements RemoteShell {
             public function __construct(private readonly ServerToolsTest $test) {}
 
             public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
@@ -167,7 +167,7 @@ final class ServerToolsTest extends AsyncTestCase {
             $servers = new InMemoryServerRepository();
             $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass2', 'password', 'login-password-1', $this->owner), 'prod');
             return $servers;
-        })(), $this->vault, new CommandClassifier(), $this->audit, new class implements RemoteShell {
+        })(), $this->vault, new SshCommandClassifier(), $this->audit, new class implements RemoteShell {
             public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
                 return new RemoteResult(1, '', 'FATAL: password pg-password-1 rejected', false, 3);
             }
@@ -181,7 +181,7 @@ final class ServerToolsTest extends AsyncTestCase {
     }
 
     public function testAFileGoesOnStdinOfCatAndForbiddenPlacesAreRefused(): void {
-        $tool = new FileWriteTool($this->console, new CommandClassifier());
+        $tool = new FileWriteTool($this->console, new SshCommandClassifier());
 
         $result = $tool->execute(['server' => 'db', 'path' => "/etc/app/it's.conf", 'content' => "a=1\n"], $this->context());
 
@@ -194,7 +194,7 @@ final class ServerToolsTest extends AsyncTestCase {
     }
 
     public function testAForbiddenPlaceIsWrittenOnlyWithTheOwnersApproval(): void {
-        $tool = new FileWriteTool($this->console, new CommandClassifier());
+        $tool = new FileWriteTool($this->console, new SshCommandClassifier());
         $args = ['server' => 'db', 'path' => '/root/.ssh/authorized_keys', 'content' => 'k', 'append' => true];
 
         self::assertStringStartsWith('file-write-never:db:', (string) $tool->grantKey($args));

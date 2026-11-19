@@ -82,7 +82,7 @@ use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\App\Web\TextExtractor;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Entity\Principal;
@@ -674,7 +674,7 @@ $sshNeverOff = array_values(array_filter(array_map('trim', explode(',', \OpenCCK
 $serverConsole = new ServerConsole(
     $serverRepository,
     $vault,
-    new CommandClassifier($sshNeverOff),
+    new SshCommandClassifier($sshNeverOff),
     $commandAudit,
     new AmpSshShell(null, $logger),
     $hostKeyCards->ask(...),
@@ -688,7 +688,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerEditTool($serverRepos
 $tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool($serverRepository));
 $tools->register(new SshRunTool($serverConsole));
 $tools->register(new SqlQueryTool($serverConsole, $vault));
-$tools->register(new FileWriteTool($serverConsole, new CommandClassifier($sshNeverOff)));
+$tools->register(new FileWriteTool($serverConsole, new SshCommandClassifier($sshNeverOff)));
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
 

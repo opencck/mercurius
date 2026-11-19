@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  *      (FORBIDDEN_RULES), L1355-L1411 (disqualifying arguments) — the same idea, a smaller list; unlike ssh-mcp an
  *      unrecognised command is not "safe" but a change that asks
  */
-final class CommandClassifier {
+final class SshCommandClassifier {
     public const MAX_LENGTH = 5000;
     /** raised whenever the lists or the rules change: grants given under an older policy stop working */
     public const VERSION = 2;

@@ -11,7 +11,7 @@ use Mercurius\Connectors\RouteFactory;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\Classification;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\CommandAuditRepository;
 use OpenCCK\Domain\Repository\ServerRepository;
@@ -47,7 +47,7 @@ final class ServerConsole {
     public function __construct(
         private readonly ServerRepository $servers,
         private readonly Vault $vault,
-        private readonly CommandClassifier $classifier,
+        private readonly SshCommandClassifier $classifier,
         private readonly CommandAuditRepository $audit,
         private readonly RemoteShell $shell,
         Closure $askHostKey,

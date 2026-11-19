@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\CommandPolicy\Classification;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
 
 use function Mercurius\I18n\t;
@@ -31,7 +31,7 @@ final class FileWriteTool implements Tool, GrantKeyed {
 
     public function __construct(
         private readonly ServerConsole $console,
-        private readonly CommandClassifier $classifier,
+        private readonly SshCommandClassifier $classifier,
     ) {}
 
     public function definition(): ToolDefinition {

@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *      normalise before matching (quotes, escapes, split words like pu""sh); hermes keeps a blacklist of dangerous
  *      patterns, we keep a short list of outward actions and refuse to guess about the rest
  */
-final class CommandClassifier {
+final class OutwardActionClassifier {
     private const OPAQUE = [
         '/\$\(/',
         '/`/',

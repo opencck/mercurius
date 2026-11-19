@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Unit\CommandPolicy;
 
 use OpenCCK\CommandPolicy\Classification;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -23,7 +23,7 @@ final class CorpusTest extends TestCase {
         $file = dirname(__DIR__, 3) . '/test/Fixtures/ssh-mcp/corpus.json';
         /** @var list<string> $corpus */
         $corpus = json_decode((string) file_get_contents($file), true, 4, JSON_THROW_ON_ERROR);
-        $classifier = new CommandClassifier();
+        $classifier = new SshCommandClassifier();
         $reads = 0;
         foreach ($corpus as $command) {
             $result = $classifier->classify($command);

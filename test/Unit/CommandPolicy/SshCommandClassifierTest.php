@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Unit\CommandPolicy;
 
 use OpenCCK\CommandPolicy\Classification;
-use OpenCCK\CommandPolicy\CommandClassifier;
+use OpenCCK\CommandPolicy\SshCommandClassifier;
 use PHPUnit\Framework\TestCase;
 
-final class CommandClassifierTest extends TestCase {
+final class SshCommandClassifierTest extends TestCase {
     /** @return array<string, array{string, string}> */
     public static function commands(): array {
         $cases = [
@@ -156,7 +156,7 @@ final class CommandClassifierTest extends TestCase {
 
     /** @dataProvider commands */
     public function testClass(string $command, string $class): void {
-        $result = (new CommandClassifier())->classify($command);
+        $result = (new SshCommandClassifier())->classify($command);
 
         self::assertSame($class, $result->class, $result->reason);
         self::assertNotSame('', $result->reason);
@@ -164,13 +164,13 @@ final class CommandClassifierTest extends TestCase {
 
     public function testTheOwnerTakesOffARuleByItsName(): void {
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
-        $strict = (new CommandClassifier())->classify('reboot');
+        $strict = (new SshCommandClassifier())->classify('reboot');
         self::assertSame(Classification::NEVER, $strict->class);
         self::assertStringContainsString('[shutdown]', $strict->reason, 'the reason names the rule');
 
-        $lax = (new CommandClassifier(['shutdown']))->classify('reboot');
+        $lax = (new SshCommandClassifier(['shutdown']))->classify('reboot');
         self::assertNotSame(Classification::NEVER, $lax->class, 'a rule taken off does not hold');
-        self::assertSame(Classification::NEVER, (new CommandClassifier(['shutdown']))->classify('rm -rf /')->class, 'the others still do');
-        self::assertContains('root_delete', CommandClassifier::RULES);
+        self::assertSame(Classification::NEVER, (new SshCommandClassifier(['shutdown']))->classify('rm -rf /')->class, 'the others still do');
+        self::assertContains('root_delete', SshCommandClassifier::RULES);
     }
 }
