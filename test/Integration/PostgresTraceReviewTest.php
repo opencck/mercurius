@@ -31,7 +31,7 @@ final class PostgresTraceReviewTest extends AsyncTestCase {
                  VALUES (?, ?, 'm', 'done', ?, 1, 1, 1, 1)",
                 [$conversation, $principal, $reason],
             );
-            $db->execute("INSERT INTO llm_calls (conversation_id, purpose, model, cost_usd) VALUES (?, ?, 'm', 0.5)", [$conversation, 'review-' . $reason]);
+            $db->execute("INSERT INTO llm_calls (conversation_id, purpose, model, cost_usd, duration_ms) VALUES (?, ?, 'm', 0.5, 0)", [$conversation, 'review-' . $reason]);
             $row = $db->execute('SELECT id FROM runs WHERE conversation_id = ?', [$conversation])->fetchRow();
             $id = $row['id'] ?? null;
             Assert::assertIsInt($id);

@@ -19,6 +19,8 @@ abstract class ModelStoreContract extends AsyncTestCase {
     protected ModelCatalogRepository $catalog;
     protected ModelRoleRepository $roles;
     protected RoutingDecisionRepository $decisions;
+    /** who set a role, as the store keeps it: a stored participant where the store checks it */
+    protected int $owner = 1;
 
     private static function model(string $id, ?int $window = 131072): ModelInfo {
         return new ModelInfo($id, $id, $window, 0.0000001, 0.0000005, ['text', 'image'], ['text'], ['tools', 'reasoning'], 4096);
@@ -81,13 +83,13 @@ abstract class ModelStoreContract extends AsyncTestCase {
     }
 
     public function testEveryAcceptedChangeGoesIntoTheHistory(): void {
-        $this->roles->set(ModelRole::STRONG, ModelRef::parse('x/strong'), 'выбрал владелец', ModelRole::SET_BY_OWNER, 1);
+        $this->roles->set(ModelRole::STRONG, ModelRef::parse('x/strong'), 'выбрал владелец', ModelRole::SET_BY_OWNER, $this->owner);
         $this->roles->set(ModelRole::STRONG, ModelRef::parse('y/strong'), 'агенту кажется лучше', ModelRole::SET_BY_AGENT);
 
         $history = $this->roles->history(5);
         self::assertSame('openrouter:x/strong', (string) ($history[0]['model'] ?? ''), 'a refused change is not history');
         self::assertSame('выбрал владелец', $history[0]['reason'] ?? null);
-        self::assertSame(1, $history[0]['by'] ?? null);
+        self::assertSame($this->owner, $history[0]['by'] ?? null);
         self::assertSame(ModelRole::STRONG, $history[0]['role']);
     }
 }

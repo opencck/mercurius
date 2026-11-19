@@ -26,6 +26,7 @@ final class PostgresModelStoreTest extends ModelStoreContract {
         $this->catalog = new PostgresModelCatalogRepository($this->db);
         $this->roles = new PostgresModelRoleRepository($this->db);
         $this->decisions = new PostgresRoutingDecisionRepository($this->db);
+        [$this->owner] = TestDatabase::conversation($this->db, 'roles-' . bin2hex(random_bytes(4)));
     }
 
     public function testTheRoleAConversationOpenedWithIsReadAndItsModelSwitched(): void {
