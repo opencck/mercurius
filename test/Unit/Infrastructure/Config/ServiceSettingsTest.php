@@ -115,6 +115,26 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('anthropic:claude-opus-5-5', $all->model);
     }
 
+    public function testABedrockKeyAloneIsEnough(): void {
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        $bedrock = LlmSettings::fromEnv(['AWS_BEARER_TOKEN_BEDROCK' => 'bedrock-secret']);
+        $eu = LlmSettings::fromEnv(['AWS_BEARER_TOKEN_BEDROCK' => 'b', 'BEDROCK_REGION' => 'eu-central-1']);
+
+        self::assertSame(['bedrock'], $bedrock->providers());
+        self::assertSame('bedrock-secret', $bedrock->bedrockKey());
+        self::assertSame('us-east-1', $bedrock->bedrockRegion, 'the region with every Claude model');
+        self::assertSame('eu-central-1', $eu->bedrockRegion);
+        self::assertSame('bedrock:anthropic.claude-sonnet-5-5', $bedrock->model);
+        self::assertSame('bedrock:anthropic.claude-haiku-5-5', $bedrock->cheapModel);
+        self::assertStringNotContainsString('bedrock-secret', print_r($bedrock, true));
+    }
+
+    public function testABedrockRegionThatIsNotARegionIsRefused(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('BEDROCK_REGION');
+        LlmSettings::fromEnv(['AWS_BEARER_TOKEN_BEDROCK' => 'b', 'BEDROCK_REGION' => 'evil.example/x']);
+    }
+
     public function testSomeProviderKeyIsNeeded(): void {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('OPENAI_API_KEY');

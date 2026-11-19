@@ -108,6 +108,17 @@ final class ProviderRouterTest extends AsyncTestCase {
         self::assertTrue($anthropic->requests[0]->messages[0]->cacheMark);
     }
 
+    public function testClaudeInBedrockAsksForPromptCachingToo(): void {
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        $bedrock = new ScriptedLlm([ScriptedLlm::text('a')]);
+        $router = new ProviderRouter(['bedrock' => $bedrock]);
+
+        $router->complete(new ChatRequest('bedrock:anthropic.claude-opus-5-5', [Message::system('правила'), Message::user('x'), Message::assistant('y'), Message::user('z')]));
+
+        self::assertSame('anthropic.claude-opus-5-5', $bedrock->requests[0]->model);
+        self::assertSame(['type' => 'ephemeral'], $bedrock->requests[0]->extra['cache_control'] ?? null);
+    }
+
     public function testUnknownProviderIsABadRequest(): void {
         $router = new ProviderRouter(['openrouter' => new ScriptedLlm()]);
 

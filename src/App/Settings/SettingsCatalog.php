@@ -55,6 +55,8 @@ final class SettingsCatalog {
         'OPENROUTER_API_KEY' => ['models', self::SECRET, 'settings.about.openrouter_api_key'],
         'OPENAI_API_KEY' => ['models', self::SECRET, 'settings.about.openai_api_key'],
         'ANTHROPIC_API_KEY' => ['models', self::SECRET, 'settings.about.anthropic_api_key'],
+        'AWS_BEARER_TOKEN_BEDROCK' => ['models', self::SECRET, 'settings.about.aws_bearer_token_bedrock'],
+        'BEDROCK_REGION' => ['models', self::TEXT, 'settings.about.bedrock_region'],
         'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
         'LLM_MODEL' => ['models', self::TEXT, 'settings.about.llm_model'],
         'LLM_CHEAP_MODEL' => ['models', self::TEXT, 'settings.about.llm_cheap_model'],

@@ -10,7 +10,7 @@ use OpenCCK\Domain\Agent\ModelRef;
 use SensitiveParameter;
 
 /**
- * Model provider settings (OpenRouter, the OpenAI API, the Anthropic API). The route is VLESS when VLESS_URI is set, direct otherwise.
+ * Model provider settings (OpenRouter, the OpenAI API, the Anthropic API, Claude in Amazon Bedrock). The route is VLESS when VLESS_URI is set, direct otherwise.
  *
  * spec: BRIEF.md#решения — route to the model through VLESS_URI
  */
@@ -25,9 +25,15 @@ final class LlmSettings {
     private const ANTHROPIC_MODEL = 'anthropic:claude-sonnet-5-5';
     private const ANTHROPIC_CHEAP_MODEL = 'anthropic:claude-haiku-5-5';
 
+    /** Defaults when only Bedrock has a key; us-east-1 serves every Claude model there. */
+    private const BEDROCK_MODEL = 'bedrock:anthropic.claude-sonnet-5-5';
+    private const BEDROCK_CHEAP_MODEL = 'bedrock:anthropic.claude-haiku-5-5';
+    private const BEDROCK_REGION = 'us-east-1';
+
     private readonly ?string $openRouterKey;
     private readonly ?string $openAiKey;
     private readonly ?string $anthropicKey;
+    private readonly ?string $bedrockKey;
     private readonly ?string $routeUri;
 
     /**
@@ -42,6 +48,7 @@ final class LlmSettings {
         #[SensitiveParameter] ?string $openRouterKey,
         #[SensitiveParameter] ?string $openAiKey,
         #[SensitiveParameter] ?string $anthropicKey,
+        #[SensitiveParameter] ?string $bedrockKey,
         #[SensitiveParameter] ?string $routeUri,
         public readonly string $model,
         public readonly string $reasoningEffort,
@@ -49,10 +56,13 @@ final class LlmSettings {
         public readonly int $historyLimit,
         public readonly int $contextWindow,
         public readonly string $cheapModel,
+        /** AWS region of the Bedrock endpoint, checked to be a region name. */
+        public readonly string $bedrockRegion = self::BEDROCK_REGION,
     ) {
         $this->openRouterKey = $openRouterKey;
         $this->openAiKey = $openAiKey;
         $this->anthropicKey = $anthropicKey;
+        $this->bedrockKey = $bedrockKey;
         $this->routeUri = $routeUri;
     }
 
@@ -65,14 +75,21 @@ final class LlmSettings {
         $openRouterKey = Env::raw($env, 'OPENROUTER_API_KEY');
         $openAiKey = Env::raw($env, 'OPENAI_API_KEY');
         $anthropicKey = Env::raw($env, 'ANTHROPIC_API_KEY');
-        if ($openRouterKey === null && $openAiKey === null && $anthropicKey === null) {
-            throw ConfigException::invalid('OPENROUTER_API_KEY', 'set it, OPENAI_API_KEY or ANTHROPIC_API_KEY: the agent needs at least one model provider');
+        $bedrockKey = Env::raw($env, 'AWS_BEARER_TOKEN_BEDROCK');
+        $providers = self::withKeys($openRouterKey, $openAiKey, $anthropicKey, $bedrockKey);
+        if ($providers === []) {
+            throw ConfigException::invalid('OPENROUTER_API_KEY', 'set it, OPENAI_API_KEY, ANTHROPIC_API_KEY or AWS_BEARER_TOKEN_BEDROCK: the agent needs at least one model provider');
         }
-        $providers = self::withKeys($openRouterKey, $openAiKey, $anthropicKey);
+        // The region becomes a host name: only a region name may go there.
+        $region = Env::raw($env, 'BEDROCK_REGION') ?? self::BEDROCK_REGION;
+        if (preg_match('/^[a-z]{2}(-[a-z]+)+-\d{1,2}$/', $region) !== 1) {
+            throw ConfigException::invalid('BEDROCK_REGION', 'an AWS region like us-east-1');
+        }
         [$defaultModel, $defaultCheap] = match ($providers[0]) {
             ModelRef::OPENROUTER => ['z-ai/glm-5.3-flash', 'openai/gpt-5.6-luna'],
             ModelRef::OPENAI => [self::OPENAI_MODEL, self::OPENAI_CHEAP_MODEL],
-            default => [self::ANTHROPIC_MODEL, self::ANTHROPIC_CHEAP_MODEL],
+            ModelRef::ANTHROPIC => [self::ANTHROPIC_MODEL, self::ANTHROPIC_CHEAP_MODEL],
+            default => [self::BEDROCK_MODEL, self::BEDROCK_CHEAP_MODEL],
         };
         $model = self::model($env, 'LLM_MODEL', $defaultModel, $providers);
         $window = Env::positiveInt($env, 'LLM_CONTEXT_WINDOW', 131_072, 10_000_000);
@@ -84,6 +101,7 @@ final class LlmSettings {
             openRouterKey: $openRouterKey,
             openAiKey: $openAiKey,
             anthropicKey: $anthropicKey,
+            bedrockKey: $bedrockKey,
             routeUri: Env::raw($env, 'VLESS_URI'),
             model: $model,
             reasoningEffort: self::effort(Env::oneOf($env, 'LLM_REASONING_EFFORT', self::EFFORTS, 'low')),
@@ -91,6 +109,7 @@ final class LlmSettings {
             historyLimit: Env::positiveInt($env, 'LLM_HISTORY_LIMIT', 40, 1000),
             contextWindow: $window,
             cheapModel: self::model($env, 'LLM_CHEAP_MODEL', $defaultCheap, $providers),
+            bedrockRegion: $region,
         );
     }
 
@@ -142,15 +161,20 @@ final class LlmSettings {
         return $this->anthropicKey;
     }
 
+    /** Bedrock API key (a bearer token), AWS_BEARER_TOKEN_BEDROCK. */
+    public function bedrockKey(): ?string {
+        return $this->bedrockKey;
+    }
+
     /** @return list<string> providers with a key, OpenRouter first */
     public function providers(): array {
-        return self::withKeys($this->openRouterKey, $this->openAiKey, $this->anthropicKey);
+        return self::withKeys($this->openRouterKey, $this->openAiKey, $this->anthropicKey, $this->bedrockKey);
     }
 
     /** @return list<string> */
-    private static function withKeys(?string $openRouterKey, ?string $openAiKey, ?string $anthropicKey): array {
+    private static function withKeys(?string $openRouterKey, ?string $openAiKey, ?string $anthropicKey, ?string $bedrockKey): array {
         return array_keys(array_filter(
-            [ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey, ModelRef::ANTHROPIC => $anthropicKey],
+            [ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey, ModelRef::ANTHROPIC => $anthropicKey, ModelRef::BEDROCK => $bedrockKey],
             static fn(?string $k): bool => $k !== null,
         ));
     }
@@ -166,6 +190,8 @@ final class LlmSettings {
             'openRouterKey' => $this->openRouterKey === null ? null : '***',
             'openAiKey' => $this->openAiKey === null ? null : '***',
             'anthropicKey' => $this->anthropicKey === null ? null : '***',
+            'bedrockKey' => $this->bedrockKey === null ? null : '***',
+            'bedrockRegion' => $this->bedrockRegion,
             'route' => $this->routeUri === null ? 'direct' : 'vless',
             'model' => $this->model,
             'reasoningEffort' => $this->reasoningEffort,

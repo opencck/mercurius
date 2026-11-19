@@ -291,6 +291,12 @@ if ($anthropicKey !== null) {
     // The Anthropic list has ids and names only: the public OpenRouter catalog describes them.
     $catalogSources[ModelRef::ANTHROPIC] = (new \Mercurius\Llm\ModelCatalog\AnthropicCatalog($modelHttp, $anthropicKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
 }
+$bedrockKey = $llmSettings->bedrockKey();
+if ($bedrockKey !== null) {
+    // Claude in Amazon Bedrock: the Messages API at the Mantle address of the region, with a Bedrock API key.
+    $clients[ModelRef::BEDROCK] = new RetryingClient(\Mercurius\Llm\Anthropic\AnthropicClient::bedrock($modelHttp, $bedrockKey, $llmSettings->bedrockRegion), onRetry: $onRetry);
+    $catalogSources[ModelRef::BEDROCK] = (new \Mercurius\Llm\ModelCatalog\BedrockCatalog(new OpenRouterCatalog($modelHttp)))->fetch(...);
+}
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);

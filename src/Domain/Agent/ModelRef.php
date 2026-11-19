@@ -18,6 +18,7 @@ final class ModelRef implements Stringable {
     public const OPENROUTER = 'openrouter';
     public const OPENAI = 'openai';
     public const ANTHROPIC = 'anthropic';
+    public const BEDROCK = 'bedrock';
 
     public function __construct(
         public readonly string $provider,

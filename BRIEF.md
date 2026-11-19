@@ -1892,6 +1892,16 @@ MCP sampling выключен; внешние источники — тольк�
   OpenRouter, где версии пишутся через точку (`claude-opus-5-5` — это `anthropic/claude-opus-5.5`). Если задан только
   этот ключ, модели по умолчанию — `anthropic:claude-sonnet-5-5` и `anthropic:claude-haiku-5-5`. Адаптер проверен на
   подставных ответах (решение В11); живая проверка ждёт ключа.
+- **Четвёртый провайдер — Claude в Amazon Bedrock** (2026-11-19): `bedrock:anthropic.claude-…`, ключ
+  `AWS_BEARER_TOKEN_BEDROCK` (так его называют AWS и hermes) и регион `BEDROCK_REGION` (по умолчанию `us-east-1`).
+  Bedrock отдаёт Claude по тому же Messages API на адресе `https://bedrock-mantle.{region}.api.aws/anthropic`, поэтому
+  клиент тот же — `AnthropicClient::bedrock()`. Вход — только ключом Bedrock API (токен на предъявителя): подпись
+  SigV4 требует AWS SDK и пока не нужна. Регион проверяется по форме (`us-east-1`), прежде чем стать именем хоста.
+  Своего списка моделей у этого адреса нет, поэтому каталог — модели Claude из каталога OpenRouter в написании Bedrock
+  (`anthropic/claude-opus-5.5` → `anthropic.claude-opus-5-5`). Доступ к каждой модели решает Bedrock: недоступная
+  падает при вызове, и дальше работает запасная модель. Кеш — как у прямого Anthropic. Если задан только этот ключ,
+  модели по умолчанию — `bedrock:anthropic.claude-sonnet-5-5` и `bedrock:anthropic.claude-haiku-5-5`. Проверено на
+  подставных ответах (В11).
 
 ### Решено: провайдер OpenAI
 

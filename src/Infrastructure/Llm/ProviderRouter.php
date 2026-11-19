@@ -70,11 +70,11 @@ final class ProviderRouter implements LlmClient {
         $bare = $ref->model === $request->model ? $request : $request->withModel($ref->model);
         // OpenRouter caches Anthropic prompts only when asked; one top-level field moves the breakpoint along the
         // conversation by itself, a mark on the system prompt keeps it cached when the history changes (a compaction).
-        // The Anthropic API takes the same two marks. OpenAI and most others cache on their own.
+        // The Anthropic API and Claude in Bedrock take the same two marks. OpenAI and most others cache on their own.
         // ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221fa:L1740-L1800 (anthropic_prompt_cache_policy)
         // ref: references/hermes-agent/agent/prompt_caching.py@e96221fa:L1-L5, L35-L47 (is_one_shot_request) — the
         //      system prompt is a breakpoint; a call nothing reads back from cache gets no mark at all
-        $claude = $ref->provider === ModelRef::ANTHROPIC || ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/'));
+        $claude = in_array($ref->provider, [ModelRef::ANTHROPIC, ModelRef::BEDROCK], true) || ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/'));
         if ($claude && !isset($bare->extra['cache_control']) && !self::oneShot($bare)) {
             $messages = $bare->messages;
             if (isset($messages[0]) && $messages[0]->role === Role::System) {
