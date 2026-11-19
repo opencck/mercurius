@@ -12,7 +12,7 @@ use OpenCCK\Domain\Job\Job;
  */
 interface JobRepository {
     /** @param string|null $origin the outside data the run that sets the job up had read */
-    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null): Job;
+    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null, string $threadId = ''): Job;
 
     /** The owner trusts the source of the job, or no longer does. */
     public function setTrusted(int $id, bool $trusted): bool;

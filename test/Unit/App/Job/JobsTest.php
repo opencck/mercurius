@@ -161,6 +161,23 @@ final class JobsTest extends AsyncTestCase {
         self::assertStringContainsString('запуск №1', array_slice($request->messages, -1)[0]->content ?? '');
     }
 
+    public function testAJobSetInAForumTopicReportsIntoThatTopic(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('BTC = 63 427 $.')]));
+        $conversation = $this->stack->conversations->openConversation($this->owner->id, 'telegram', '-100500', '577');
+        $context = new ToolContext(1, $conversation, $this->owner, new NullCancellation());
+        $create = new JobCreateTool($this->jobs, $this->stack->conversations, $scheduler, new ContentScreen());
+        self::assertFalse($create->execute(['title' => 'Курс', 'prompt' => 'Узнай курс BTC', 'schedule' => 'every:5'], $context)->isError);
+        // the tool counts the first run from the real clock
+        $this->now = new DateTimeImmutable('+6 minutes');
+
+        $scheduler->tick(true);
+
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — a topic is a place of its own: the report goes back into it
+        self::assertSame('577', $this->jobs->find(1)?->threadId);
+        self::assertContains('577', $this->stack->channel->threads);
+        self::assertStringContainsString('BTC = 63 427 $.', implode("\n", $this->stack->channel->texts('send')));
+    }
+
     public function testTheNextRunKnowsTheLastResultAndADoneJobStops(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('первый'), ScriptedLlm::text('второй'), ScriptedLlm::text('напоминаю')]));
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Сводка', 'Собери сводку', 'every:30', $this->now);

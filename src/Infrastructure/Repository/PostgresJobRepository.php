@@ -11,14 +11,14 @@ use OpenCCK\Domain\Repository\JobRepository;
 use UnexpectedValueException;
 
 final class PostgresJobRepository implements JobRepository {
-    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted";
+    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted, thread_id";
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null): Job {
+    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null, string $threadId = ''): Job {
         $row = $this->db->execute(
-            'INSERT INTO jobs (principal_id, channel, chat_id, title, prompt, schedule, next_run_at, origin) VALUES (?, ?, ?, ?, ?, ?, to_timestamp(?), ?) RETURNING ' . self::COLUMNS,
-            [$principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt?->getTimestamp(), $origin],
+            'INSERT INTO jobs (principal_id, channel, chat_id, title, prompt, schedule, next_run_at, origin, thread_id) VALUES (?, ?, ?, ?, ?, ?, to_timestamp(?), ?, ?) RETURNING ' . self::COLUMNS,
+            [$principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt?->getTimestamp(), $origin, $threadId],
         )->fetchRow();
         return self::job($row ?? throw new UnexpectedValueException('Job was not created'));
     }
@@ -145,6 +145,6 @@ final class PostgresJobRepository implements JobRepository {
         $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $opt = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $next = isset($row['next']) && is_int($row['next']) ? new DateTimeImmutable('@' . $row['next']) : null;
-        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true);
+        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true, $str('thread_id'));
     }
 }

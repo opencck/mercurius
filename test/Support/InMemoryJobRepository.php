@@ -16,9 +16,9 @@ final class InMemoryJobRepository implements JobRepository {
     /** @var array<int, array<string, DateTimeImmutable>> */
     public array $deliveries = [];
 
-    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null): Job {
+    public function create(int $principalId, string $channel, string $chatId, string $title, string $prompt, string $schedule, ?DateTimeImmutable $nextRunAt, ?string $origin = null, string $threadId = ''): Job {
         $id = count($this->jobs) + 1;
-        return $this->jobs[$id] = new Job($id, $principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt, 0, null, null, Job::ACTIVE, origin: $origin);
+        return $this->jobs[$id] = new Job($id, $principalId, $channel, $chatId, $title, $prompt, $schedule, $nextRunAt, 0, null, null, Job::ACTIVE, origin: $origin, threadId: $threadId);
     }
 
     public function setTrusted(int $id, bool $trusted): bool {
@@ -80,7 +80,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted);
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId);
         return true;
     }
 
@@ -185,6 +185,7 @@ final class InMemoryJobRepository implements JobRepository {
             $watchHash === false ? $j->watchHash : $watchHash,
             $j->origin,
             $trusted ?? $j->trusted,
+            $j->threadId,
         );
     }
 }

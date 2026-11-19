@@ -95,7 +95,7 @@ final class JobCreateTool implements Tool {
         }
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a job set up after outside data carries the mark to its runs
         $origin = $this->runs?->find($context->runId)?->outside;
-        $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first, $origin);
+        $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first, $origin, $meta->threadId);
         if ($watch !== '') {
             // spec: BRIEF.md#планировщик-и-проекты — the job watches the address: the model only when it changed
             $this->jobs->setWatch($job->id, $watch);

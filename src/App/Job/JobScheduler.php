@@ -287,7 +287,8 @@ final class JobScheduler implements JobRuns {
     }
 
     private function deliver(Job $job, string $report): void {
-        $result = $this->channel->send(new OutgoingMessage($job->chatId, SecretMasker::mask($report)));
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — the report goes back into the topic the job was set in
+        $result = $this->channel->send(new OutgoingMessage($job->chatId, SecretMasker::mask($report), threadId: $job->threadId === '' ? null : $job->threadId));
         if (!$result->success) {
             $this->logger->warning('Job report was not delivered', ['job' => $job->id]);
         }

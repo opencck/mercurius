@@ -39,6 +39,8 @@ final class Job {
         public readonly ?string $origin = null,
         /** the owner trusts the source of the job: its runs are not marked and saved grants apply */
         public readonly bool $trusted = false,
+        /** the forum topic the job was set in; '' — the chat itself */
+        public readonly string $threadId = '',
     ) {}
 
     public function byEvent(): bool {
