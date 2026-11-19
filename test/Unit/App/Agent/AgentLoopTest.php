@@ -438,6 +438,31 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame('failure', $stores->decisions[0]->method);
     }
 
+    public function testTheSwitchedModelIsKeptInTheRunAndUsedAfterAResume(): void {
+        $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
+        $roles = new \OpenCCK\App\Agent\Model\ModelRoles($stores, $stores);
+        $roles->seed();
+        $main = (string) $roles->model(\OpenCCK\Domain\Agent\ModelRole::MAIN);
+        $llm = new ScriptedLlm([new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Server, 'down')]);
+        $llm->byModel[$main] = [ScriptedLlm::text('ответ')];
+        $fallback = new \OpenCCK\App\Agent\Model\FallbackModels($roles, $stores, $stores, new \Psr\Log\NullLogger());
+        $loop = new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, fallback: $fallback);
+        $first = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+        self::assertSame($main, $this->runs->find($first->id)?->fallbackModel);
+
+        // a run that resumes after a switch asks the model it switched to and does not switch twice
+        $resumed = $this->start();
+        $this->runs->switchModel($resumed->id, $main);
+        $again = new ScriptedLlm([]);
+        $again->byModel[$main] = [new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::Server, 'down too')];
+        $loop = new AgentLoop($again, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, fallback: $fallback);
+        $run = $loop->run($this->runs->find($resumed->id) ?? $resumed, new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame($main, $again->requests[0]->model);
+        self::assertSame(StopReason::ModelFailed, $run->stopReason);
+        self::assertCount(1, $again->requests, 'one switch per run, across a resume too');
+    }
+
     public function testARefusalOfTheContentFilterDoesNotSwitchTheModel(): void {
         $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
         $roles = new \OpenCCK\App\Agent\Model\ModelRoles($stores, $stores);

@@ -81,6 +81,10 @@ final class InMemoryRunRepository implements RunRepository {
         }
     }
 
+    public function switchModel(int $runId, string $model): void {
+        $this->runs[$runId] = $this->with($this->runs[$runId], fallbackModel: $model);
+    }
+
     public function markWarned(int $runId): void {
         $this->runs[$runId] = $this->with($this->runs[$runId], warned: true);
     }
@@ -120,6 +124,7 @@ final class InMemoryRunRepository implements RunRepository {
         ?int $promptAnchor = null,
         ?bool $warned = null,
         ?string $outside = null,
+        ?string $fallbackModel = null,
     ): Run {
         return new Run(
             $run->id,
@@ -137,6 +142,7 @@ final class InMemoryRunRepository implements RunRepository {
             $promptAnchor ?? $run->promptAnchor,
             $warned ?? $run->warned,
             $outside ?? $run->outside,
+            $fallbackModel ?? $run->fallbackModel,
         );
     }
 }

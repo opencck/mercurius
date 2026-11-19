@@ -40,6 +40,9 @@ interface RunRepository {
 
     public function markWarned(int $runId): void;
 
+    /** The run goes on with another model: kept, so a resumed run does not switch back or twice. */
+    public function switchModel(int $runId, string $model): void;
+
     public function finish(int $runId, RunStatus $status, ?StopReason $reason): void;
 
     /** Pauses a run for an approval or puts it back to running; the stop reason is untouched. */

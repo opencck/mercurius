@@ -151,6 +151,9 @@ final class AgentLoop {
             [],
             ($this->clock)(),
         );
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a resumed run goes on with the model it switched to
+        $state->model = $run->fallbackModel;
+        $state->switched = $run->fallbackModel !== null;
         $this->loadContext($state);
         $this->events->runStarted($run->id, (string) ModelRef::parse($run->model));
 
@@ -240,6 +243,7 @@ final class AgentLoop {
                     if ($next !== null) {
                         $state->switched = true;
                         $state->model = $next;
+                        $this->runs->switchModel($state->run->id, $next);
                         continue;
                     }
                 }

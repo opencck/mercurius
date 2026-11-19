@@ -136,6 +136,15 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertTrue($this->fetchRun($id)->warned);
     }
 
+    public function testTheModelSwitchedToIsKeptOnTheRun(): void {
+        $id = $this->startRun();
+        self::assertNull($this->fetchRun($id)->fallbackModel);
+
+        $this->runs->switchModel($id, 'openrouter:z-ai/glm-5.3');
+
+        self::assertSame('openrouter:z-ai/glm-5.3', $this->fetchRun($id)->fallbackModel);
+    }
+
     public function testPausedRunIsActiveButNotUnfinished(): void {
         $id = $this->startRun();
         $this->runs->setStatus($id, RunStatus::WaitingApproval);

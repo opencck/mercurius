@@ -20,7 +20,7 @@ use UnexpectedValueException;
  */
 final class PostgresRunRepository implements RunRepository {
     private const COLUMNS = 'id, conversation_id, principal_id, parent_run_id, model, status, stop_reason, max_turns, token_budget,
-        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned, outside';
+        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned, outside, fallback_model';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -101,6 +101,10 @@ final class PostgresRunRepository implements RunRepository {
         );
     }
 
+    public function switchModel(int $runId, string $model): void {
+        $this->db->execute('UPDATE runs SET fallback_model = ?, updated_at = now() WHERE id = ?', [$model, $runId]);
+    }
+
     public function markWarned(int $runId): void {
         $this->db->execute('UPDATE runs SET warned = true, updated_at = now() WHERE id = ?', [$runId]);
     }
@@ -156,6 +160,7 @@ final class PostgresRunRepository implements RunRepository {
             promptAnchor: self::int($row, 'prompt_anchor'),
             warned: ($row['warned'] ?? false) === true,
             outside: isset($row['outside']) ? self::string($row, 'outside') : null,
+            fallbackModel: isset($row['fallback_model']) ? self::string($row, 'fallback_model') : null,
         );
     }
 

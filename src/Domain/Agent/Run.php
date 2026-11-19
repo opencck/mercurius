@@ -27,5 +27,7 @@ final class Run {
         public readonly bool $warned = false,
         /** where outside data came into the run from (tools, a group chat); null — none: saved grants apply only then */
         public readonly ?string $outside = null,
+        /** the model the run switched to after its own failed; null — no switch yet */
+        public readonly ?string $fallbackModel = null,
     ) {}
 }
