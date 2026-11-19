@@ -57,6 +57,12 @@ final class TextAnalyzer {
     /** @var array<string, string>|null form => the key of its group */
     private static ?array $loans = null;
 
+    /** Russian stems of one root, both ways: the dictionary and its licence lie beside it. */
+    private const DERIVATION = __DIR__ . '/../../../resources/dictionaries/ru_derivation.tsv.gz';
+
+    /** @var array<string, list<string>>|null stem => stems linked to it by a derivation */
+    private static ?array $derivation = null;
+
     /** @var array<string, true> */
     private readonly array $stop;
     private ?Stemmer $russian = null;
@@ -108,6 +114,49 @@ final class TextAnalyzer {
             return true;
         }
         return preg_match('~\p{L}~u', $key) === 1 && preg_match('~\d~', $key) === 1;
+    }
+
+    /**
+     * Stems of one root with a key: Snowball makes «ночь» «ноч» but «ночные» «ночн», and the dictionary links them.
+     * Recall counts a match through one at a part of an exact match and never by it alone.
+     *
+     * spec: BRIEF.md#анализ-текста — same-root words
+     * ref: references/hermes-plugin-holographic/text.py@4a794f8:L832-L912 (word_roots, _related) — the DerivBase.Ru
+     *      pairs as an adjacency map loaded on the first Russian word; English (Open English Wordnet) is not taken
+     *
+     * @return list<string>
+     */
+    public function related(string $key): array {
+        if (self::isIdentifier($key) || preg_match('~\p{Cyrillic}~u', $key) !== 1) {
+            return [];
+        }
+        return self::derivation()[$key] ?? [];
+    }
+
+    /** @return array<string, list<string>> */
+    private static function derivation(): array {
+        if (self::$derivation !== null) {
+            return self::$derivation;
+        }
+        $pairs = [];
+        // read once per process, about 270 KB packed; a missing or damaged file leaves words without roots
+        $packed = is_file(self::DERIVATION) ? file_get_contents(self::DERIVATION) : false;
+        $text = $packed === false ? false : @gzdecode($packed);
+        if ($text === false) {
+            return self::$derivation = [];
+        }
+        foreach (explode("\n", $text) as $line) {
+            if ($line === '' || $line[0] === '#') {
+                continue;
+            }
+            $pair = explode("\t", rtrim($line, "\r"), 3);
+            if (count($pair) !== 2 || $pair[0] === '' || $pair[1] === '') {
+                continue;
+            }
+            $pairs[$pair[0]][] = $pair[1];
+            $pairs[$pair[1]][] = $pair[0];
+        }
+        return self::$derivation = $pairs;
     }
 
     /** @return array<string, string> every form of a borrowed word => "loan:<its first spelling>" */

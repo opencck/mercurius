@@ -30,6 +30,16 @@ final class TextAnalyzerTest extends TestCase {
         self::assertNotContains('loan:token', $analyzer->keys('ток в сети'), 'by the form, never by the stem');
     }
 
+    public function testAStemKnowsItsSameRootStems(): void {
+        // spec: BRIEF.md#анализ-текста — same-root words from DerivBase.Ru
+        $analyzer = new TextAnalyzer();
+
+        self::assertContains('ноч', $analyzer->related('ночн'), '«ночные» and «ночь»');
+        self::assertContains('ночн', $analyzer->related('ноч'), 'both ways');
+        self::assertSame([], $analyzer->related('pve-01'), 'an identifier has none');
+        self::assertSame([], $analyzer->related('vpn'), 'nor a word the dictionary does not know');
+    }
+
     public function testChatterHasNoKeys(): void {
         self::assertSame([], (new TextAnalyzer())->keys('ну и что это же было бы, а?'));
         self::assertSame([], (new TextAnalyzer())->keys('ok, and so it is'));

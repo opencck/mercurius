@@ -25,6 +25,8 @@ use OpenCCK\Memory\Domain\TextAnalyzer;
 final class Recall {
     public const BUDGET = 1500;
     public const MIN_COVERAGE = 0.34;
+    /** A match through a same-root word counts this much of an exact one. */
+    public const ROOT_WEIGHT = 0.6;
     public const WINDOW = 20;
     private const CANDIDATES = 100;
     private const HALF_LIFE_DAYS = 180.0;
@@ -158,12 +160,30 @@ final class Recall {
         if ($keys === []) {
             return [];
         }
-        $df = $this->store->frequencies($scopes, $keys);
+        // spec: BRIEF.md#анализ-текста — a same-root word counts ROOT_WEIGHT of an exact one and never recalls alone
+        // ref: references/hermes-plugin-holographic/retrieval.py@4a794f8:L276-L291 — the root match weighed at
+        //      _DERIV_WEIGHT; here the question's stems are widened, so facts keep their keys as they are
+        $roots = [];
+        foreach ($keys as $key) {
+            foreach ($this->analyzer->related($key) as $root) {
+                if (!in_array($root, $keys, true)) {
+                    $roots[$root] = true;
+                }
+            }
+        }
+        $roots = array_map(strval(...), array_keys($roots));
+        $df = $this->store->frequencies($scopes, [...$keys, ...$roots]);
         $total = (float) max($df[''], 1);
         $weights = [];
         foreach ($keys as $key) {
             if (($df[$key] ?? 0) > 0) {
                 $weights[$key] = log(1.0 + $total / (float) $df[$key]);
+            }
+        }
+        $rootWeights = [];
+        foreach ($roots as $root) {
+            if (($df[$root] ?? 0) > 0) {
+                $rootWeights[$root] = self::ROOT_WEIGHT * log(1.0 + $total / (float) $df[$root]);
             }
         }
         if ($weights === []) {
@@ -175,9 +195,10 @@ final class Recall {
 
         // array keys of numeric words come back as ints
         $known = array_map(strval(...), array_keys($weights));
+        $knownRoots = array_map(strval(...), array_keys($rootWeights));
         /** @var list<array{Fact, float, float}> $passed fact, its coverage score, its age factor */
         $passed = [];
-        foreach ($this->store->candidates($scopes, $known, self::CANDIDATES) as $fact) {
+        foreach ($this->store->candidates($scopes, [...$known, ...$knownRoots], self::CANDIDATES) as $fact) {
             if (isset($given[$fact->id]) || $fact->trust < self::MIN_TRUST - 1e-9) {
                 continue;
             }
@@ -189,10 +210,12 @@ final class Recall {
             foreach ($matched as $key) {
                 $identifier = $identifier || TextAnalyzer::isIdentifier($key);
             }
-            $coverage = array_sum(array_map(static fn(string $k): float => $weights[$k], $matched)) / $sum;
+            $rooted = array_values(array_intersect($knownRoots, $fact->keys));
+            $coverage = min(1.0, (array_sum(array_map(static fn(string $k): float => $weights[$k], $matched))
+                + array_sum(array_map(static fn(string $k): float => $rootWeights[$k], $rooted))) / $sum);
             // One shared word of a longer message, held by other facts too ("what day is it" and "every day"), is
             // about none of them.
-            $lone = count($keys) > 1 && count($matched) === 1 && ($df[$matched[0]] ?? 0) > 1;
+            $lone = count($keys) > 1 && count($matched) + count($rooted) === 1 && ($df[$matched[0]] ?? 0) > 1;
             if (!$identifier && ($coverage < self::MIN_COVERAGE || $lone)) {
                 continue;
             }

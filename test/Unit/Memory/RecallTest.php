@@ -54,6 +54,15 @@ final class RecallTest extends TestCase {
         self::assertSame([], self::texts($this->recall->find('как дела у ани?', ['owner'], 8)), 'not a name in lower case');
     }
 
+    public function testASameRootWordHelpsAnotherWordFindAFactButNeverAlone(): void {
+        // spec: BRIEF.md#анализ-текста — a root match counts 0.6 of an exact one and never recalls a fact alone
+        $this->add('owner', 'Работает ночью в офисе');
+        $this->add('owner', 'Офис на улице Ленина');
+
+        self::assertSame(['Работает ночью в офисе'], self::texts($this->recall->find('ночные смены в офисе', ['owner'])));
+        self::assertSame([], self::texts($this->recall->find('ночные смены', ['owner'])), 'the root alone recalls nothing');
+    }
+
     public function testALoanwordFindsAFactWrittenTheOtherWay(): void {
         // spec: BRIEF.md#анализ-текста — a question with «впн» finds a fact that says «VPN»
         $this->add('owner', 'На ноутбуке настроен VPN WireGuard');
