@@ -676,7 +676,7 @@ $serverConsole = new ServerConsole(
     $vault,
     new CommandClassifier($sshNeverOff),
     $commandAudit,
-    new AmpSshShell(),
+    new AmpSshShell(null, $logger),
     $hostKeyCards->ask(...),
     $logger,
     $llmSettings->routeUri(),

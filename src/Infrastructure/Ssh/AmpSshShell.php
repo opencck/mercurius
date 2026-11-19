@@ -21,6 +21,9 @@ use OpenCCK\App\Server\RemoteFailure;
 use OpenCCK\App\Server\RemoteResult;
 use OpenCCK\App\Server\RemoteShell;
 use OpenCCK\App\Server\UnknownHostKey;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Revolt\EventLoop;
 use SensitiveParameter;
 use Throwable;
 
@@ -32,7 +35,8 @@ use function Amp\Ssh\connect;
 use function Mercurius\I18n\t;
 
 /**
- * SSH on amphp-ssh: one connection per command (and one to the server in between for a jump), the host key pinned,
+ * SSH on amphp-ssh: connections kept in a pool, one per server with its login and route, so a series of commands goes
+ * through one (and one to the server in between for a jump); the host key pinned,
  * the command wrapped in `timeout` on the server (the library cannot stop a remote command reliably), stdin given and
  * closed, output kept within a limit and drained past it.
  *
@@ -45,18 +49,65 @@ final class AmpSshShell implements RemoteShell {
     private const CONNECT_SECONDS = 20;
     /** RAM, not disk, for the moment a private key must be a file */
     private const KEY_DIR = '/dev/shm';
+    /** seconds between sweeps of idle connections */
+    private const SWEEP_SECONDS = 30;
+
+    private readonly ConnectionPool $pool;
+    private ?string $sweeper = null;
+    private int $nextId = 0;
+
+    public function __construct(
+        ?ConnectionPool $pool = null,
+        private readonly LoggerInterface $logger = new NullLogger(),
+    ) {
+        $this->pool = $pool ?? new ConnectionPool();
+    }
+
+    public function __destruct() {
+        if ($this->sweeper !== null) {
+            EventLoop::cancel($this->sweeper);
+        }
+        $this->pool->closeAll();
+    }
+
+    /** @return list<PooledConnection> the connections kept open now */
+    public function pooled(): array {
+        return $this->pool->open();
+    }
 
     public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, #[SensitiveParameter] ?string $stdin = null): RemoteResult {
         $started = hrtime(true);
-        $jump = null;
-        $ssh = null;
-        try {
-            if ($target->via !== null) {
-                $jump = $this->connect($target->via, $target->via->connector, $cancellation);
+        $this->sweeper ??= EventLoop::unreference(EventLoop::repeat(self::SWEEP_SECONDS, function (): void {
+            $this->pool->sweep();
+        }));
+        $key = self::key($target);
+        $retried = false;
+        while (true) {
+            $lease = $this->pool->acquire($key, fn(): PooledConnection => $this->open($target, $cancellation));
+            $ssh = $lease->resource;
+            if (!$ssh instanceof SshResource) {
+                $this->pool->release($lease, broken: true);
+                throw new \LogicException('A pooled SSH connection holds no SSH resource');
             }
-            $ssh = $this->connect($target, $jump === null ? $target->connector : new TunnelConnector($jump), $cancellation);
             $process = new Process($ssh, sprintf('timeout --kill-after=5 %d sh -c %s', $timeout, self::quote($command)));
-            $process->start();
+            try {
+                $process->start();
+            } catch (Throwable $e) {
+                // a kept connection that died quietly: nothing ran yet, so one fresh connection is tried
+                $this->pool->release($lease, broken: true);
+                if ($lease->commands > 1 && !$retried) {
+                    $retried = true;
+                    continue;
+                }
+                throw new RemoteFailure(t('ssh.amp_ssh_shell.oshibka_vypolneniya') . self::reason($e));
+            }
+            return $this->finish($lease, $process, $timeout, $maxOutput, $cancellation, $stdin, $started);
+        }
+    }
+
+    private function finish(PooledConnection $lease, Process $process, int $timeout, int $maxOutput, Cancellation $cancellation, #[SensitiveParameter] ?string $stdin, int $started): RemoteResult {
+        $broken = true;
+        try {
             if ($stdin !== null) {
                 $process->getStdin()->write($stdin);
             }
@@ -67,6 +118,7 @@ final class AmpSshShell implements RemoteShell {
             $out = self::drained($stdout);
             $err = self::drained($stderr);
             $exit = $process->join($deadline);
+            $broken = false;
             return new RemoteResult($exit === false ? null : $exit, $out->kept, $err->kept, $out->cut || $err->cut, intdiv(hrtime(true) - $started, 1_000_000));
         } catch (UnknownHostKey|RemoteFailure $e) {
             throw $e;
@@ -75,9 +127,46 @@ final class AmpSshShell implements RemoteShell {
         } catch (Throwable $e) {
             throw new RemoteFailure(t('ssh.amp_ssh_shell.oshibka_vypolneniya') . self::reason($e));
         } finally {
-            $ssh?->close();
-            $jump?->close();
+            // a command that failed or was stopped may leave its channel behind: that connection is not reused
+            $this->pool->release($lease, $broken);
         }
+    }
+
+    /** Opens a connection for the pool: to the server in between first when there is one. */
+    private function open(Connection $target, Cancellation $cancellation): PooledConnection {
+        $jump = null;
+        if ($target->via !== null) {
+            $jump = $this->connect($target->via, $target->via->connector, $cancellation);
+        }
+        try {
+            $ssh = $this->connect($target, $jump === null ? $target->connector : new TunnelConnector($jump), $cancellation);
+        } catch (Throwable $e) {
+            $jump?->close();
+            throw $e;
+        }
+        $id = ++$this->nextId;
+        $server = $target->server->name;
+        $this->logger->info('SSH connection opened', ['server' => $server, 'connection' => $id]);
+        return new PooledConnection(
+            $id,
+            static fn(): bool => !$ssh->isClosed() && ($jump === null || !$jump->isClosed()),
+            function (PooledConnection $connection) use ($ssh, $jump, $server, $id): void {
+                $ssh->close();
+                $jump?->close();
+                $this->logger->info('SSH connection closed', ['server' => $server, 'connection' => $id, 'commands' => $connection->commands]);
+            },
+            $ssh,
+        );
+    }
+
+    /**
+     * What makes two commands share a connection: the same server, login, trusted key and route, the same server in
+     * between. The secret is only hashed.
+     */
+    private static function key(Connection $target): string {
+        $server = $target->server;
+        $part = implode("\0", [$server->id, $server->host, $server->port, $server->username, $server->hostKey ?? '', $server->route ?? '', $target->kind, hash('sha256', $target->credential)]);
+        return hash('sha256', $part . "\0" . ($target->via === null ? '' : self::key($target->via)));
     }
 
     private function connect(Connection $target, ?SocketConnector $connector, Cancellation $cancellation): SshResource {

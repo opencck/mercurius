@@ -75,6 +75,21 @@ final class SshTest extends AsyncTestCase {
         self::assertFalse($result->truncated);
     }
 
+    public function testFiveCommandsInARowGoThroughOneConnection(): void {
+        // spec: BRIEF.md#фаза-7-по-частям — a pool of SSH connections
+        $shell = new AmpSshShell();
+        $connection = new Connection($this->trusted(), self::PASSWORD, 'password');
+        for ($i = 0; $i < 5; $i++) {
+            self::assertSame("$i
+", $shell->run($connection, "echo $i", 10, 100, new NullCancellation())->stdout);
+        }
+        self::assertSame(1, $shell->run($connection, 'exit 1', 10, 100, new NullCancellation())->exitCode, 'a failing command keeps the connection');
+
+        $pooled = $shell->pooled();
+        self::assertCount(1, $pooled);
+        self::assertSame(6, $pooled[0]->commands);
+    }
+
     public function testStdinIsClosedAndAQuoteIsKept(): void {
         $result = (new AmpSshShell())->run(new Connection($this->trusted(), self::PASSWORD, 'password'), "cat; echo \"it's done\"", 10, 10_000, new NullCancellation());
 
