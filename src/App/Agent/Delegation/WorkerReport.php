@@ -24,11 +24,18 @@ final class WorkerReport {
         public readonly ?string $verdict = null,
         /** the verifier's reasons */
         public readonly ?string $verdictNote = null,
+        /** @var list<string>|null what is wrong with the answer by its schema, [] — it holds; null — no schema */
+        public readonly ?array $schemaErrors = null,
     ) {}
+
+    /** @param list<string> $errors */
+    public function withSchema(array $errors): self {
+        return new self($this->index, $this->runId, $this->status, $this->model, $this->turns, $this->tokens, $this->summary, $this->reason, $this->stopReason, $this->verdict, $this->verdictNote, $errors);
+    }
 
     /** The same report with the verifier's verdict and its spend added. */
     public function withVerdict(string $verdict, ?string $note, int $tokens = 0): self {
-        return new self($this->index, $this->runId, $this->status, $this->model, $this->turns, $this->tokens + $tokens, $this->summary, $this->reason, $this->stopReason, $verdict, $note);
+        return new self($this->index, $this->runId, $this->status, $this->model, $this->turns, $this->tokens + $tokens, $this->summary, $this->reason, $this->stopReason, $verdict, $note, $this->schemaErrors);
     }
 
     /** @return array<string, mixed> what a background delegation keeps in the database */
@@ -45,6 +52,7 @@ final class WorkerReport {
             'stop' => $this->stopReason?->value,
             'verdict' => $this->verdict,
             'verdict_note' => $this->verdictNote,
+            'schema_errors' => $this->schemaErrors,
         ];
     }
 
@@ -65,6 +73,9 @@ final class WorkerReport {
             $stop === null ? null : StopReason::tryFrom($stop),
             $text('verdict'),
             $text('verdict_note'),
+            isset($data['schema_errors']) && is_array($data['schema_errors'])
+                ? array_values(array_filter($data['schema_errors'], 'is_string'))
+                : null,
         );
     }
 }

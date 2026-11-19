@@ -197,6 +197,71 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertSame([['project']], $asked, 'nothing is read for an isolated part');
     }
 
+    public function testAnAnswerNotByTheSchemaGetsOneCorrectionTurn(): void {
+        // spec: BRIEF.md#схема-ответа-воркера
+        $schema = ['type' => 'object', 'properties' => ['n' => ['type' => 'integer']], 'required' => ['n'], 'additionalProperties' => false];
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'посчитай 6 × 7', 'output_schema' => $schema]]),
+            ScriptedLlm::text('Сорок два.'),
+            ScriptedLlm::text("```json\n{\"n\": 42}\n```"),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('"required"', $llm->requests[1]->messages[1]->content, 'the contract comes with the task');
+        $correction = array_slice($llm->requests[2]->messages, -1)[0] ?? null;
+        self::assertNotNull($correction);
+        self::assertStringContainsString(\Mercurius\I18n\t('delegation.output_contract.rejected'), $correction->content, 'the same worker gets the errors back');
+        self::assertStringContainsString('Сорок два.', implode("\n", array_map(static fn($m): string => $m->content, $llm->requests[2]->messages)), 'it continues its own conversation');
+        $report = self::report($llm);
+        self::assertStringContainsString(\Mercurius\I18n\t('delegation.worker_reports.schema_ok'), $report);
+        self::assertStringContainsString('"n": 42', $report);
+    }
+
+    public function testAnAnswerStillNotByTheSchemaIsReportedSo(): void {
+        $schema = ['type' => 'object', 'properties' => ['n' => ['type' => 'integer']], 'required' => ['n']];
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'посчитай', 'output_schema' => $schema]]),
+            ScriptedLlm::text('не знаю'),
+            ScriptedLlm::text('{"n": "сорок два"}'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $report = self::report($llm);
+        self::assertStringContainsString(\Mercurius\I18n\t('delegation.worker_reports.schema_failed'), $report, 'handed over, but marked');
+        self::assertCount(4, $llm->requests, 'one correction turn, not more');
+    }
+
+    public function testASchemaThatIsNotAnObjectAndACheckedPartWithoutAnExpectedAnswerAreRefused(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'output_schema' => 'строка']]),
+            self::delegate([['goal' => 'два', 'verify' => true]], 'd2'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $results = [];
+        foreach ($llm->requests[2]->messages as $message) {
+            if ($message->role === Role::Tool) {
+                $results[] = $message->content;
+            }
+        }
+        self::assertCount(2, $results);
+        self::assertStringContainsString('output_schema', $results[0]);
+        self::assertStringContainsString('output', $results[1], 'a verifier needs to know what answer was asked for');
+        self::assertNull($stack->runs->find(2), 'no worker started');
+    }
+
     public function testAWorkerGetsOnlyToolsOfTheWhiteList(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'прочитай', 'tools' => ['read', 'push']]]),
@@ -359,7 +424,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testVerifierChecksTheAnswerWithACleanContext(): void {
         $llm = new ScriptedLlm([
-            self::delegate([['goal' => 'сколько будет 2+5', 'role' => 'cheap', 'verify' => true]]),
+            self::delegate([['goal' => 'сколько будет 2+5', 'output' => 'число', 'role' => 'cheap', 'verify' => true]]),
             ScriptedLlm::text('ответ 8'),
             ScriptedLlm::text("ВЕРДИКТ: отклонено
 2+5 = 7, а не 8."),
@@ -393,7 +458,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testVerifierAfterACascadeIsNotSilentAboutTheSameModel(): void {
         $llm = new ScriptedLlm([
-            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
+            self::delegate([['goal' => 'раз', 'output' => 'итог', 'role' => 'cheap', 'verify' => true]]),
             new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('ответ со второй попытки'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
@@ -412,7 +477,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testEachPartThatRanIsRecordedAsExperience(): void {
         $llm = new ScriptedLlm([
-            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true, 'profile' => ['text' => 6]]]),
+            self::delegate([['goal' => 'раз', 'output' => 'итог', 'role' => 'cheap', 'verify' => true, 'profile' => ['text' => 6]]]),
             new LlmException(ErrorKind::Server, 'down'),
             ScriptedLlm::text('ответ со второй попытки'),
             ScriptedLlm::text('ВЕРДИКТ: принято'),
@@ -445,7 +510,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
     public function testVerifierWithoutAVerdictLeavesThePartUnchecked(): void {
         $llm = new ScriptedLlm([
-            self::delegate([['goal' => 'раз', 'role' => 'cheap', 'verify' => true]]),
+            self::delegate([['goal' => 'раз', 'output' => 'итог', 'role' => 'cheap', 'verify' => true]]),
             ScriptedLlm::text('ответ'),
             ScriptedLlm::text('Вроде нормально.'),
             ScriptedLlm::text('итог'),

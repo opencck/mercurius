@@ -65,6 +65,8 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                             'mode' => ['type' => 'string', 'enum' => WorkerTask::MODES, 'description' => t('delegation.delegate_task_tool.mode')],
                             'memory' => ['type' => 'string', 'enum' => WorkerTask::MEMORY, 'description' => t('delegation.delegate_task_tool.memory')],
                             'context_of' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => WorkerTask::CONTEXT_OF], 'description' => t('delegation.delegate_task_tool.context_of')],
+                            // spec: BRIEF.md#схема-ответа-воркера
+                            'output_schema' => ['type' => 'object', 'description' => t('delegation.delegate_task_tool.output_schema')],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
@@ -106,6 +108,17 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                     continue;
                 }
                 [$mode, $memory, $of] = WorkerTask::rights($item);
+                $schema = null;
+                if (array_key_exists('output_schema', $item)) {
+                    $schema = OutputContract::coerce($item['output_schema']);
+                    if (is_string($schema)) {
+                        return ToolResult::error('output_schema: ' . $schema);
+                    }
+                }
+                // a verifier checks the answer against what was asked for: it needs to know what that was
+                if (($item['verify'] ?? false) === true && trim(self::field($item, 'output') ?? '') === '' && $schema === null) {
+                    return ToolResult::error(t('delegation.delegate_task_tool.verify_needs_output'));
+                }
                 $tasks[] = new WorkerTask(
                     self::field($item, 'goal') ?? '',
                     self::field($item, 'context') ?? '',
@@ -117,6 +130,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                     $mode,
                     $memory,
                     $of,
+                    $schema,
                 );
             }
         }

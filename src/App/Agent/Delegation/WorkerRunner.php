@@ -392,11 +392,52 @@ final class WorkerRunner {
     private function one(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, int $seconds, array $existing = [null, null, null], ?\Closure $onRun = null, string $tag = ''): WorkerReport {
         $started = hrtime(true);
         $report = $this->attempts($parent, $orchestrator, $index, $task, $budget, $seconds, [$existing[0], $existing[1]], $onRun, $tag);
+        if ($task->outputSchema !== null && $report->status === 'done') {
+            $report = $this->contract($parent, $orchestrator, $index, $task, $task->outputSchema, $report, $budget - $report->tokens, $seconds - intdiv(hrtime(true) - $started, 1_000_000_000));
+        }
         if (!$task->checked() || $report->status !== 'done') {
             return $report;
         }
         $elapsed = intdiv(hrtime(true) - $started, 1_000_000_000);
         return $this->verify($parent, $orchestrator, $index, $task, $report, $budget - $report->tokens, $seconds - $elapsed, $existing[2], $onRun, $tag);
+    }
+
+    /**
+     * The answer against its schema; a wrong one gets exactly one correction turn in the worker's own conversation
+     * (its answer and the errors in front of it), on the same model, within what is left of its share and time. What
+     * still does not hold goes to the orchestrator marked so.
+     *
+     * spec: BRIEF.md#схема-ответа-воркера
+     *
+     * @param array<array-key, mixed> $schema
+     */
+    private function contract(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, array $schema, WorkerReport $report, int $budget, int $seconds): WorkerReport {
+        $errors = OutputContract::check($report->summary, $schema);
+        $previous = $errors === [] || $report->runId === null ? null : $this->runs->find($report->runId);
+        if (
+            $previous === null
+            || $this->runs->childCount($orchestrator->id) >= $this->maxWorkersPerRun
+            || $budget < self::MIN_TOKENS
+            || $seconds < self::RETRY_MIN_SECONDS
+            || $parent->cancellation->isRequested()
+        ) {
+            return $report->withSchema($errors);
+        }
+        $this->logger->info('Worker answer is not by its schema, one correction turn', ['parent' => $orchestrator->id, 'task' => $index, 'errors' => count($errors)]);
+        $fixed = $this->attempt($parent, $orchestrator, $index, $task, $budget, $previous->model, '', $seconds, conversation: $previous->conversationId, message: OutputContract::retry($errors, $schema));
+        $summary = trim($fixed->summary) === '' ? $report->summary : $fixed->summary;
+        return new WorkerReport(
+            $index,
+            $fixed->runId ?? $report->runId,
+            $fixed->status === 'done' ? 'done' : $report->status,
+            $report->model,
+            $report->turns + $fixed->turns,
+            $report->tokens + $fixed->tokens,
+            $summary,
+            $report->reason,
+            $report->stopReason,
+            schemaErrors: OutputContract::check($summary, $schema),
+        );
     }
 
     /**
@@ -567,7 +608,7 @@ final class WorkerRunner {
      *
      * @param (\Closure(int): void)|null $onStarted gets the run id as soon as a new run exists
      */
-    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null, string $prompt = '', bool $readOnly = false): WorkerReport {
+    private function attempt(ToolContext $parent, Run $orchestrator, int $index, WorkerTask $task, int $budget, string $model, string $chat, int $seconds, ?int $existing = null, ?\Closure $onStarted = null, string $prompt = '', bool $readOnly = false, ?int $conversation = null, ?string $message = null): WorkerReport {
         // '' — the worker's prompt in the agent's language
         $prompt = $prompt === '' ? \Mercurius\I18n\t(self::PROMPT) : $prompt;
         try {
@@ -584,8 +625,11 @@ final class WorkerRunner {
                 }
                 $limits = $run->limits;
             } else {
-                $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
-                $this->conversations->setMeta($conversation, $prompt, $model);
+                // a correction turn goes on in the worker's own conversation, after its answer
+                if ($conversation === null) {
+                    $conversation = $this->conversations->openConversation($parent->principal->id, 'worker', $chat);
+                    $this->conversations->setMeta($conversation, $prompt, $model);
+                }
                 // The worker ends by its own deadline, with its own summary, before the orchestrator runs out of time.
                 $limits = new RunLimits(
                     $this->workerMaxTurns,
@@ -600,7 +644,7 @@ final class WorkerRunner {
                 if ($onStarted !== null) {
                     $onStarted($run->id);
                 }
-                $this->transcript->appendUser($conversation, $run->id, $this->brief($parent, $task));
+                $this->transcript->appendUser($conversation, $run->id, $message ?? $this->brief($parent, $task));
             }
             $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
@@ -657,6 +701,9 @@ final class WorkerRunner {
         $parts[] = t('delegation.worker_runner.zadacha') . trim($task->goal);
         if (trim($task->output) !== '') {
             $parts[] = t('delegation.worker_runner.nuzhen_otvet') . trim($task->output);
+        }
+        if ($task->outputSchema !== null) {
+            $parts[] = OutputContract::block($task->outputSchema);
         }
         $tools = $this->tools($parent, $task);
         $parts[] = sprintf(

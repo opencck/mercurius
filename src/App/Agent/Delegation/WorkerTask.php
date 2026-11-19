@@ -38,13 +38,15 @@ final class WorkerTask {
         public readonly string $mode = '',
         public readonly string $memory = 'none',
         array $contextOf = [],
+        /** @var array<array-key, mixed>|null the answer's JSON Schema; null — a free answer */
+        public readonly ?array $outputSchema = null,
     ) {
         $this->contextOf = array_values(array_unique(array_filter($contextOf, static fn(string $c): bool => in_array($c, self::CONTEXT_OF, true))));
     }
 
     /** @param list<string> $tools */
     public function withTools(array $tools): self {
-        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile, $this->verify, $this->mode, $this->memory, $this->contextOf);
+        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile, $this->verify, $this->mode, $this->memory, $this->contextOf, $this->outputSchema);
     }
 
     /**
@@ -88,6 +90,7 @@ final class WorkerTask {
             'mode' => $this->mode,
             'memory' => $this->memory,
             'context_of' => $this->contextOf,
+            'output_schema' => $this->outputSchema,
         ];
     }
 
@@ -113,6 +116,7 @@ final class WorkerTask {
             $mode,
             $memory,
             $of,
+            isset($data['output_schema']) && is_array($data['output_schema']) ? $data['output_schema'] : null,
         );
     }
 

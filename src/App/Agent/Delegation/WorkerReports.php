@@ -36,6 +36,12 @@ final class WorkerReports {
                 $report->reason !== null && $report->status !== 'done' ? ' (' . $report->reason . ')' : '',
             );
             $lines[] = sprintf(t('delegation.worker_reports.model_hodov_tokenov'), $report->model, $report->turns, $report->tokens, $report->runId === null ? '' : t('delegation.worker_reports.zapusk') . $report->runId);
+            // spec: BRIEF.md#схема-ответа-воркера — handed over either way, but marked
+            if ($report->schemaErrors !== null) {
+                $lines[] = $report->schemaErrors === []
+                    ? t('delegation.worker_reports.schema_ok')
+                    : t('delegation.worker_reports.schema_failed') . ' ' . implode('; ', $report->schemaErrors);
+            }
             if ($report->verdict !== null) {
                 $lines[] = sprintf(t('delegation.worker_reports.proverka'), $report->verdict, $report->verdictNote === null || $report->verdictNote === '' ? '' : ' — ' . $report->verdictNote);
             }
