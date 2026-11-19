@@ -28,6 +28,14 @@ final class Checkpoints {
         '*.pyc', '.cache/', '.venv/', 'venv/', '.git/', '*.iso', '*.mp4', '*.mov', '*.zip', '*.tar', '*.gz',
     ];
     private const SECONDS = 60;
+    /**
+     * Snapshots kept of a working folder; older ones go after a new one is taken.
+     *
+     * ref: references/hermes-agent/tools/checkpoint_manager.py@e96221fa:L909-L927 (max_snapshots = 20),
+     *      references/hermes-agent/tools/checkpoint_pruning.py@e96221fa:L105-L110 (trim) — the ref rewritten to the newest
+     *      snapshots; here with their dates kept and the store collected at once
+     */
+    public const KEEP = 20;
     /** runs remembered as snapshotted, the oldest forgotten first */
     private const REMEMBER = 500;
 
@@ -57,7 +65,23 @@ final class Checkpoints {
 
     public function take(int $principalId, SandboxLimits $limits, string $reason, Cancellation $cancellation): CommandOutcome {
         $message = self::quote(preg_replace('~[^\w .:-]~u', '', $reason) ?? 'snapshot');
-        return $this->git($principalId, $limits, 'add -A && ' . self::GIT . ' -c user.name=mercurius -c user.email=checkpoint@mercurius commit -q -m ' . $message . ' || true', $cancellation);
+        return $this->git($principalId, $limits, 'add -A && ' . self::GIT . ' -c user.name=mercurius -c user.email=checkpoint@mercurius commit -q -m ' . $message . ' || true; ' . self::trimScript(self::KEEP), $cancellation);
+    }
+
+    /**
+     * A shell script that keeps the newest $keep snapshots: they are made anew on the same trees, with their messages and
+     * dates, the older ones dropped and the store collected. Nothing happens at or under the limit.
+     */
+    public static function trimScript(int $keep): string {
+        $keep = max(1, $keep);
+        $who = '-c user.name=mercurius -c user.email=checkpoint@mercurius';
+        return 'g() { ' . self::GIT . ' "$@"; }; n=$(g rev-list --count HEAD 2>/dev/null || echo 0); '
+            . 'if [ "$n" -gt ' . $keep . ' ]; then p=; for c in $(g rev-list --reverse --max-count=' . $keep . ' HEAD); do '
+            . 'm=$(g log -1 --format=%s "$c"); GIT_AUTHOR_DATE=$(g log -1 --format=%aI "$c"); GIT_COMMITTER_DATE=$(g log -1 --format=%cI "$c"); '
+            . 'export GIT_AUTHOR_DATE GIT_COMMITTER_DATE; '
+            . 'if [ -z "$p" ]; then p=$(g ' . $who . ' commit-tree "$c^{tree}" -m "$m"); else p=$(g ' . $who . ' commit-tree "$c^{tree}" -p "$p" -m "$m"); fi; '
+            . 'done; unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE; '
+            . 'g update-ref HEAD "$p" && { g reflog expire --expire=now --all 2>/dev/null; g gc --prune=now -q 2>/dev/null; true; }; fi';
     }
 
     public function list(int $principalId, SandboxLimits $limits, Cancellation $cancellation): CommandOutcome {
@@ -92,7 +116,7 @@ final class Checkpoints {
      *
      * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — snapshots start no program of the participant
      */
-    private const GIT = 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat --git-dir=' . self::DIR . ' --work-tree=.';
+    public const GIT = 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat --git-dir=' . self::DIR . ' --work-tree=.';
     /** the config of the snapshot store, written anew before every command: filters and the like set there are gone */
     private const CONFIG = "printf '[core]\\n\\trepositoryformatversion = 0\\n\\tbare = false\\n' > " . self::DIR . '/config';
 
