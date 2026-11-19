@@ -26,8 +26,12 @@ final class RecordingEvents implements AgentEvents {
         $this->events[] = 'tool:' . $runId . ':' . $name;
     }
 
+    /** @var list<float> how long each decided approval waited */
+    public array $approvalSeconds = [];
+
     public function approvalDecided(int $runId, string $tool, string $outcome, float $seconds): void {
         $this->events[] = 'approval:' . $runId . ':' . $outcome;
+        $this->approvalSeconds[] = $seconds;
     }
 
     public function runFinished(int $runId, string $status, ?string $reason, int $activeMs): void {

@@ -19,7 +19,7 @@ use UnexpectedValueException;
  *      — "resolve, then draw"; hermes pops in-memory state, we decide by a conditional UPDATE
  */
 final class PostgresApprovalRepository implements ApprovalRepository {
-    private const COLUMNS = 'id, run_id, call_id, principal_id, tool, summary, grant_key, status, reason, card_chat_id, card_message_id';
+    private const COLUMNS = 'id, run_id, call_id, principal_id, tool, summary, grant_key, status, reason, card_chat_id, card_message_id, extract(epoch FROM created_at)::float8 AS created_epoch';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -139,6 +139,9 @@ final class PostgresApprovalRepository implements ApprovalRepository {
             self::nullable($row, 'reason'),
             self::nullable($row, 'card_chat_id'),
             self::nullable($row, 'card_message_id'),
+            isset($row['created_epoch']) && is_float($row['created_epoch'])
+                ? (\DateTimeImmutable::createFromFormat('U.u', sprintf('%.6F', $row['created_epoch'])) ?: null)
+                : null,
         );
     }
 

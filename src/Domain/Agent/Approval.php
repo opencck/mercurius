@@ -22,5 +22,7 @@ final class Approval {
         public readonly ?string $reason = null,
         public readonly ?string $cardChatId = null,
         public readonly ?string $cardMessageId = null,
+        /** when the card was asked for; null — not known */
+        public readonly ?\DateTimeImmutable $createdAt = null,
     ) {}
 }

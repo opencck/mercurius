@@ -270,6 +270,21 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertSame(1, count($this->stack->llm->requests));
     }
 
+    public function testTheApprovalStepLastsFromTheCardToTheDecision(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — the approval step of a trace is the owner's wait
+        $events = new RecordingEvents();
+        $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"origin"}')), ScriptedLlm::text('готово')]), events: $events);
+        $this->stack->registry->register(new FakeKeyedTool('push', 'git-push:origin'));
+        $this->waitingRun();
+        delay(0.3);
+
+        $this->stack->press('ap:1:a');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertContains('approval:1:approved', $events->events);
+        self::assertGreaterThanOrEqual(0.25, $events->approvalSeconds[0] ?? 0.0, 'not 0: the wait is measured from the card');
+    }
+
     public function testStopWhileWaitingClosesTheRunTrace(): void {
         $events = new RecordingEvents();
         $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"origin"}'))]), events: $events);

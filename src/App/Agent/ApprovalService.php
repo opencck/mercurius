@@ -246,7 +246,9 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
     }
 
     private function closeCard(Approval $approval, string $outcome): void {
-        $this->events->approvalDecided($approval->runId, $approval->tool, $approval->status->value, 0.0);
+        // spec: BRIEF.md#трассировка-и-метрики — the approval step lasts from the card to the decision
+        $waited = $approval->createdAt === null ? 0.0 : max(0.0, microtime(true) - (float) $approval->createdAt->format('U.u'));
+        $this->events->approvalDecided($approval->runId, $approval->tool, $approval->status->value, $waited);
         if ($approval->cardChatId === null || $approval->cardMessageId === null) {
             return;
         }

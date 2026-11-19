@@ -23,7 +23,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
     private int $nextGrant = 1;
 
     public function create(int $runId, string $callId, int $principalId, string $tool, string $summary, ?string $grantKey, DateTimeImmutable $expiresAt): Approval {
-        $approval = new Approval($this->next++, $runId, $callId, $principalId, $tool, $summary, $grantKey, ApprovalStatus::Pending);
+        $approval = new Approval($this->next++, $runId, $callId, $principalId, $tool, $summary, $grantKey, ApprovalStatus::Pending, createdAt: new \DateTimeImmutable());
         $this->expires[$approval->id] = $expiresAt;
         return $this->approvals[$approval->id] = $approval;
     }
@@ -67,7 +67,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
             return null;
         }
         $this->deciders[$id] = $decidedBy;
-        return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId);
+        return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId, $a->createdAt);
     }
 
     public function due(DateTimeImmutable $now): array {
@@ -91,7 +91,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
 
     public function setCard(int $id, string $chatId, string $messageId): void {
         $a = $this->approvals[$id];
-        $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $a->status, $a->reason, $chatId, $messageId);
+        $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $a->status, $a->reason, $chatId, $messageId, $a->createdAt);
     }
 
     /** Test helper: make an approval due now. */

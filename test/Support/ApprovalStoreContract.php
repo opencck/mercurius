@@ -25,6 +25,17 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         return $this->approvals->create($this->runId, $callId, $this->principalId, 'run_command', 'git push', 'git-push:origin', new DateTimeImmutable($expires))->id;
     }
 
+    public function testAnApprovalKnowsWhenItsCardWasAskedFor(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — the approval step lasts from the card to the decision
+        $before = time() - 5;
+        $decided = $this->approvals->decide($this->create('c1'), ApprovalStatus::Approved, null, null);
+
+        $created = $decided?->createdAt;
+        self::assertNotNull($created);
+        self::assertGreaterThanOrEqual($before, $created->getTimestamp());
+        self::assertLessThanOrEqual(time() + 5, $created->getTimestamp());
+    }
+
     public function testRefusalsInARowAreCountedUntilAnApproval(): void {
         $since = new DateTimeImmutable('-1 day');
         $first = $this->create('c1');
