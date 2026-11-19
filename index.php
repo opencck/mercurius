@@ -852,6 +852,7 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 $scheduler->useProjects(new ProjectContext($projectRepository));
 // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
+$evalScores = new \OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository($db);
 $promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
 $scheduler->useNotes($promptNotes);
 $traceReview = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db));
@@ -1043,7 +1044,7 @@ $chat = new ChatService(
     $attachmentIntake,
     $policies,
     new \OpenCCK\App\Service\ApiKeyCommands($apiKeys, $principals),
-    new \OpenCCK\App\Service\PromptCommands($promptNotes),
+    new \OpenCCK\App\Service\PromptCommands($promptNotes, $evalScores),
 );
 // spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
@@ -1063,6 +1064,8 @@ $promptGate = new \OpenCCK\App\Improve\PromptGate(
     $evalRuns !== null && ctype_digit($evalRuns) ? (int) $evalRuns : 3,
     $evalJudge !== '',
 );
+// spec: BRIEF.md#самоулучшение-решено-2026-11-18 — scores of the set by category for each version of the notes
+$promptGate->useScores($evalScores);
 $improvements = new \OpenCCK\App\Improve\Improvements(
     $improvementRepository,
     $promptNotes,

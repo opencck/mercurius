@@ -20,6 +20,28 @@ final class PromptNotes {
 
     public function __construct(private readonly ImprovementRepository $store) {}
 
+    /**
+     * The key of a version of the notes by its text, for the scores of the evaluation set: the same text is the same
+     * version, whatever its number; 'none' — no notes.
+     */
+    public static function versionKey(string $text): string {
+        $text = trim($text);
+        return $text === '' ? 'none' : 'h' . substr(sha1($text), 0, 10);
+    }
+
+    /** How a scored version is named: `v<number>` when one of the notes has that text, the key otherwise. */
+    public function label(string $key): string {
+        if ($key === 'none') {
+            return t('improve.scores.no_notes');
+        }
+        foreach ($this->store->notes(50) as $note) {
+            if (self::versionKey($note['text']) === $key) {
+                return 'v' . $note['version'];
+            }
+        }
+        return $key;
+    }
+
     /** The text of the active version; '' when none is active. */
     public function active(): string {
         return $this->store->activeNote()['text'] ?? '';

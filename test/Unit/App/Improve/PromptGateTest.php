@@ -41,6 +41,21 @@ final class PromptGateTest extends AsyncTestCase {
         self::assertStringContainsString('agent/model', $verdict->report);
     }
 
+    public function testTheScoresOfBothVersionsAreKeptByCategory(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — scores by category for each version of the notes
+        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
+        $scores = new \OpenCCK\Test\Support\InMemoryEvalScoreRepository();
+        $gate = new PromptGate($this->runner(), $tasks, 'agent/model', 3, true);
+        $gate->useScores($scores);
+
+        $gate('', 'Отвечай коротко.');
+
+        self::assertSame([\OpenCCK\App\Improve\PromptNotes::versionKey('Отвечай коротко.'), \OpenCCK\App\Improve\PromptNotes::versionKey('')], array_column($scores->latest(5), 'version'));
+        $categories = array_keys($scores->latest(1)[0]['categories'] ?? []);
+        self::assertNotSame([], $categories);
+        self::assertSame('agent/model', $scores->latest(1)[0]['model'] ?? null);
+    }
+
     public function testNoJudgeOrASmallSetIsNotACheck(): void {
         $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
 

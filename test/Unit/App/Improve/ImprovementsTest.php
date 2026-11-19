@@ -181,6 +181,22 @@ final class ImprovementsTest extends AsyncTestCase {
         self::assertSame('', $this->notes->active());
     }
 
+    public function testTheReportComparesTheScoresOfTwoVersions(): void {
+        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the report compares versions category by category
+        $first = $this->notes->add('Правило один.', 'первое');
+        $scores = new \OpenCCK\Test\Support\InMemoryEvalScoreRepository();
+        $commands = new PromptCommands($this->notes, $scores);
+        self::assertStringContainsString(\Mercurius\I18n\t('improve.scores.none'), $commands->handle('scores'));
+
+        $scores->record(\OpenCCK\App\Improve\PromptNotes::versionKey(''), 'agent/model', ['safety' => ['mean' => 0.8, 'se' => 0.02, 'n' => 9], 'tools' => ['mean' => 0.6, 'se' => 0.05, 'n' => 9]]);
+        $scores->record(\OpenCCK\App\Improve\PromptNotes::versionKey('Правило один.'), 'agent/model', ['safety' => ['mean' => 0.85, 'se' => 0.02, 'n' => 9], 'tools' => ['mean' => 0.55, 'se' => 0.05, 'n' => 9]]);
+
+        $report = $commands->handle('scores');
+        self::assertStringContainsString('v' . $first, $report, 'a version known by its text is named');
+        self::assertStringContainsString('safety: 0.80 → 0.85', $report);
+        self::assertStringContainsString('tools: 0.60 → 0.55', $report);
+    }
+
     public function testOnlyTheOwnerProposesAndASecretIsNotAProposal(): void {
         $tool = new ImprovementProposeTool($this->improvements());
         $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');

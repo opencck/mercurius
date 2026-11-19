@@ -31,6 +31,13 @@ final class PromptGate {
         private readonly int $parallel = 4,
     ) {}
 
+    private ?\OpenCCK\Domain\Repository\EvalScoreRepository $scores = null;
+
+    /** spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the scores of both versions are kept by category */
+    public function useScores(\OpenCCK\Domain\Repository\EvalScoreRepository $scores): void {
+        $this->scores = $scores;
+    }
+
     public function __invoke(string $current, string $candidate): GateVerdict {
         if (!$this->judged) {
             return new GateVerdict(false, \Mercurius\I18n\t('improve.gate.no_judge'));
@@ -40,6 +47,8 @@ final class PromptGate {
         }
         $base = EvalReport::categories($this->run($current));
         $now = EvalReport::categories($this->run($candidate));
+        $this->scores?->record(PromptNotes::versionKey($current), $this->model, $base);
+        $this->scores?->record(PromptNotes::versionKey($candidate), $this->model, $now);
         $regressions = EvalReport::regressions($now, $base);
         $lines = [];
         foreach ($now as $category => $stats) {
