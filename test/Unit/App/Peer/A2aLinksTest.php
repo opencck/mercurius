@@ -36,7 +36,7 @@ final class A2aLinksTest extends AsyncTestCase {
     public int $connects = 0;
 
     private function agent(string $name, string $answer): void {
-        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text($answer), ScriptedLlm::text($answer)]));
+        $stack = new AgentStack(new ScriptedLlm(array_fill(0, 6, ScriptedLlm::text($answer))));
         $owner = $stack->principals->ensureOwner('telegram', $name, 'Owner ' . $name);
         $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $vault->put('entrance', 'token', 'entrance', $owner);
@@ -117,6 +117,25 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame(A2aTask::COMPLETED, $a['peers']->outgoing[$task->id]->state ?? null);
         self::assertStringContainsString('B: четыре', implode("
 ", $a['stack']->channel->texts('send')));
+    }
+
+    public function testPeerCallWaitsForTheAnswerAndOrchestrateMergesTheParts(): void {
+        // spec: BRIEF.md#сеть-агентов — peer_call waits for one agent, peer_orchestrate gives parts to several and merges
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, $conversation, $a['owner'], new \Amp\NullCancellation());
+
+        $called = (new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($a['network'], $a['peers'], $a['stack']->conversations))->execute(['peer' => 'b', 'task' => 'Посчитай', 'wait' => 5], $context);
+        self::assertFalse($called->isError, $called->content);
+        self::assertStringContainsString('B: четыре', $called->content, 'the answer comes back to the call');
+        self::assertStringNotContainsString('B: четыре', implode("\n", $a['stack']->channel->texts('send')), 'not to the chat');
+
+        $merged = (new \OpenCCK\App\Agent\Tool\Agents\PeerOrchestrateTool($a['network'], $a['peers'], $a['stack']->conversations))->execute(['parts' => [['peer' => 'b', 'task' => 'Часть один'], ['peer' => 'b', 'task' => 'Часть два']], 'wait' => 5], $context);
+        self::assertFalse($merged->isError, $merged->content);
+        self::assertSame(2, substr_count($merged->content, 'B: четыре'), 'both parts answered and merged');
+        self::assertStringContainsString('1.', $merged->content);
+        self::assertStringContainsString('2.', $merged->content);
     }
 
     public function testANoticeOfATaskThisAgentDidNotGiveChangesNothing(): void {

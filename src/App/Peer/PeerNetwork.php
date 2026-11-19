@@ -302,13 +302,54 @@ final class PeerNetwork {
         );
     }
 
+    /** @var array<int, \Amp\DeferredFuture<array{state: string, label: string, answer: string}>> tasks a tool waits for */
+    private array $waiting = [];
+
     /**
-     * Gives a task to a neighbour and returns at once; the result comes later.
+     * Waits up to $seconds for the end of a task given with $wait: its state and answer, or null when it did not end
+     * in time; then the answer comes to the chat as for any task. Asks the neighbour every few seconds meanwhile.
+     *
+     * spec: BRIEF.md#сеть-агентов — peer_call and peer_orchestrate wait for the answer
+     * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L95-L128, L172-L196 (a2a_call) — one call
+     *      waited for with a time limit; hermes holds one HTTP request, here the task stays asynchronous and is read
+     *      until it ends or the limit passes
+     *
+     * @return array{state: string, label: string, answer: string}|null
+     */
+    public function outcome(OutgoingTask $out, float $seconds, \Amp\Cancellation $cancellation): ?array {
+        $deferred = $this->waiting[$out->id] ?? null;
+        if ($deferred === null) {
+            return null;
+        }
+        $deadline = microtime(true) + $seconds;
+        try {
+            while (!$deferred->isComplete()) {
+                $left = $deadline - microtime(true);
+                if ($left <= 0) {
+                    return null;
+                }
+                try {
+                    return $deferred->getFuture()->await(new \Amp\CompositeCancellation($cancellation, new \Amp\TimeoutCancellation(min(3.0, $left))));
+                } catch (\Amp\CancelledException $e) {
+                    if ($cancellation->isRequested()) {
+                        throw $e;
+                    }
+                }
+                $this->pollOne($out);
+            }
+            return $deferred->getFuture()->await();
+        } finally {
+            unset($this->waiting[$out->id]);
+        }
+    }
+
+    /**
+     * Gives a task to a neighbour and returns at once; the result comes later — or, with $wait, to outcome().
      *
      * @param list<string> $path the chain the current run came by (empty — from a person)
      * @param list<array{name: string, bytes: string}> $files
      */
-    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null): OutgoingTask {
+    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false): OutgoingTask {
         $peer = $this->peers->peer($peerName);
         // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
@@ -335,6 +376,11 @@ final class PeerNetwork {
         $remoteId = A2aClient::taskId($remote) ?? throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
         $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state, $leaderRun);
+        if ($wait) {
+            /** @var \Amp\DeferredFuture<array{state: string, label: string, answer: string}> $deferred */
+            $deferred = new \Amp\DeferredFuture();
+            $this->waiting[$out->id] = $deferred;
+        }
         if (in_array($state, A2aTask::TERMINAL, true)) {
             $this->spend($out, $remote);
             $this->finish($out, $state, A2aClient::answer($remote), $this->answerFiles($out, $remote, $link, $peer, $token));
@@ -488,6 +534,12 @@ final class PeerNetwork {
         };
         $text = sprintf(t('peer.peer_network.agent_zadacha'), $out->peer, $out->id, $out->remoteId, $label, $answer === '' ? t('peer.peer_network.bez_teksta') : $answer);
         $kept = $this->keepFiles($out, $files);
+        $waiting = $this->waiting[$out->id] ?? null;
+        if ($waiting !== null && !$waiting->isComplete()) {
+            // a tool waits for this task: the answer goes back to its call, not to the chat
+            $waiting->complete(['state' => $state, 'label' => $label, 'answer' => $answer . ($kept === '' ? '' : "\n\n" . $kept)]);
+            return;
+        }
         if ($out->channel !== A2aServer::CHANNEL) {
             // A task given from a task of a neighbour has no chat: its result stays in that conversation.
             $this->channel->send(new OutgoingMessage($out->chatId, SecretMasker::mask(mb_substr($text, 0, 3800))));
