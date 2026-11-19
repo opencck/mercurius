@@ -151,8 +151,13 @@ final class AmpSshShell implements RemoteShell {
             $id,
             static fn(): bool => !$ssh->isClosed() && ($jump === null || !$jump->isClosed()),
             function (PooledConnection $connection) use ($ssh, $jump, $server, $id): void {
-                $ssh->close();
-                $jump?->close();
+                // each on its own: the server in between may be closed already, and that one must close still
+                foreach ([$ssh, $jump] as $resource) {
+                    try {
+                        $resource?->close();
+                    } catch (Throwable) {
+                    }
+                }
                 $this->logger->info('SSH connection closed', ['server' => $server, 'connection' => $id, 'commands' => $connection->commands]);
             },
             $ssh,

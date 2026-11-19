@@ -102,6 +102,17 @@ final class ConnectionPoolTest extends TestCase {
         self::assertSame([1, 2, 3], $this->closedIds());
     }
 
+    public function testClosingAConnectionWhoseSocketIsGoneDoesNotThrow(): void {
+        // a connection through a server in between whose socket closed first: closing writes to a closed stream
+        $connection = new PooledConnection(1, static fn(): bool => true, static function (): void {
+            throw new \Amp\ByteStream\ClosedException('The stream is not writable');
+        });
+
+        $connection->close();
+
+        self::assertFalse($connection->alive());
+    }
+
     /** @return list<int> */
     private function closedIds(): array {
         return $this->closed;

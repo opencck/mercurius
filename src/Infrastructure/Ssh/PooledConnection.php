@@ -40,6 +40,10 @@ final class PooledConnection {
             return;
         }
         $this->closed = true;
-        ($this->close)($this);
+        try {
+            ($this->close)($this);
+        } catch (\Throwable) {
+            // the socket is gone already (a server in between closed first): there is nothing left to close
+        }
     }
 }
