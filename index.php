@@ -559,7 +559,16 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
 }
-$audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...));
+$projectRepository = new PostgresProjectRepository($db);
+// spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
+// those who may see the project
+$audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...), static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId) use ($projectRepository): ?int {
+    if (!$principal->role->may(\OpenCCK\Domain\Entity\Power::Projects)) {
+        return null;
+    }
+    $project = $projectRepository->active($channel, $chatId, $threadId);
+    return $project !== null && $project->visibleTo($principal) ? $project->id : null;
+});
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
 // spec: BRIEF.md#всегда-в-контексте — the participant's MEMORY.md, whole, with a limit; no sandbox — no file
@@ -768,7 +777,6 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 }
 
 // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
-$projectRepository = new PostgresProjectRepository($db);
 $scheduler->useProjects(new ProjectContext($projectRepository));
 // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);

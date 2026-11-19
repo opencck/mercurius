@@ -31,6 +31,17 @@ final class InMemoryConversationRepository implements ConversationRepository {
         unset($this->open[$channel . ':' . $chatId . ':' . $threadId]);
     }
 
+    /** @var array<int, bool> */
+    private array $privateChats = [];
+
+    public function setPrivateChat(int $conversationId, bool $private): void {
+        $this->privateChats[$conversationId] = $private;
+    }
+
+    public function privateChat(int $conversationId): ?bool {
+        return $this->privateChats[$conversationId] ?? null;
+    }
+
     public function isOpen(int $conversationId): bool {
         return in_array($conversationId, $this->open, true);
     }

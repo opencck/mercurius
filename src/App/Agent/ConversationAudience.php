@@ -19,18 +19,27 @@ final class ConversationAudience {
     /** @var array<int, bool> conversation => private chat */
     private array $private = [];
 
-    /** @param (\Closure(): list<int>)|null $formerOwners participants who owned the agent before: their conversations stay theirs */
+    /**
+     * @param (\Closure(): list<int>)|null $formerOwners participants who owned the agent before: their conversations stay theirs
+     * @param (\Closure(Principal, string, string, string): ?int)|null $project the active project of a chat (channel, chat,
+     *        topic) the participant may see; null — no projects
+     */
     public function __construct(
         private readonly ConversationRepository $conversations,
         private readonly ?\Closure $formerOwners = null,
+        private readonly ?\Closure $project = null,
     ) {}
 
     public function remember(int $conversationId, bool $privateChat): void {
+        if (($this->private[$conversationId] ?? null) !== $privateChat) {
+            // spec: BRIEF.md#контекст-по-месту-и-аудитории — kept, so a run after a restart knows the kind too
+            $this->conversations->setPrivateChat($conversationId, $privateChat);
+        }
         $this->private[$conversationId] = $privateChat;
     }
 
     public function isPrivate(int $conversationId): bool {
-        return $this->private[$conversationId] ?? false;
+        return $this->private[$conversationId] ??= $this->conversations->privateChat($conversationId) ?? false;
     }
 
     /** @return list<string> memory scopes this conversation may read; [] when the conversation is gone */
@@ -39,7 +48,9 @@ final class ConversationAudience {
         if ($meta === null) {
             return [];
         }
-        return Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->isPrivate($conversationId));
+        // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the chat's active project
+        $project = $this->project === null ? null : ($this->project)($principal, $meta->channel, $meta->chatId, $meta->threadId);
+        return Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->isPrivate($conversationId), $project);
     }
 
     /**

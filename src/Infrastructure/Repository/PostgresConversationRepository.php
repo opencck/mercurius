@@ -42,6 +42,16 @@ final class PostgresConversationRepository implements ConversationRepository {
         );
     }
 
+    public function setPrivateChat(int $conversationId, bool $private): void {
+        $this->db->execute('UPDATE conversations SET private_chat = ? WHERE id = ? AND private_chat IS DISTINCT FROM ?', [$private, $conversationId, $private]);
+    }
+
+    public function privateChat(int $conversationId): ?bool {
+        $row = $this->db->execute('SELECT private_chat FROM conversations WHERE id = ?', [$conversationId])->fetchRow();
+        $value = $row['private_chat'] ?? null;
+        return is_bool($value) ? $value : null;
+    }
+
     public function isOpen(int $conversationId): bool {
         foreach ($this->db->execute('SELECT 1 FROM conversations WHERE id = ? AND closed_at IS NULL', [$conversationId]) as $row) {
             return true;

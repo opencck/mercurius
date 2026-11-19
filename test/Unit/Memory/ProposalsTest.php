@@ -127,6 +127,15 @@ final class ProposalsTest extends TestCase {
             }
         }
     }
+    public function testAFactOfTheProjectGoesToItsScope(): void {
+        // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — facts of a project
+        $proposal = $this->proposals->propose(Proposal::ADD, null, 'Сервер проекта — Ubuntu 24.04', 'проверил', ['chat:t:-100', 'project:12'], null, null, project: true);
+
+        self::assertSame('project:12', $proposal->scope);
+        $this->expectException(InvalidArgumentException::class);
+        $this->proposals->propose(Proposal::ADD, null, 'нет проекта', 'x', ['owner', 'chat:t:1'], null, null, project: true);
+    }
+
     public function testLayerOneIsEditedByEntries(): void {
         // spec: BRIEF.md#всегда-в-контексте — layer 1 is edited by entries, not rewritten whole
         $this->store->setCore('profile', "Живёт в Бангкоке\n§\nПишет по-русски");

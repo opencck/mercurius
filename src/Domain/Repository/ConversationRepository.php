@@ -24,6 +24,12 @@ interface ConversationRepository {
 
     public function meta(int $conversationId): ?ConversationMeta;
 
+    /** Keeps whether the conversation is a private chat. */
+    public function setPrivateChat(int $conversationId, bool $private): void;
+
+    /** Whether the conversation is a private chat; null — not known yet. */
+    public function privateChat(int $conversationId): ?bool;
+
     /** Whether the conversation is still the open one of its chat (not closed by /new). */
     public function isOpen(int $conversationId): bool;
 

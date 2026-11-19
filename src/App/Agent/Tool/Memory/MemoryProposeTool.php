@@ -53,6 +53,7 @@ final class MemoryProposeTool implements Tool {
                 // spec: BRIEF.md#всегда-в-контексте — profile and summary are edited by entries
                 'edit' => ['type' => 'string', 'enum' => \OpenCCK\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
                 'old_text' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.memory_propose.old_text')],
+                'project' => ['type' => 'boolean', 'description' => t('tool.memory_propose.project')],
             ],
             'required' => ['kind', 'reason'],
             'additionalProperties' => false,
@@ -87,6 +88,7 @@ final class MemoryProposeTool implements Tool {
                 ($args['about_person'] ?? false) === true,
                 Args::string($args, 'edit') ?? 'all',
                 Args::string($args, 'old_text') ?? '',
+                ($args['project'] ?? false) === true,
             );
         } catch (InvalidArgumentException $e) {
             return ToolResult::error($e->getMessage());

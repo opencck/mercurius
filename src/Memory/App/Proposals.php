@@ -58,7 +58,7 @@ final class Proposals {
      * @param bool $aboutPerson the fact is about another person: only the owner's memory takes it
      * @throws InvalidArgumentException with the reason to show the model
      */
-    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = ''): Proposal {
+    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = '', bool $project = false): Proposal {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
@@ -69,6 +69,14 @@ final class Proposals {
             throw new InvalidArgumentException(t('app.proposals.about_person_owner_only'));
         }
         $scope = $aboutPerson ? Audience::OWNER : $readable[0];
+        // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — a fact of the chat's active project
+        if ($project) {
+            $projects = array_values(array_filter($readable, static fn(string $s): bool => str_starts_with($s, 'project:')));
+            if ($projects === [] || $aboutPerson) {
+                throw new InvalidArgumentException(t('app.proposals.no_project_here'));
+            }
+            $scope = $projects[0];
+        }
         switch ($kind) {
             case Proposal::ADD:
                 $this->check($text, ContentScreen::FACT_MAX);
