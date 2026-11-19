@@ -77,6 +77,14 @@ final class PostgresJobRepository implements JobRepository {
         $this->db->execute('UPDATE jobs SET pending_report = NULL WHERE id = ?', [$id]);
     }
 
+    public function holdReport(int $id, string $report): void {
+        $this->db->execute('UPDATE jobs SET pending_report = ? WHERE id = ?', [$report, $id]);
+    }
+
+    public function noteResult(int $id, string $line): void {
+        $this->db->execute("UPDATE jobs SET last_result = left(coalesce(last_result, '') || E'\n' || ?, 4000) WHERE id = ?", [$line, $id]);
+    }
+
     public function setStatus(int $id, string $status): bool {
         return $this->db->execute('UPDATE jobs SET status = ? WHERE id = ? RETURNING id', [$status, $id])->fetchRow() !== null;
     }

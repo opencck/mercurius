@@ -66,6 +66,14 @@ final class InMemoryJobRepository implements JobRepository {
         $this->jobs[$id] = self::with($this->jobs[$id], pendingReport: null);
     }
 
+    public function holdReport(int $id, string $report): void {
+        $this->jobs[$id] = self::with($this->jobs[$id], pendingReport: $report);
+    }
+
+    public function noteResult(int $id, string $line): void {
+        $this->jobs[$id] = self::with($this->jobs[$id], lastResult: ($this->jobs[$id]->lastResult ?? '') . "\n" . $line);
+    }
+
     public function setStatus(int $id, string $status): bool {
         $j = $this->jobs[$id] ?? null;
         if ($j === null) {

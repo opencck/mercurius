@@ -45,6 +45,16 @@ interface JobRepository {
 
     public function clearPending(int $id): void;
 
+    /**
+     * A report that did not go out waits to be sent again.
+     *
+     * spec: BRIEF.md#планировщик-и-проекты — a failed delivery is retried and names its reason
+     */
+    public function holdReport(int $id, string $report): void;
+
+    /** The last result of a job gets a line: why its report could not be delivered. */
+    public function noteResult(int $id, string $line): void;
+
     public function setStatus(int $id, string $status): bool;
 
     /** Moves the next run: resuming counts it from now, a run now puts it at now. */

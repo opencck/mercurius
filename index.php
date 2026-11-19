@@ -832,6 +832,11 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
     return $jobWatchText->extract($body, $response->getHeader('content-type') ?? '', $url)[1];
 });
 $jobScheduler->useSkills($skillLibrary);
+// spec: BRIEF.md#контекст-по-месту-и-аудитории — the memory core only for a job that reports to its owner's private chat
+$jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job $job) use ($scheduler, $principals): string {
+    $private = $job->threadId === '' && $principals->externalId($who, $job->channel) === $job->chatId;
+    return $private ? $scheduler->coreOf($who) : '';
+});
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));

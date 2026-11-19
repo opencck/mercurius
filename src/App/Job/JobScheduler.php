@@ -106,8 +106,13 @@ final class JobScheduler implements JobRuns {
                 if ($this->budget !== null && !$this->budget->take()) {
                     break;
                 }
-                $this->deliver($job, (string) $job->pendingReport);
-                $this->jobs->clearPending($job->id);
+                $failure = $this->deliver($job, (string) $job->pendingReport);
+                if ($failure === null || $failure['permanent']) {
+                    $this->jobs->clearPending($job->id);
+                }
+                if ($failure !== null && $failure['permanent']) {
+                    $this->jobs->noteResult($job->id, sprintf(t('job.job_scheduler.delivery_refused'), $failure['reason']));
+                }
             }
         }
         $futures = [];
@@ -237,12 +242,33 @@ final class JobScheduler implements JobRuns {
         // spec: BRIEF.md#планировщик-и-проекты — quiet hours and the daily cap of initiative messages
         $held = $this->isQuiet(($this->now)(), $job->principalId) || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
-        if (!$held) {
-            $this->deliver($job, $report);
+        if ($held) {
+            return;
         }
+        $failure = $this->deliver($job, $report);
+        if ($failure === null) {
+            return;
+        }
+        if ($failure['permanent']) {
+            $this->jobs->noteResult($job->id, sprintf(t('job.job_scheduler.delivery_refused'), $failure['reason']));
+            return;
+        }
+        $this->jobs->holdReport($job->id, $report . "\n\n" . sprintf(t('job.job_scheduler.delivered_late'), $failure['reason']));
     }
 
     private ?\OpenCCK\App\Skill\SkillLibrary $skills = null;
+    /** @var (\Closure(Principal, Job): string)|null the memory core for a job's run; '' where it must not go */
+    private ?\Closure $core = null;
+
+    /**
+     * spec: BRIEF.md#контекст-по-месту-и-аудитории — a job run knows its owner's memory core only when its report goes
+     *       to the owner's private chat
+     *
+     * @param \Closure(Principal, Job): string $core
+     */
+    public function useCore(\Closure $core): void {
+        $this->core = $core;
+    }
 
     /** spec: BRIEF.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too */
     public function useSkills(\OpenCCK\App\Skill\SkillLibrary $skills): void {
@@ -261,7 +287,7 @@ final class JobScheduler implements JobRuns {
         $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
         $policy = $this->policy($principal);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
-        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), skills: $this->skills?->index($principal, null) ?? ''), $this->model);
+        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $this->model);
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));
@@ -293,11 +319,26 @@ final class JobScheduler implements JobRuns {
         return t('job.job_scheduler.itoga_net') . ($final->stopReason?->label() ?? t('job.job_scheduler.zapusk_ne_zakonchen')) . ').';
     }
 
-    private function deliver(Job $job, string $report): void {
+    /**
+     * Sends a report; why it did not go, or null. A refusal of the chat (the bot was blocked, the chat is gone) is
+     * permanent: sending again would not help.
+     *
+     * ref: references/hermes-agent/cron/delivery_outcome.py@e96221fa:L1-L13 — a failed delivery is written onto the
+     *      job (last_delivery_error) instead of passing silently; here a passing failure is also sent again on the next
+     *      tick, the report saying why it is late
+     *
+     * @return array{reason: string, permanent: bool}|null
+     */
+    private function deliver(Job $job, string $report): ?array {
         // spec: BRIEF.md#telegram-группы-каналы-и-темы — the report goes back into the topic the job was set in
         $result = $this->channel->send(new OutgoingMessage($job->chatId, SecretMasker::mask($report), threadId: $job->threadId === '' ? null : $job->threadId));
-        if (!$result->success) {
-            $this->logger->warning('Job report was not delivered', ['job' => $job->id]);
+        if ($result->success) {
+            return null;
         }
+        $kind = $result->errorKind ?? \Mercurius\Messenger\SendErrorKind::Unknown;
+        $reason = mb_substr(SecretMasker::mask($kind->value . ($result->error === null ? '' : ': ' . $result->error)), 0, 200);
+        $permanent = $kind === \Mercurius\Messenger\SendErrorKind::Forbidden || $kind === \Mercurius\Messenger\SendErrorKind::NotFound;
+        $this->logger->warning('Job report was not delivered', ['job' => $job->id, 'reason' => $reason, 'permanent' => $permanent]);
+        return ['reason' => $reason, 'permanent' => $permanent];
     }
 }

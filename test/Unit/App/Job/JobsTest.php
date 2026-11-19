@@ -161,6 +161,19 @@ final class JobsTest extends AsyncTestCase {
         self::assertStringContainsString('запуск №1', array_slice($request->messages, -1)[0]->content ?? '');
     }
 
+    public function testAJobRunKnowsTheMemoryCoreWhereItMay(): void {
+        // spec: BRIEF.md#контекст-по-месту-и-аудитории — the core goes to a job only where its report may carry it
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok'), ScriptedLlm::text('ok')]));
+        $scheduler->useCore(static fn(Principal $who, \OpenCCK\Domain\Job\Job $job): string => $job->chatId === '42' ? 'Владелец любит краткие отчёты.' : '');
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Лично', 'Проверь', 'every:60', $this->now->modify('-5 minutes'));
+        $this->jobs->create($this->owner->id, 'telegram', '-100500', 'Группа', 'Проверь', 'every:60', $this->now->modify('-5 minutes'));
+
+        $scheduler->tick(true);
+
+        $prompts = array_map(static fn($r): string => $r->messages[0]->content, $this->stack->llm->requests);
+        self::assertCount(1, array_filter($prompts, static fn(string $p): bool => str_contains($p, 'Владелец любит краткие отчёты.')));
+    }
+
     public function testAJobRunKnowsTheSkillsOfItsOwner(): void {
         // spec: BRIEF.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
@@ -212,6 +225,37 @@ description: Отчёт о диске таблицей
         $once = $this->jobs->create($this->owner->id, 'telegram', '42', 'Разово', 'Напомни', 'once:2026-11-17T11:00:00Z', $this->now);
         $scheduler->tick(true);
         self::assertSame(Job::DONE, $this->jobs->find($once->id)?->status);
+    }
+
+    public function testAReportThatDidNotGoOutIsSentAgainWithTheReason(): void {
+        // spec: BRIEF.md#планировщик-и-проекты — a report that did not go out waits in pending_report and names why
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово: три письма.')]));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Почта', 'Проверь почту', 'every:600', $this->now);
+        $this->stack->channel->sendResults[] = \Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'Bad Gateway');
+
+        $scheduler->tick(true);
+        $held = (string) $this->jobs->find(1)?->pendingReport;
+        self::assertStringContainsString('Готово: три письма.', $held, 'the report waits');
+        self::assertStringContainsString('Bad Gateway', $held, 'with the reason it did not go');
+
+        $this->now = $this->now->modify('+1 minute');
+        $scheduler->tick(true);
+        $sent = implode("
+", $this->stack->channel->texts('send'));
+        self::assertStringContainsString('Готово: три письма.', $sent);
+        self::assertStringContainsString('Bad Gateway', $sent);
+        self::assertNull($this->jobs->find(1)?->pendingReport);
+    }
+
+    public function testAReportTheChatRefusesIsNotTriedForever(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Итог.')]));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Почта', 'Проверь почту', 'every:600', $this->now);
+        $this->stack->channel->sendResults[] = \Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Forbidden, 'bot was blocked by the user');
+
+        $scheduler->tick(true);
+
+        self::assertNull($this->jobs->find(1)?->pendingReport, 'a refusal of the chat is not a reason to try again');
+        self::assertStringContainsString('bot was blocked', (string) $this->jobs->find(1)?->lastResult, 'the reason stays with the job');
     }
 
     public function testQuietHoursHoldTheReportUntilMorning(): void {

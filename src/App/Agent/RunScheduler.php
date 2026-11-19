@@ -592,7 +592,19 @@ final class RunScheduler {
     }
 
     private function core(Principal $principal, int $conversationId): string {
-        if (($this->memory === null && $this->memoryFile === null) || !$this->audience()->isPrivate($conversationId)) {
+        if (!$this->audience()->isPrivate($conversationId)) {
+            return '';
+        }
+        return $this->coreOf($principal);
+    }
+
+    /**
+     * Layer 1 of a participant's memory and their MEMORY.md, for a place the caller found private.
+     *
+     * spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
+     */
+    public function coreOf(Principal $principal): string {
+        if ($this->memory === null && $this->memoryFile === null) {
             return '';
         }
         $parts = [];
