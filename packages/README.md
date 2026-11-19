@@ -10,9 +10,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 |-------|---------|--------|-----------|------------|
 | [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `e703b85` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `4ee1db2` | 2026-11-19 | Канал связи: адаптеры Telegram и WebSocket |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `b38c0c8` | 2026-11-19 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `6160633` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `6a58e5d` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `201f766` | 2026-11-19 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
 
@@ -42,6 +42,11 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-19 — messenger: живучий polling и квитанции обновлений
+
+- `mercurius-messenger` `90c0574`: long polling переживает любую ошибку и пропускает обновление, которое не разобрать; `b38c0c8`: `Deduplicator` с `firstSeen` — ключи обновлений в хранилище, повторная доставка после перезапуска отбрасывается.
+- `mercurius-i18n` `201f766`: пометка «ответ целиком в файле».
 
 ### 2026-11-19 — messenger: склейка разрезанных текстов
 

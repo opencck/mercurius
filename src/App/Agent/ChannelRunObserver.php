@@ -31,6 +31,8 @@ final class ChannelRunObserver implements RunObserver {
     public const PLACEHOLDER = '…';
     /** What the preview says when the answer of a long run comes as a new message. */
     public const ANSWER_BELOW = 'agent.channel_run_observer.answer_below';
+    /** an answer of more parts than this goes as a file, the chat gets its beginning */
+    private const MAX_PARTS = 8;
 
     private ?string $messageId = null;
     private bool $started = false;
@@ -163,7 +165,19 @@ final class ChannelRunObserver implements RunObserver {
             $this->start();
         }
         $mode = $reason === StopReason::Answered ? ParseMode::Markdown : ParseMode::Plain;
-        $parts = (new TextSplitter($this->channel->capabilities()->maxMessageLength))->split($finalText);
+        $splitter = new TextSplitter($this->channel->capabilities()->maxMessageLength);
+        $parts = $splitter->split($finalText);
+        // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — more than 8 parts go as a file: a flood
+        //       of messages is hard to read and hits the messenger's limits; the references have no such rule
+        if (count($parts) > self::MAX_PARTS) {
+            $file = $this->channel->sendFile($this->chatId, sprintf('answer-%d.md', $run->id), $finalText, null, $this->threadId);
+            if ($file->success) {
+                $finalText = $parts[0] . "\n\n" . t('agent.channel_run_observer.answer_in_file');
+                $parts = $splitter->split($finalText);
+            } else {
+                $this->logger->notice('The long answer did not go as a file; it goes in parts', ['run' => $run->id, 'kind' => $file->errorKind?->value]);
+            }
+        }
         $first = array_shift($parts) ?? $finalText;
         // spec: BRIEF.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
         $obligation = $this->obligation($run, $finalText, $mode);

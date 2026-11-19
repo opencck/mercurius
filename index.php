@@ -1089,7 +1089,16 @@ $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId);
 // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — a text Telegram split at 4096 characters is glued back (2 s, as hermes)
 $dispatcher = new ChatDispatcher($chat, $logger, callbacks: $presses, memberships: new \OpenCCK\App\Service\MembershipRouter([$groupGate, $channelRegistry]), posts: $channelRegistry, splitDelay: 2.0);
-$deduplicator = new Deduplicator();
+// spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — updates taken are kept a day in the database:
+// a redelivery after a restart is not run twice
+$seenUpdates = new \OpenCCK\Infrastructure\Repository\PostgresSeenUpdates($db);
+$deduplicator = new Deduplicator(firstSeen: $seenUpdates->fresh(...));
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(3600, static function () use ($seenUpdates): void {
+    try {
+        $seenUpdates->prune();
+    } catch (\Throwable) {
+    }
+}));
 
 $routes = [];
 $webhookSecret = $telegram->webhookSecret();

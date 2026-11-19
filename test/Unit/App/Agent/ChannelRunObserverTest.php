@@ -31,6 +31,21 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         return new Run(1, 1, 1, null, 'm', RunStatus::Done, StopReason::Answered, new RunLimits(30, 1000, 900, 120));
     }
 
+    public function testAnAnswerOfMoreThanEightPartsGoesAsAFile(): void {
+        // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — a long answer is a file, not a flood
+        $channel = new FakeChannel(maxLength: 100);
+        $observer = $this->observer($channel);
+        $observer->start();
+        $answer = str_repeat('Строка ответа номер такая-то. ', 40);
+
+        $observer->finished(self::finishedRun(), $answer, StopReason::Answered);
+
+        self::assertSame([['42', 'answer-1.md', $answer]], $channel->files);
+        $texts = array_merge($channel->texts('send'), $channel->texts('edit'));
+        self::assertLessThanOrEqual(2, count(array_filter($texts, static fn(string $t): bool => str_contains($t, 'Строка ответа'))), 'only the beginning in the chat');
+        self::assertStringContainsString(\Mercurius\I18n\t('agent.channel_run_observer.answer_in_file'), implode("\n", $texts));
+    }
+
     public function testAChannelWithoutEditsGetsOnlyWhatIsFinal(): void {
         // spec: BRIEF.md#агентский-цикл-и-харнесс — the core reads what a channel can do: no edits, no status message
         $channel = new FakeChannel(canEdit: false);
