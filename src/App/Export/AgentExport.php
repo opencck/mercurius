@@ -50,8 +50,8 @@ final class AgentExport {
         mkdir($work, 0700);
         try {
             ($this->run)(['pg_dump', '-h', $this->db['host'], '-p', (string) $this->db['port'], '-U', $this->db['user'], '-d', $this->db['name'], '-Fc', '-f', $work . '/db.dump'], ['PGPASSWORD' => $this->db['password']]);
-            // the same names as bin/backup.sh: app/... ; the exports themselves stay out
-            ($this->run)(['tar', '-czf', $work . '/app.tar.gz', '--exclude=./exports', '--transform=s,^\.,app,', '-C', $this->storage, '.'], []);
+            // the same names as bin/backup.sh: app/... ; the exports and the imports themselves stay out
+            ($this->run)(['tar', '-czf', $work . '/app.tar.gz', '--exclude=./exports', '--exclude=./import', '--transform=s,^\.,app,', '-C', $this->storage, '.'], []);
             if ($this->workspace !== null) {
                 ($this->workspace)($work . '/workspace.tar.gz', $cancellation);
             } else {
@@ -73,13 +73,13 @@ final class AgentExport {
     /**
      * The settings for the archive: the variables of .env.example with the values this process has.
      *
-     * @param array<string, string> $environment
+     * @param array<array-key, mixed> $environment the variables of the process ($_ENV)
      */
     public static function env(array $environment, string $example): string {
         $lines = [];
         foreach (preg_split('~\R~', $example) ?: [] as $line) {
-            if (preg_match('~^#?\s*([A-Z][A-Z0-9_]*)=~', $line, $m) === 1 && isset($environment[$m[1]]) && !isset($lines[$m[1]])) {
-                $lines[$m[1]] = $m[1] . '=' . $environment[$m[1]];
+            if (preg_match('~^#?\s*([A-Z][A-Z0-9_]*)=~', $line, $m) === 1 && !isset($lines[$m[1]]) && is_scalar($environment[$m[1]] ?? null)) {
+                $lines[$m[1]] = $m[1] . '=' . (string) $environment[$m[1]];
             }
         }
         return implode("\n", $lines) . "\n";

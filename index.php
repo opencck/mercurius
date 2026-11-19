@@ -1120,21 +1120,12 @@ $chat->useModelRoles($modelRoles);
 // spec: BRIEF.md#экспорт-и-импорт-агента — /export: the archive of the agent sealed by the owner's password
 $chat->useExport(new \OpenCCK\App\Export\ExportCommands(
     static function (string $password, \Amp\Cancellation $cancellation) use ($config, $sandbox, $version): string {
-        $environment = array_map(static fn(mixed $value): string => (string) $value, $_ENV);
         $example = @file_get_contents(PATH_ROOT . '/.env.example');
         $export = new \OpenCCK\App\Export\AgentExport(
-            static function (array $command, array $env) use ($cancellation): void {
-                $process = \Amp\Process\Process::start($command, null, $env + getenv());
-                $error = \Amp\async(static fn(): string => \Amp\ByteStream\buffer($process->getStderr()));
-                \Amp\ByteStream\buffer($process->getStdout());
-                $code = $process->join($cancellation);
-                if ($code !== 0) {
-                    throw new \RuntimeException(sprintf('%s exited with %d: %s', $command[0] ?? '', $code, mb_substr(trim($error->await()), 0, 300)));
-                }
-            },
+            \OpenCCK\App\Export\ProcessRunner::closure($cancellation),
             ['host' => $config->postgres->host, 'port' => $config->postgres->port, 'user' => $config->postgres->user, 'password' => $config->postgres->password(), 'name' => $config->postgres->database],
             PATH_ROOT . '/storage',
-            \OpenCCK\App\Export\AgentExport::env($environment, is_string($example) ? $example : ''),
+            \OpenCCK\App\Export\AgentExport::env($_ENV, is_string($example) ? $example : ''),
             $version,
             $sandbox === null ? null : static function (string $to, \Amp\Cancellation $c) use ($sandbox): void {
                 $sandbox->archive($to, $c);
