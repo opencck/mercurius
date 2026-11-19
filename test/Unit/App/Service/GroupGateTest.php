@@ -361,6 +361,24 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertSame([], array_filter($this->stack->channel->texts('edit'), static fn(string $t): bool => str_contains($t, 'SILENT')));
     }
 
+    public function testAnAgentThatActedInAFreeGroupReportsInsteadOfStayingSilent(): void {
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — silence is for a turn with nothing to say, not for one that acted
+        $this->stack(new ScriptedLlm([
+            ScriptedLlm::calls(new \Mercurius\Llm\ToolCall('c1', 'skill_setup', '{}')),
+            ScriptedLlm::text('[SILENT]'),
+            ScriptedLlm::text('Подключил скилл к проекту.'),
+        ]));
+        $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('skill_setup', danger: \OpenCCK\Domain\Agent\DangerClass::Write));
+        $this->say('x');
+        $this->press('gr:' . self::GROUP . ':f');
+
+        $this->say('в этом проекте используем такой-то скилл');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertCount(3, $this->stack->llm->requests, 'one reminder after the silent answer');
+        self::assertContains('Подключил скилл к проекту.', [...$this->stack->channel->texts('send'), ...$this->stack->channel->texts('edit')]);
+    }
+
     public function testAPhotoAddressedToTheAgentInAGroupComesWithItsFile(): void {
         $this->stack(new ScriptedLlm([ScriptedLlm::text('Модель зрения не назначена.')]));
         $intake = new \OpenCCK\App\Agent\Media\AttachmentIntake($this->stack->channel, new \OpenCCK\Test\Support\FakeSandbox(), \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv([]), new \DateTimeZone('+03:00'));

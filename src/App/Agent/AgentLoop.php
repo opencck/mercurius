@@ -290,6 +290,16 @@ final class AgentLoop {
             return Step::next();
         }
         $state->textAction = null;
+        // spec: BRIEF.md#telegram-группы-каналы-и-темы — [SILENT] is for a turn with nothing to say: a run that acted (a
+        //      skill set up, a file written) tells what it did and what failed, once asked
+        if (!$state->silenceRetried && str_starts_with(ltrim($text), '[SILENT]') && $this->actionsNote($state->run->id) !== '') {
+            $state->silenceRetried = true;
+            $state->silenceAfterActions = true;
+            $state->partial = '';
+            $this->logger->notice('A silent answer after actions: asked to report', ['run' => $state->run->id]);
+            return Step::next();
+        }
+        $state->silenceAfterActions = false;
         $state->partial = '';
         $state->finalText = $text;
         $this->saveAnswer($state, $text);
@@ -426,6 +436,9 @@ final class AgentLoop {
     private function tail(RunState $state): array {
         if ($state->textAction !== null) {
             return [Message::assistant($state->textAction), Message::user(\Mercurius\I18n\t(self::TEXT_ACTION_NOTE))];
+        }
+        if ($state->silenceAfterActions) {
+            return [Message::assistant('[SILENT]'), Message::user(\Mercurius\I18n\t('agent.agent_loop.silent_after_actions'))];
         }
         if ($state->partial !== '') {
             return [Message::assistant($state->partial), Message::user(\Mercurius\I18n\t(self::CONTINUE_NOTE))];

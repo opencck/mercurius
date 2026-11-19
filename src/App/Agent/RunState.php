@@ -38,6 +38,9 @@ final class RunState {
     /** an answer that reported an action in words without calling a tool, shown back once with a reminder */
     public ?string $textAction = null;
     public bool $textActionRetried = false;
+    /** a [SILENT] answer after actions: the model is asked once to report them instead */
+    public bool $silenceAfterActions = false;
+    public bool $silenceRetried = false;
     /** A call that broke mid-stream was repeated once. */
     public bool $streamRetried = false;
     /** The last call delivered at least one stream event before it failed. */
