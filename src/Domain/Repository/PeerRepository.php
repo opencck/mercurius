@@ -83,7 +83,19 @@ interface PeerRepository {
     public function removePeer(string $name): bool;
 
     /** @param int|null $leaderRun the run that gave the task, for its trace */
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask;
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null, string $contextId = ''): OutgoingTask;
+
+    public function findOutgoing(int $id): ?OutgoingTask;
+
+    /** The task was read just now: the next pass reads others first. */
+    public function markPolled(int $id): void;
+
+    /**
+     * Open tasks given more than $seconds ago.
+     *
+     * @return list<OutgoingTask>
+     */
+    public function staleOutgoing(int $seconds, int $limit): array;
 
     /** What the neighbour reported it spent on the task: its run, tokens and cost in USD. */
     public function recordRemoteSpend(int $id, ?int $remoteRun, int $tokens, ?float $usd): void;
@@ -91,7 +103,7 @@ interface PeerRepository {
     /** @return list<array{peer: string, remote: string, state: string, run: ?int, tokens: int, usd: ?float}> the tasks a run gave */
     public function outgoingOfRun(int $runId): array;
 
-    /** @return list<OutgoingTask> */
+    /** @return list<OutgoingTask> open tasks, the longest unread first */
     public function openOutgoing(int $limit): array;
 
     /** Ends an open task; false when it had ended already (a poll and a notice read it at once). */

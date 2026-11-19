@@ -124,7 +124,7 @@ final class A2aClient {
      * @param list<array{name: string, bytes: string}> $files
      * @return array<array-key, mixed> the task
      */
-    public function send(Peer $peer, #[SensitiveParameter] string $token, string $messageId, string $text, int $depth, array $path, ?Cancellation $cancellation = null, array $files = []): array {
+    public function send(Peer $peer, #[SensitiveParameter] string $token, string $messageId, string $text, int $depth, array $path, ?Cancellation $cancellation = null, array $files = [], ?string $contextId = null): array {
         // spec: BRIEF.md#между-агентами — files go ahead by POST /a2a/files (form-data); bytes in the message only by
         // WebSocket when A2A_FILE_TRANSPORT=ws
         $refs = [];
@@ -132,7 +132,22 @@ final class A2aClient {
             $refs = $this->upload($peer, $token, $files, $cancellation);
             $files = [];
         }
-        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path, $files, $refs), $cancellation));
+        return self::taskOf($this->call($peer, $token, 'SendMessage', self::message($messageId, $text, $depth, $path, $files, $refs, $contextId), $cancellation));
+    }
+
+    /**
+     * Asks the neighbour to stop a task it was given.
+     *
+     * @return array<array-key, mixed> the task
+     */
+    public function cancel(Peer $peer, #[SensitiveParameter] string $token, string $taskId, ?Cancellation $cancellation = null): array {
+        return $this->call($peer, $token, 'CancelTask', ['id' => $taskId], $cancellation);
+    }
+
+    /** @param array<array-key, mixed> $task the context of a task at the neighbour; '' when it says none */
+    public static function contextOf(array $task): string {
+        $context = isset($task['contextId']) && is_string($task['contextId']) ? $task['contextId'] : null;
+        return is_string($context) && preg_match('~^[\w.:-]{1,100}$~D', $context) === 1 ? $context : '';
     }
 
     /**
@@ -248,7 +263,7 @@ final class A2aClient {
      * @param list<array{id: string, filename: string, mediaType: string}> $refs files sent ahead
      * @return array<string, mixed>
      */
-    public static function message(string $messageId, string $text, int $depth, array $path, array $files = [], array $refs = []): array {
+    public static function message(string $messageId, string $text, int $depth, array $path, array $files = [], array $refs = [], ?string $contextId = null): array {
         $parts = $text === '' ? [] : [['text' => $text, 'mediaType' => 'text/plain']];
         foreach ($files as $file) {
             $parts[] = ['raw' => base64_encode($file['bytes']), 'filename' => $file['name'], 'mediaType' => A2aFiles::mediaType('', $file['name'])];
@@ -256,8 +271,13 @@ final class A2aClient {
         foreach ($refs as $ref) {
             $parts[] = ['url' => A2aFiles::SCHEME . $ref['id'], 'filename' => $ref['filename'], 'mediaType' => $ref['mediaType']];
         }
+        $message = ['role' => 'ROLE_USER', 'messageId' => $messageId, 'parts' => $parts];
+        if ($contextId !== null && $contextId !== '') {
+            // spec: BRIEF.md#сеть-агентов — an answer to a question of the neighbour goes into the same context
+            $message['contextId'] = $contextId;
+        }
         return [
-            'message' => ['role' => 'ROLE_USER', 'messageId' => $messageId, 'parts' => $parts],
+            'message' => $message,
             'metadata' => ['mercurius' => ['depth' => $depth, 'path' => $path]],
         ];
     }

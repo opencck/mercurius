@@ -47,6 +47,7 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
                 'peer' => $names === [] ? ['type' => 'string', 'maxLength' => 40] : ['type' => 'string', 'enum' => $names],
                 'task' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 8000],
                 'files' => ['type' => 'array', 'maxItems' => SandboxFiles::COUNT_MAX, 'items' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 1024], 'description' => t('tool.peer_delegate.files')],
+                'reply_to' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.peer_call.reply_to')],
             ],
             'additionalProperties' => false,
         ]);
@@ -82,10 +83,14 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         $meta = $this->conversations->meta($context->conversationId) ?? throw new DomainException(t('tool.peer_delegate.beseda_ne_naydena'));
         // A run that is itself a task from a neighbour carries its chain on.
         $parent = $meta->channel === A2aServer::CHANNEL ? $this->peers->taskByRun($context->runId) : null;
+        $contextId = PeerCallTool::replyContext($this->peers, $context, $peer, Args::int($args, 'reply_to'));
+        if ($contextId === false) {
+            return ToolResult::error(t('tool.peer_call.bad_reply_to'));
+        }
         try {
             // spec: BRIEF.md#между-агентами — files of the sandbox go with the task
             $files = SandboxFiles::read($this->sandbox, $args, $context);
-            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files, $context->runId);
+            $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files, $context->runId, false, $contextId);
         } catch (DomainException | RuntimeException $e) {
             return ToolResult::error($e->getMessage());
         }

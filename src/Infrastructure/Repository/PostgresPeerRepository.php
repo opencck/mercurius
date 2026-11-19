@@ -15,7 +15,7 @@ use UnexpectedValueException;
 
 final class PostgresPeerRepository implements PeerRepository {
     private const TASK = 'id, principal_id, context_id, message_id, state, run_id, result, depth, path::text AS path';
-    private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result, leader_run_id';
+    private const OUT = 'id, peer, remote_id, principal_id, channel, chat_id, task, state, result, leader_run_id, context_id';
     private const REQUEST = 'id, fingerprint, name, url, transport, status';
     private const OPEN = "('TASK_STATE_SUBMITTED', 'TASK_STATE_WORKING')";
 
@@ -179,17 +179,37 @@ final class PostgresPeerRepository implements PeerRepository {
         return $this->db->execute('DELETE FROM peers WHERE name = ? RETURNING name', [$name])->fetchRow() !== null;
     }
 
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask {
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null, string $contextId = ''): OutgoingTask {
         $row = $this->db->execute(
-            'INSERT INTO a2a_outgoing (peer, remote_id, principal_id, channel, chat_id, task, state, leader_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::OUT,
-            [$peer, $remoteId, $principalId, $channel, $chatId, $task, $state, $leaderRun],
+            'INSERT INTO a2a_outgoing (peer, remote_id, principal_id, channel, chat_id, task, state, leader_run_id, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::OUT,
+            [$peer, $remoteId, $principalId, $channel, $chatId, $task, $state, $leaderRun, $contextId],
         )->fetchRow();
         return self::outRow($row ?? throw new UnexpectedValueException('Outgoing task was not created'));
     }
 
     public function openOutgoing(int $limit): array {
         $found = [];
-        foreach ($this->db->execute('SELECT ' . self::OUT . ' FROM a2a_outgoing WHERE state IN ' . self::OPEN . ' ORDER BY id LIMIT ?', [$limit]) as $row) {
+        foreach ($this->db->execute('SELECT ' . self::OUT . ' FROM a2a_outgoing WHERE state IN ' . self::OPEN . ' ORDER BY polled_at NULLS FIRST, id LIMIT ?', [$limit]) as $row) {
+            $found[] = self::outRow($row);
+        }
+        return $found;
+    }
+
+    public function findOutgoing(int $id): ?OutgoingTask {
+        $row = $this->db->execute('SELECT ' . self::OUT . ' FROM a2a_outgoing WHERE id = ?', [$id])->fetchRow();
+        return $row === null ? null : self::outRow($row);
+    }
+
+    public function markPolled(int $id): void {
+        $this->db->execute('UPDATE a2a_outgoing SET polled_at = now() WHERE id = ?', [$id]);
+    }
+
+    public function staleOutgoing(int $seconds, int $limit): array {
+        $found = [];
+        foreach ($this->db->execute(
+            'SELECT ' . self::OUT . ' FROM a2a_outgoing WHERE state IN ' . self::OPEN . ' AND created_at < now() - make_interval(secs => ?) ORDER BY id LIMIT ?',
+            [$seconds, $limit],
+        ) as $row) {
             $found[] = self::outRow($row);
         }
         return $found;
@@ -283,6 +303,7 @@ final class PostgresPeerRepository implements PeerRepository {
             self::str($row, 'state'),
             isset($row['result']) && is_string($row['result']) ? $row['result'] : null,
             isset($row['leader_run_id']) && is_int($row['leader_run_id']) ? $row['leader_run_id'] : null,
+            isset($row['context_id']) && is_string($row['context_id']) ? $row['context_id'] : '',
         );
     }
 

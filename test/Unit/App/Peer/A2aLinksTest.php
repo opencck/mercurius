@@ -35,8 +35,9 @@ final class A2aLinksTest extends AsyncTestCase {
     private array $agents = [];
     public int $connects = 0;
 
-    private function agent(string $name, string $answer): void {
-        $stack = new AgentStack(new ScriptedLlm(array_fill(0, 6, ScriptedLlm::text($answer))));
+    /** @param list<string> $script answers in turn instead of the same one */
+    private function agent(string $name, string $answer, array $script = []): void {
+        $stack = new AgentStack(new ScriptedLlm($script === [] ? array_fill(0, 6, ScriptedLlm::text($answer)) : array_map(static fn(string $t) => ScriptedLlm::text($t), $script)));
         $owner = $stack->principals->ensureOwner('telegram', $name, 'Owner ' . $name);
         $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $vault->put('entrance', 'token', 'entrance', $owner);
@@ -72,6 +73,10 @@ final class A2aLinksTest extends AsyncTestCase {
         parent::setUp();
         $this->agent('a', 'A: готово');
         $this->agent('b', 'B: четыре');
+        $this->connectAgents();
+    }
+
+    private function connectAgents(): void {
         // each owner lets the other agent in; only a knows b as a neighbour to connect to
         $this->agents['b']['network']->allow('agent-a', $this->agents['a']['key']->fingerprint(), Role::user());
         $this->agents['a']['network']->allow('agent-b', $this->agents['b']['key']->fingerprint(), Role::user());
@@ -136,6 +141,51 @@ final class A2aLinksTest extends AsyncTestCase {
         self::assertSame(2, substr_count($merged->content, 'B: четыре'), 'both parts answered and merged');
         self::assertStringContainsString('1.', $merged->content);
         self::assertStringContainsString('2.', $merged->content);
+    }
+
+    public function testAQuestionOfTheNeighbourIsAnsweredInTheSameContext(): void {
+        // spec: BRIEF.md#сеть-агентов — the leader answers the question of the neighbour in its context
+        $this->agent('b', '', ['[INPUT_REQUIRED] Какой город?', 'Погода в Москве: ясно.']);
+        $this->connectAgents();
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, $conversation, $a['owner'], new \Amp\NullCancellation());
+        $call = new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($a['network'], $a['peers'], $a['stack']->conversations);
+
+        $question = $call->execute(['peer' => 'b', 'task' => 'Какая погода?', 'wait' => 5], $context);
+        self::assertStringContainsString('Какой город?', $question->content);
+        $asked = array_key_last($a['peers']->outgoing);
+        self::assertNotNull($asked);
+        self::assertNotSame('', $a['peers']->outgoing[$asked]->contextId, 'the context of the neighbour is kept');
+
+        $answer = $call->execute(['peer' => 'b', 'task' => 'Москва', 'reply_to' => $asked, 'wait' => 5], $context);
+        self::assertStringContainsString('Погода в Москве', $answer->content);
+        $second = $this->agents['b']['stack']->llm->requests[1]->messages ?? [];
+        self::assertStringContainsString('Какой город?', implode("\n", array_map(static fn($m): string => $m->content, $second)), 'the neighbour sees its question: the same context');
+    }
+
+    public function testTheLeaderCancelsATaskAndAnOldTaskEndsByItsDeadline(): void {
+        // spec: BRIEF.md#сеть-агентов — CancelTask by the leader; a task without an answer ends after two hours
+        $a = $this->agents['a'];
+        $a['network']->open('b');
+        $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, $conversation, $a['owner'], new \Amp\NullCancellation());
+
+        $task = $a['network']->delegate($a['owner'], 'b', 'Долгая работа', 'telegram', 'a', 0, []);
+        $canceled = (new \OpenCCK\App\Agent\Tool\Agents\PeerCancelTool($a['network']))->execute(['task' => $task->id], $context);
+        self::assertFalse($canceled->isError, $canceled->content);
+        self::assertSame(A2aTask::CANCELED, $a['peers']->outgoing[$task->id]->state ?? null);
+
+        $old = $a['peers']->addOutgoing('b', 'gone-task', $a['owner']->id, 'telegram', 'a', 'старая задача', A2aTask::WORKING);
+        $a['peers']->outgoingAt[$old->id] = time() - 3 * 3600;
+        $fresh = $a['network']->delegate($a['owner'], 'b', 'Свежая', 'telegram', 'a', 0, []);
+        for ($i = 0; $i < 20 && ($a['peers']->outgoing[$fresh->id]->state ?? '') !== A2aTask::COMPLETED; $i++) {
+            delay(0.02);
+            $a['network']->poll();
+        }
+        self::assertSame(A2aTask::FAILED, $a['peers']->outgoing[$old->id]->state ?? null, 'past its deadline');
+        self::assertSame(A2aTask::COMPLETED, $a['peers']->outgoing[$fresh->id]->state ?? null, 'the others are still read');
     }
 
     public function testANoticeOfATaskThisAgentDidNotGiveChangesNothing(): void {

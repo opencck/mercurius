@@ -196,14 +196,35 @@ final class InMemoryPeerRepository implements PeerRepository {
     /** @var array<int, array{leader: ?int, run: ?int, tokens: int, usd: ?float}> */
     public array $spend = [];
 
-    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null): OutgoingTask {
+    /** @var array<int, int> when each outgoing task was given; a test sets it back in time */
+    public array $outgoingAt = [];
+    /** @var array<int, int> when each outgoing task was read last */
+    public array $polledAt = [];
+
+    public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null, string $contextId = ''): OutgoingTask {
         $id = count($this->outgoing) + 1;
         $this->spend[$id] = ['leader' => $leaderRun, 'run' => null, 'tokens' => 0, 'usd' => null];
-        return $this->outgoing[$id] = new OutgoingTask($id, $peer, $remoteId, $principalId, $channel, $chatId, $task, $state, null, $leaderRun);
+        $this->outgoingAt[$id] = time();
+        return $this->outgoing[$id] = new OutgoingTask($id, $peer, $remoteId, $principalId, $channel, $chatId, $task, $state, null, $leaderRun, $contextId);
     }
 
     public function openOutgoing(int $limit): array {
-        return array_slice(array_values(array_filter($this->outgoing, static fn(OutgoingTask $o): bool => in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true))), 0, $limit);
+        $open = array_values(array_filter($this->outgoing, static fn(OutgoingTask $o): bool => in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true)));
+        usort($open, fn(OutgoingTask $x, OutgoingTask $y): int => [$this->polledAt[$x->id] ?? 0, $x->id] <=> [$this->polledAt[$y->id] ?? 0, $y->id]);
+        return array_slice($open, 0, $limit);
+    }
+
+    public function findOutgoing(int $id): ?OutgoingTask {
+        return $this->outgoing[$id] ?? null;
+    }
+
+    public function markPolled(int $id): void {
+        $this->polledAt[$id] = (int) round(microtime(true) * 1000.0);
+    }
+
+    public function staleOutgoing(int $seconds, int $limit): array {
+        $stale = array_filter($this->outgoing, fn(OutgoingTask $o): bool => in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true) && ($this->outgoingAt[$o->id] ?? time()) < time() - $seconds);
+        return array_slice(array_values($stale), 0, $limit);
     }
 
     public function recordRemoteSpend(int $id, ?int $remoteRun, int $tokens, ?float $usd): void {
@@ -226,7 +247,7 @@ final class InMemoryPeerRepository implements PeerRepository {
         if (!in_array($o->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true)) {
             return false;
         }
-        $this->outgoing[$id] = new OutgoingTask($o->id, $o->peer, $o->remoteId, $o->principalId, $o->channel, $o->chatId, $o->task, $state, $result, $o->leaderRun);
+        $this->outgoing[$id] = new OutgoingTask($o->id, $o->peer, $o->remoteId, $o->principalId, $o->channel, $o->chatId, $o->task, $state, $result, $o->leaderRun, $o->contextId);
         return true;
     }
 }

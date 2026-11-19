@@ -22,5 +22,7 @@ final class OutgoingTask {
         public readonly ?string $result,
         /** the run that gave the task; a task of a neighbour's task waits for it */
         public readonly ?int $leaderRun = null,
+        /** the context of the task at the neighbour: an answer to its question goes there */
+        public readonly string $contextId = '',
     ) {}
 }

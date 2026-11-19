@@ -349,7 +349,7 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      * @param list<array{name: string, bytes: string}> $files
      */
-    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false): OutgoingTask {
+    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null): OutgoingTask {
         $peer = $this->peers->peer($peerName);
         // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
@@ -362,7 +362,7 @@ final class PeerNetwork {
         $token = null;
         if ($link !== null) {
             try {
-                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::forAgents($task), $depth + 1, $path, $files)));
+                $remote = A2aClient::taskOf(A2aClient::over($link, 'SendMessage', A2aClient::message($messageId, SecretMasker::forAgents($task), $depth + 1, $path, $files, [], $contextId)));
             } catch (\RuntimeException $e) {
                 throw new DomainException($e->getMessage());
             }
@@ -371,11 +371,11 @@ final class PeerNetwork {
         } else {
             $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
             $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
-            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::forAgents($task), $depth + 1, $path, null, $files));
+            $remote = $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->send($p, $token, $messageId, SecretMasker::forAgents($task), $depth + 1, $path, null, $files, $contextId));
         }
         $remoteId = A2aClient::taskId($remote) ?? throw new DomainException(t('peer.peer_network.sosed_ne_vernul_nomer_zadachi'));
         $state = A2aClient::state($remote);
-        $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state, $leaderRun);
+        $out = $this->peers->addOutgoing($peerName, $remoteId, $who->id, $channel, $chatId, mb_substr($task, 0, 500), $state === '' ? A2aTask::SUBMITTED : $state, $leaderRun, A2aClient::contextOf($remote));
         if ($wait) {
             /** @var \Amp\DeferredFuture<array{state: string, label: string, answer: string}> $deferred */
             $deferred = new \Amp\DeferredFuture();
@@ -392,10 +392,68 @@ final class PeerNetwork {
     }
 
     /** One pass over open outgoing tasks. */
+    /** A task the neighbour has not ended in this long is closed as failed: two hours. */
+    public const DEADLINE = 7200;
+
+    /**
+     * One pass over open outgoing tasks: those past the deadline end as failed, the longest unread are read, all at
+     * once, so a neighbour that does not answer holds nobody else.
+     *
+     * spec: BRIEF.md#сеть-агентов — the deadline of a task and the reading by when it was read last
+     * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L66-L71, L379-L396 — a reply deadline and a
+     *      watchdog that fails orphaned tasks; hermes does it on the side that does the work, here the leader closes
+     *      what it waits for in vain
+     */
     public function poll(): void {
-        foreach ($this->peers->openOutgoing(self::POLL_BATCH) as $out) {
-            $this->pollOne($out);
+        foreach ($this->peers->staleOutgoing(self::DEADLINE, self::POLL_BATCH) as $out) {
+            $this->finish($out, A2aTask::FAILED, sprintf(t('peer.peer_network.deadline'), intdiv(self::DEADLINE, 3600)));
         }
+        $reads = [];
+        foreach ($this->peers->openOutgoing(self::POLL_BATCH) as $out) {
+            $this->peers->markPolled($out->id);
+            $reads[] = \Amp\async(fn() => $this->pollOne($out));
+        }
+        foreach ($reads as $read) {
+            try {
+                $read->await();
+            } catch (Throwable $e) {
+                $this->logger->notice('A2A poll failed', ['error' => $e::class]);
+            }
+        }
+    }
+
+    /**
+     * The leader stops a task it gave: CancelTask to the neighbour, the task ends as canceled here. Null when done,
+     * else why not.
+     *
+     * spec: BRIEF.md#сеть-агентов — the leader cancels a task (CancelTask)
+     */
+    public function cancel(Principal $who, int $id): ?string {
+        $out = $this->peers->findOutgoing($id);
+        if ($out === null || (!$who->isOwner() && $out->principalId !== $who->id)) {
+            return sprintf(t('peer.peer_network.no_task'), $id);
+        }
+        if (!in_array($out->state, [A2aTask::SUBMITTED, A2aTask::WORKING], true)) {
+            return sprintf(t('peer.peer_network.task_ended'), $id, $out->state);
+        }
+        $peer = $this->peers->peer($out->peer);
+        $link = $peer === null ? $this->links?->named($out->peer) : null;
+        try {
+            if ($link !== null) {
+                A2aClient::over($link, 'CancelTask', ['id' => $out->remoteId]);
+            } elseif ($peer !== null) {
+                $owner = ($this->owner)();
+                $token = $owner === null ? null : $this->vault->reveal($peer->secret, $owner);
+                if ($token !== null) {
+                    $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->cancel($p, $token, $out->remoteId));
+                }
+            }
+        } catch (Throwable $e) {
+            // the neighbour may be gone or the task ended there: here it ends anyway
+            $this->logger->notice('A2A cancel not delivered', ['task' => $id, 'error' => $e->getMessage()]);
+        }
+        $this->finish($out, A2aTask::CANCELED, t('peer.peer_network.canceled_by_leader'));
+        return null;
     }
 
     private function pollOne(OutgoingTask $out): void {

@@ -47,6 +47,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
                 'peer' => $names === [] ? ['type' => 'string', 'maxLength' => 40] : ['type' => 'string', 'enum' => $names],
                 'task' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 8000],
                 'wait' => ['type' => 'integer', 'minimum' => 5, 'maximum' => self::WAIT_MAX, 'description' => t('tool.peer_call.wait')],
+                'reply_to' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.peer_call.reply_to')],
             ],
             'required' => ['peer', 'task'],
             'additionalProperties' => false,
@@ -74,8 +75,29 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
         $peer = Args::string($args, 'peer') ?? '';
         $task = trim(Args::string($args, 'task') ?? '');
         $wait = max(5, min(self::WAIT_MAX, Args::int($args, 'wait') ?? 120));
-        $result = self::call($this->network, $this->peers, $this->conversations, $context, $peer, $task, (float) $wait);
+        $replyContext = self::replyContext($this->peers, $context, $peer, Args::int($args, 'reply_to'));
+        if ($replyContext === false) {
+            return ToolResult::error(t('tool.peer_call.bad_reply_to'));
+        }
+        $result = self::call($this->network, $this->peers, $this->conversations, $context, $peer, $task, (float) $wait, $replyContext);
         return is_string($result) ? ToolResult::error($result) : ToolResult::ok($result['text']);
+    }
+
+    /**
+     * The context of the neighbour to answer a question of task $replyTo in: null — no answer, a new context; false —
+     * not a task of this participant to this neighbour.
+     *
+     * spec: BRIEF.md#сеть-агентов — an answer to the question of a neighbour goes into the same context
+     */
+    public static function replyContext(PeerRepository $peers, ToolContext $context, string $peer, ?int $replyTo): string|false|null {
+        if ($replyTo === null) {
+            return null;
+        }
+        $asked = $peers->findOutgoing($replyTo);
+        if ($asked === null || $asked->peer !== $peer || $asked->contextId === '' || (!$context->principal->isOwner() && $asked->principalId !== $context->principal->id)) {
+            return false;
+        }
+        return $asked->contextId;
     }
 
     /**
@@ -83,7 +105,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
      *
      * @return array{text: string, ended: bool}|string
      */
-    public static function call(PeerNetwork $network, PeerRepository $peers, ConversationRepository $conversations, ToolContext $context, string $peer, string $task, float $wait): array|string {
+    public static function call(PeerNetwork $network, PeerRepository $peers, ConversationRepository $conversations, ToolContext $context, string $peer, string $task, float $wait, ?string $contextId = null): array|string {
         if ($peer === '' || $task === '') {
             return t('tool.peer_call.needs');
         }
@@ -94,7 +116,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
         // a run that is itself a task from a neighbour carries its chain on
         $parent = $meta->channel === A2aServer::CHANNEL ? $peers->taskByRun($context->runId) : null;
         try {
-            $out = $network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, [], $context->runId, true);
+            $out = $network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, [], $context->runId, true, $contextId);
         } catch (DomainException | RuntimeException $e) {
             return $e->getMessage();
         }

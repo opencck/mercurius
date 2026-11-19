@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `c4e007e` | 2026-11-20 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `6160633` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `8ca4669` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `571fd82` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
 Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
 
@@ -42,6 +42,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-20 — i18n: протокол задачи соседу
+
+- `mercurius-i18n` `571fd82`: `reply_to`, `peer_cancel`, срок задачи.
 
 ### 2026-11-20 — i18n: вызов и раздача соседям
 
