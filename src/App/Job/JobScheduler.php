@@ -242,6 +242,13 @@ final class JobScheduler implements JobRuns {
         }
     }
 
+    private ?\OpenCCK\App\Skill\SkillLibrary $skills = null;
+
+    /** spec: BRIEF.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too */
+    public function useSkills(\OpenCCK\App\Skill\SkillLibrary $skills): void {
+        $this->skills = $skills;
+    }
+
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
     private function policy(Principal $principal): ParticipantPolicy {
         $owner = $this->policies->forPrincipal($principal);
@@ -254,7 +261,7 @@ final class JobScheduler implements JobRuns {
         $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
         $policy = $this->policy($principal);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
-        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)()), $this->model);
+        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), skills: $this->skills?->index($principal, null) ?? ''), $this->model);
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));

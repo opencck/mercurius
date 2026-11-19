@@ -824,6 +824,7 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
     }
     return $jobWatchText->extract($body, $response->getHeader('content-type') ?? '', $url)[1];
 });
+$jobScheduler->useSkills($skillLibrary);
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));

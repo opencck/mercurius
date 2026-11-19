@@ -161,6 +161,25 @@ final class JobsTest extends AsyncTestCase {
         self::assertStringContainsString('запуск №1', array_slice($request->messages, -1)[0]->content ?? '');
     }
 
+    public function testAJobRunKnowsTheSkillsOfItsOwner(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
+        $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
+        $sandbox->files[$this->owner->id]['.mercurius/skills/disk-report/SKILL.md'] = "---
+name: disk-report
+description: Отчёт о диске таблицей
+---
+
+Шаги.";
+        $limits = new \OpenCCK\Domain\Agent\SandboxLimits(100_000_000, 64, 60, 0, 4);
+        $scheduler->useSkills(new \OpenCCK\App\Skill\SkillLibrary([], $sandbox, static fn(int $id): \OpenCCK\Domain\Agent\SandboxLimits => $limits, static fn(): int => 1));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Диск', 'Проверь место на диске', 'every:60', $this->now->modify('-5 minutes'));
+
+        $scheduler->tick(true);
+
+        self::assertStringContainsString('disk-report: Отчёт о диске таблицей', $this->stack->llm->requests[0]->messages[0]->content);
+    }
+
     public function testAJobSetInAForumTopicReportsIntoThatTopic(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('BTC = 63 427 $.')]));
         $conversation = $this->stack->conversations->openConversation($this->owner->id, 'telegram', '-100500', '577');
