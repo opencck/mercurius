@@ -224,6 +224,37 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringNotContainsString(\Mercurius\I18n\t('agent.tool_use_guidance'), $other->requests[0]->messages[0]->content, 'test/model is not of such a family');
     }
 
+    public function testManyMcpToolsAreReachedThroughTheBridge(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — the search of MCP tools: the model gets names, calls a tool through tool_call
+        $issue = new FakeTool('mcp_github_create_issue', DangerClass::Read, ['type' => 'object', 'properties' => ['title' => ['type' => 'string']]]);
+        $this->registry->register($issue);
+        for ($i = 1; $i <= 30; $i++) {
+            $this->registry->register(new FakeTool('mcp_big_' . $i, DangerClass::Read, ['type' => 'object', 'properties' => ['x' => ['type' => 'string', 'description' => str_repeat('words ', 40)]]]));
+        }
+        $this->registry->register(new FakeTool('read_file'));
+        $this->registry->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::SEARCH, $this->registry));
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'tool_call', '{"name":"mcp_github_create_issue","arguments":{"title":"Bug"}}')),
+            ScriptedLlm::text('Готово.'),
+        ]);
+        $loop = $this->loop($llm);
+        $loop->useToolSearch(new \OpenCCK\App\Agent\Tool\ToolSearch(static fn(string $model): int => 20_000));
+        $run = $this->start();
+
+        $loop->run($run, new ParticipantPolicy(null, $run->limits, null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame(['read_file', 'tool_search', 'tool_describe', 'tool_call'], array_map(static fn($d) => $d->name, $llm->requests[0]->tools));
+        self::assertSame([['title' => 'Bug']], $issue->calls, 'the tool itself ran');
+        self::assertSame(['mcp_github_create_issue'], $this->observer->tools);
+        $saved = [];
+        foreach ($llm->requests[1]->messages as $message) {
+            foreach ($message->toolCalls as $call) {
+                $saved[] = $call->name;
+            }
+        }
+        self::assertSame(['tool_call'], $saved, 'the history keeps the call as the model made it');
+    }
+
     public function testADeniedAbilityIsCheckedInSelfInfoFirst(): void {
         // spec: BRIEF.md#знания-агента-о-себе — "no, I cannot" about itself is said only after self_info
         $self = new FakeTool('self_info');

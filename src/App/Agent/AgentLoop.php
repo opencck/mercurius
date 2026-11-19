@@ -100,6 +100,31 @@ final class AgentLoop {
     private ?Closure $cap = null;
     /** which models get the rule to act through tools (AGENT_TOOL_USE_GUIDANCE) */
     private ToolUseGuidance $toolUse;
+    private ?\OpenCCK\App\Agent\Tool\ToolSearch $toolSearch = null;
+
+    /** spec: BRIEF.md#скиллы-и-mcp — many MCP tools go to the model through the bridge tool_search */
+    public function useToolSearch(\OpenCCK\App\Agent\Tool\ToolSearch $search): void {
+        $this->toolSearch = $search;
+    }
+
+    /**
+     * The tool a saved call runs and its arguments: a call through tool_call is the call of the tool it names.
+     *
+     * @return array{string, string} name, arguments JSON
+     */
+    private static function target(string $name, string $argumentsJson): array {
+        if ($name !== \OpenCCK\App\Agent\Tool\ToolSearch::CALL) {
+            return [$name, $argumentsJson];
+        }
+        /** @var mixed $outer */
+        $outer = json_decode($argumentsJson, true);
+        $target = is_array($outer) ? \OpenCCK\App\Agent\Tool\ToolSearch::unwrap($outer) : null;
+        if (!is_array($target)) {
+            return [$name, $argumentsJson];
+        }
+        $json = json_encode($target['arguments'] === [] ? new \stdClass() : $target['arguments'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        return [$target['name'], $json === false ? '{}' : $json];
+    }
     private readonly ToolRound $round;
     /** @var Closure(): float */
     private readonly Closure $clock;
@@ -245,7 +270,11 @@ final class AgentLoop {
             return Step::stop(StopReason::TokenBudget);
         }
         $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
-        $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens, null, $this->tail($state)), $reserved, max(1.0, $left));
+        $tools = $this->registry->definitions($state->policy);
+        if ($this->toolSearch !== null) {
+            $tools = $this->toolSearch->assemble($tools, $state->model ?? $state->run->model);
+        }
+        $response = $this->callModel($state, $this->request($state, $tools, $this->maxTokens, null, $this->tail($state)), $reserved, max(1.0, $left));
         if ($response === null) {
             if ($this->elapsedMs($state) >= $state->run->limits->runTimeout * 1000) {
                 // The deadline cut the call off: a limit, with a summary, not a failure of the model.
@@ -385,10 +414,12 @@ final class AgentLoop {
             return null;
         }
         $calls = array_map(function (StoredToolCall $stored) use ($state): ValidatedCall {
-            $call = new ToolCall($stored->callId, $stored->name, $stored->argumentsJson);
-            $tool = $this->registry->allows($state->policy, $stored->name) ? $this->registry->get($stored->name) : null;
+            $wire = new ToolCall($stored->callId, $stored->name, $stored->argumentsJson);
+            [$name, $json] = self::target($stored->name, $stored->argumentsJson);
+            $call = new ToolCall($stored->callId, $name, $json);
+            $tool = $this->registry->allows($state->policy, $name) ? $this->registry->get($name) : null;
             $error = $tool === null || $stored->args === null ? t('agent.agent_loop.instrument_nedostupen_posle_perezapuska') : null;
-            return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger);
+            return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger, $name === $stored->name ? null : $wire);
         }, $pending);
         return $this->round->execute($state, $calls);
     }
@@ -693,12 +724,13 @@ final class AgentLoop {
                     $calls[$call->id] = $call;
                 }
                 $call = $entry->message->toolCallId === null ? null : ($calls[$entry->message->toolCallId] ?? null);
-                $tool = $call === null ? null : $this->registry->get($call->name);
+                [$name, $json] = $call === null ? ['', ''] : self::target($call->name, $call->argumentsJson);
+                $tool = $call === null ? null : $this->registry->get($name);
                 if ($call === null || $tool === null || count($lines) >= 10) {
                     continue;
                 }
                 /** @var mixed $args */
-                $args = json_decode($call->argumentsJson, true);
+                $args = json_decode($json, true);
                 if (!is_array($args)) {
                     continue;
                 }
@@ -707,7 +739,7 @@ final class AgentLoop {
                     continue;
                 }
                 $result = preg_replace('~\s+~u', ' ', $entry->message->content) ?? '';
-                $lines[] = sprintf('%s %s → %s', $call->name, mb_substr($call->argumentsJson, 0, 200), mb_substr($result, 0, 160));
+                $lines[] = sprintf('%s %s → %s', $name, mb_substr($json, 0, 200), mb_substr($result, 0, 160));
             }
         } catch (Throwable $e) {
             $this->logger->warning('Actions of the run were not listed', ['run' => $runId, 'error' => $e::class]);

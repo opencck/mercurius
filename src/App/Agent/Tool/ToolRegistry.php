@@ -107,6 +107,10 @@ final class ToolRegistry {
         if ($tool instanceof RequestsAccess) {
             return $policy->tools !== null;
         }
+        if ($tool instanceof ToolSearchTool) {
+            // spec: BRIEF.md#скиллы-и-mcp — the bridge shows only the tools the participant may use, so anyone may search
+            return true;
+        }
         return $tool !== null && $policy->allowsTool($name);
     }
 

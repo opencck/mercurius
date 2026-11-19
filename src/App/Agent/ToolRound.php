@@ -83,20 +83,22 @@ final class ToolRound {
                 $prepared = $e::class;
             }
             return is_string($prepared)
-                ? new ValidatedCall($call->call, $call->tool, $call->args, $prepared, $call->danger)
-                : new ValidatedCall($call->call, $call->tool, $prepared, null, $call->tool->danger($prepared));
+                ? new ValidatedCall($call->call, $call->tool, $call->args, $prepared, $call->danger, $call->wire)
+                : new ValidatedCall($call->call, $call->tool, $prepared, null, $call->tool->danger($prepared), $call->wire);
         }, $calls);
     }
     /** @param list<ValidatedCall> $calls */
     public function persist(RunState $state, string $text, array $calls): bool {
         $stored = [];
         foreach ($calls as $position => $call) {
+            // spec: BRIEF.md#скиллы-и-mcp — a call through tool_call is saved as the model made it, the history stays its own
+            $wire = $call->wire ?? $call->call;
             $stored[] = new StoredToolCall(
                 $call->call->id,
                 $position,
-                $call->call->name,
+                $wire->name,
                 $call->args,
-                $call->call->argumentsJson,
+                $wire->argumentsJson,
                 $call->danger,
                 ToolCallStatus::Pending,
             );

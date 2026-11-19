@@ -39,50 +39,81 @@ final class ToolCallValidator {
             $id = $this->uniqueId($call->id, $taken);
             $json = trim($call->argumentsJson) === '' ? '{}' : $call->argumentsJson;
             $call = new ToolCall($id, $call->name, $json);
-
-            $tool = $this->registry->allows($policy, $call->name) ? $this->registry->get($call->name) : null;
-            if ($tool === null) {
-                $result[] = $this->invalid($call, null, null, $this->unknown($call->name, $policy));
-                continue;
-            }
-
-            try {
-                /** @var mixed $decoded */
-                $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException $e) {
-                if (!str_ends_with(rtrim($json), '}') && !str_ends_with(rtrim($json), ']')) {
-                    $truncated = true;
+            $wire = null;
+            if ($call->name === ToolSearch::CALL) {
+                // spec: BRIEF.md#скиллы-и-mcp — tool_call is checked and run as a call of the tool it names
+                $target = $this->unwrap($json, $truncated);
+                if (is_string($target)) {
+                    $result[] = $this->invalid($call, null, null, $target);
+                    continue;
                 }
-                $result[] = $this->invalid($call, $tool, null, sprintf(
-                    t('tool.tool_call_validator.argumenty_ne_razobrany_kak_json'),
-                    $e->getMessage(),
-                ));
-                continue;
+                $wire = $call;
+                $json = $target['arguments'] === [] ? '{}' : CanonicalJson::encode($target['arguments']);
+                $call = new ToolCall($id, $target['name'], $json);
             }
-            if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
-                $result[] = $this->invalid($call, $tool, null, t('tool.tool_call_validator.argumenty_dolzhny_byt_json_obektom'));
-                continue;
-            }
-            /** @var array<string, mixed> $args */
-            $args = self::coerce($decoded, $tool->definition()->parameters);
-
-            $key = $call->name . "\0" . CanonicalJson::encode($args);
-            if (isset($seen[$key])) {
-                $result[] = $this->invalid($call, $tool, $args, sprintf(t('tool.tool_call_validator.povtor_vyzova_v_etom_zhe'), $seen[$key]));
-                continue;
-            }
-            $seen[$key] = $id;
-
-            $errors = JsonSchema::validate($tool->definition()->parameters, $args);
-            if ($errors !== []) {
-                $result[] = $this->invalid($call, $tool, $args, t('tool.tool_call_validator.argumenty_ne_proshli_proverku') . implode('; ', $errors) . '.');
-                continue;
-            }
-
-            $result[] = new ValidatedCall($call, $tool, $args, null, $tool->danger($args));
+            $validated = $this->check($call, $json, $policy, $seen, $truncated);
+            $result[] = $wire === null ? $validated : $validated->through($wire);
         }
 
         return new ValidationOutcome($result, $truncated);
+    }
+
+    /**
+     * The tool and the arguments a tool_call names, or why it names none.
+     *
+     * @return array{name: string, arguments: array<string, mixed>}|string
+     */
+    private function unwrap(string $json, bool &$truncated): array|string {
+        try {
+            /** @var mixed $outer */
+            $outer = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            if (!str_ends_with(rtrim($json), '}') && !str_ends_with(rtrim($json), ']')) {
+                $truncated = true;
+            }
+            return sprintf(t('tool.tool_call_validator.argumenty_ne_razobrany_kak_json'), $e->getMessage());
+        }
+        return is_array($outer) ? ToolSearch::unwrap($outer) : t('tool.tool_call.bad');
+    }
+
+    /** @param array<string, string> $seen */
+    private function check(ToolCall $call, string $json, ParticipantPolicy $policy, array &$seen, bool &$truncated): ValidatedCall {
+        $id = $call->id;
+        $tool = $this->registry->allows($policy, $call->name) ? $this->registry->get($call->name) : null;
+        if ($tool === null) {
+            return $this->invalid($call, null, null, $this->unknown($call->name, $policy));
+        }
+
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            if (!str_ends_with(rtrim($json), '}') && !str_ends_with(rtrim($json), ']')) {
+                $truncated = true;
+            }
+            return $this->invalid($call, $tool, null, sprintf(
+                t('tool.tool_call_validator.argumenty_ne_razobrany_kak_json'),
+                $e->getMessage(),
+            ));
+        }
+        if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
+            return $this->invalid($call, $tool, null, t('tool.tool_call_validator.argumenty_dolzhny_byt_json_obektom'));
+        }
+        /** @var array<string, mixed> $args */
+        $args = self::coerce($decoded, $tool->definition()->parameters);
+
+        $key = $call->name . "\0" . CanonicalJson::encode($args);
+        if (isset($seen[$key])) {
+            return $this->invalid($call, $tool, $args, sprintf(t('tool.tool_call_validator.povtor_vyzova_v_etom_zhe'), $seen[$key]));
+        }
+        $seen[$key] = $id;
+
+        $errors = JsonSchema::validate($tool->definition()->parameters, $args);
+        if ($errors !== []) {
+            return $this->invalid($call, $tool, $args, t('tool.tool_call_validator.argumenty_ne_proshli_proverku') . implode('; ', $errors) . '.');
+        }
+
+        return new ValidatedCall($call, $tool, $args, null, $tool->danger($args));
     }
 
     /** @param array<string, true> $taken */

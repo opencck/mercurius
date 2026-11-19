@@ -20,7 +20,14 @@ final class ValidatedCall {
         public readonly ?array $args,
         public readonly ?string $error,
         public readonly DangerClass $danger,
+        /** the call as the model made it, when it went through tool_call: the transcript keeps this one */
+        public readonly ?ToolCall $wire = null,
     ) {}
+
+    /** The same call made through the bridge `tool_call`. */
+    public function through(ToolCall $wire): self {
+        return new self($this->call, $this->tool, $this->args, $this->error, $this->danger, $wire);
+    }
 
     public function executable(): bool {
         return $this->error === null && $this->tool !== null && $this->args !== null;

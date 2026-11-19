@@ -526,6 +526,10 @@ $loop = new AgentLoop(
 );
 // spec: BRIEF.md#агентский-цикл-и-харнесс — models that answer in prose are told to act through tools
 $loop->useToolUseGuidance(new \OpenCCK\App\Agent\ToolUseGuidance(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_TOOL_USE_GUIDANCE') ?? 'auto'));
+// spec: BRIEF.md#скиллы-и-mcp — over 5% of the window the tools of MCP servers go behind tool_search
+$tools->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::SEARCH, $tools));
+$tools->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::DESCRIBE, $tools));
+$loop->useToolSearch(new \OpenCCK\App\Agent\Tool\ToolSearch($modelRouter->window(...)));
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)), $agentSettings->maxWorkersPerRun);
 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list
