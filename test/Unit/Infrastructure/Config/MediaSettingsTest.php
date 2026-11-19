@@ -43,6 +43,28 @@ final class MediaSettingsTest extends TestCase {
         MediaSettings::fromEnv(['MEDIA_ENDPOINTS' => 'whisper=file:///etc/passwd']);
     }
 
+    public function testEveryProviderOfAProfileServesTheKindsAndOpenRouterDraws(): void {
+        // spec: BRIEF.md#категории-моделей — a category is a list of models of any provider, or none
+        $media = MediaSettings::fromEnv([
+            'MEDIA_VISION_MODELS' => 'anthropic:claude-haiku-5-5, bedrock:anthropic.claude-haiku-5-5, codex:gpt-6-luna',
+            'MEDIA_IMAGE_MODELS' => 'openrouter:bytedance-seed/seedream-4.5, google/gemini-3.8-image',
+            'MEDIA_IMAGE_RULES' => 'обычные картинки — seedream',
+        ]);
+
+        self::assertSame(['anthropic:claude-haiku-5-5', 'bedrock:anthropic.claude-haiku-5-5', 'codex:gpt-6-luna'], $media->models('vision'));
+        self::assertSame(['openrouter:bytedance-seed/seedream-4.5', 'google/gemini-3.8-image'], $media->models('image'));
+        self::assertSame('обычные картинки — seedream', $media->rules('image'));
+        self::assertSame([], MediaSettings::fromEnv([])->models('image'), 'none by default');
+        foreach (['MEDIA_VISION_MODELS' => 'nope:model', 'MEDIA_IMAGE_MODELS' => 'openai:gpt-image-2'] as $key => $bad) {
+            try {
+                MediaSettings::fromEnv([$key => $bad]);
+                self::fail($bad . ' was taken');
+            } catch (ConfigException $e) {
+                self::assertStringContainsString($key, $e->getMessage());
+            }
+        }
+    }
+
     public function testAutoKnowsOnlyTheKinds(): void {
         self::assertSame(['voice', 'image'], MediaSettings::fromEnv(['MEDIA_AUTO' => 'voice, image'])->auto);
         self::assertSame([], MediaSettings::fromEnv(['MEDIA_AUTO' => 'none'])->auto);

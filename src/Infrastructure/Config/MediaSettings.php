@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Config;
 
+use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\ProviderProfile;
+
 /**
  * Models and rules for what comes with messages: vision, video and speech models per kind (unset by default — the
- * owner's decision: until one is named, the agent does not look), endpoints of the owner's own models (OpenAI-
- * compatible), which kinds are processed at once, and the thresholds.
+ * owner's decision: until one is named, the agent does not look), the image models that draw, endpoints of the owner's
+ * own models (OpenAI-compatible), which kinds are processed at once, and the thresholds.
  *
  * spec: BRIEF.md#входящие-вложения — models are not set by default; a reference like a text model's, plus custom:
+ * spec: BRIEF.md#категории-моделей — a category is a list of models, or none
  */
 final class MediaSettings {
-    public const KINDS = ['vision', 'video', 'speech'];
+    public const KINDS = ['vision', 'video', 'speech', 'image'];
     /** What is processed at once by default; the rest on request. */
     public const AUTO = ['voice', 'audio', 'image', 'text', 'office'];
     public const AUTO_KINDS = ['voice', 'audio', 'image', 'video', 'text', 'office'];
-    /** openrouter:author/slug, a bare author/slug (OpenRouter), openai:model; a colon before the slash only in a prefix */
-    private const REF = '~^(?:(?:openrouter|openai):)?[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9._:-]+)?$~';
+    /** provider:model of a provider profile, or a bare author/slug (OpenRouter); a colon before the slash only in a prefix */
+    private const REF = '~^(?:([a-z][a-z0-9_-]*):)?[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9._:-]+)?$~';
     private const NAME = '~^[a-z0-9][a-z0-9_-]{0,31}$~';
 
     /**
@@ -62,11 +66,18 @@ final class MediaSettings {
             $models[$kind] = [];
             foreach (self::list(Env::raw($env, $key)) as $ref) {
                 $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
+                $provider = preg_match(self::REF, $ref, $parts) === 1 && !str_ends_with($ref, ':') ? (($parts[1] ?? '') === '' ? ModelRef::OPENROUTER : $parts[1]) : null;
                 $valid = $custom === null
-                    ? preg_match(self::REF, $ref) === 1 && !str_ends_with($ref, ':')
+                    ? $provider !== null && ProviderProfile::of($provider) !== null
                     : preg_match('~^([a-z0-9][a-z0-9_-]{0,31})/(\S+)$~', $custom, $match) === 1 && isset($endpoints[$match[1]]);
+                // pictures are drawn by the image models of OpenRouter (POST /images)
+                if ($kind === 'image' && ($custom !== null || $provider !== ModelRef::OPENROUTER)) {
+                    $valid = false;
+                }
                 if (!$valid) {
-                    throw ConfigException::invalid($key, 'models: openrouter:author/slug, openai:model or custom:<endpoint from MEDIA_ENDPOINTS>/model');
+                    throw ConfigException::invalid($key, $kind === 'image'
+                        ? 'image models of OpenRouter: openrouter:author/slug or author/slug'
+                        : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
                 }
                 $models[$kind][] = $ref;
             }
@@ -92,7 +103,7 @@ final class MediaSettings {
     }
 
     /**
-     * @param 'vision'|'video'|'speech'|string $kind
+     * @param 'vision'|'video'|'speech'|'image'|string $kind
      * @return list<string>
      */
     public function models(string $kind): array {

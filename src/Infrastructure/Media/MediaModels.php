@@ -11,13 +11,17 @@ use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\Request;
 use Closure;
 use Mercurius\Llm\ChatRequest;
+use Mercurius\Llm\ImageRequest;
+use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\LlmException;
 use Mercurius\Llm\MediaPart;
 use Mercurius\Llm\Message;
 use Mercurius\Llm\OpenAI\OpenAIClient;
+use Mercurius\Llm\OpenRouter\ImageClient;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
 use Mercurius\Llm\RetryingClient;
 use Mercurius\Llm\Usage;
+use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Entity\LlmCallRecord;
 use OpenCCK\Domain\Repository\LlmCallRepository;
 use OpenCCK\Infrastructure\Config\MediaSettings;
@@ -44,7 +48,11 @@ final class MediaModels {
     private const MAX_TOKENS = 800;
     private const RESPONSE_MAX = 1_048_576;
 
-    /** @param Closure(string): ?string $endpointKey the key of an own endpoint by its name; null — none */
+    /**
+     * @param Closure(string): ?string $endpointKey the key of an own endpoint by its name; null — none
+     * @param array<string, LlmClient> $clients the text models' clients of the other providers (anthropic, bedrock,
+     *                                          codex): a picture goes to such a model through its provider's client
+     */
     public function __construct(
         private readonly HttpClient $http,
         private readonly ?string $openRouterKey,
@@ -53,7 +61,43 @@ final class MediaModels {
         private readonly Closure $endpointKey,
         private readonly LlmCallRepository $calls,
         private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly array $clients = [],
     ) {}
+
+    /**
+     * Pictures drawn by an image model of OpenRouter; the cost OpenRouter reports is recorded like any call.
+     *
+     * spec: BRIEF.md#категории-моделей — image generation
+     */
+    public function draw(string $ref, string $prompt, ?string $aspectRatio, MediaCall $call): MediaDrawing {
+        $model = str_starts_with($ref, ModelRef::OPENROUTER . ':') ? substr($ref, strlen(ModelRef::OPENROUTER) + 1) : $ref;
+        if ($this->openRouterKey === null) {
+            return new MediaDrawing([], sprintf(t('media.models.no_key'), 'OPENROUTER_API_KEY'), $ref);
+        }
+        $started = microtime(true);
+        $images = [];
+        $usage = new Usage();
+        $error = null;
+        try {
+            $result = (new ImageClient($this->http, $this->openRouterKey, appName: 'Mercurius'))
+                ->generate(new ImageRequest($model, $prompt, 1, $aspectRatio), $call->cancellation);
+            $images = $result->images;
+            $usage = $result->usage;
+        } catch (CancelledException $e) {
+            throw $e;
+        } catch (LlmException $e) {
+            $error = $e->status === null ? $e->getMessage() : sprintf('HTTP %d: %s', $e->status, mb_substr($e->getMessage(), 0, 300));
+        } catch (\InvalidArgumentException $e) {
+            $error = $e->getMessage();
+        } catch (Throwable $e) {
+            $error = t('media.models.no_answer') . (new \ReflectionClass($e))->getShortName();
+        }
+        $this->record($ref, 'media-image', ['usage' => ['prompt_tokens' => $usage->promptTokens(), 'completion_tokens' => $usage->outputTokens, 'cost' => $usage->costUsd]], $error, $call, (int) round((microtime(true) - $started) * 1000.0));
+        if ($error !== null) {
+            $this->logger->notice('Image model did not draw', ['model' => $ref, 'error' => mb_substr($error, 0, 200)]);
+        }
+        return new MediaDrawing($images, $error, $ref);
+    }
 
     /** @param list<array{bytes: string, mime: string}> $images */
     public function look(string $ref, array $images, string $prompt, MediaCall $call): MediaAnswer {
@@ -108,16 +152,21 @@ final class MediaModels {
      * @param non-empty-string $purpose
      */
     private function chat(string $ref, string $prompt, array $media, string $purpose, MediaCall $call): MediaAnswer {
-        $target = $this->target($ref);
-        if (is_string($target)) {
-            return new MediaAnswer(null, $target, $ref);
+        $own = $this->ownClient($ref);
+        if ($own !== null) {
+            [$client, $model] = $own;
+        } else {
+            $target = $this->target($ref);
+            if (is_string($target)) {
+                return new MediaAnswer(null, $target, $ref);
+            }
+            [$base, $model, $key] = $target;
+            $client = new RetryingClient(match ($base) {
+                // OpenAI takes max_completion_tokens; the other endpoints speak the dialect of OpenRouter
+                self::OPENAI => new OpenAIClient($this->http, (string) $key, transferTimeout: 180.0),
+                default => new OpenRouterClient($this->http, $key ?? 'none', $base, transferTimeout: 180.0),
+            }, maxAttempts: 2, baseDelay: 0.5);
         }
-        [$base, $model, $key] = $target;
-        $client = new RetryingClient(match ($base) {
-            // OpenAI takes max_completion_tokens; the other endpoints speak the dialect of OpenRouter
-            self::OPENAI => new OpenAIClient($this->http, (string) $key, transferTimeout: 180.0),
-            default => new OpenRouterClient($this->http, $key ?? 'none', $base, transferTimeout: 180.0),
-        }, maxAttempts: 2, baseDelay: 0.5);
         $started = microtime(true);
         $text = null;
         $error = null;
@@ -180,6 +229,24 @@ final class MediaModels {
             $this->logger->notice('Media model failed', ['model' => $ref, 'purpose' => $purpose, 'error' => mb_substr($error, 0, 200)]);
         }
         return new MediaAnswer($text, $error, $ref);
+    }
+
+    /**
+     * The client of a provider other than OpenRouter, OpenAI and the owner's endpoints, with the model id; null — the
+     * reference is not one of theirs.
+     *
+     * @return array{LlmClient, string}|null
+     */
+    private function ownClient(string $ref): ?array {
+        if (str_starts_with($ref, 'custom:') || !str_contains($ref, ':')) {
+            return null;
+        }
+        $parsed = ModelRef::parse($ref);
+        if (in_array($parsed->provider, [ModelRef::OPENROUTER, ModelRef::OPENAI], true)) {
+            return null;
+        }
+        $client = $this->clients[$parsed->provider] ?? null;
+        return $client === null ? null : [$client, $parsed->model];
     }
 
     /**

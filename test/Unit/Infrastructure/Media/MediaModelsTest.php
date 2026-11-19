@@ -53,6 +53,41 @@ final class MediaModelsTest extends AsyncTestCase {
         self::assertSame(['media-vision', 'openrouter:z-ai/glm-5.3-flash', 1200, 60, 0.0001, 7, 70], [$record->purpose, $record->model, $record->inputTokens, $record->outputTokens, $record->costUsd, $record->conversationId, $record->runId]);
     }
 
+    public function testAPictureIsDrawnByAnOpenRouterImageModelAndItsCostRecorded(): void {
+        // spec: BRIEF.md#категории-моделей
+        $models = $this->models(['https://openrouter.ai/api/v1/images' => [200, ['content-type' => 'application/json'], json_encode([
+            'data' => [['b64_json' => base64_encode('PNG'), 'media_type' => 'image/png']],
+            'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 4175, 'cost' => 0.04],
+        ], JSON_THROW_ON_ERROR)]]);
+
+        $drawn = $models->draw('openrouter:bytedance-seed/seedream-4.5', 'кот в шляпе', '1:1', self::call());
+
+        self::assertNull($drawn->error);
+        self::assertSame('PNG', $drawn->images[0]->bytes ?? null);
+        /** @var array<string, mixed> $body */
+        $body = json_decode($this->http->bodies[0], true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame(['bytedance-seed/seedream-4.5', 'кот в шляпе', '1:1'], [$body['model'] ?? null, $body['prompt'] ?? null, $body['aspect_ratio'] ?? null]);
+        $record = $this->calls->calls[0];
+        self::assertSame(['media-image', 'openrouter:bytedance-seed/seedream-4.5', 4175, 0.04], [$record->purpose, $record->model, $record->outputTokens, $record->costUsd]);
+
+        $failed = $this->models([])->draw('openrouter:x/y', 'кот', null, self::call());
+        self::assertSame([], $failed->images);
+        self::assertNotNull($failed->error, 'no answer queued: the error is the reason');
+    }
+
+    public function testAClaudeModelLooksThroughTheClientOfItsProvider(): void {
+        $claude = new \OpenCCK\Test\Support\ScriptedLlm([\OpenCCK\Test\Support\ScriptedLlm::text('Кот.')]);
+        $this->calls = new InMemoryLlmCallRepository();
+        $models = new MediaModels(new HttpClient(new FakeHttpClient([]), []), null, null, MediaSettings::fromEnv([]), static fn(string $n): ?string => null, $this->calls, clients: ['anthropic' => $claude]);
+
+        $answer = $models->look('anthropic:claude-haiku-5-5', [['bytes' => 'JPEG', 'mime' => 'image/jpeg']], 'Что на фото?', self::call());
+
+        self::assertSame('Кот.', $answer->text);
+        self::assertSame('claude-haiku-5-5', $claude->requests[0]->model);
+        self::assertSame('image/jpeg', $claude->requests[0]->messages[0]->media[0]->mime ?? null);
+        self::assertSame('media-vision', $this->calls->calls[0]->purpose);
+    }
+
     public function testSpeechIsAFileUploadToItsEndpoint(): void {
         $models = $this->models(['http://whisper:8000/v1/audio/transcriptions' => [200, [], '{"text":"Привет, это голосовое."}']]);
 
