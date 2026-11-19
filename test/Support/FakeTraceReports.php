@@ -37,6 +37,27 @@ final class FakeTraceReports implements TraceReportRepository {
         return $this->workerModels;
     }
 
+    /** @var list<array{name: string, calls: int, errors: int, avg_ms: int}> */
+    public array $tools = [];
+
+    /** @var list<array{run: int, kind: string, name: string, ms: int}> */
+    public array $longest = [];
+
+    /** @var array{orchestrator: int, workers: int} */
+    public array $delegationTokens = ['orchestrator' => 0, 'workers' => 0];
+
+    public function toolsUsage(DateTimeImmutable $since): array {
+        return $this->tools;
+    }
+
+    public function longestSteps(DateTimeImmutable $since, int $limit): array {
+        return array_slice($this->longest, 0, $limit);
+    }
+
+    public function delegationTokens(DateTimeImmutable $since): array {
+        return $this->delegationTokens;
+    }
+
     /** @var list<array{version: ?int, runs: int, calls: int, cost: float}> */
     public array $usageVersions = [];
 

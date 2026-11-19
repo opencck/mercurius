@@ -164,4 +164,32 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertSame(1, $latency[$model]['calls']);
         self::assertSame(1500, $latency[$model]['p95']);
     }
+    public function testToolsTheLongestStepsAndTheOrchestratorsShare(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — /usage tools and longest steps, /delegation the orchestrator's share
+        [$principalId, $conversationId] = TestDatabase::conversation($this->db);
+        $runs = new PostgresRunRepository($this->db);
+        $traces = new \OpenCCK\Infrastructure\Repository\PostgresTraceRepository($this->db);
+        $reports = new PostgresTraceReportRepository($this->db);
+        $since = new DateTimeImmutable('-1 hour');
+        $tokensBefore = $reports->delegationTokens($since);
+        $orchestrator = $runs->start($conversationId, $principalId, 'openrouter:report/top', new RunLimits(30, 100_000, 900, 120));
+        self::assertNotNull($orchestrator);
+        $runs->settle($orchestrator->id, 0, 1000, 500);
+        [, $workerConversation] = TestDatabase::conversation($this->db, 'worker-' . bin2hex(random_bytes(4)));
+        $worker = $runs->start($workerConversation, $principalId, 'openrouter:report/worker', new RunLimits(15, 10_000, 900, 120), $orchestrator->id);
+        self::assertNotNull($worker);
+        $runs->settle($worker->id, 0, 3000, 500);
+        $tool = 'probe_' . bin2hex(random_bytes(4));
+        $span = $traces->openRun($orchestrator->id, 'openrouter:report/top');
+        $traces->record(new \OpenCCK\Domain\Agent\TraceSpan($orchestrator->id, $span, \OpenCCK\Domain\Agent\TraceSpan::TOOL, $tool, new DateTimeImmutable(), 400, \OpenCCK\Domain\Agent\TraceSpan::OK));
+        $traces->record(new \OpenCCK\Domain\Agent\TraceSpan($orchestrator->id, $span, \OpenCCK\Domain\Agent\TraceSpan::TOOL, $tool, new DateTimeImmutable(), 600, \OpenCCK\Domain\Agent\TraceSpan::ERROR, error: 'нет'));
+        $traces->record(new \OpenCCK\Domain\Agent\TraceSpan($orchestrator->id, $span, \OpenCCK\Domain\Agent\TraceSpan::TOOL, $tool . '_long', new DateTimeImmutable(), 86_000_000, \OpenCCK\Domain\Agent\TraceSpan::OK));
+
+        $byTool = array_column($reports->toolsUsage($since), null, 'name');
+        self::assertSame([2, 1, 500], [$byTool[$tool]['calls'] ?? null, $byTool[$tool]['errors'] ?? null, $byTool[$tool]['avg_ms'] ?? null]);
+        $longest = $reports->longestSteps($since, 5)[0] ?? null;
+        self::assertSame([$orchestrator->id, 'tool', $tool . '_long'], [$longest['run'] ?? null, $longest['kind'] ?? null, $longest['name'] ?? null]);
+        $tokens = $reports->delegationTokens($since);
+        self::assertSame([$tokensBefore['orchestrator'] + 1000, $tokensBefore['workers'] + 3000], [$tokens['orchestrator'], $tokens['workers']]);
+    }
 }

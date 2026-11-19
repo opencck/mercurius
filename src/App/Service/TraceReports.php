@@ -51,6 +51,23 @@ final class TraceReports {
                 $lines[] = sprintf(t('service.trace_reports.tokenov'), $row['id'], self::usd($row['cost']), self::n($row['tokens']));
             }
         }
+        // spec: BRIEF.md#трассировка-и-метрики — which tools are used, which fail, which are slow
+        $tools = $this->figures->toolsUsage($since);
+        if ($tools !== []) {
+            $lines[] = '';
+            $lines[] = t('service.trace_reports.tools_head');
+            foreach ($tools as $row) {
+                $lines[] = sprintf(t('service.trace_reports.tool_row'), $row['name'], $row['calls'], $row['errors'], self::share($row['errors'], $row['calls']), self::seconds($row['avg_ms']));
+            }
+        }
+        $longest = $this->figures->longestSteps($since, 5);
+        if ($longest !== []) {
+            $lines[] = '';
+            $lines[] = t('service.trace_reports.longest_head');
+            foreach ($longest as $row) {
+                $lines[] = sprintf(t('service.trace_reports.longest_row'), $row['kind'], $row['name'], self::seconds($row['ms']), $row['run']);
+            }
+        }
         // spec: BRIEF.md#трассировка-и-метрики — did a new prompt make the agent dearer
         $versions = $this->figures->usageByPromptVersion($since);
         if ($versions !== []) {
@@ -154,6 +171,11 @@ final class TraceReports {
             sprintf(t('service.trace_reports.vorkerov_povtorov_kaskada_fonovyh_delegi'), $f['workers'], $f['cascades'], $f['background']),
             sprintf(t('service.trace_reports.proveryayuschih_otklonili_otvet'), $f['verifiers'], $f['rejected']),
         ];
+        // spec: BRIEF.md#трассировка-и-метрики — how much of a delegating run the orchestrator itself spends
+        $tokens = $this->figures->delegationTokens($since);
+        if ($tokens['orchestrator'] + $tokens['workers'] > 0) {
+            $lines[] = sprintf(t('service.trace_reports.orchestrator_share'), self::share($tokens['orchestrator'], $tokens['orchestrator'] + $tokens['workers']), self::n($tokens['orchestrator']), self::n($tokens['workers']));
+        }
         $models = $this->figures->workerModels($since);
         if ($models !== []) {
             $lines[] = '';

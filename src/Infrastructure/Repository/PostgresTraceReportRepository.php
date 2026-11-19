@@ -177,6 +177,45 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         ];
     }
 
+    public function toolsUsage(DateTimeImmutable $since): array {
+        $rows = [];
+        foreach ($this->db->execute(
+            "SELECT name, count(*)::int AS calls, (count(*) FILTER (WHERE status = 'error'))::int AS errors,
+                    coalesce(avg(duration_ms), 0)::int AS avg_ms
+             FROM trace_spans WHERE kind = 'tool' AND started_at >= to_timestamp(?)
+             GROUP BY name ORDER BY calls DESC, name LIMIT 30",
+            [$since->getTimestamp()],
+        ) as $row) {
+            $rows[] = ['name' => self::str($row, 'name'), 'calls' => self::int($row, 'calls'), 'errors' => self::int($row, 'errors'), 'avg_ms' => self::int($row, 'avg_ms')];
+        }
+        return $rows;
+    }
+
+    public function longestSteps(DateTimeImmutable $since, int $limit): array {
+        $rows = [];
+        foreach ($this->db->execute(
+            "SELECT run_id, kind, name, duration_ms FROM trace_spans
+             WHERE kind <> 'run' AND duration_ms IS NOT NULL AND started_at >= to_timestamp(?)
+             ORDER BY duration_ms DESC, id LIMIT ?",
+            [$since->getTimestamp(), max(1, $limit)],
+        ) as $row) {
+            $rows[] = ['run' => self::int($row, 'run_id'), 'kind' => self::str($row, 'kind'), 'name' => self::str($row, 'name'), 'ms' => self::int($row, 'duration_ms')];
+        }
+        return $rows;
+    }
+
+    public function delegationTokens(DateTimeImmutable $since): array {
+        $row = $this->db->execute(
+            'SELECT coalesce(sum(r.tokens_used), 0)::bigint AS orchestrator,
+                    coalesce(sum((SELECT sum(w.tokens_used) FROM runs w WHERE w.parent_run_id = r.id)), 0)::bigint AS workers
+             FROM runs r
+             WHERE r.parent_run_id IS NULL AND r.created_at >= to_timestamp(?)
+               AND EXISTS (SELECT 1 FROM runs w WHERE w.parent_run_id = r.id)',
+            [$since->getTimestamp()],
+        )->fetchRow() ?? [];
+        return ['orchestrator' => self::int($row, 'orchestrator'), 'workers' => self::int($row, 'workers')];
+    }
+
     public function usageByPromptVersion(DateTimeImmutable $since): array {
         $rows = [];
         foreach ($this->db->execute(

@@ -54,6 +54,31 @@ interface TraceReportRepository {
     public function workerModels(DateTimeImmutable $since): array;
 
     /**
+     * Tool calls by tool: how many, how many failed, the average time; from the trace steps.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /usage: tools
+     *
+     * @return list<array{name: string, calls: int, errors: int, avg_ms: int}> most called first
+     */
+    public function toolsUsage(DateTimeImmutable $since): array;
+
+    /**
+     * The longest steps of the period (not whole runs): which run, what kind, what, how long.
+     *
+     * @return list<array{run: int, kind: string, name: string, ms: int}> longest first
+     */
+    public function longestSteps(DateTimeImmutable $since, int $limit): array;
+
+    /**
+     * Tokens of the runs that delegated, split into their own and their workers'.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /delegation: the orchestrator's share of tokens
+     *
+     * @return array{orchestrator: int, workers: int}
+     */
+    public function delegationTokens(DateTimeImmutable $since): array;
+
+    /**
      * Spend by the version of the system prompt of the conversation a call was made in: runs, calls and cost; null —
      * a conversation opened before versions were kept, or a call without one.
      *

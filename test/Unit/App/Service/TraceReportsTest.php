@@ -92,6 +92,23 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.delegation_version_row'), 'v3', 8, 2, '25%', 5, '$0.2000'), $delegation);
     }
 
+    public function testUsageShowsToolsAndTheLongestStepsAndDelegationTheOrchestratorsShare(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — tools, the longest steps, the orchestrator's share of tokens
+        $this->figures->tools = [['name' => 'web_read', 'calls' => 12, 'errors' => 3, 'avg_ms' => 2400]];
+        $this->figures->longest = [['run' => 7, 'kind' => 'tool', 'name' => 'browser', 'ms' => 95_000]];
+        $this->figures->delegationTokens = ['orchestrator' => 30_000, 'workers' => 90_000];
+
+        $this->stack->say('/usage 7');
+        $usage = $this->lastText();
+        $this->stack->say('/delegation 7');
+        $delegation = $this->lastText();
+
+        self::assertStringContainsString(\Mercurius\I18n\t('service.trace_reports.tools_head'), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.tool_row'), 'web_read', 12, 3, '25%', '2.4 с'), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.longest_row'), 'tool', 'browser', '95 с', 7), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.orchestrator_share'), '25%', '30 000', '90 000'), $delegation);
+    }
+
     public function testRunsListsTheLatest(): void {
         $this->stack->say('/runs');
 
