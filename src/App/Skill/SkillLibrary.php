@@ -52,6 +52,82 @@ final class SkillLibrary {
     ) {}
 
     private ?\OpenCCK\Domain\Repository\SkillUsageRepository $usage = null;
+    private ?\OpenCCK\Domain\Repository\SkillEditRepository $edits = null;
+    /** a file of a skill kept in the journal of edits at most this big */
+    private const EDIT_FILE_BYTES = 1_000_000;
+
+    /** spec: BRIEF.md#скиллы-и-mcp — a journal of skill edits with a rollback of one record */
+    public function useEdits(\OpenCCK\Domain\Repository\SkillEditRepository $edits): void {
+        $this->edits = $edits;
+    }
+
+    /**
+     * The edits of a skill of this conversation, newest first.
+     *
+     * @return list<array{id: int, at: int, source: string, created: bool}>
+     */
+    public function history(Principal $who, ?Project $project, string $name): array {
+        $skill = $this->catalog($who, $project)[$name] ?? null;
+        if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->edits === null) {
+            return [];
+        }
+        return $this->edits->forSkill($skill['owner'], $skill['dir'], 20);
+    }
+
+    /**
+     * Brings a skill's folder back to what it held before edit $id: the files of that time are written, files added
+     * since go; an edit that made the skill removes it. The rollback is an edit too. Null when done, else why not.
+     */
+    public function rollback(Principal $who, ?Project $project, string $name, int $id, Cancellation $cancellation): ?string {
+        $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
+        $edit = $this->edits?->find($id);
+        if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $edit === null
+            || $edit['owner'] !== $skill['owner'] || $edit['dir'] !== $skill['dir']) {
+            return sprintf(t('skill.library.no_edit'), $id, $name);
+        }
+        $limits = ($this->limitsOf)($skill['owner']);
+        if ($limits === null || $this->sandbox === null) {
+            return sprintf(t('skill.library.builtin_off_only'), $name);
+        }
+        $now = $this->folder($skill['owner'], $limits, $skill['dir'], $cancellation);
+        $this->sandbox->exec($skill['owner'], $limits, 'skill-rollback-' . $skill['owner'], "rm -rf -- '" . str_replace("'", '', $skill['dir']) . "'", '.', 30, $cancellation);
+        foreach ($edit['before'] ?? [] as $path => $text) {
+            $this->sandbox->write($skill['owner'], $limits, $skill['dir'] . '/' . $path, $text, $cancellation);
+        }
+        $this->edits?->record($skill['owner'], $skill['dir'], $name, $now, 'rollback #' . $id);
+        return null;
+    }
+
+    /**
+     * The text files of a skill's folder now, path => text; null — there is no such folder.
+     *
+     * @return array<string, string>|null
+     */
+    private function folder(int $owner, SandboxLimits $limits, string $dir, Cancellation $cancellation): ?array {
+        if ($this->sandbox === null) {
+            return null;
+        }
+        try {
+            $entries = $this->sandbox->list($owner, $limits, $dir, 6, $cancellation);
+        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+            return null;
+        }
+        $files = [];
+        foreach ($entries as $entry) {
+            if ($entry['type'] !== 'file' || $entry['size'] > self::EDIT_FILE_BYTES) {
+                continue;
+            }
+            try {
+                $text = $this->sandbox->fetch($owner, $limits, $dir . '/' . $entry['path'], self::EDIT_FILE_BYTES, $cancellation);
+            } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+                continue;
+            }
+            if (mb_check_encoding($text, 'UTF-8') && !str_contains($text, "\0")) {
+                $files[$entry['path']] = $text;
+            }
+        }
+        return $files === [] ? null : $files;
+    }
 
     /** spec: BRIEF.md#скиллы-и-mcp — a skill turned off is left out of the index */
     public function useUsage(\OpenCCK\Domain\Repository\SkillUsageRepository $usage): void {
@@ -228,17 +304,20 @@ final class SkillLibrary {
      * directory under the same paths is replaced; the snapshots of the working folder keep the earlier text.
      *
      * @param array{owner: int, dir: string, limits: SandboxLimits} $target
+     * @param string $source who edits: skill_save, skill_import, /skill import — for the journal
      */
-    public function write(SkillBundle $bundle, array $target, Cancellation $cancellation): string {
+    public function write(SkillBundle $bundle, array $target, Cancellation $cancellation, string $source = ''): string {
         if ($this->sandbox === null) {
             throw new \RuntimeException('no sandbox');
         }
         $root = $target['dir'] . '/' . $bundle->name;
+        $before = $this->edits === null ? null : $this->folder($target['owner'], $target['limits'], $root, $cancellation);
         $skillMd = "---\nname: " . $bundle->name . "\ndescription: " . str_replace("\n", ' ', $bundle->description) . "\n---\n\n" . $bundle->body . "\n";
         $this->sandbox->write($target['owner'], $target['limits'], $root . '/SKILL.md', $skillMd, $cancellation);
         foreach ($bundle->files as $path => $text) {
             $this->sandbox->write($target['owner'], $target['limits'], $root . '/' . $path, $text, $cancellation);
         }
+        $this->edits?->record($target['owner'], $root, $bundle->name, $before, $source);
         return $root;
     }
 

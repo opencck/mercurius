@@ -109,7 +109,7 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
         if (SkillGuard::blocks($findings)) {
             return ToolResult::error(sprintf(t('skill.import.blocked'), $bundle->name, implode("\n", array_map(static fn(array $f): string => sprintf('%s %s:%d — %s', $f['severity'], $f['file'], $f['line'], $f['description']), $findings))));
         }
-        $dir = $this->library->write($bundle, $target, $context->cancellation);
+        $dir = $this->library->write($bundle, $target, $context->cancellation, 'skill_save');
         return ToolResult::ok(sprintf(t('tool.skill_save.done'), $bundle->name, $dir));
     }
 }

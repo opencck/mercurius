@@ -747,6 +747,7 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
 };
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $skillLibrary->useUsage($skillUsage);
+$skillLibrary->useEdits(new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db));
 $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, $skillUsage));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: BRIEF.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard

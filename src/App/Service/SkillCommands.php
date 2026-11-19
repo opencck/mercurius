@@ -63,7 +63,7 @@ final class SkillCommands {
             }
             try {
                 [$bundle, $findings] = $this->importer->fetch($parts[1] ?? '', new TimeoutCancellation(60));
-                $dir = $this->library->write($bundle, $target, new TimeoutCancellation(30));
+                $dir = $this->library->write($bundle, $target, new TimeoutCancellation(30), '/skill import');
             } catch (InvalidArgumentException $e) {
                 return $e->getMessage();
             }
@@ -79,6 +79,22 @@ final class SkillCommands {
             }
             $this->usage->turnOff($name, $action === 'off');
             return sprintf($action === 'off' ? t('service.skill_commands.off_now') : t('service.skill_commands.on_now'), $name);
+        }
+        // spec: BRIEF.md#скиллы-и-mcp — the journal of a skill's edits and the rollback of one of them
+        if ($action === 'history') {
+            $edits = $this->library->history($who, $project, $name);
+            if ($edits === []) {
+                return sprintf(t('service.skill_commands.history_none'), $name);
+            }
+            return sprintf(t('service.skill_commands.history_head'), $name) . implode("\n", array_map(
+                static fn(array $e): string => sprintf('#%d · %s · %s%s', $e['id'], gmdate('Y-m-d H:i', $e['at']) . ' UTC', $e['source'] === '' ? '—' : $e['source'], $e['created'] ? ' · ' . t('service.skill_commands.created') : ''),
+                $edits,
+            ));
+        }
+        if ($action === 'rollback') {
+            $id = (int) ltrim($parts[2] ?? '', '#');
+            $why = $this->library->rollback($who, $project, $name, $id, new TimeoutCancellation(60));
+            return $why ?? sprintf(t('service.skill_commands.rolled_back'), $name, $id);
         }
         if ($action === 'remove') {
             $checkpoints = $this->checkpoints;

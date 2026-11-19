@@ -190,4 +190,27 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertNotFalse($removal);
         self::assertLessThan($removal, $snapshot, 'the snapshot first');
     }
+    public function testEveryEditOfASkillIsJournalledAndOneIsRolledBack(): void {
+        // spec: BRIEF.md#скиллы-и-mcp — a journal of skill edits; one edit is rolled back, and the rollback is an edit too
+        $edits = new \OpenCCK\Test\Support\InMemorySkillEditRepository();
+        $library = $this->library();
+        $library->useEdits($edits);
+        $target = $library->target($this->owner, null, 'mine');
+        self::assertNotNull($target);
+        $v1 = SkillBundle::fromFiles(['SKILL.md' => self::skill('notes', 'Заметки', 'Первая версия.')], 'agent', '');
+        $v2 = SkillBundle::fromFiles(['SKILL.md' => self::skill('notes', 'Заметки', 'Вторая версия.'), 'refs/a.md' => 'приложение'], 'agent', '');
+        $library->write($v1, $target, new NullCancellation(), 'skill_save');
+        $library->write($v2, $target, new NullCancellation(), 'skill_save');
+
+        $history = $library->history($this->owner, null, 'notes');
+        self::assertCount(2, $history);
+        self::assertTrue($history[1]['created'], 'the first edit made the skill');
+
+        $ids = array_column($history, 'id');
+        self::assertNull($library->rollback($this->owner, null, 'notes', reset($ids), new NullCancellation()));
+        self::assertStringContainsString('Первая версия.', $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] ?? '');
+        self::assertStringContainsString("rm -rf -- '.mercurius/skills/notes'", implode("\n", $this->sandbox->calls), 'files the old version did not have go');
+        self::assertCount(3, $library->history($this->owner, null, 'notes'), 'the rollback is an edit that can be undone');
+        self::assertNotNull($library->rollback($this->owner, null, 'notes', 999, new NullCancellation()), 'an unknown edit');
+    }
 }

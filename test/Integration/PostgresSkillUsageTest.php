@@ -28,4 +28,21 @@ final class PostgresSkillUsageTest extends AsyncTestCase {
         $db->execute('DELETE FROM skill_usage WHERE name = ?', [$name]);
         $db->close();
     }
+    public function testTheJournalOfASkillKeepsWhatWasThere(): void {
+        $db = TestDatabase::connect();
+        $edits = new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db);
+        $dir = '.mercurius/skills/test-' . bin2hex(random_bytes(4));
+
+        $first = $edits->record(1, $dir, 'notes', null, 'skill_save');
+        $second = $edits->record(1, $dir, 'notes', ['SKILL.md' => "Первая версия «с кавычками»", 'refs/a.md' => 'x'], 'skill_save');
+
+        self::assertSame([$second, $first], array_column($edits->forSkill(1, $dir, 10), 'id'));
+        self::assertTrue($edits->forSkill(1, $dir, 10)[1]['created'] ?? false);
+        self::assertSame(['SKILL.md' => "Первая версия «с кавычками»", 'refs/a.md' => 'x'], $edits->find($second)['before'] ?? null);
+        $made = $edits->find($first);
+        self::assertNotNull($made);
+        self::assertNull($made['before']);
+        $db->execute('DELETE FROM skill_edits WHERE dir = ?', [$dir]);
+        $db->close();
+    }
 }
