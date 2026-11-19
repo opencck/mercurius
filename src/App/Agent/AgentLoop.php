@@ -22,23 +22,13 @@ use Mercurius\Llm\ToolCall;
 use Mercurius\Llm\Usage;
 use OpenCCK\App\Agent\Context\ContextCompactor;
 use OpenCCK\App\Agent\Model\FallbackModels;
-use OpenCCK\App\Agent\Tool\BatchPlanner;
-use OpenCCK\App\Agent\Tool\GrantKeyed;
-use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
-use OpenCCK\App\Agent\Tool\LongRunning;
-use OpenCCK\App\Agent\Tool\PreparesCall;
-use OpenCCK\App\Agent\Tool\ReadsOutside;
-use OpenCCK\App\Agent\Tool\RequestsAccess;
 use OpenCCK\App\Agent\Tool\ToolCallValidator;
-use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolExecutor;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
-use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Agent\Tool\ValidatedCall;
 use OpenCCK\App\Agent\Trace\AgentEvents;
 use OpenCCK\App\Agent\Trace\NullEvents;
 use OpenCCK\App\Service\SystemPrompt;
-use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
@@ -59,8 +49,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
-use function Amp\async;
-use function Amp\Future\await;
 
 use function Mercurius\I18n\t;
 
@@ -93,12 +81,11 @@ final class AgentLoop {
     private const SUMMARY_TOKENS = 1000;
     /** Saved as the answer of a stopped run: the model sees the task as closed, not as waiting. */
     public const STOPPED_NOTE = 'agent.agent_loop.stopped_note';
-    private const WARN_SHARE = 0.8;
 
     private readonly ToolCallValidator $validator;
     /** @var (Closure(int): ?ParticipantPolicy)|null a ceiling for a run's policy, read before every model call */
     private ?Closure $cap = null;
-    private readonly BatchPlanner $planner;
+    private readonly ToolRound $round;
     /** @var Closure(): float */
     private readonly Closure $clock;
 
@@ -131,13 +118,11 @@ final class AgentLoop {
     ) {
         $this->budget = $budget ?? \OpenCCK\App\Agent\Tool\ResultBudget::forWindow(131_072);
         $this->validator = new ToolCallValidator($registry);
-        $this->planner = new BatchPlanner();
         $this->clock = $clock ?? static fn(): float => microtime(true);
+        $this->round = new ToolRound($runs, $transcript, $executor, $this->budget, $this->clock, $logger, $approvals, $gate, $events);
     }
 
     private readonly \OpenCCK\App\Agent\Tool\ResultBudget $budget;
-    /** results shorter than this are kept whole even when repeated: a reference would not be shorter */
-    private const SAME_RESULT_MIN = 500;
 
     /** Runs until the run ends; on shutdown returns the run still running, to resume after restart. */
     public function run(Run $run, ParticipantPolicy $policy, Principal $principal, RunObserver $observer, Cancellation $cancellation): Run {
@@ -189,138 +174,167 @@ final class AgentLoop {
         $this->cap = $cap;
     }
 
-    /** @return StopReason|null null when the run paused for an approval */
+    /**
+     * Turns until the run ends: each turn is prepared, the model is called, and its answer either ends the run or
+     * leads to a round of tools. Every phase says whether the run goes on.
+     *
+     * @return StopReason|null null when the run paused for an approval
+     */
     private function iterate(RunState $state): ?StopReason {
         while (true) {
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
-            $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
-            if ($ceiling !== null) {
-                $state->policy = $state->policy->narrowedBy($ceiling, keepApproval: $state->principal->isOwner());
+            $step = $this->prepareTurn($state);
+            if ($step === null) {
+                $called = $this->callPhase($state);
+                $step = $called instanceof Step ? $called : ($called->hasToolCalls() ? $this->toolPhase($state, $called) : $this->answerPhase($state, $called));
             }
-            $this->deliverInbox($state);
-            $reason = $this->checkLimits($state);
-            if ($reason !== null) {
-                return $reason;
+            if (!$step->goesOn) {
+                return $step->reason;
             }
-            // Before compaction: its summary call costs money too.
-            $over = $this->spend?->exceeded($state->run->principalId, $state->policy->dailySpendUsd);
-            if ($over !== null) {
-                $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
-                return StopReason::SpendCap;
-            }
-            if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), cancellation: $state->cancellation) === true) {
-                $this->loadContext($state);
-            }
-            $reserved = $this->reserve($state);
-            if ($reserved === null) {
-                return StopReason::TokenBudget;
-            }
-
-            $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
-            $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens, null, $this->tail($state)), $reserved, max(1.0, $left));
-            if ($response === null) {
-                if ($this->elapsedMs($state) >= $state->run->limits->runTimeout * 1000) {
-                    // The deadline cut the call off: a limit, with a summary, not a failure of the model.
-                    return StopReason::Deadline;
-                }
-                // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L345 — a stream that broke after
-                //      it began is a stub, not a verdict: nothing was saved yet, so the call is made once more
-                // Before the first event the client already retried: only a break after it is repeated here.
-                if ($state->streamBegan && in_array($state->lastError, [ErrorKind::Server, ErrorKind::Network, ErrorKind::Timeout], true) && !$state->streamRetried) {
-                    $state->streamRetried = true;
-                    continue;
-                }
-                // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
-                if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
-                    $state->overflowRetried = true;
-                    $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true, cancellation: $state->cancellation);
-                    $this->loadContext($state);
-                    continue;
-                }
-                // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
-                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
-                //       model works; another model would only be asked to say the same
-                if ($state->lastError !== ErrorKind::ContentFilter && $this->switchModel($state)) {
-                    continue;
-                }
-                return StopReason::ModelFailed;
-            }
-            $state->overflowRetried = false;
-            $state->streamRetried = false;
-            if (!$response->hasToolCalls()) {
-                // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L379 (_continue_text) — an answer
-                //      cut off by the output limit is continued and stitched, up to 4 times
-                // A cut answer with no text is an empty one: the output went to reasoning, a continuation would repeat it.
-                if ($response->finishReason === FinishReason::Length && trim($response->text) !== '' && $state->continuations < self::MAX_CONTINUATIONS) {
-                    $state->continuations++;
-                    $state->partial .= $response->text;
-                    continue;
-                }
-                $text = $state->partial . $response->text;
-                // ref: references/hermes-agent/agent/turn_empty_response.py@e96221fa:L105-L155 (_retry_empty) — an empty
-                //      answer is asked again with a hint, up to 3 times
-                if (trim($text) === '' && $this->retryEmpty($state, $response)) {
-                    continue;
-                }
-                $state->emptyStreak = [];
-                $state->lessReasoning = false;
-                // spec: BRIEF.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
-                //      words (it copies the system note of earlier runs) is shown back once with a reminder
-                // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
-                //      completion without tool calls" in the prompt; here the loop also catches the copied note
-                // a run that did act may repeat its own system note: it is reminded only when it did nothing
-                if (!$state->textActionRetried && self::reportsAnAction($text) && $this->actionsNote($state->run->id) === '') {
-                    $state->textActionRetried = true;
-                    $state->textAction = $text;
-                    $state->partial = '';
-                    $this->logger->notice('An action was written as text, not called', ['run' => $state->run->id]);
-                    continue;
-                }
-                $state->textAction = null;
-                $state->partial = '';
-                $state->finalText = $text;
-                $this->saveAnswer($state, $text);
-                return StopReason::Answered;
-            }
-            // A step with tools ends whatever answer was being continued or retried: the next answer starts clean.
-            if ($state->partial !== '' || $state->emptyRetries > 0) {
-                $this->logger->info('Model turned to tools mid-answer; the fragment is dropped', ['run' => $state->run->id]);
-            }
-            $state->partial = '';
-            $state->continuations = 0;
-            $state->emptyRetries = 0;
-            $state->emptyStreak = [];
-            $state->lessReasoning = false;
-
-            $outcome = $this->validator->validate($response->toolCalls, $state->policy, $this->transcript->callIds($state->run->id));
-            if ($outcome->truncated) {
-                // hermes refuses cut-off arguments at once (turn_tool_validation.py L216-L237); we repeat the request once.
-                if ($state->truncatedRetried) {
-                    return StopReason::Truncated;
-                }
-                $state->truncatedRetried = true;
-                continue;
-            }
-            $state->truncatedRetried = false;
-
-            $calls = $this->prepare($state, $outcome->calls);
-            if (!$this->persist($state, $response->text, $calls)) {
-                return StopReason::PersistFailed;
-            }
-            if (trim($response->text) !== '') {
-                $state->observer->commentary($state->run, $response->text);
-            }
-            $reason = $this->execute($state, $calls);
-            if ($reason !== null || $state->paused) {
-                return $reason;
-            }
-
-            $state->invalidTurns = $outcome->hasValid() ? 0 : $state->invalidTurns + 1;
-            if ($state->invalidTurns >= 3) {
-                return StopReason::InvalidCalls;
-            }
-            $this->flushTime($state);
         }
+    }
+
+    /** The ceiling of a group, steering messages, limits, spend and compaction before the call; null — go on. */
+    private function prepareTurn(RunState $state): ?Step {
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+        $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
+        if ($ceiling !== null) {
+            $state->policy = $state->policy->narrowedBy($ceiling, keepApproval: $state->principal->isOwner());
+        }
+        $this->deliverInbox($state);
+        $reason = $this->checkLimits($state);
+        if ($reason !== null) {
+            return Step::stop($reason);
+        }
+        // Before compaction: its summary call costs money too.
+        $over = $this->spend?->exceeded($state->run->principalId, $state->policy->dailySpendUsd);
+        if ($over !== null) {
+            $this->logger->warning('Spend cap reached; the run stops', ['run' => $state->run->id, 'reason' => $over]);
+            return Step::stop(StopReason::SpendCap);
+        }
+        if ($this->compactor?->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), cancellation: $state->cancellation) === true) {
+            $this->loadContext($state);
+        }
+        return null;
+    }
+
+    /** The model call with its budget; a failed call is repeated, compacted, switched to another model or stops the run. */
+    private function callPhase(RunState $state): ChatResponse|Step {
+        $reserved = $this->reserve($state);
+        if ($reserved === null) {
+            return Step::stop(StopReason::TokenBudget);
+        }
+        $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
+        $response = $this->callModel($state, $this->request($state, $this->registry->definitions($state->policy), $this->maxTokens, null, $this->tail($state)), $reserved, max(1.0, $left));
+        if ($response === null) {
+            if ($this->elapsedMs($state) >= $state->run->limits->runTimeout * 1000) {
+                // The deadline cut the call off: a limit, with a summary, not a failure of the model.
+                return Step::stop(StopReason::Deadline);
+            }
+            // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L345 — a stream that broke after
+            //      it began is a stub, not a verdict: nothing was saved yet, so the call is made once more
+            // Before the first event the client already retried: only a break after it is repeated here.
+            if ($state->streamBegan && in_array($state->lastError, [ErrorKind::Server, ErrorKind::Network, ErrorKind::Timeout], true) && !$state->streamRetried) {
+                $state->streamRetried = true;
+                return Step::next();
+            }
+            // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
+            if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
+                $state->overflowRetried = true;
+                $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true, cancellation: $state->cancellation);
+                $this->loadContext($state);
+                return Step::next();
+            }
+            // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
+            //       model works; another model would only be asked to say the same
+            if ($state->lastError !== ErrorKind::ContentFilter && $this->switchModel($state)) {
+                return Step::next();
+            }
+            return Step::stop(StopReason::ModelFailed);
+        }
+        $state->overflowRetried = false;
+        $state->streamRetried = false;
+        return $response;
+    }
+
+    /** An answer without tools: continued when cut, asked again when empty or when it reports an action in words. */
+    private function answerPhase(RunState $state, ChatResponse $response): Step {
+        // ref: references/hermes-agent/agent/turn_truncation.py@e96221fa:L313-L379 (_continue_text) — an answer
+        //      cut off by the output limit is continued and stitched, up to 4 times
+        // A cut answer with no text is an empty one: the output went to reasoning, a continuation would repeat it.
+        if ($response->finishReason === FinishReason::Length && trim($response->text) !== '' && $state->continuations < self::MAX_CONTINUATIONS) {
+            $state->continuations++;
+            $state->partial .= $response->text;
+            return Step::next();
+        }
+        $text = $state->partial . $response->text;
+        // ref: references/hermes-agent/agent/turn_empty_response.py@e96221fa:L105-L155 (_retry_empty) — an empty
+        //      answer is asked again with a hint, up to 3 times
+        if (trim($text) === '' && $this->retryEmpty($state, $response)) {
+            return Step::next();
+        }
+        $state->emptyStreak = [];
+        $state->lessReasoning = false;
+        // spec: BRIEF.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
+        //      words (it copies the system note of earlier runs) is shown back once with a reminder
+        // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
+        //      completion without tool calls" in the prompt; here the loop also catches the copied note
+        // a run that did act may repeat its own system note: it is reminded only when it did nothing
+        if (!$state->textActionRetried && self::reportsAnAction($text) && $this->actionsNote($state->run->id) === '') {
+            $state->textActionRetried = true;
+            $state->textAction = $text;
+            $state->partial = '';
+            $this->logger->notice('An action was written as text, not called', ['run' => $state->run->id]);
+            return Step::next();
+        }
+        $state->textAction = null;
+        $state->partial = '';
+        $state->finalText = $text;
+        $this->saveAnswer($state, $text);
+        return Step::stop(StopReason::Answered);
+    }
+
+    /** An answer with tool calls: validated, saved, run as a round; three turns without one valid call stop the run. */
+    private function toolPhase(RunState $state, ChatResponse $response): Step {
+        // A step with tools ends whatever answer was being continued or retried: the next answer starts clean.
+        if ($state->partial !== '' || $state->emptyRetries > 0) {
+            $this->logger->info('Model turned to tools mid-answer; the fragment is dropped', ['run' => $state->run->id]);
+        }
+        $state->partial = '';
+        $state->continuations = 0;
+        $state->emptyRetries = 0;
+        $state->emptyStreak = [];
+        $state->lessReasoning = false;
+
+        $outcome = $this->validator->validate($response->toolCalls, $state->policy, $this->transcript->callIds($state->run->id));
+        if ($outcome->truncated) {
+            // hermes refuses cut-off arguments at once (turn_tool_validation.py L216-L237); we repeat the request once.
+            if ($state->truncatedRetried) {
+                return Step::stop(StopReason::Truncated);
+            }
+            $state->truncatedRetried = true;
+            return Step::next();
+        }
+        $state->truncatedRetried = false;
+
+        $calls = $this->round->prepare($state, $outcome->calls);
+        if (!$this->round->persist($state, $response->text, $calls)) {
+            return Step::stop(StopReason::PersistFailed);
+        }
+        if (trim($response->text) !== '') {
+            $state->observer->commentary($state->run, $response->text);
+        }
+        $reason = $this->round->execute($state, $calls);
+        if ($reason !== null || $state->paused) {
+            return Step::stop($reason);
+        }
+
+        $state->invalidTurns = $outcome->hasValid() ? 0 : $state->invalidTurns + 1;
+        if ($state->invalidTurns >= 3) {
+            return Step::stop(StopReason::InvalidCalls);
+        }
+        $this->flushTime($state);
+        return Step::next();
     }
 
     /** Calls saved before a restart but never finished run first, so the transcript stays a valid sequence. */
@@ -335,7 +349,7 @@ final class AgentLoop {
             $error = $tool === null || $stored->args === null ? t('agent.agent_loop.instrument_nedostupen_posle_perezapuska') : null;
             return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger);
         }, $pending);
-        return $this->execute($state, $calls);
+        return $this->round->execute($state, $calls);
     }
 
     /**
@@ -554,193 +568,6 @@ final class AgentLoop {
         $state->run = $this->runs->find($state->run->id) ?? $state->run;
     }
 
-    /**
-     * Tools that complete their arguments do it before the call is saved, so the card, the grant and the run all see
-     * the same completed call; a call that cannot be completed gets its reason as an error.
-     *
-     * spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17
-     *
-     * @param list<ValidatedCall> $calls
-     * @return list<ValidatedCall>
-     */
-    private function prepare(RunState $state, array $calls): array {
-        return array_map(function (ValidatedCall $call) use ($state): ValidatedCall {
-            if (!$call->executable() || !$call->tool instanceof PreparesCall || $call->args === null) {
-                return $call;
-            }
-            try {
-                $prepared = $call->tool->prepare($call->args, $state->principal, $state->policy, $state->cancellation);
-            } catch (\Amp\CancelledException $e) {
-                throw $e;
-            } catch (Throwable $e) {
-                $prepared = $e::class;
-            }
-            return is_string($prepared)
-                ? new ValidatedCall($call->call, $call->tool, $call->args, $prepared, $call->danger)
-                : new ValidatedCall($call->call, $call->tool, $prepared, null, $call->tool->danger($prepared));
-        }, $calls);
-    }
-
-    /** @param list<ValidatedCall> $calls */
-    private function persist(RunState $state, string $text, array $calls): bool {
-        $stored = [];
-        foreach ($calls as $position => $call) {
-            $stored[] = new StoredToolCall(
-                $call->call->id,
-                $position,
-                $call->call->name,
-                $call->args,
-                $call->call->argumentsJson,
-                $call->danger,
-                ToolCallStatus::Pending,
-            );
-        }
-        try {
-            $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, $stored);
-            return true;
-        } catch (Throwable $e) {
-            $this->logger->error('Could not save the model answer; no tool runs', ['run' => $state->run->id, 'error' => $e::class]);
-            return false;
-        }
-    }
-
-    /**
-     * Segments in order: parallel reads, writes one by one. Results are written in the original order as each
-     * segment ends; the loop guard and the 80% warning ride on the last result of the answer.
-     *
-     * @param list<ValidatedCall> $calls
-     */
-    private function execute(RunState $state, array $calls): ?StopReason {
-        $lastId = $calls === [] ? null : $calls[array_key_last($calls)]->call->id;
-        $halted = false;
-        $warn = false;
-        $turnUsed = 0;
-        foreach ($this->planner->segments($calls) as $segment) {
-            if ($halted) {
-                foreach ($segment as $call) {
-                    $this->writeResult($state, $call, ToolResult::error(t('agent.agent_loop.ne_vypolneno_zapusk_ostanovlen_potomu')));
-                }
-                continue;
-            }
-
-            // An irreversible call is alone in its segment (BatchPlanner): ask, use a grant, or refuse first.
-            $admission = $this->admit($state, $segment[0]);
-            if ($admission === false) {
-                $state->paused = true;
-                return null;
-            }
-            $futures = [];
-            foreach ($segment as $call) {
-                $futures[] = $admission instanceof ToolResult
-                    ? \Amp\Future::complete($admission)
-                    : async(fn(): ToolResult => $this->runCall($state, $call, $admission === 'granted' || $admission === 'approved'));
-            }
-            /** @var array<int, ToolResult> $results */
-            $results = await($futures);
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the results of a turn take at most 30% of the window:
-            //       the largest are spilled to a file (else cut) until the turn fits
-            $room = new \OpenCCK\App\Agent\Tool\ResultBudget($this->budget->perResult, max(1, $this->budget->perTurn - $turnUsed));
-            $contents = array_map(static fn(ToolResult $r): string => $r->content, $results);
-            $fitted = $room->fit($contents, fn(string $content, int $index): string => $this->executor->shrink($content, $this->contextOf($state, $segment[$index])));
-            foreach ($fitted as $index => $content) {
-                $result = $results[$index] ?? null;
-                if ($result instanceof ToolResult && $content !== $result->content) {
-                    $results[$index] = new ToolResult($content, $result->isError);
-                }
-                $turnUsed += mb_strlen($content);
-            }
-            if ($admission === 'granted') {
-                $first = $results[0] ?? null;
-                if ($first instanceof ToolResult) {
-                    $results[0] = new ToolResult($first->content . t('agent.agent_loop.vypolneno_po_sohranennomu_razresheniyu_v'), $first->isError);
-                }
-            }
-            foreach ($segment as $index => $call) {
-                $result = $results[$index] ?? null;
-                if (!$result instanceof ToolResult) {
-                    throw new \LogicException('A tool call produced no result');
-                }
-                $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content));
-                $halted = $halted || $verdict === GuardVerdict::Halt;
-                $warn = $warn || $verdict === GuardVerdict::Warn;
-                // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference to the first
-                if (!$result->isError && mb_strlen($result->content) >= self::SAME_RESULT_MIN) {
-                    $hash = hash('sha256', $result->content);
-                    $first = $state->seenResults[$hash] ?? null;
-                    if ($first === null) {
-                        $state->seenResults[$hash] = $call->call->id;
-                    } else {
-                        $result = new ToolResult(sprintf(t('agent.agent_loop.same_result'), $first), false);
-                    }
-                }
-                if ($call->call->id === $lastId) {
-                    $result = $this->withNotes($state, $result, $warn || $halted);
-                }
-                $this->writeResult($state, $call, $result);
-            }
-        }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the loop guard of a run outlives a restart
-        $this->runs->saveLoopHistory($state->run->id, $state->guard->history());
-        return $halted ? StopReason::LoopGuard : null;
-    }
-
-    /**
-     * Whether a call may run now. Only irreversible calls are checked.
-     *
-     * spec: BRIEF.md#подтверждения-и-запреты — approval, saved grants, nobody to ask means refusal
-     * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 (check_all_command_guards) — guards in order:
-     *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
-     *
-     * @return bool|'granted'|'approved'|ToolResult true — run; 'granted' — run by a saved grant; 'approved' — run, the owner
-     *         pressed "allow"; false — paused for the owner;
-     *         ToolResult — do not run, this is the result
-     */
-    private function admit(RunState $state, ValidatedCall $call): bool|string|ToolResult {
-        // spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — the verifier reads; no grant lets it write
-        if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
-            return ToolResult::error(t('agent.agent_loop.zdes_dostupno_tolko_chtenie_etot'));
-        }
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker gets no irreversible action, a saved grant included
-        if (!$state->policy->irreversible && $call->executable() && $call->danger === DangerClass::Irreversible) {
-            return ToolResult::error(t('agent.agent_loop.vorkeru_neobratimye_deystviya_nedostupny'));
-        }
-        if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
-            return true;
-        }
-        $approval = $this->approvals?->forCall($state->run->id, $call->call->id);
-        if ($approval !== null) {
-            return match ($approval->status) {
-                ApprovalStatus::Approved => 'approved',
-                ApprovalStatus::Pending => false,
-                ApprovalStatus::Denied => ToolResult::error(t('agent.agent_loop.otkazano_vladeltsem') . ($approval->reason !== null ? ': ' . $approval->reason : '.') . t('agent.agent_loop.deystvie_ne_vypolneno')),
-                ApprovalStatus::Expired => ToolResult::error(t('agent.agent_loop.vladelets_ne_otvetil_vovremya_molchanie')),
-            };
-        }
-        if ($call->tool instanceof Tool\ChecksBeforeApproval) {
-            $refused = $call->tool->refuseEarly($call->args, $this->contextOf($state, $call));
-            if ($refused !== null) {
-                return $refused;
-            }
-        }
-        $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
-        // spec: BRIEF.md#подтверждения-и-запреты — after outside data a grant is not used: the text read may be someone's
-        //      instructions, so the owner sees every irreversible action of this run on a card
-        $outside = $this->runs->find($state->run->id)?->outside;
-        if ($key !== null && $outside === null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
-            $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
-            return 'granted';
-        }
-        // spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — asking for a tool reaches the owner always
-        if ($this->gate === null || $this->approvals === null || (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess)) {
-            return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
-        }
-        // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
-        $this->transcript->setCallStatus($state->run->id, $call->call->id, ToolCallStatus::AwaitingApproval);
-        $this->runs->setStatus($state->run->id, RunStatus::WaitingApproval);
-        $this->gate->request($this->runs->find($state->run->id) ?? $state->run, $call, $state->principal);
-        return false;
-    }
-
     /** The run waits for the owner: saved as waiting, no final message — the decision resumes it. */
     private function pause(RunState $state): Run {
         $this->flushTime($state);
@@ -749,72 +576,6 @@ final class AgentLoop {
         $state->observer->waiting($paused, t('agent.agent_loop.zhdu_podtverzhdeniya_vladeltsa'));
         $this->logger->info('Run waits for approval', ['run' => $state->run->id]);
         return $paused;
-    }
-
-    private function runCall(RunState $state, ValidatedCall $call, bool $approved = false): ToolResult {
-        if (!$call->executable() || $call->tool === null) {
-            return ToolResult::error($call->error ?? t('agent.agent_loop.vyzov_ne_proshel_proverku'));
-        }
-        // a tool call runs in a fiber of its own: its log lines name the run too
-        \OpenCCK\Infrastructure\Logger\RunContext::set($state->run->id);
-        $this->transcript->startCall($state->run->id, $call->call->id);
-        if ($call->tool instanceof ReadsOutside && $call->args !== null && $call->tool->readsOutside($call->args)) {
-            // marked before the call: even a failed read may have brought text in
-            $this->runs->markOutside($state->run->id, $call->call->name);
-        }
-        // The status message is in the chat: secrets in the arguments are masked there too.
-        $preview = $call->args === null ? $call->call->argumentsJson : (json_encode(SecretMasker::maskArgs($call->args), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
-        $state->observer->toolStarted($state->run, $call->call->name, mb_substr(SecretMasker::mask($preview), 0, 200));
-        $remaining = max(1, (int) floor(($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000));
-        $timeout = $call->tool instanceof LongRunning
-            ? max(1, min($call->tool->timeout(), $remaining))
-            : max(1, min($call->tool->timeout(), $state->run->limits->toolTimeout, $remaining));
-        $context = $this->contextOf($state, $call, $approved);
-        $started = ($this->clock)();
-        $result = $this->executor->run($call, $context, $timeout, $this->budget->perResult);
-        $this->events->toolFinished($state->run->id, $call->call->name, $call->args, $result, ($this->clock)() - $started);
-        if ($call->tool instanceof RequestsAccess && !$result->isError) {
-            // the owner gave the tool: it is offered from the next turn of this very run
-            $state->policy = $state->policy->withTool($call->tool->grantedTool($call->args ?? []));
-        }
-        return $result;
-    }
-
-    private function contextOf(RunState $state, ValidatedCall $call, bool $approved = false): ToolContext {
-        return new ToolContext($state->run->id, $state->run->conversationId, $state->principal, $state->cancellation, $state->policy, $call->call->id, $approved);
-    }
-
-    private function writeResult(RunState $state, ValidatedCall $call, ToolResult $result): void {
-        $status = $result->isError ? ToolCallStatus::Failed : ToolCallStatus::Done;
-        $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->call->id, $status, $result->content);
-    }
-
-    /**
-     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221f:L41-L99, L183-L186 — one-time budget warning
-     *      appended to the last tool result, not a separate message (keeps role alternation and the prompt cache)
-     */
-    private function withNotes(RunState $state, ToolResult $result, bool $repeating): ToolResult {
-        $notes = [];
-        if ($repeating) {
-            $notes[] = \Mercurius\I18n\t(LoopGuard::WARNING);
-        }
-        $limit = $this->nearLimit($state);
-        if ($limit !== null && !$state->run->warned) {
-            $notes[] = sprintf(t('agent.agent_loop.izrashodovano_bolshe_80_imita_podvodi'), $limit);
-            $this->runs->markWarned($state->run->id);
-            $state->run = $this->runs->find($state->run->id) ?? $state->run;
-        }
-        return $notes === [] ? $result : new ToolResult($result->content . "\n\n[" . implode(' ', $notes) . ']', $result->isError);
-    }
-
-    private function nearLimit(RunState $state): ?string {
-        $run = $state->run;
-        return match (true) {
-            $run->turns >= self::WARN_SHARE * (float) $run->limits->maxTurns => t('agent.agent_loop.hodov'),
-            $run->tokensUsed >= self::WARN_SHARE * (float) $run->limits->tokenBudget => t('agent.agent_loop.tokenov'),
-            $this->elapsedMs($state) >= self::WARN_SHARE * (float) ($run->limits->runTimeout * 1000) => t('agent.agent_loop.vremeni'),
-            default => null,
-        };
     }
 
     /** The answer reports a done action in the form of the system note instead of calling a tool. */
