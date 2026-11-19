@@ -244,7 +244,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame(5 * 1024 ** 3, $limits->diskBytes);
         self::assertSame(128, $limits->processes);
         self::assertSame(600, $limits->cpuSeconds);
-        self::assertSame(8 * 1024 ** 3, $limits->memoryBytes);
+        self::assertSame(0, $limits->memoryBytes, 'no address-space limit by default');
         self::assertSame(4, $limits->concurrentCommands);
     }
 

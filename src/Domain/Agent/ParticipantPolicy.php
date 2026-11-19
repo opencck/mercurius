@@ -196,8 +196,8 @@ final class ParticipantPolicy {
 
     /**
      * @param array<array-key, mixed> $values
-     * @param positive-int $default
-     * @return positive-int
+     * @param non-negative-int $default the base; 0 only for the address space, where it is no limit
+     * @return non-negative-int
      */
     private static function pick(array $values, string $key, int $default): int {
         return array_key_exists($key, $values) ? self::positive($key, $values[$key]) : $default;

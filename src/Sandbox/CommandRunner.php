@@ -133,7 +133,7 @@ final class CommandRunner implements Runner {
             'prlimit',
             '--nproc=' . $limits->processes,
             '--cpu=' . $limits->cpuSeconds,
-            '--as=' . $limits->memoryBytes,
+            '--as=' . ($limits->memoryBytes === 0 ? 'unlimited' : $limits->memoryBytes),
             // No single file may outgrow the participant's disk limit while a command runs.
             '--fsize=' . $limits->diskBytes,
             '--',

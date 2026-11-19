@@ -22,6 +22,15 @@ final class CommandRunnerTest extends SandboxTestCase {
         self::assertSame("20007\n" . $this->workspace->home(7) . "\n", $result->stdout);
     }
 
+    public function testAddressSpaceIsLimitedOnlyWhenSet(): void {
+        // spec: BRIEF.md#песочница — no address-space limit by default: WebAssembly in Node reserves ~10 GB of addresses
+        $none = new \OpenCCK\Domain\Agent\SandboxLimits(1024 ** 3, 64, 60, 0, 2);
+        self::assertSame("unlimited
+", $this->sh(7, 'ulimit -v', limits: $none)->stdout);
+        self::assertSame((string) (8 * 1024 ** 2) . "
+", $this->sh(7, 'ulimit -v')->stdout, '8 GB in KB when set');
+    }
+
     public function testOtherHomeIsUnreadable(): void {
         $this->sh(8, 'echo secret > f');
         $result = $this->sh(7, 'cat ' . $this->workspace->home(8) . '/f');
