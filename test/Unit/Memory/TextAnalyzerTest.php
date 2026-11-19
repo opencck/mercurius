@@ -28,6 +28,7 @@ final class TextAnalyzerTest extends TestCase {
         self::assertContains('loan:server', $analyzer->keys('Настрой впн на сервере'), 'a Russian case form of a spelling');
         self::assertContains('loan:backup', $analyzer->keys('бекапы по ночам'), 'and its plural');
         self::assertNotContains('loan:token', $analyzer->keys('ток в сети'), 'by the form, never by the stem');
+        self::assertContains('loan:telegram', $analyzer->keys('телеграм-бот не отвечает'), 'a part of a hyphenated word');
     }
 
     public function testAStemKnowsItsSameRootStems(): void {

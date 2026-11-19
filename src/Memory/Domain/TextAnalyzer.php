@@ -97,6 +97,10 @@ final class TextAnalyzer {
                     if ($stem !== '' && !isset($this->stop[$stem])) {
                         $keys[$stem] = true;
                     }
+                    $loan = self::loans()[$part] ?? null;
+                    if ($loan !== null) {
+                        $keys[$loan] = true;
+                    }
                 }
             }
         }
