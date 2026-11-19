@@ -17,6 +17,8 @@ use Stringable;
 final class ModelRef implements Stringable {
     public const OPENROUTER = 'openrouter';
     public const OPENAI = 'openai';
+    /** The OpenAI Responses API with the OpenAI key: the codex models and the models that always reason. */
+    public const CODEX = 'codex';
     public const ANTHROPIC = 'anthropic';
     public const BEDROCK = 'bedrock';
 

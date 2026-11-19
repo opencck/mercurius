@@ -174,7 +174,7 @@ final class LlmSettings {
     /** @return list<string> */
     private static function withKeys(?string $openRouterKey, ?string $openAiKey, ?string $anthropicKey, ?string $bedrockKey): array {
         return array_keys(array_filter(
-            [ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey, ModelRef::ANTHROPIC => $anthropicKey, ModelRef::BEDROCK => $bedrockKey],
+            [ModelRef::OPENROUTER => $openRouterKey, ModelRef::OPENAI => $openAiKey, ModelRef::CODEX => $openAiKey, ModelRef::ANTHROPIC => $anthropicKey, ModelRef::BEDROCK => $bedrockKey],
             static fn(?string $k): bool => $k !== null,
         ));
     }

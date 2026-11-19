@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `5de2415` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI, Anthropic и Bedrock |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `757ae67` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `6920581` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `efdba72` | 2026-11-18 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `47e3d0c` | 2026-11-17 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
@@ -47,6 +47,13 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 
 - `mercurius-i18n` `962faa0`: описание `set_model_role` — новая модель действует и для открытых бесед роли со следующего
   запуска; ответ называет число переведённых бесед.
+
+### 2026-11-19 — llm: OpenAI Responses API
+
+- `mercurius-llm` `757ae67`: `OpenAI\ResponsesClient` — Responses API (`store: false`, `instructions`, элементы
+  `function_call`/`function_call_output`, `reasoning.effort`); `OpenAICatalog` с `responses: true` — семейства codex
+  и `-pro`, инструменты у моделей, которые рассуждают всегда; `EventStream` — общий разбор потока с таймером
+  простоя для клиентов Anthropic и Responses.
 
 ### 2026-11-19 — llm: Claude в Amazon Bedrock
 

@@ -110,6 +110,12 @@ final class AgentLoopTest extends AsyncTestCase {
         $other = new ScriptedLlm([ScriptedLlm::text('ok')]);
         $this->execute($other, $this->start());
         self::assertArrayNotHasKey('prompt_cache_key', $other->requests[0]->extra, 'only OpenAI takes the key');
+
+        $codex = $this->runs->start($this->conversationId, 1, 'codex:gpt-6.1-codex', new RunLimits(30, 100_000, 900, 120));
+        self::assertNotNull($codex);
+        $responses = new ScriptedLlm([ScriptedLlm::text('ok')]);
+        $this->execute($responses, $codex);
+        self::assertSame('conversation-' . $this->conversationId, $responses->requests[0]->extra['prompt_cache_key'] ?? null, 'the Responses API takes it too');
     }
 
     public function testTwoStepTaskUsesToolsThenAnswers(): void {

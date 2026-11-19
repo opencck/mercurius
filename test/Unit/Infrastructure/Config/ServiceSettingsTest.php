@@ -91,13 +91,13 @@ final class ServiceSettingsTest extends TestCase {
         $openAi = LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj-secret']);
         $both = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'OPENAI_API_KEY' => 'sk-proj']);
 
-        self::assertSame(['openai'], $openAi->providers());
+        self::assertSame(['openai', 'codex'], $openAi->providers(), 'one key, two APIs: Chat Completions and Responses');
         self::assertNull($openAi->openRouterKey());
         self::assertSame('sk-proj-secret', $openAi->openAiKey());
         self::assertSame('openai:gpt-6.1-terra', $openAi->model, 'no OpenRouter: an OpenAI model by default');
         self::assertSame('openai:gpt-6-luna', $openAi->cheapModel);
         self::assertStringNotContainsString('sk-proj-secret', print_r($openAi, true));
-        self::assertSame(['openrouter', 'openai'], $both->providers());
+        self::assertSame(['openrouter', 'openai', 'codex'], $both->providers());
         self::assertSame('z-ai/glm-5.3-flash', $both->model);
     }
 
@@ -111,7 +111,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('anthropic:claude-sonnet-5-5', $anthropic->model, 'only Anthropic: a Claude model by default');
         self::assertSame('anthropic:claude-haiku-5-5', $anthropic->cheapModel);
         self::assertStringNotContainsString('sk-ant-secret', print_r($anthropic, true));
-        self::assertSame(['openrouter', 'openai', 'anthropic'], $all->providers());
+        self::assertSame(['openrouter', 'openai', 'codex', 'anthropic'], $all->providers());
         self::assertSame('anthropic:claude-opus-5-5', $all->model);
     }
 
@@ -145,6 +145,13 @@ final class ServiceSettingsTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('LLM_MODEL');
         LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj', 'LLM_MODEL' => 'z-ai/glm-5.3-flash']);
+    }
+
+    public function testACodexModelGoesWithTheOpenAiKey(): void {
+        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        $settings = LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj', 'LLM_MODEL' => 'codex:gpt-6.1-codex']);
+
+        self::assertSame('codex:gpt-6.1-codex', $settings->model);
     }
 
     public function testOpenAiModelIsAccepted(): void {

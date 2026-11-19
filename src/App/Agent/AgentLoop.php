@@ -505,7 +505,7 @@ final class AgentLoop {
      * @return array<string, mixed>
      */
     private static function cacheKey(string $model, int $conversationId): array {
-        return ModelRef::parse($model)->provider === ModelRef::OPENAI ? ['prompt_cache_key' => 'conversation-' . $conversationId] : [];
+        return in_array(ModelRef::parse($model)->provider, [ModelRef::OPENAI, ModelRef::CODEX], true) ? ['prompt_cache_key' => 'conversation-' . $conversationId] : [];
     }
 
     /**

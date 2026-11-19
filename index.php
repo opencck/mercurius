@@ -284,6 +284,9 @@ if ($openAiKey !== null) {
     $clients[ModelRef::OPENAI] = new RetryingClient(new OpenAIClient($modelHttp, $openAiKey), onRetry: $onRetry);
     // The OpenAI list has ids only: the public OpenRouter catalog describes them.
     $catalogSources[ModelRef::OPENAI] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp)))->fetch(...);
+    // The same key through the Responses API: the codex models and the tools of models that always reason.
+    $clients[ModelRef::CODEX] = new RetryingClient(new \Mercurius\Llm\OpenAI\ResponsesClient($modelHttp, $openAiKey), onRetry: $onRetry);
+    $catalogSources[ModelRef::CODEX] = (new OpenAICatalog($modelHttp, $openAiKey, new OpenRouterCatalog($modelHttp), responses: true))->fetch(...);
 }
 $anthropicKey = $llmSettings->anthropicKey();
 if ($anthropicKey !== null) {

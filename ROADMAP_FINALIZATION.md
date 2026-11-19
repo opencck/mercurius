@@ -859,7 +859,9 @@
 скиллов блокирует только `critical`; денежных лимитов по умолчанию нет; лимиты запуска увеличены в 10 раз; файлы
 памяти, скиллов и промптов открыты инструментам записи; боты в группах слушаются по умолчанию.
 
-**Ход работ Д4:** 2026-11-19 — провайдер Bedrock: Claude в Amazon Bedrock по Messages API (`AnthropicClient::bedrock`,
+**Ход работ Д4:** 2026-11-19 — провайдер `codex`: OpenAI Responses API (`ResponsesClient`, каталог с семействами
+codex и `-pro`, `llm` `757ae67`) по ключу `OPENAI_API_KEY`; общий разбор потока `EventStream` для Anthropic и
+Responses; на подставных ответах (В11). 2026-11-19 — провайдер Bedrock: Claude в Amazon Bedrock по Messages API (`AnthropicClient::bedrock`,
 `BedrockCatalog`, `llm` `5de2415`), ключ `AWS_BEARER_TOKEN_BEDROCK` и `BEDROCK_REGION`; на подставных ответах (В11).
 Вопрос владельцу — в «Ждёт владельца»: Codex через подписку ChatGPT. 2026-11-19 — провайдер Anthropic: `AnthropicClient` и `AnthropicCatalog` в `llm` (`7d1af68`),
 приставка `anthropic:`, `ANTHROPIC_API_KEY`, кеш как у Claude через OpenRouter; на подставных ответах (В11), живая
