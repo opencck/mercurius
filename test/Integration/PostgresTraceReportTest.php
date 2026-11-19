@@ -149,6 +149,12 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertSame(5, $byModel[$model]['runs']);
         self::assertSame(4, $byModel[$model]['answered']);
         self::assertSame(1, $byModel[$model]['failed']);
+        // spec: BRIEF.md#трассировка-и-метрики — the orchestrator's prompt version splits the figures
+        $conversations->setMeta($conversationId, 'промпт', 'openrouter:report/top', 9001);
+        $byVersion = array_column($reports->delegationByPromptVersion($since), null, 'version');
+        $version = $byVersion[9001] ?? null;
+        self::assertNotNull($version);
+        self::assertSame([1, 1, 5], [$version['top'], $version['delegating'], $version['workers']], 'every worker run counts: retries and verifiers too');
         $failures = (new \OpenCCK\Infrastructure\Repository\PostgresModelReliabilityRepository($this->db))->failures($since);
         self::assertSame(5, $failures[$model]['runs']);
         self::assertSame(1, $failures[$model]['failures']);

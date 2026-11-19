@@ -76,6 +76,22 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertStringContainsString('openrouter:openai/gpt-5.6-luna — 10, ответили 90%, отказы модели 1, токенов 15 000, $0.0123, в среднем 4.2 с', $text);
     }
 
+    public function testUsageAndDelegationAreSplitByThePromptVersion(): void {
+        // spec: BRIEF.md#трассировка-и-метрики — /usage and /delegation by prompt_version
+        $this->figures->usageVersions = [['version' => 3, 'runs' => 8, 'calls' => 30, 'cost' => 0.5], ['version' => null, 'runs' => 2, 'calls' => 4, 'cost' => 0.01]];
+        $this->figures->delegationVersions = [['version' => 3, 'top' => 8, 'delegating' => 2, 'workers' => 5, 'cost' => 0.2]];
+
+        $this->stack->say('/usage 7');
+        $usage = $this->lastText();
+        $this->stack->say('/delegation 7');
+        $delegation = $this->lastText();
+
+        self::assertStringContainsString(\Mercurius\I18n\t('service.trace_reports.by_prompt_version'), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.usage_version_row'), 'v3', '$0.5000', 8, 30), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.usage_version_row'), \Mercurius\I18n\t('service.trace_reports.no_version'), '$0.0100', 2, 4), $usage);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.trace_reports.delegation_version_row'), 'v3', 8, 2, '25%', 5, '$0.2000'), $delegation);
+    }
+
     public function testRunsListsTheLatest(): void {
         $this->stack->say('/runs');
 

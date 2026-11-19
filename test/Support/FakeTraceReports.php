@@ -37,6 +37,20 @@ final class FakeTraceReports implements TraceReportRepository {
         return $this->workerModels;
     }
 
+    /** @var list<array{version: ?int, runs: int, calls: int, cost: float}> */
+    public array $usageVersions = [];
+
+    /** @var list<array{version: ?int, top: int, delegating: int, workers: int, cost: float}> */
+    public array $delegationVersions = [];
+
+    public function usageByPromptVersion(DateTimeImmutable $since): array {
+        return $this->usageVersions;
+    }
+
+    public function delegationByPromptVersion(DateTimeImmutable $since): array {
+        return $this->delegationVersions;
+    }
+
     /** @var list<array{chat: ?string, chatId: ?string, thread: string, project: ?string, person: ?string, label: string, calls: int, input: int, output: int, cost: float}> */
     public array $breakdown = [];
     public ?\OpenCCK\Domain\Agent\SpendQuery $lastQuery = null;

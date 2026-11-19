@@ -51,9 +51,22 @@ final class TraceReports {
                 $lines[] = sprintf(t('service.trace_reports.tokenov'), $row['id'], self::usd($row['cost']), self::n($row['tokens']));
             }
         }
+        // spec: BRIEF.md#трассировка-и-метрики — did a new prompt make the agent dearer
+        $versions = $this->figures->usageByPromptVersion($since);
+        if ($versions !== []) {
+            $lines[] = '';
+            $lines[] = t('service.trace_reports.by_prompt_version');
+            foreach ($versions as $row) {
+                $lines[] = sprintf(t('service.trace_reports.usage_version_row'), self::version($row['version']), self::usd($row['cost']), $row['runs'], $row['calls']);
+            }
+        }
         $lines[] = '';
         $lines[] = t('service.trace_reports.itogo') . self::usd($total);
         return implode("\n", $lines);
+    }
+
+    private static function version(?int $version): string {
+        return $version === null ? t('service.trace_reports.no_version') : 'v' . $version;
     }
 
     /**
@@ -156,6 +169,15 @@ final class TraceReports {
                     self::usd($row['cost']),
                     self::seconds($row['active_ms']),
                 );
+            }
+        }
+        // spec: BRIEF.md#трассировка-и-метрики — did a new prompt change how the agent delegates
+        $versions = $this->figures->delegationByPromptVersion($since);
+        if ($versions !== []) {
+            $lines[] = '';
+            $lines[] = t('service.trace_reports.by_prompt_version');
+            foreach ($versions as $row) {
+                $lines[] = sprintf(t('service.trace_reports.delegation_version_row'), self::version($row['version']), $row['top'], $row['delegating'], self::share($row['delegating'], $row['top']), $row['workers'], self::usd($row['cost']));
             }
         }
         return implode("\n", $lines);

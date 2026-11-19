@@ -52,4 +52,24 @@ interface TraceReportRepository {
 
     /** @return list<array{model: string, runs: int, answered: int, failed: int, tokens: int, cost: float, active_ms: int}> worker runs by model, most used first */
     public function workerModels(DateTimeImmutable $since): array;
+
+    /**
+     * Spend by the version of the system prompt of the conversation a call was made in: runs, calls and cost; null —
+     * a conversation opened before versions were kept, or a call without one.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /usage by prompt_version
+     *
+     * @return list<array{version: ?int, runs: int, calls: int, cost: float}> newest version first
+     */
+    public function usageByPromptVersion(DateTimeImmutable $since): array;
+
+    /**
+     * Delegation by the version of the orchestrator's system prompt: its top-level runs, those that delegated, their
+     * worker runs (retries and verifiers too) and what the workers cost.
+     *
+     * spec: BRIEF.md#трассировка-и-метрики — /delegation by prompt_version
+     *
+     * @return list<array{version: ?int, top: int, delegating: int, workers: int, cost: float}> newest version first
+     */
+    public function delegationByPromptVersion(DateTimeImmutable $since): array;
 }

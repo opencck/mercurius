@@ -177,6 +177,43 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         ];
     }
 
+    public function usageByPromptVersion(DateTimeImmutable $since): array {
+        $rows = [];
+        foreach ($this->db->execute(
+            'SELECT c.prompt_version AS version, count(DISTINCT l.run_id)::int AS runs, count(*)::int AS calls,
+                    coalesce(sum(l.cost_usd), 0)::float8 AS cost
+             FROM llm_calls l LEFT JOIN conversations c ON c.id = l.conversation_id
+             WHERE l.created_at >= to_timestamp(?)
+             GROUP BY c.prompt_version ORDER BY c.prompt_version DESC NULLS LAST',
+            [$since->getTimestamp()],
+        ) as $row) {
+            $rows[] = ['version' => self::version($row), 'runs' => self::int($row, 'runs'), 'calls' => self::int($row, 'calls'), 'cost' => self::float($row, 'cost')];
+        }
+        return $rows;
+    }
+
+    public function delegationByPromptVersion(DateTimeImmutable $since): array {
+        $rows = [];
+        foreach ($this->db->execute(
+            'SELECT c.prompt_version AS version, count(*)::int AS top,
+                    (count(*) FILTER (WHERE EXISTS (SELECT 1 FROM runs w WHERE w.parent_run_id = r.id)))::int AS delegating,
+                    coalesce(sum((SELECT count(*) FROM runs w WHERE w.parent_run_id = r.id)), 0)::int AS workers,
+                    coalesce(sum((SELECT sum(l.cost_usd) FROM llm_calls l JOIN runs w ON w.id = l.run_id WHERE w.parent_run_id = r.id)), 0)::float8 AS cost
+             FROM runs r JOIN conversations c ON c.id = r.conversation_id
+             WHERE r.parent_run_id IS NULL AND r.created_at >= to_timestamp(?)
+             GROUP BY c.prompt_version ORDER BY c.prompt_version DESC NULLS LAST',
+            [$since->getTimestamp()],
+        ) as $row) {
+            $rows[] = ['version' => self::version($row), 'top' => self::int($row, 'top'), 'delegating' => self::int($row, 'delegating'), 'workers' => self::int($row, 'workers'), 'cost' => self::float($row, 'cost')];
+        }
+        return $rows;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function version(array $row): ?int {
+        return isset($row['version']) && is_int($row['version']) ? $row['version'] : null;
+    }
+
     public function workerModels(DateTimeImmutable $since): array {
         $failures = "'" . implode("', '", \OpenCCK\Domain\Repository\ModelReliabilityRepository::FAILURES) . "'";
         $rows = [];
