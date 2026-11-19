@@ -183,8 +183,13 @@ final class ContextCompactor {
         try {
             $response = $this->llm->complete($request, $cancellation);
             $usage = $response->usage;
-            $summary = trim($response->text);
-            return $summary === '' ? null : $summary;
+            $summary = AnchorIndex::strip($response->text);
+            if ($summary === '') {
+                return null;
+            }
+            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the identifiers of the compacted part stay word for word
+            $anchors = AnchorIndex::build($text);
+            return $anchors === '' ? $summary : $summary . "\n\n" . $anchors;
         } catch (CancelledException $e) {
             $error = 'cancelled';
             throw $e;
