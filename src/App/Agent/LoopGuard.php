@@ -8,8 +8,8 @@ use OpenCCK\App\Agent\Tool\CanonicalJson;
 
 /**
  * Stops a run that repeats itself: the same call with the same result several times in a row, or the same
- * cycle of 2–4 calls. Warn from the 3rd repeat, halt at the 5th. Lives as long as one run in memory;
- * after a restart the count starts over.
+ * cycle of 2–4 calls. Warn from the 3rd repeat, halt at the 5th. Its history is kept on the run: a run resumed after an
+ * approval or a restart goes on counting.
  *
  * spec: BRIEF.md#запуск-и-цикл — loop guard
  * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L37-L46, L125-L130 — thresholds 3 and 5, period up to 4
@@ -28,6 +28,18 @@ final class LoopGuard {
     private int $streak = 0;
     /** @var list<string> */
     private array $history = [];
+
+    /** @param list<string> $history what the guard of this run saw before, oldest first */
+    public function __construct(array $history = []) {
+        foreach (array_slice($history, -self::HISTORY) as $signature) {
+            $this->observe($signature);
+        }
+    }
+
+    /** @return list<string> */
+    public function history(): array {
+        return $this->history;
+    }
 
     /** @param array<string, mixed> $args */
     public static function signature(string $name, array $args, string $result): string {

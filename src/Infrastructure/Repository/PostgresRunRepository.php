@@ -20,7 +20,7 @@ use UnexpectedValueException;
  */
 final class PostgresRunRepository implements RunRepository {
     private const COLUMNS = 'id, conversation_id, principal_id, parent_run_id, model, status, stop_reason, max_turns, token_budget,
-        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned, outside, fallback_model';
+        run_timeout, tool_timeout, turns, tokens_used, tokens_reserved, active_ms, prompt_anchor, warned, outside, fallback_model, loop_history';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -105,6 +105,10 @@ final class PostgresRunRepository implements RunRepository {
         $this->db->execute('UPDATE runs SET fallback_model = ?, updated_at = now() WHERE id = ?', [$model, $runId]);
     }
 
+    public function saveLoopHistory(int $runId, array $history): void {
+        $this->db->execute('UPDATE runs SET loop_history = ?::jsonb WHERE id = ?', [json_encode($history, JSON_THROW_ON_ERROR), $runId]);
+    }
+
     public function markWarned(int $runId): void {
         $this->db->execute('UPDATE runs SET warned = true, updated_at = now() WHERE id = ?', [$runId]);
     }
@@ -161,7 +165,20 @@ final class PostgresRunRepository implements RunRepository {
             warned: ($row['warned'] ?? false) === true,
             outside: isset($row['outside']) ? self::string($row, 'outside') : null,
             fallbackModel: isset($row['fallback_model']) ? self::string($row, 'fallback_model') : null,
+            loopHistory: self::strings($row['loop_history'] ?? '[]'),
         );
+    }
+
+    /** @return list<string> */
+    private static function strings(mixed $json): array {
+        /** @var mixed $list */
+        $list = is_string($json) ? json_decode($json, true, 4, JSON_THROW_ON_ERROR) : $json;
+        if (!is_array($list)) {
+            return [];
+        }
+        /** @var list<string> $strings */
+        $strings = array_values(array_filter($list, is_string(...)));
+        return $strings;
     }
 
     /** @param array<string, mixed> $row */

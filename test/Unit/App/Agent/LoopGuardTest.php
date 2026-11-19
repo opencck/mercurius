@@ -25,6 +25,16 @@ final class LoopGuardTest extends TestCase {
         self::assertSame(GuardVerdict::Halt, $verdicts[4]);
     }
 
+    public function testAGuardRebuiltFromItsHistoryGoesOnCounting(): void {
+        $before = new LoopGuard();
+        self::feed($before, 'b', 'a', 'a', 'a', 'a');
+
+        $after = new LoopGuard($before->history());
+
+        self::assertSame(['b', 'a', 'a', 'a', 'a'], $before->history());
+        self::assertSame(GuardVerdict::Halt, self::feed($after, 'a')[0], 'a restart does not start the count over');
+    }
+
     public function testDifferentCallResetsStreak(): void {
         self::assertSame(GuardVerdict::Ok, self::feed(new LoopGuard(), 'a', 'a', 'b', 'a', 'a')[4]);
     }

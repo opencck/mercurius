@@ -588,6 +588,26 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame(5, $run->turns);
     }
 
+    public function testTheLoopGuardOfAResumedRunRemembersTheRepeatsBefore(): void {
+        $this->registry->register(new FakeTool('t'));
+        $first = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 't', '{"q":"same"}')), ScriptedLlm::calls(new ToolCall('c2', 't', '{"q":"same"}')), ScriptedLlm::text('стоп')]);
+        $run = $this->execute($first, $this->start());
+        $kept = $this->runs->find($run->id);
+        self::assertNotNull($kept);
+        self::assertCount(2, $kept->loopHistory);
+
+        $resumed = $this->start();
+        $this->runs->saveLoopHistory($resumed->id, $kept->loopHistory);
+        $script = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $script[] = ScriptedLlm::calls(new ToolCall('r' . $i, 't', '{"q":"same"}'));
+        }
+        $again = $this->execute(new ScriptedLlm($script), $this->runs->find($resumed->id) ?? $resumed);
+
+        self::assertSame(StopReason::LoopGuard, $again->stopReason);
+        self::assertSame(3, $again->turns, 'two repeats before the restart count');
+    }
+
     public function testInboxMessageIsDeliveredAfterToolResults(): void {
         $runRef = $this->start();
         $runId = $runRef->id;

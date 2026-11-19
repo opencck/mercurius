@@ -85,6 +85,10 @@ final class InMemoryRunRepository implements RunRepository {
         $this->runs[$runId] = $this->with($this->runs[$runId], fallbackModel: $model);
     }
 
+    public function saveLoopHistory(int $runId, array $history): void {
+        $this->runs[$runId] = $this->with($this->runs[$runId], loopHistory: $history);
+    }
+
     public function markWarned(int $runId): void {
         $this->runs[$runId] = $this->with($this->runs[$runId], warned: true);
     }
@@ -113,6 +117,7 @@ final class InMemoryRunRepository implements RunRepository {
         return array_values(array_filter($this->runs, static fn(Run $r): bool => $r->status === RunStatus::WaitingApproval));
     }
 
+    /** @param list<string>|null $loopHistory */
     private function with(
         Run $run,
         ?RunStatus $status = null,
@@ -125,6 +130,7 @@ final class InMemoryRunRepository implements RunRepository {
         ?bool $warned = null,
         ?string $outside = null,
         ?string $fallbackModel = null,
+        ?array $loopHistory = null,
     ): Run {
         return new Run(
             $run->id,
@@ -143,6 +149,7 @@ final class InMemoryRunRepository implements RunRepository {
             $warned ?? $run->warned,
             $outside ?? $run->outside,
             $fallbackModel ?? $run->fallbackModel,
+            $loopHistory ?? $run->loopHistory,
         );
     }
 }

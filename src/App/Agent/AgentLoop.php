@@ -679,6 +679,8 @@ final class AgentLoop {
                 $this->writeResult($state, $call, $result);
             }
         }
+        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the loop guard of a run outlives a restart
+        $this->runs->saveLoopHistory($state->run->id, $state->guard->history());
         return $halted ? StopReason::LoopGuard : null;
     }
 

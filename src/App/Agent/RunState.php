@@ -72,7 +72,7 @@ final class RunState {
         /** id of the last compacted message: only later ones go to the model */
         public int $uptoId = 0,
     ) {
-        $this->guard = new LoopGuard();
+        $this->guard = new LoopGuard($run->loopHistory);
         $this->flushedAt = $now;
     }
 }

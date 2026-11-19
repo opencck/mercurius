@@ -29,5 +29,7 @@ final class Run {
         public readonly ?string $outside = null,
         /** the model the run switched to after its own failed; null — no switch yet */
         public readonly ?string $fallbackModel = null,
+        /** @var list<string> the signatures the loop guard saw, oldest first */
+        public readonly array $loopHistory = [],
     ) {}
 }

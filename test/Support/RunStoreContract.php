@@ -145,6 +145,15 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame('openrouter:z-ai/glm-5.3', $this->fetchRun($id)->fallbackModel);
     }
 
+    public function testTheLoopGuardHistoryIsKeptOnTheRun(): void {
+        $id = $this->startRun();
+        self::assertSame([], $this->fetchRun($id)->loopHistory);
+
+        $this->runs->saveLoopHistory($id, ['a1', 'b2']);
+
+        self::assertSame(['a1', 'b2'], $this->fetchRun($id)->loopHistory);
+    }
+
     public function testPausedRunIsActiveButNotUnfinished(): void {
         $id = $this->startRun();
         $this->runs->setStatus($id, RunStatus::WaitingApproval);
