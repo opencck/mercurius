@@ -90,16 +90,26 @@ final class AgentRequests implements CallbackHandler {
         return 'unknown agent ' . $fingerprint . ': waits for the decision of this agent\'s owner';
     }
 
+    /** @return list<Role> the roles an agent may take: those of the list that may have tools */
+    private static function roles(): array {
+        return array_values(array_filter(Role::assignable(), static fn(Role $r): bool => $r->may(\OpenCCK\Domain\Entity\Power::Tools)));
+    }
+
     public function handleCallback(IncomingCallback $callback): void {
-        if (preg_match('/^pa:(\d+):([uar])$/', $callback->data, $match) !== 1) {
+        if (preg_match('/^pa:(\d+)(?::([uar])|=([a-z0-9_-]{1,32}))$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
-        $role = match ($match[2]) {
-            'u' => Role::user(),
-            'a' => Role::admin(),
+        $role = match (true) {
+            ($match[3] ?? '') !== '' => in_array(Role::of($match[3]), self::roles(), true) ? Role::of($match[3]) : null,
+            ($match[2] ?? '') === 'u' => Role::user(),
+            ($match[2] ?? '') === 'a' => Role::admin(),
             default => null,
         };
+        if ($role === null && ($match[2] ?? '') !== 'r') {
+            $this->channel->answerCallback($callback->callbackId, t('peer.agent_requests.decided'));
+            return;
+        }
         $decided = $this->peers->decideRequest((int) $match[1], $role === null ? AgentRequest::REJECTED : AgentRequest::ALLOWED);
         if ($decided === null) {
             $this->channel->answerCallback($callback->callbackId, t('peer.agent_requests.decided'));
@@ -136,11 +146,10 @@ final class AgentRequests implements CallbackHandler {
             $request->fingerprint,
         );
         // the address is the agent's own words: no preview, or Telegram would put its page into the owner's card
-        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: [[
-            new Button(t('peer.agent_requests.user'), sprintf('%s:%d:u', self::PREFIX, $request->id)),
-            new Button(t('peer.agent_requests.admin'), sprintf('%s:%d:a', self::PREFIX, $request->id)),
-            new Button(t('peer.agent_requests.reject'), sprintf('%s:%d:r', self::PREFIX, $request->id)),
-        ]]));
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — the card offers the roles that may have tools, in order
+        $buttons = array_map(static fn(Role $role): Button => new Button(\OpenCCK\App\Service\RoleCatalog::label($role), sprintf('%s:%d', self::PREFIX, $request->id) . \OpenCCK\App\Service\RoleCatalog::code($role)), self::roles());
+        $buttons[] = new Button(t('peer.agent_requests.reject'), sprintf('%s:%d:r', self::PREFIX, $request->id));
+        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
         if (!$result->success) {
             // nobody would ever decide: forget it, the next knock shows it again
             $this->peers->dropRequest($request->id);

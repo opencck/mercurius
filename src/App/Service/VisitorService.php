@@ -86,12 +86,10 @@ final class VisitorService implements CallbackHandler {
             ? sprintf(t('service.visitor.novyy_sobesednik_napisal_chto_emu'), $who, $said)
             : sprintf(t('service.visitor.in_group'), $group, $who, $said);
         // the stranger's words may carry a link: no preview of it in the owner's card
-        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: [[
-            new Button(t('service.visitor.razgovor'), sprintf('pv:%d:t', $visitor->id)),
-            new Button(t('service.visitor.polzovatel'), sprintf('pv:%d:u', $visitor->id)),
-            new Button(t('service.visitor.admin'), sprintf('pv:%d:a', $visitor->id)),
-            new Button(t('service.visitor.otkazat'), sprintf('pv:%d:r', $visitor->id)),
-        ]]));
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — the card offers the roles in their order
+        $buttons = array_map(static fn(Role $role): Button => new Button(RoleCatalog::label($role), sprintf('pv:%d', $visitor->id) . RoleCatalog::code($role)), Role::assignable());
+        $buttons[] = new Button(t('service.visitor.otkazat'), sprintf('pv:%d:r', $visitor->id));
+        $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
         if (!$result->success) {
             $this->logger->warning('Visitor card was not delivered', ['visitor' => $visitor->id]);
         }
@@ -104,14 +102,20 @@ final class VisitorService implements CallbackHandler {
             $this->decideSummary($callback, (int) $match[1], $match[2] === 't');
             return;
         }
-        if (preg_match('/^pv:(\d+):([tuar])$/', $callback->data, $match) !== 1) {
+        if (preg_match('/^pv:(\d+)(?::([tuar])|=([a-z0-9_-]{1,32}))$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
-        [$role, $status, $outcome] = match ($match[2]) {
-            't' => [Role::visitor(), PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
-            'u' => [Role::user(), PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
-            'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
+        $named = ($match[3] ?? '') === '' ? null : Role::of($match[3]);
+        if ($named !== null && !in_array($named, Role::assignable(), true)) {
+            $this->channel->answerCallback($callback->callbackId, t('service.visitor.uzhe_resheno'));
+            return;
+        }
+        [$role, $status, $outcome] = match (true) {
+            $named !== null => [$named, PrincipalStatus::Active, sprintf(t('service.visitor.role_given'), RoleCatalog::label($named))],
+            ($match[2] ?? '') === 't' => [Role::visitor(), PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
+            ($match[2] ?? '') === 'u' => [Role::user(), PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
+            ($match[2] ?? '') === 'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
             default => [Role::visitor(), PrincipalStatus::Rejected, t('service.visitor.otkazano')],
         };
         $decided = $this->principals->decideVisitor((int) $match[1], $role, $status);
@@ -124,9 +128,9 @@ final class VisitorService implements CallbackHandler {
             $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.visitor.sobesednik'), self::who($decided, null, null), $outcome));
         }
         if ($status === PrincipalStatus::Active) {
-            $this->tell($decided, $callback->channel, match ($role) {
-                Role::user() => \Mercurius\I18n\t(self::LET_IN_USER),
-                Role::admin() => \Mercurius\I18n\t(self::LET_IN_ADMIN),
+            $this->tell($decided, $callback->channel, match (true) {
+                $role === Role::admin() => \Mercurius\I18n\t(self::LET_IN_ADMIN),
+                $role->may(\OpenCCK\Domain\Entity\Power::Tools) => \Mercurius\I18n\t(self::LET_IN_USER),
                 default => \Mercurius\I18n\t(self::LET_IN_TALK),
             });
         }

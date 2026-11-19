@@ -115,6 +115,29 @@ final class RoleCatalog {
         return sprintf(t('roles.removed'), $name);
     }
 
+    /** How a role is called to people: the title the owner gave, the translation of a built-in role, its name. */
+    public static function label(Role $role): string {
+        return $role->title() !== '' ? $role->title() : match ($role->value) {
+            'admin' => t('service.visitor.admin'),
+            'user' => t('service.visitor.polzovatel'),
+            'visitor' => t('service.visitor.razgovor'),
+            default => $role->value,
+        };
+    }
+
+    /**
+     * The data of a button that gives a role: the built-in roles keep their old one-letter codes, so cards sent before
+     * keep working.
+     */
+    public static function code(Role $role): string {
+        return match ($role->value) {
+            'admin' => ':a',
+            'user' => ':u',
+            'visitor' => ':t',
+            default => '=' . $role->value,
+        };
+    }
+
     private function existing(string $name): Role {
         self::checkName($name);
         $role = Role::of($name);

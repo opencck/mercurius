@@ -57,7 +57,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertCount(1, $this->cards());
         self::assertStringContainsString('привет, я Вася', $this->cards()[0]);
         self::assertTrue($this->stack->channel->previewOff('привет, я Вася'), 'a link of a stranger is not opened by Telegram in the card');
-        self::assertSame(['pv:2:t', 'pv:2:u', 'pv:2:a', 'pv:2:r'], $this->lastButtons());
+        self::assertSame(['pv:2:a', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons(), 'the roles in their order, then refusal');
         self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
         self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find(2)?->status);
@@ -102,6 +102,21 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->press('pv:2:a');
 
         self::assertSame(Role::admin(), $this->stack->principals->find(2)?->role);
+    }
+
+    public function testTheCardOffersTheOwnersOwnRolesAndThePressGivesOne(): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
+        try {
+            $this->stack->say('привет', '99');
+            self::assertSame(['pv:2:a', 'pv:2=trader', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons());
+            $this->stack->press('pv:2=trader');
+            self::assertSame(Role::of('trader'), $this->stack->principals->find(2)?->role);
+            $this->stack->press('pv:2=owner');
+            self::assertSame(Role::of('trader'), $this->stack->principals->find(2)?->role, 'decided once, and never the owner');
+        } finally {
+            Role::reset();
+        }
     }
 
     public function testRejectedVisitorIsRefusedWithoutTheModel(): void {

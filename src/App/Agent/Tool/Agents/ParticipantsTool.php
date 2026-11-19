@@ -11,6 +11,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
+use OpenCCK\Domain\Entity\Power;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\PrincipalStatus;
@@ -26,14 +27,25 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#участники-люди-и-агенты — the owner manages participants in the dialog
  */
 final class ParticipantsTool implements Tool {
-    /** @return array<string, array{Role, PrincipalStatus}> role argument => [role, status] */
+    /**
+     * The roles of the owner's list by name, «talk» for the visitor and «rejected».
+     *
+     * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+     *
+     * @return array<string, array{Role, PrincipalStatus}> role argument => [role, status]
+     */
     private static function decisions(): array {
-        return [
-            'talk' => [Role::visitor(), PrincipalStatus::Active],
-            'user' => [Role::user(), PrincipalStatus::Active],
-            'admin' => [Role::admin(), PrincipalStatus::Active],
-            'rejected' => [Role::visitor(), PrincipalStatus::Rejected],
-        ];
+        $decisions = ['talk' => [Role::visitor(), PrincipalStatus::Active]];
+        foreach (Role::assignable() as $role) {
+            $decisions[$role->value] = [$role, PrincipalStatus::Active];
+        }
+        $decisions['rejected'] = [Role::visitor(), PrincipalStatus::Rejected];
+        return $decisions;
+    }
+
+    /** The owner, or a participant whose role has the power over participants. */
+    private static function manages(Principal $who): bool {
+        return $who->isOwner() || $who->role->may(Power::Participants);
     }
 
     public const NAME = 'participants';
@@ -88,7 +100,7 @@ final class ParticipantsTool implements Tool {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
-        if (!$context->principal->isOwner()) {
+        if (!self::manages($context->principal)) {
             return ToolResult::error(t('tool.participants.spisok_uchastnikov_vidit_tolko_vladelets'));
         }
         $query = mb_strtolower(trim(Args::string($args, 'query') ?? ''));
@@ -96,7 +108,7 @@ final class ParticipantsTool implements Tool {
             if ($this->privateChat !== null && !($this->privateChat)($context->conversationId)) {
                 return ToolResult::error(t('tool.participants.private_chat_only'));
             }
-            return $this->decide(Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
+            return $this->decide($context->principal, Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
         }
         $keys = $this->keysByAgent();
         $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $query === ''
@@ -115,7 +127,7 @@ final class ParticipantsTool implements Tool {
      *
      * spec: BRIEF.md#участники-люди-и-агенты — roles are the owner's decision
      */
-    private function decide(?int $id, string $query, string $role): ToolResult {
+    private function decide(Principal $who, ?int $id, string $query, string $role): ToolResult {
         $decision = self::decisions()[$role] ?? null;
         if ($decision === null) {
             return ToolResult::error(t('tool.participants.bad_role'));
@@ -129,11 +141,24 @@ final class ParticipantsTool implements Tool {
         if ($found[0]->isOwner()) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — a holder of the power changes others, not themselves, and
+        //       gives no role with a power they do not have
+        if (!$who->isOwner() && ($found[0]->id === $who->id || array_diff(self::names($decision[0]->powers()), self::names($who->role->powers())) !== [])) {
+            return ToolResult::error(t('tool.participants.above_own'));
+        }
         $decided = $this->principals->setRole($found[0]->id, $decision[0], $decision[1]);
         if ($decided === null) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
         return ToolResult::ok(sprintf(t('tool.participants.decided'), $decided->id, $decided->displayName ?? '', $decided->role->value, $decided->status->value));
+    }
+
+    /**
+     * @param list<Power> $powers
+     * @return list<string>
+     */
+    private static function names(array $powers): array {
+        return array_map(static fn(Power $p): string => $p->value, $powers);
     }
 
     /** @param array<int, string> $keys */

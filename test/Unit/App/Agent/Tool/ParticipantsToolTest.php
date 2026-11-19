@@ -10,6 +10,9 @@ use OpenCCK\App\Agent\Tool\Agents\ParticipantsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
+use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
@@ -36,6 +39,33 @@ final class ParticipantsToolTest extends AsyncTestCase {
         self::assertSame(PrincipalStatus::Rejected, $principals->find($roman->id)?->status, 'a decision can be changed');
         self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'user'], $context)->isError, 'the owner stays the owner');
         self::assertTrue($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'admin'], new ToolContext(1, 2, $roman, new NullCancellation()))->isError, 'only the owner decides');
+    }
+
+    public function testOwnRolesAreGivenAndAHolderOfThePowerGivesNoMoreThanTheirOwn(): void {
+        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        Role::define('trader', 'Трейдер', 15, [Power::Tools]);
+        Role::define('steward', 'Распорядитель', 16, [Power::Tools, Power::Participants]);
+        try {
+            $principals = new InMemoryPrincipalRepository();
+            $owner = $principals->ensureOwner('telegram', '42', 'Владелец');
+            $steward = new Principal(2, PrincipalKind::Human, Role::of('steward'), 'Распорядитель', PrincipalStatus::Active);
+            $principals->put($steward, 'telegram', '2');
+            $guest = $principals->createVisitor('telegram', '3', 'Гость');
+            $tool = new ParticipantsTool($principals, new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120)));
+            $byOwner = new ToolContext(1, 1, $owner, new NullCancellation());
+            $bySteward = new ToolContext(1, 2, $steward, new NullCancellation());
+
+            self::assertFalse($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'trader'], $byOwner)->isError);
+            self::assertSame(Role::of('trader'), $principals->find($guest->id)?->role);
+
+            self::assertFalse($tool->execute(['action' => 'list'], $bySteward)->isError, 'the holder sees the participants');
+            self::assertFalse($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'visitor'], $bySteward)->isError);
+            self::assertTrue($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'admin'], $bySteward)->isError, 'no role above their own');
+            self::assertTrue($tool->execute(['action' => 'decide', 'id' => $steward->id, 'role' => 'trader'], $bySteward)->isError, 'not their own role');
+            self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'trader'], $bySteward)->isError);
+        } finally {
+            Role::reset();
+        }
     }
 
     public function testTheOwnerFindsAParticipantByNameWithHisRights(): void {

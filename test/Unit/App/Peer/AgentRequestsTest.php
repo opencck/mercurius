@@ -55,7 +55,7 @@ final class AgentRequestsTest extends AsyncTestCase {
         self::assertStringContainsString('https://tester.example', $cards[0]);
         self::assertStringContainsString($this->fingerprint, $cards[0]);
         $buttons = array_map(static fn(\Mercurius\Messenger\Button $b): string => $b->data, $this->channel->buttons['100'][0] ?? []);
-        self::assertSame(['pa:1:u', 'pa:1:a', 'pa:1:r'], $buttons);
+        self::assertSame(['pa:1:a', 'pa:1:u', 'pa:1:r'], $buttons);
         self::assertNull($this->peers->principalByFingerprint($this->fingerprint), 'not let in before the owner decides');
     }
 
