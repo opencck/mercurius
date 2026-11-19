@@ -78,11 +78,15 @@ final class AgentLoop {
     /** how the system note of done actions begins (now and before), in both languages */
     private const ACTION_MARKERS = ['[Сделано в этом запуске', '[Done in this run', '[Служебная заметка системы', '[System note'];
     private const SELF_INFO = 'self_info';
-    /** words of an answer that says the agent cannot do something about itself; lower case */
+    /**
+     * Words of an answer that says the agent cannot do something; lower case. Wide on purpose: a false alarm costs one
+     * look in self_info a run, a miss sends the owner a wrong "no" (doorotar 2026-11-19: "нет инструмента", "нельзя").
+     */
     private const DENIAL_MARKERS = [
-        'не вижу такой возможности', 'нет такой возможности', 'такой возможности нет', 'такой возможности у меня нет',
-        'у меня нет возможности', 'нет такой функции', 'такой функции нет', 'не умею', 'не поддерживаю',
-        "i can't do", 'i cannot do', 'i am not able to', "i'm not able to", 'no such feature', "i don't have the ability",
+        'не вижу такой возможности', 'нет такой возможности', 'такой возможности нет', 'нет возможности',
+        'нет такой функции', 'такой функции нет', 'нет инструмента', 'нет такого инструмента', 'не умею',
+        'не поддерживаю', 'не могу', 'нельзя', 'невозможно',
+        "can't", 'cannot', 'not able to', 'unable to', 'no such feature', "don't have the ability", 'not possible',
     ];
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';

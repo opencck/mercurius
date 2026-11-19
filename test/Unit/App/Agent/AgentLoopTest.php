@@ -242,6 +242,25 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertNotEmpty($nudged, 'the second call carries the reminder');
     }
 
+    public function testTheWordsOfARealDenialAreCaught(): void {
+        // the answers of doorotar 2026-11-19 that went out without a look in self_info
+        $self = new FakeTool('self_info');
+        $this->registry->register($self);
+        $looked = 0;
+        foreach ([
+            'Всё так же — нет. У меня нет инструмента передачи прав владения другому участнику.',
+            'Так что через меня передать владение нельзя.',
+            'Передать права владения другому человеку — не могу.',
+            "Sorry, I can't transfer ownership.",
+        ] as $answer) {
+            $llm = new ScriptedLlm([ScriptedLlm::text($answer), ScriptedLlm::calls(new ToolCall('c1', 'self_info', '{}')), ScriptedLlm::text('Да: /owner.')]);
+
+            $this->execute($llm, $this->start('могу ли я передать владение?'));
+
+            self::assertCount(++$looked, $self->calls, $answer);
+        }
+    }
+
     public function testADenialAfterSelfInfoIsLetThrough(): void {
         $this->registry->register(new FakeTool('self_info'));
         $llm = new ScriptedLlm([
