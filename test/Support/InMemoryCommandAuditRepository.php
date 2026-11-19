@@ -11,6 +11,8 @@ use RuntimeException;
 final class InMemoryCommandAuditRepository implements CommandAuditRepository {
     /** @var list<array{id: int, at: string, principal: ?int, run: ?int, server: string, command: string, class: string, event: string, exit: ?int, ms: ?int, error: ?string, prev: string, hash: string}> */
     public array $records = [];
+    /** @var array<int, string> participant => name, as the database joins it */
+    public array $names = [];
     /** fails the next appends when set: a journal that cannot be written */
     public bool $broken = false;
 
@@ -49,7 +51,8 @@ final class InMemoryCommandAuditRepository implements CommandAuditRepository {
     public function recent(int $limit): array {
         $found = [];
         foreach (array_slice(array_reverse($this->records), 0, $limit) as $r) {
-            $found[] = ['id' => $r['id'], 'at' => $r['at'], 'server' => $r['server'], 'command' => $r['command'], 'class' => $r['class'], 'event' => $r['event'], 'exit' => $r['exit']];
+            $who = $r['principal'] === null ? null : ($this->names[$r['principal']] ?? '#' . $r['principal']);
+            $found[] = ['id' => $r['id'], 'at' => $r['at'], 'server' => $r['server'], 'command' => $r['command'], 'class' => $r['class'], 'event' => $r['event'], 'exit' => $r['exit'], 'who' => $who];
         }
         return $found;
     }

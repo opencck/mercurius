@@ -28,6 +28,7 @@ try {
     fwrite(STDERR, 'База: ' . $e::class . "\n");
     $db = null;
 }
-$results = (new Doctor($env, $db, $root . '/migrations', $root . '/storage', HttpClients::create()))->run();
+$audit = $db === null ? null : new \OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository($db);
+$results = (new Doctor($env, $db, $root . '/migrations', $root . '/storage', HttpClients::create(), $audit))->run();
 echo Doctor::render($results), "\n";
 exit(array_filter($results, static fn(array $r): bool => $r[0] === Doctor::FAIL) === [] ? 0 : 1);

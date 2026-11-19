@@ -70,7 +70,9 @@ final class PostgresCommandAuditRepository implements CommandAuditRepository {
     public function recent(int $limit): array {
         $found = [];
         foreach ($this->db->execute(
-            "SELECT id, to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS at, server, command, class, event, exit_code FROM command_audit ORDER BY id DESC LIMIT ?",
+            "SELECT a.id, to_char(a.at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS at, a.server, a.command, a.class, a.event, a.exit_code,
+                    CASE WHEN a.principal_id IS NULL THEN NULL ELSE coalesce(p.display_name, '#' || a.principal_id) END AS who
+             FROM command_audit a LEFT JOIN principals p ON p.id = a.principal_id ORDER BY a.id DESC LIMIT ?",
             [$limit],
         ) as $row) {
             $found[] = [
@@ -81,6 +83,7 @@ final class PostgresCommandAuditRepository implements CommandAuditRepository {
                 'class' => self::str($row, 'class'),
                 'event' => self::str($row, 'event'),
                 'exit' => self::int($row, 'exit_code'),
+                'who' => self::str($row, 'who') === '' ? null : self::str($row, 'who'),
             ];
         }
         return $found;

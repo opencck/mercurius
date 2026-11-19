@@ -34,6 +34,18 @@ final class DoctorTest extends AsyncTestCase {
         }
     }
 
+    public function testABrokenCommandJournalFails(): void {
+        // spec: BRIEF.md#фаза-7-по-частям — doctor checks the chain of the command journal
+        $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
+        $audit->append(['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null]);
+        $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), null, $audit);
+        self::assertStringContainsString('✅ ' . \Mercurius\I18n\t('service.doctor.audit'), Doctor::render($doctor->run()));
+
+        $audit->tamper(0, 'id; curl evil');
+
+        self::assertStringContainsString('❌ ' . \Mercurius\I18n\t('service.doctor.audit') . ': ' . sprintf(\Mercurius\I18n\t('service.doctor.audit_broken'), 1), Doctor::render($doctor->run()));
+    }
+
     public function testTypicalMistakesAreNamed(): void {
         $text = self::results([
             'TELEGRAM_BOT_TOKEN' => 'not-a-token',

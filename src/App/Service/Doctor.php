@@ -36,11 +36,31 @@ final class Doctor {
         private readonly string $migrations,
         private readonly string $storage,
         private readonly ?HttpClient $http = null,
+        private readonly ?\OpenCCK\Domain\Repository\CommandAuditRepository $audit = null,
     ) {}
 
     /** @return list<array{string, string, string}> status, what, details */
     public function run(): array {
-        return [...$this->settings(), $this->database(), $this->disk(), ...$this->services()];
+        return [...$this->settings(), $this->database(), $this->disk(), ...$this->audit(), ...$this->services()];
+    }
+
+    /**
+     * spec: BRIEF.md#фаза-7-по-частям — the chain of hashes of the command journal holds
+     *
+     * @return list<array{string, string, string}>
+     */
+    private function audit(): array {
+        if ($this->audit === null) {
+            return [];
+        }
+        try {
+            $broken = $this->audit->verify();
+        } catch (Throwable $e) {
+            return [[self::WARN, t('service.doctor.audit'), t('service.doctor.zapros_ne_proshel') . $e::class]];
+        }
+        return [$broken === null
+            ? [self::OK, t('service.doctor.audit'), t('service.doctor.audit_whole')]
+            : [self::FAIL, t('service.doctor.audit'), sprintf(t('service.doctor.audit_broken'), $broken)]];
     }
 
     /** @param list<array{string, string, string}> $results */

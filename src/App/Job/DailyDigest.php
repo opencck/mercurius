@@ -64,6 +64,17 @@ final class DailyDigest {
         $this->memory = $memory;
     }
 
+    private ?\OpenCCK\Domain\Repository\CommandAuditRepository $audit = null;
+
+    /**
+     * The command journal whose chain of hashes the summary checks: a broken one is news.
+     *
+     * spec: BRIEF.md#фаза-7-по-частям — the chain is checked every day
+     */
+    public function useAudit(\OpenCCK\Domain\Repository\CommandAuditRepository $audit): void {
+        $this->audit = $audit;
+    }
+
     /** Sends the summary of today once, when its time has come and the quiet hours are over. */
     public function tick(): void {
         if ($this->time === null) {
@@ -105,7 +116,13 @@ final class DailyDigest {
             $this->jobs->due($endToday, self::JOBS),
         );
         $waiting = $this->waiting($now);
-        if (array_merge(...array_values($groups)) === [] && $jobs === [] && $waiting === null) {
+        $broken = null;
+        try {
+            $broken = $this->audit?->verify();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Command journal was not checked', ['error' => $e::class]);
+        }
+        if (array_merge(...array_values($groups)) === [] && $jobs === [] && $waiting === null && $broken === null) {
             return null;
         }
         $parts = [sprintf(t('job.daily_digest.svodka_na'), $local->format('Y-m-d'))];
@@ -119,6 +136,9 @@ final class DailyDigest {
         }
         if ($waiting !== null) {
             $parts[] = $waiting;
+        }
+        if ($broken !== null) {
+            $parts[] = sprintf(t('job.daily_digest.audit_broken'), $broken);
         }
         return implode("\n\n", $parts);
     }

@@ -198,6 +198,22 @@ final class HooksAndDigestTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.daily_digest.memory_waiting'), 2, 3), (string) $digest->text($later));
     }
 
+    public function testTheSummarySaysWhenTheCommandJournalWasChanged(): void {
+        // spec: BRIEF.md#фаза-7-по-частям — the chain of the command journal is checked every day
+        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
+        $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
+        $record = ['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null];
+        $audit->append($record);
+        $audit->append($record);
+        $digest = new DailyDigest(new InMemoryProjectRepository(), $this->jobs, new InMemoryDigestJournal(), $this->scheduler, $this->stack->channel, '42', '09:00', new NullLogger(), static fn(): DateTimeImmutable => new DateTimeImmutable());
+        $digest->useAudit($audit);
+        self::assertNull($digest->text(new DateTimeImmutable()), 'a whole chain is not news');
+
+        $audit->tamper(0, 'rm -rf /');
+
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.daily_digest.audit_broken'), 1), (string) $digest->text(new DateTimeImmutable()));
+    }
+
     public function testTheSummaryWaitsForItsTimeAndTheEndOfQuietHours(): void {
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
         $projects = new InMemoryProjectRepository();

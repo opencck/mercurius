@@ -22,6 +22,6 @@ interface CommandAuditRepository {
     /** @return int|null the id of the first record whose hash does not hold; null when the chain is whole */
     public function verify(): ?int;
 
-    /** @return list<array{id: int, at: string, server: string, command: string, class: string, event: string, exit: ?int}> newest first */
+    /** @return list<array{id: int, at: string, server: string, command: string, class: string, event: string, exit: ?int, who: ?string}> newest first; who — the participant's name, or #number */
     public function recent(int $limit): array;
 }

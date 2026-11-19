@@ -76,6 +76,8 @@ final class PostgresServersTest extends AsyncTestCase {
 
         self::assertNull($audit->verify());
         self::assertSame(['df -h', 'uptime', 'uptime'], array_column($audit->recent(10), 'command'));
+        // spec: BRIEF.md#фаза-7-по-частям — the participant in /audit
+        self::assertNotNull($audit->recent(1)[0]['who'] ?? null);
         $this->db->execute('UPDATE command_audit SET command = ? WHERE id = ?', ['rm -rf /tmp/x', $third]);
         self::assertSame($third, $audit->verify());
         $this->db->execute('DELETE FROM command_audit WHERE id = ?', [$first]);

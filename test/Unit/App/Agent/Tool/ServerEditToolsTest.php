@@ -90,6 +90,15 @@ final class ServerEditToolsTest extends TestCase {
         self::assertSame([], $this->servers->all());
     }
 
+    public function testTheJournalSaysWhoRanEachCommand(): void {
+        // spec: BRIEF.md#фаза-7-по-частям — the participant in /audit
+        $audit = new InMemoryCommandAuditRepository();
+        $audit->append(['principal' => 7, 'run' => 3, 'server' => 'web', 'command' => 'uptime', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null]);
+        $audit->names[7] = 'Аня';
+
+        self::assertStringContainsString('Аня', (new ServerCommands($this->vault, $this->servers, $audit))->audit());
+    }
+
     public function testTheOwnerRemovesAServerByCommand(): void {
         $commands = new ServerCommands($this->vault, $this->servers, new InMemoryCommandAuditRepository());
 

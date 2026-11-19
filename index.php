@@ -907,6 +907,7 @@ if ($a2aServer !== null) {
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
 // spec: BRIEF.md#трассировка-и-метрики — the summary counts the memory proposals waiting for the owner
 $dailyDigest->useMemory($memoryStore);
+$dailyDigest->useAudit($commandAudit);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
@@ -969,7 +970,7 @@ $chat = new ChatService(
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
-    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create()),
+    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,

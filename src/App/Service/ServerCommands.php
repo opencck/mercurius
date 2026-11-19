@@ -104,7 +104,7 @@ final class ServerCommands {
     public function audit(): string {
         $broken = $this->audit->verify();
         $lines = array_map(
-            static fn(array $r): string => sprintf('#%d %s %s [%s, %s%s] %s', $r['id'], $r['at'], $r['server'], $r['class'], $r['event'], $r['exit'] === null ? '' : t('service.server_commands.kod') . $r['exit'], mb_substr(SecretMasker::mask($r['command']), 0, 200)),
+            static fn(array $r): string => sprintf('#%d %s %s%s [%s, %s%s] %s', $r['id'], $r['at'], $r['server'], $r['who'] === null ? '' : ' (' . $r['who'] . ')', $r['class'], $r['event'], $r['exit'] === null ? '' : t('service.server_commands.kod') . $r['exit'], mb_substr(SecretMasker::mask($r['command']), 0, 200)),
             $this->audit->recent(self::AUDIT),
         );
         $chain = $broken === null ? t('service.server_commands.tsepochka_zhurnala_tsela') : sprintf(t('service.server_commands.tsepochka_zhurnala_narushena_na_zapisi'), $broken);
