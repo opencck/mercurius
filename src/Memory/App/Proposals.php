@@ -58,7 +58,7 @@ final class Proposals {
      * @param bool $aboutPerson the fact is about another person: only the owner's memory takes it
      * @throws InvalidArgumentException with the reason to show the model
      */
-    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false): Proposal {
+    public function propose(string $kind, ?int $factId, string $text, string $reason, array $readable, ?int $principalId, ?int $runId, bool $aboutPerson = false, string $edit = 'all', string $oldText = ''): Proposal {
         $text = trim($text);
         $reason = trim($reason);
         if ($readable === []) {
@@ -97,6 +97,8 @@ final class Proposals {
                 if (!in_array(Audience::OWNER, $readable, true)) {
                     throw new InvalidArgumentException(t('app.proposals.profil_i_svodka_menyayutsya_tolko'));
                 }
+                // spec: BRIEF.md#всегда-в-контексте — one entry is added, replaced or removed; the card shows the result
+                $text = CoreEntries::apply($this->store->core(MemoryContext::section($kind, Audience::OWNER)), $edit, $oldText, $text);
                 $this->check($text, $kind === Proposal::PROFILE ? self::PROFILE_MAX : self::SUMMARY_MAX);
                 $scope = Audience::OWNER;
                 $factId = null;

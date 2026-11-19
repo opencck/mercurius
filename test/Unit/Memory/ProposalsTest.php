@@ -127,6 +127,19 @@ final class ProposalsTest extends TestCase {
             }
         }
     }
+    public function testLayerOneIsEditedByEntries(): void {
+        // spec: BRIEF.md#всегда-в-контексте — layer 1 is edited by entries, not rewritten whole
+        $this->store->setCore('profile', "Живёт в Бангкоке\n§\nПишет по-русски");
+
+        $added = $this->proposals->propose(Proposal::PROFILE, null, 'Кот — Барсик', 'рассказал', ['owner'], null, null, edit: 'add');
+        $replaced = $this->proposals->propose(Proposal::PROFILE, null, 'Живёт в Паттайе', 'переехал', ['owner'], null, null, edit: 'replace', oldText: 'Бангкоке');
+
+        self::assertSame("Живёт в Бангкоке\n§\nПишет по-русски\n§\nКот — Барсик", $added->text, 'the card shows the whole new text');
+        self::assertSame("Живёт в Паттайе\n§\nПишет по-русски", $replaced->text);
+        $this->expectException(InvalidArgumentException::class);
+        $this->proposals->propose(Proposal::PROFILE, null, '', 'убрать', ['owner'], null, null, edit: 'remove', oldText: 'нет такого');
+    }
+
     public function testAFactAboutAPersonGoesOnlyToTheOwnersMemoryAndIsMarked(): void {
         // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what is said about other people is kept only for the owner
         $proposal = $this->proposals->propose(Proposal::ADD, null, 'У Пети аллергия на орехи', 'рассказал владелец', ['chat:t:1', 'owner'], 7, 3, true);
