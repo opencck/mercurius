@@ -34,6 +34,13 @@ interface TraceReportRepository {
     public function recentRuns(int $limit): array;
 
     /**
+     * Why the model of a run was chosen: the decisions taken for it, oldest first.
+     *
+     * @return list<array{method: string, class: string, model: string, reason: string}>
+     */
+    public function decisions(int $runId): array;
+
+    /**
      * How the agent delegated: top-level runs and those that delegated, worker runs, cascade retries, verifiers and
      * their rejections, background delegations.
      *

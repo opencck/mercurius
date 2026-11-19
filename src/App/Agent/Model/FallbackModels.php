@@ -35,7 +35,7 @@ final class FallbackModels {
     ) {}
 
     /** The model to try next, or null when there is nothing else to try. */
-    public function next(string $model, ?int $conversationId): ?string {
+    public function next(string $model, ?int $conversationId, ?int $runId = null): ?string {
         try {
             $ref = ModelRef::parse($model);
         } catch (InvalidArgumentException) {
@@ -66,7 +66,7 @@ final class FallbackModels {
         $reason = sprintf(t('model.fallback_models.model_ne_otvetila'), $ref, $why);
         $this->logger->warning('Model failed; switching once', ['from' => (string) $ref, 'to' => (string) $next]);
         try {
-            $this->decisions->record(new RoutingDecision($conversationId, 'fallback', 'failure', 'fallback', (string) $next, $reason));
+            $this->decisions->record(new RoutingDecision($conversationId, 'fallback', 'failure', 'fallback', (string) $next, $reason, $runId));
         } catch (Throwable $e) {
             $this->logger->error('Could not record a routing decision', ['error' => $e::class]);
         }

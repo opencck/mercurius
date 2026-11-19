@@ -59,6 +59,13 @@ final class FakeTraceReports implements TraceReportRepository {
         return array_slice($this->costliest, 0, $limit);
     }
 
+    /** @var array<int, list<array{method: string, class: string, model: string, reason: string}>> */
+    public array $decisions = [];
+
+    public function decisions(int $runId): array {
+        return $this->decisions[$runId] ?? [];
+    }
+
     public function recentRuns(int $limit): array {
         return array_slice($this->runs, 0, $limit);
     }

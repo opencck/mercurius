@@ -121,6 +121,20 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
         return $rows;
     }
 
+    public function decisions(int $runId): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT method, class, model, reason FROM routing_decisions WHERE run_id = ? ORDER BY id', [$runId]) as $row) {
+            $method = $row['method'] ?? null;
+            $class = $row['class'] ?? null;
+            $model = $row['model'] ?? null;
+            $reason = $row['reason'] ?? null;
+            if (is_string($method) && is_string($class) && is_string($model) && is_string($reason)) {
+                $found[] = ['method' => $method, 'class' => $class, 'model' => $model, 'reason' => $reason];
+            }
+        }
+        return $found;
+    }
+
     public function recentRuns(int $limit): array {
         $rows = [];
         foreach ($this->db->execute(

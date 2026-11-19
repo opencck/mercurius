@@ -176,7 +176,9 @@ final class TraceReports {
         foreach ($spans as $span) {
             $cost += $span->costUsd ?? 0.0;
             if ($span->kind === TraceSpan::RUN) {
-                array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), '');
+                // spec: BRIEF.md#выбор-моделей-под-задачу — why this model: every decision taken for the run
+                $why = array_map(static fn(array $d): string => sprintf(t('service.trace_reports.model_chosen'), $d['model'], $d['method'], $d['reason']), $this->figures->decisions($runId));
+                array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), ...$why, ...['']);
                 continue;
             }
             $line = sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0));

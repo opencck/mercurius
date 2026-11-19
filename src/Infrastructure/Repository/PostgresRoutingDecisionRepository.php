@@ -13,8 +13,8 @@ final class PostgresRoutingDecisionRepository implements RoutingDecisionReposito
 
     public function record(RoutingDecision $decision): void {
         $this->db->execute(
-            'INSERT INTO routing_decisions (conversation_id, class, method, role, model, reason) VALUES (?, ?, ?, ?, ?, ?)',
-            [$decision->conversationId, $decision->class, $decision->method, $decision->role, $decision->model, $decision->reason],
+            'INSERT INTO routing_decisions (conversation_id, class, method, role, model, reason, run_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$decision->conversationId, $decision->class, $decision->method, $decision->role, $decision->model, $decision->reason, $decision->runId],
         );
     }
 }

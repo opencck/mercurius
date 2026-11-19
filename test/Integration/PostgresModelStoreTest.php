@@ -27,6 +27,26 @@ final class PostgresModelStoreTest extends ModelStoreContract {
         $this->decisions = new PostgresRoutingDecisionRepository($this->db);
     }
 
+    public function testARunTakesTheDecisionAboutItsModelMadeBeforeItStarted(): void {
+        // spec: BRIEF.md#выбор-моделей-под-задачу
+        [$principalId, $conversationId] = \OpenCCK\Test\Support\TestDatabase::conversation($this->db);
+        $runs = new \OpenCCK\Infrastructure\Repository\PostgresRunRepository($this->db);
+        $limits = new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120);
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($conversationId, 'complex', 'heuristic', 'strong', 'openrouter:a/strong', 'long task'));
+        $run = $runs->start($conversationId, $principalId, 'openrouter:a/strong', $limits);
+        self::assertNotNull($run);
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($conversationId, 'fallback', 'failure', 'fallback', 'openrouter:a/other', 'down', $run->id));
+        $this->decisions->record(new \OpenCCK\Domain\Agent\RoutingDecision($conversationId, 'profile', 'profile', 'main', 'openrouter:a/worker', 'needs code'));
+        [, $workerConversation] = \OpenCCK\Test\Support\TestDatabase::conversation($this->db);
+        $worker = $runs->start($workerConversation, $principalId, 'openrouter:a/worker', $limits, $run->id);
+
+        $taken = [];
+        foreach ($this->db->execute('SELECT method, run_id FROM routing_decisions WHERE conversation_id = ? ORDER BY id', [$conversationId]) as $row) {
+            $taken[] = [$row['method'] ?? null, $row['run_id'] ?? null];
+        }
+        self::assertSame([['heuristic', $run->id], ['failure', $run->id], ['profile', $worker?->id]], $taken);
+    }
+
     protected function tearDown(): void {
         $this->db->close();
         parent::tearDown();

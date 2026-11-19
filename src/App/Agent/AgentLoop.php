@@ -486,7 +486,7 @@ final class AgentLoop {
         if ($this->fallback === null || $state->switched) {
             return false;
         }
-        $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId);
+        $next = $this->fallback->next($state->model ?? $state->run->model, $state->run->conversationId, $state->run->id);
         if ($next === null) {
             return false;
         }

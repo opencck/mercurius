@@ -19,5 +19,7 @@ final class RoutingDecision {
         public readonly string $role,
         public readonly string $model,
         public readonly string $reason,
+        /** the run the decision is for; null — made before the run started, the run takes it when it starts */
+        public readonly ?int $runId = null,
     ) {}
 }

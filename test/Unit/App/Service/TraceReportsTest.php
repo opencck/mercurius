@@ -112,6 +112,17 @@ final class TraceReportsTest extends AsyncTestCase {
         self::assertNotNull((new TraceReports($this->figures, $this->traces))->trace(43), 'shown without the rule');
     }
 
+    public function testTheTraceSaysWhyTheModelWasChosen(): void {
+        // spec: BRIEF.md#выбор-моделей-под-задачу — every decision about the model is shown in /trace
+        $this->traces->openRun(44, 'openrouter:x/model');
+        $this->traces->closeRun(44, TraceSpan::OK, 100, null);
+        $this->figures->decisions[44] = [['method' => 'profile', 'class' => 'profile', 'model' => 'openrouter:x/model', 'reason' => 'needs code, cheapest of three']];
+
+        $this->stack->say('/trace 44');
+
+        self::assertStringContainsString('openrouter:x/model — profile: needs code, cheapest of three', $this->lastText());
+    }
+
     public function testUnknownTraceSaysSo(): void {
         $this->stack->say('/trace 999');
 
