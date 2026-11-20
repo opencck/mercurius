@@ -53,6 +53,18 @@ final class PeerNetwork {
     private array $reading = [];
     /** @var array<string, true> notices of tasks not kept yet: the neighbour ended the task before its answer to SendMessage was kept */
     private array $early = [];
+    public const EVENTS_KEPT = 100;
+    /** @var list<array{from: string, at: int, event: array<array-key, mixed>}> the last events of projects neighbours told */
+    private array $events = [];
+
+    /**
+     * The events of projects the neighbours told over live connections, oldest first; they live until a restart.
+     *
+     * @return list<array{from: string, at: int, event: array<array-key, mixed>}>
+     */
+    public function events(): array {
+        return $this->events;
+    }
 
     public function __construct(
         private readonly PeerRepository $peers,
@@ -90,6 +102,15 @@ final class PeerNetwork {
      * @param array<array-key, mixed> $params
      */
     public function noticed(string $from, string $method, array $params): void {
+        // spec: brief/network.md#события-проекта-для-агентов — what a neighbour tells about a project we work with there is kept
+        //       for the agent to read; it is the neighbour's words, data and not instructions
+        if ($method === ProjectEvents::METHOD) {
+            $this->events[] = ['from' => $from, 'at' => time(), 'event' => $params];
+            if (count($this->events) > self::EVENTS_KEPT) {
+                array_shift($this->events);
+            }
+            return;
+        }
         $id = A2aClient::taskId($params) ?? '';
         if ($method !== 'TaskStatusUpdate' || $id === '') {
             return;

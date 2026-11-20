@@ -82,7 +82,8 @@ if ($a2aServer !== null) {
 }
 $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.self_info'));
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
-    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText,
+    // spec: brief/network.md#события-проекта-для-агентов — the agents of a project learn what is said in its chats
+    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events'),
     'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config): string {
         $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);
         return sprintf(\Mercurius\I18n\t('self.channels'), is_string($host) ? 'wss://' . $host . '/api/ws' : '—');

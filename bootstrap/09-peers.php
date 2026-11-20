@@ -33,6 +33,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
+ * @var OpenCCK\App\Agent\Trace\Tracer $tracer
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  * @var OpenCCK\App\Vault\Vault $vault
  */
@@ -103,6 +104,30 @@ $participantInbox->useAgents(static function (Principal $agent, string $text) us
     }
     return true;
 });
+// spec: brief/network.md#события-проекта-для-агентов — what is said in the chats and topics of a project reaches the agents
+//       that work with it, over their live connections
+$projectEvents = new \OpenCCK\App\Peer\ProjectEvents(
+    $runs,
+    $conversations,
+    $transcript,
+    new \OpenCCK\Infrastructure\Repository\PostgresProjectRepository($db),
+    $principals,
+    static function (int $principalId, string $method, array $params) use ($peerRepository, $a2aLinks): bool {
+        $sent = false;
+        foreach ($peerRepository->keys() as $key) {
+            if ($key['principal'] === $principalId && !$key['revoked']) {
+                $socket = $a2aLinks->to($key['fingerprint']);
+                if ($socket !== null) {
+                    $socket->notify($method, $params);
+                    $sent = true;
+                }
+            }
+        }
+        return $sent;
+    },
+    $logger,
+);
+$tracer->onRunFinished($projectEvents->finished(...));
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
 // spec: brief/network.md#вызов-и-раздача-соседям — call one neighbour and wait, or give parts to several and merge
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($peerNetwork, $peerRepository, $conversations));

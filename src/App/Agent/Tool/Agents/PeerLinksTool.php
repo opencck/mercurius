@@ -30,10 +30,10 @@ final class PeerLinksTool implements Tool {
     public function __construct(private readonly PeerNetwork $network) {}
 
     public function definition(): ToolDefinition {
-        return new ToolDefinition(self::NAME, t('tool.peer_links.about'), [
+        return new ToolDefinition(self::NAME, t('tool.peer_links.about') . ' ' . t('tool.peer_links.events_about'), [
             'type' => 'object',
             'properties' => [
-                'action' => ['type' => 'string', 'enum' => ['list', 'open', 'close']],
+                'action' => ['type' => 'string', 'enum' => ['list', 'open', 'close', 'events']],
                 'peer' => ['type' => 'string', 'maxLength' => 40],
                 'id' => ['type' => 'integer', 'minimum' => 1],
             ],
@@ -43,7 +43,7 @@ final class PeerLinksTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        return Args::string($args, 'action') === 'list' ? DangerClass::Read : DangerClass::Write;
+        return in_array(Args::string($args, 'action'), ['list', 'events'], true) ? DangerClass::Read : DangerClass::Write;
     }
 
     public function untrusted(): bool {
@@ -55,6 +55,15 @@ final class PeerLinksTool implements Tool {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
+        if (Args::string($args, 'action') === 'events') {
+            // spec: brief/network.md#события-проекта-для-агентов — what neighbours told about the projects we work with there
+            $events = $this->network->events();
+            if ($events === []) {
+                return ToolResult::ok(t('tool.peer_links.no_events'));
+            }
+            $lines = array_map(static fn(array $e): string => sprintf('%s %s: %s', gmdate('Y-m-d H:i', $e['at']), $e['from'], (string) json_encode($e['event'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR)), array_slice($events, -30));
+            return ToolResult::ok(\OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper::wrap('peer_events', implode("\n", $lines)));
+        }
         try {
             return ToolResult::ok(match (Args::string($args, 'action')) {
                 'open' => $this->network->open(Args::string($args, 'peer') ?? ''),

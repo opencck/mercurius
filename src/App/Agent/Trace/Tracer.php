@@ -160,6 +160,27 @@ final class Tracer implements AgentEvents {
             unset($this->runSpans[$runId]);
         });
         unset($this->sent[$runId]);
+        // at once, not through the queue: whoever listens reads the place of the run before it is taken apart
+        foreach ($this->finished as $listener) {
+            try {
+                $listener($runId);
+            } catch (\Throwable $e) {
+                $this->logger->warning('A listener of a finished run failed', ['run' => $runId, 'error' => $e::class]);
+            }
+        }
+    }
+
+    /** @var list<\Closure(int): void> */
+    private array $finished = [];
+
+    /**
+     * Called with the run when it ends, after its trace is closed; a listener that fails does not hurt the run.
+     *
+     * spec: brief/network.md#события-проекта-для-агентов — the end of a run in a place of a project is told to its agents
+     * @param \Closure(int): void $listener
+     */
+    public function onRunFinished(\Closure $listener): void {
+        $this->finished[] = $listener;
     }
 
     private function runSpan(int $runId, string $model): int {
