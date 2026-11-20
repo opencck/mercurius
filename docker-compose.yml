@@ -13,6 +13,8 @@ services:
         APP_VERSION: ${APP_VERSION:-dev}
     image: mercurius-app:${APP_VERSION:-dev}
     restart: unless-stopped
+    # a ceiling for a leak, well above the usual ~100 MB: pg_dump and tar of an export run here too
+    mem_limit: ${APP_MEMORY:-1g}
     env_file: .env
     environment:
       POSTGRES_HOST: postgres
@@ -168,8 +170,10 @@ services:
       - browser
 
   postgres:
-    image: pgvector/pgvector:pg17
+    # pinned by digest, as the base of the app image
+    image: pgvector/pgvector:pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
     restart: unless-stopped
+    mem_limit: ${POSTGRES_MEMORY:-2g}
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}

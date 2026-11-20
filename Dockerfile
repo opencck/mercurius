@@ -1,5 +1,6 @@
 # Mercurius application image: PHP 8.2 CLI with the extensions AMPHP and PostgreSQL need.
-FROM php:8.2-cli-bookworm AS base
+# The base is pinned by digest: a rebuild gives the same image; a newer base is taken on purpose, by changing it here.
+FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS base
 
 # No pecl-ev: amphp/postgres over ext-pgsql refuses to run on the ev loop driver.
 # Revolt falls back to its stream_select driver, which is enough at the current load.
@@ -72,7 +73,7 @@ CMD ["composer", "test-integration"]
 # PHP 8.2 with Composer, Python 3, Node.js with npm, Go. Documents and video are modules (media-docs, media-video), not here. The executor runs as root with a minimal capability set
 # (compose) and does every participant operation as that participant's Unix user.
 # spec: BRIEF.md#песочница
-FROM php:8.2-cli-bookworm AS sandbox
+FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
