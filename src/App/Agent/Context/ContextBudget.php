@@ -10,7 +10,7 @@ namespace OpenCCK\App\Agent\Context;
  * spec: brief/agent-loop.md#контекст — threshold 75% of the window, 50% from 512K
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L828-L829, L3390-L3391 — summary budget: 20% of
  *      what is compacted, at least 2000 tokens, at most the configured maximum (min(5% of the window, 12000))
- * ref: notes/hermes-agent.md#сжатие-контекста — lean tail: 2.5% of the window, 10–25K tokens; here also at most a
+ * ref: docs/notes/hermes-agent.md#сжатие-контекста — lean tail: 2.5% of the window, 10–25K tokens; here also at most a
  *      quarter of the window, so small windows still have a middle to compact
  */
 final class ContextBudget {

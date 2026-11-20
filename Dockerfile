@@ -38,11 +38,9 @@ COPY composer.json composer.lock ./
 COPY packages ./packages
 RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
 
-COPY index.php ./
-COPY boot ./boot
+COPY bootstrap ./bootstrap
 COPY src ./src
 COPY migrations ./migrations
-COPY resources ./resources
 COPY skills ./skills
 COPY bin/doctor.php ./bin/doctor.php
 # the names of the settings that go into the archive of the agent
@@ -58,7 +56,7 @@ USER mercurius
 
 EXPOSE 8080
 STOPSIGNAL SIGTERM
-CMD ["php", "index.php"]
+CMD ["php", "bootstrap/index.php"]
 
 # Image for running the test suites (unit and integration) on the server.
 FROM base AS test
@@ -86,13 +84,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 ENV PATH=/usr/local/go/bin:$PATH
 WORKDIR /app
 COPY --from=base /app/vendor ./vendor
-COPY composer.json sandbox.php ./
+COPY composer.json ./
+COPY bootstrap/sandbox.php ./bootstrap/sandbox.php
 COPY src ./src
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM
 # /proc with hidepid: a participant sees only own processes, root (gid 0) all of them, to stop what a command left
-CMD ["sh", "-c", "mount -o remount,hidepid=2,gid=0 /proc || echo 'hidepid is not set: /proc stays open' >&2; exec php sandbox.php"]
+CMD ["sh", "-c", "mount -o remount,hidepid=2,gid=0 /proc || echo 'hidepid is not set: /proc stays open' >&2; exec php bootstrap/sandbox.php"]
 
 # Sandbox tests (users, processes, files): docker compose --profile test run --rm sandbox-test
 FROM sandbox AS sandbox-test

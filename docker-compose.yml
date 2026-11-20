@@ -269,7 +269,7 @@ services:
   sshd-test:
     profiles: ["test"]
     build:
-      context: docker/sshd-test
+      context: .docker/sshd-test
     networks:
       - internal
 

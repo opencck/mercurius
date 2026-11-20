@@ -32,11 +32,11 @@ final class SendMessageToolTest extends AsyncTestCase {
     private function stack(ScriptedLlm $llm): void {
         $this->stack = new AgentStack($llm);
         $this->relays = new InMemoryMessageRelayRepository();
-        $this->stack->principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
+        $this->stack->principals->ensureOwner('telegram', '42', 'Сергей Иванов');
         $roman = $this->stack->principals->createVisitor('telegram', '77', 'Roman');
         $this->roman = $this->stack->principals->decideVisitor($roman->id, Role::user(), PrincipalStatus::Active) ?? $roman;
-        $arinin = $this->stack->principals->createVisitor('telegram', '78', 'Сергей Аринин');
-        $this->stack->principals->decideVisitor($arinin->id, Role::user(), PrincipalStatus::Active);
+        $ivan = $this->stack->principals->createVisitor('telegram', '78', 'Сергей Петров');
+        $this->stack->principals->decideVisitor($ivan->id, Role::user(), PrincipalStatus::Active);
         $this->tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram');
         $this->stack->registry->register($this->tool);
         $this->stack->useRelays($this->relays);
@@ -90,7 +90,7 @@ final class SendMessageToolTest extends AsyncTestCase {
         $this->tool->execute(['to' => 'Roman', 'text' => 'Как дела?'], $this->context($conversation));
         self::assertCount(1, $this->relays->relays, 'a question to someone waits for their answer by default');
 
-        $this->tool->execute(['to' => 'Сергей Аринин', 'text' => 'К сведению', 'expect_reply' => false], $this->context($conversation));
+        $this->tool->execute(['to' => 'Сергей Петров', 'text' => 'К сведению', 'expect_reply' => false], $this->context($conversation));
         $this->tool->execute(['to' => 'owner', 'text' => 'Итоги'], $this->context($conversation));
         self::assertCount(1, $this->relays->relays, 'not when told so, and never for the owner: their chat is their own');
     }
@@ -113,7 +113,7 @@ final class SendMessageToolTest extends AsyncTestCase {
         $result = $this->tool->execute(['to' => 'Сергей', 'text' => 'x'], $this->context($conversation));
 
         self::assertTrue($result->isError);
-        self::assertStringContainsString('Сергей Аринин', $result->content);
+        self::assertStringContainsString('Сергей Петров', $result->content);
         self::assertSame([], $this->sentTo('78'));
     }
 

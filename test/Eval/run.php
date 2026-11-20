@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Runs the evaluation set against real models and writes a report.
  *
  *   php test/Eval/run.php --models z-ai/glm-5.3-flash[,другая] [--judge anthropic/claude-...] [--runs 3]
- *       [--tasks resources/eval/tasks.json] [--only категория] [--out storage/eval/<время>.json] [--baseline файл]
+ *       [--tasks src/App/Eval/tasks.json] [--only категория] [--out storage/eval/<время>.json] [--baseline файл]
  *
  * Models go through OpenRouter (OPENROUTER_API_KEY), through VLESS when VLESS_URI is set, as in the app. Calls are
  * paid. The exit code is 1 when a category regressed against the baseline.
@@ -41,7 +41,7 @@ if ($models === []) {
     exit(2);
 }
 $runs = max(1, (int) ($option('runs') ?? '3'));
-$tasks = EvalTask::load($option('tasks') ?? dirname(__DIR__, 2) . '/resources/eval/tasks.json');
+$tasks = EvalTask::load($option('tasks') ?? dirname(__DIR__, 2) . '/src/App/Eval/tasks.json');
 $only = $option('only');
 if ($only !== null) {
     $tasks = array_values(array_filter($tasks, static fn(EvalTask $t): bool => $t->category === $only));

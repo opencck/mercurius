@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * one is a pointer: a new version, a rollback and "off" only move it.
  *
  * spec: brief/self-improvement.md#самоулучшение
- * ref: notes/claude-cookbooks.md — a prompt version is immutable, a pointer moves; the version is recorded with results
+ * ref: docs/notes/claude-cookbooks.md — a prompt version is immutable, a pointer moves; the version is recorded with results
  */
 final class PromptNotes {
     public const MAX = 4000;

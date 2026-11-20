@@ -144,11 +144,11 @@ Modules — the browser, media, mail and the local Bot API server — are listed
 |------|----------|
 | [`BRIEF.md`](BRIEF.md) | Specification: requirements, design, decisions (in Russian) |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
-| `index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
-| `sandbox.php`, `src/Sandbox/` | The sandbox executor |
+| `bootstrap/index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
+| `bootstrap/sandbox.php`, `src/Sandbox/` | The sandbox executor |
 | `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api; mail |
 | `bin/` | Backup, restore, update and the installation check |
-| `docs/`, `notes/` | Knowledge base on building autonomous agents: articles and notes |
+| `docs/`, `docs/notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |
 
 ## License

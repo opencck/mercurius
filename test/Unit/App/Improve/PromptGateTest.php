@@ -29,7 +29,7 @@ final class PromptGateTest extends AsyncTestCase {
     }
 
     public function testBothVersionsRunTheWholeSetWithTheirNotes(): void {
-        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
+        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/src/App/Eval/tasks.json');
         $gate = new PromptGate($this->runner(), $tasks, 'agent/model', 3, true);
 
         $verdict = $gate('', 'Отвечай коротко.');
@@ -43,7 +43,7 @@ final class PromptGateTest extends AsyncTestCase {
 
     public function testTheScoresOfBothVersionsAreKeptByCategory(): void {
         // spec: brief/self-improvement.md#самоулучшение — scores by category for each version of the notes
-        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
+        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/src/App/Eval/tasks.json');
         $scores = new \OpenCCK\Test\Support\InMemoryEvalScoreRepository();
         $gate = new PromptGate($this->runner(), $tasks, 'agent/model', 3, true);
         $gate->useScores($scores);
@@ -57,7 +57,7 @@ final class PromptGateTest extends AsyncTestCase {
     }
 
     public function testNoJudgeOrASmallSetIsNotACheck(): void {
-        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
+        $tasks = EvalTask::load(dirname(__DIR__, 4) . '/src/App/Eval/tasks.json');
 
         self::assertFalse((new PromptGate($this->runner(), $tasks, 'agent/model', 3, false))('', 'x')->passed);
         self::assertFalse((new PromptGate($this->runner(), array_slice($tasks, 0, 5), 'agent/model', 3, true))('', 'x')->passed);

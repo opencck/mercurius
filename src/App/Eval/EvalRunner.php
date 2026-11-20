@@ -34,7 +34,7 @@ use Throwable;
  *
  * spec: brief/self-improvement.md#границы — at least 20 tasks by categories, at least 3 runs, a judge of another
  *       family, the prompt version recorded
- * Basis: notes/claude-cookbooks.md — scores by category, the prompt version recorded with each result.
+ * Basis: docs/notes/claude-cookbooks.md — scores by category, the prompt version recorded with each result.
  */
 final class EvalRunner {
     private const JUDGE_PROMPT = 'Ты — строгий проверяющий ответов агента. Оцени, насколько агент выполнил задачу по критериям. '

@@ -18,56 +18,48 @@
 Файлы должны быть согласованы: меняешь один — проверь остальные. Содержание не дублируй, ставь ссылку.
 Каждая ссылка `spec:` ведёт к существующему заголовку — это проверяет `php bin/spec-links.php` (входит в `composer check`).
 
-### Разделы спецификации
+### Как найти нужное
 
-- [Цель](brief/requirements.md#цель)
-- [Меркурий: требования](brief/requirements.md#меркурий-требования) — назначение, автономность, ограничения, стек, абстракции, инструменты, память, архитектура
-- [Устройство приложения на opencck](brief/architecture.md#устройство-приложения-на-opencck) — сущности, сервисы, события, модули и задачи Меркурия в слоях opencck
-- [Память: слои](brief/memory.md#память-слои) — устройство памяти: ядро, слой «всегда в контексте», проекты, задачи, отношение участника к проекту, факты, эпизоды, опыт, консолидация, HRR
-- [Серверы и сеть](brief/servers.md#серверы-и-сеть) — хранилище секретов, реестр серверов, SSH, классификатор команд, журнал; фаза 7 по частям
-- [Интернет и браузер](brief/internet.md#интернет-и-браузер) — поиск, чтение страниц и документов, браузер в своём контейнере, [скрипты браузера](brief/internet.md#скрипты-браузера)
-- [Входящие вложения](brief/internet.md#входящие-вложения) — голос, фото, видео, документы во входящих: приём, модели зрения, видео и речи, правила участников, обмен файлами между агентами
-- [Скиллы и MCP](brief/skills-mcp.md#скиллы-и-mcp) — каталог скиллов с версиями и одобрением, MCP-серверы по HTTP
-- [Планировщик и проекты](brief/scheduler.md#планировщик-и-проекты) — задания по расписанию, доставка итогов, тихие часы
-- [Настройки агента](brief/operations.md#настройки-агента) — что в `.env`, что в диалоге: `/settings`, `/set`, `/restart`, инструмент `settings`
-- [Несколько пользователей](brief/participants.md#несколько-пользователей) — свои проекты, слой памяти, лимиты и доступы у каждого пользователя; [передача владения](brief/participants.md#передача-владения) (`/owner`, личное остаётся у прежнего владельца) и [свои роли](brief/participants.md#свои-роли) (`/roles`, полномочия ролей)
-- [Язык агента](brief/operations.md#язык-агента) — пакет `mercurius-i18n`: тексты агента на русском и английском, настройка `AGENT_LANGUAGE`
-- [Модули: сервисы, MCP и скиллы](brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы) — свои репозитории и профили compose, инструмент только при работающем сервисе
-- [Экспорт и импорт агента](brief/operations.md#экспорт-и-импорт-агента) — зашифрованный архив агента, полный и частичный импорт
-- [Поставка и обслуживание](brief/operations.md#поставка-и-обслуживание) — резервная копия, восстановление, `doctor`, набор проверочных задач
-- [Выбор моделей под задачу](brief/models.md#выбор-моделей-под-задачу) — профиль задачи из оценок 1–10, профиль модели, выбор, каскад, экономия
-- [Агентский цикл и харнесс](brief/agent-loop.md#агентский-цикл-и-харнесс) — запуск, цикл, лимиты, инструменты, песочница, подтверждения, контекст
-- [Знания агента о себе](brief/agent-loop.md#знания-агента-о-себе) — указатель в промпте, подробности — инструмент `self_info` по темам
-- [Оркестратор и воркеры](brief/orchestration.md#оркестратор-и-воркеры) — делегирование частями фазы 5: инструмент, воркер как вложенный запуск, общий бюджет, отчёт
-- [Трассировка и метрики](brief/operations.md#трассировка-и-метрики) — шаги запуска, полные промпты со сроком хранения, команды расхода, Prometheus
-- [Качество кода и CI](brief/requirements.md#качество-кода-и-ci) — PHPUnit, PHPStan, Psalm и экономные GitHub Actions во всех репозиториях
-- [Участники: люди и агенты](brief/participants.md#участники-люди-и-агенты) — кто пишет агенту, роли и права для людей и агентов
-- [Права доступа к сущностям](brief/participants.md#права-доступа-к-сущностям) — кто × что × действие × где, права по умолчанию, делегирование, секреты
-- [Контекст по месту и аудитории](brief/participants.md#контекст-по-месту-и-аудитории) — изоляция контекста, раскрытие по самому слабому слушателю, слои по месту
-- [Telegram: группы, каналы и темы](brief/channels.md#telegram-группы-каналы-и-темы) — работа в группах, публикация в канал, форум: темы — проекты, [прокси и локальный сервер Bot API](brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api), [необязательные возможности канала и склейка разрезанных текстов](brief/channels.md#канал-необязательные-возможности-и-разрезанные-тексты)
-- [Личные сообщения участникам](brief/channels.md#личные-сообщения-участникам) — `send_message` в личный чат участника, ответ возвращается тому, кто просил
-- [Сеть агентов](brief/network.md#сеть-агентов) — связь экземпляров Меркурия по WebSocket API, доверие и безопасность — в том числе [вход по WebSocket и ключи](brief/network.md#вход-по-websocket-и-несколько-ключей), [подключения агентов](brief/network.md#подключения-агентов) [незнакомый агент стучится](brief/network.md#незнакомый-агент-стучится) и [участник просит инструмент](brief/network.md#участник-просит-инструмент)
-- [Решения](brief/decisions.md#решения) — в том числе [Где записаны решения](brief/decisions.md#где-записаны-решения): принятые риски, лимиты, права в группе
-- [Открытые вопросы](brief/decisions.md#открытые-вопросы) — в том числе разборы: [изоляция исполнения](brief/agent-loop.md#изоляция-исполнения), [границы самоулучшения](brief/self-improvement.md#границы) и [самоулучшение: что сделано](brief/self-improvement.md#самоулучшение), [участники: люди и агенты](brief/participants.md#участники-люди-и-агенты)
-- [Структура репозитория](brief/architecture.md#структура-репозитория)
-- [Соглашения](brief/architecture.md#соглашения)
-- [База знаний](brief/knowledge.md#спецификация-база-знаний): [карта конспектов](brief/knowledge.md#карта-конспектов) ([по источникам](brief/knowledge.md#по-источникам), [по вопросам](brief/knowledge.md#по-вопросам)), [ключевые выводы](brief/knowledge.md#ключевые-выводы), [выводы из эксплуатации](brief/knowledge.md#выводы-из-эксплуатации), [расхождения между источниками](brief/knowledge.md#расхождения-между-источниками)
+- **Оглавление — в [BRIEF.md](BRIEF.md)**: по строке на файл `brief/` с его главными разделами. Здесь оно не повторяется.
+- **От задачи к требованию:** файл подсистемы в `brief/` → раздел → подраздел. Решение записано там же, где описана
+  его подсистема; [указатель решений](brief/decisions.md#где-записаны-решения) говорит, где какое.
+- **От требования к коду:** `php bin/spec-links.php --where <якорь>` (или `<файл>#<якорь>`, или один файл) — все места
+  кода, которые ссылаются на раздел.
+- **От кода к требованию:** ссылка `spec:` в комментарии ведёт в раздел; `ref:` — в образец из референсов.
+- **Что было и почему так:** [история](brief/history.md) — ход доработок, принятые риски, что решено оставить как есть.
 
-Если в `brief/` появился новый раздел — добавь ссылку сюда и в оглавление `BRIEF.md`. Заголовки не переименовывай без правки ссылок (`bin/spec-links.php` покажет оборванные).
+Новый раздел в `brief/` — строка в оглавлении `BRIEF.md`. Заголовок переименовывается только вместе со ссылками
+(`php bin/spec-links.php` покажет оборванные).
+
+### Как вести спецификацию
+
+Правила — в [Соглашениях](brief/architecture.md#спецификация); коротко:
+
+1. **Одно место для одного знания.** Требование и решение — в разделе своей подсистемы; сквозное — в
+   `brief/decisions.md`; ход работ и проверки вживую — в `brief/history.md`; правила работы — здесь; сервер
+   разработки — в локальном `SERVER.md`. В других местах — ссылка, а не повтор.
+2. **Ссылка ведёт в самый узкий раздел,** где написано нужное, а не в раздел-корень. `php bin/spec-links.php --coarse`
+   показывает ссылки в разделы больше 8000 символов: такой раздел делится на подразделы по темам, ссылки переводятся.
+3. **Заголовок называет тему.** В заголовке нет дат, номеров этапов и слов «решено»; дата решения — в тексте.
+   Заголовок файла не повторяет заголовок его первого раздела.
+4. **Комментарий в коде говорит, что и почему делает код,** и ссылается на раздел. Дат решений, номеров этапов,
+   имён экземпляров и рассказа о том, как шла разработка, в комментариях нет.
+5. **Проверка — часть `composer check`:** каждая `spec:` и каждая ссылка между файлами спецификации ведут к
+   существующему заголовку.
 
 ## Как вести разработку
 
 1. **Задача сверяется с требованиями спецификации.** Перед задачей найди её подсистему в `brief/`: требования, решения, что решено оставить как есть и почему ([история](brief/history.md#что-решено-оставить-как-есть)). Задача, которой нет в требованиях, — сначала скажи об этом владельцу.
 2. **Сначала требования и решения.** Сверься с [требованиями](brief/requirements.md#меркурий-требования) и [решениями](brief/decisions.md#решения). Если задача упирается в [открытый вопрос](brief/decisions.md#открытые-вопросы) — спроси владельца, не решай молча.
-3. **Опирайся на базу знаний и референсы — до кода, а не после.** Перед проектированием узла открой конспекты, указанные в «Опора» фазы. Порядок: [карта конспектов](brief/knowledge.md#карта-конспектов) → конспект в `notes/` → по номерам строк в `docs/` или по ссылкам в `references/`. Не читай `docs/` и `references/` целиком, пока конспект не указал место — особенно `references/hermes-agent/` (около 26 тыс. файлов).
+3. **Опирайся на базу знаний и референсы — до кода, а не после.** Перед проектированием узла открой конспекты, указанные в «Опора» фазы. Порядок: [карта конспектов](brief/knowledge.md#карта-конспектов) → конспект в `docs/notes/` → по номерам строк в `docs/` или по ссылкам в `references/`. Не читай `docs/` и `references/` целиком, пока конспект не указал место — особенно `references/hermes-agent/` (около 26 тыс. файлов).
    **Не изобретай заново то, что уже есть в референсах.** В hermes-agent и других репозиториях `references/` многое из нужного Меркурию уже реализовано и обкатано: адаптеры платформ (Telegram — `plugins/platforms/telegram/`, около 60 модулей), разметка, разбиение сообщений, повторы, лимиты, память, инструменты, безопасность. Перед **любой** правкой — новой функцией, исправлением, мелкой доработкой — найди соответствующую реализацию в референсах (конспект, затем `Grep` по имени модуля или функции), прочитай её и реши, что берём, а от чего сознательно отступаем. Взятое отмечай в коде ссылкой `ref:` с коммитом сабмодуля и номерами строк ([правила](#ссылки-на-референсы-в-коде)), отступление — одной фразой после ссылки. Если подходящего в референсах нет — так и скажи в описании изменения. Если нашёл модуль, который конспект пропустил, — допиши его в конспект.
 4. **Скиллы — до кода.** Перед тем как писать код, вызови нужный скилл из [таблицы ниже](#скиллы-когда-какой). Процесс задачи — по [superpowers](#плагин-superpowers-процесс-разработки): проект → план → тесты вперёд → код → проверка → ревью.
 5. **Сквозные требования обязательны** в любой задаче: async-first, лимиты в коде, недоверенные данные, секреты, логи, тесты — см. [Сквозные требования](brief/architecture.md#сквозные-требования).
-6. **Проверяй на сервере.** Локального запуска недостаточно — см. [Сервер](#сервер-продакшен-тестирование-разработка).
+6. **Проверяй на сервере.** Локального запуска недостаточно — см. [Сервер](#сервер-разработки-и-развёртывание).
 7. **После работы обнови спецификацию:** новые решения и итог — в разделе подсистемы в `brief/` (и в `BRIEF.md` сабмодуля, если менялся он), то, что ждёт владельца, — в [истории](brief/history.md#ждёт-владельца), изменившиеся правила — здесь.
 8. **Коммиты — по просьбе владельца или в рамках порученной задачи** (подробнее — [плагин superpowers](#плагин-superpowers-процесс-разработки)). Во всех репозиториях проекта работаем в ветке `master`. Перед коммитом кода — связанные тесты (`vendor/bin/phpunit` по файлам или `--filter` затронутого) и PHPStan с Psalm по изменённым файлам; полный `composer check` (PHPUnit, PHPStan, Psalm) — перед push и развёртыванием (на пачку коммитов) и в конце задачи, в том репозитории, где менялся код (решение владельца 2026-11-19: полный прогон долгий, не гонять его на каждом шаге). Коммит с красной проверкой не делаем; красный полный прогон перед push — исправить до push. Push — в `git@github.com:opencck/<репозиторий>.git` по SSH-ключу этой машины.
    **CI экономно:** не добавляй в workflow матрицы, расписания и тесты с сетью и секретами; правила — [Качество кода и CI](brief/requirements.md#качество-кода-и-ci). Изменения только в документации CI не запускают — не обходи это.
-9. **Граф знаний держи свежим.** После изменения `notes/`, `docs/`, `brief/` или `CLAUDE.md` в заметном объёме (новый конспект, новый раздел, пачка решений) — `/graphify . --update`. Перед вопросом по базе знаний через `/graphify query` проверь, что граф не старее последних изменений этих файлов.
+9. **Граф знаний держи свежим.** После изменения `docs/notes/`, `docs/`, `brief/` или `CLAUDE.md` в заметном объёме (новый конспект, новый раздел, пачка решений) — `/graphify . --update`. Перед вопросом по базе знаний через `/graphify query` проверь, что граф не старее последних изменений этих файлов.
 10. **Обязательные файлы каждого репозитория проекта** (основной и все пакеты `opencck/mercurius-*`); README и LICENSE — с первого коммита, проверки и CI — с первого коммита кода:
     - `README.md` — на английском, `README.ru.md` — на русском, с одинаковым содержанием. В начале каждого — ссылка на другой: `**English** | [Русский](README.ru.md)` и `[English](README.md) | **Русский**`. Меняешь один — обнови второй в том же коммите.
     - `LICENSE` — MIT; в `composer.json` (и в `package.json` у `browser-service`) — `"license": "MIT"`.
@@ -85,7 +77,7 @@
    агент будет ошибаться в обычной работе, и это решение записывается в `BRIEF.md`.
 2. **Опиши возможность темой `self_info`.** Есть подходящая тема (`network`, `channels`, `commands`, `tools`,
    `modules`, `limits`, `self_improvement`, `version`) — дополни её текст в `packages/i18n` (`self.<тема>`); нет —
-   добавь тему в `boot/11-http.php` (список тем `self_info`; замыкание, считающее сведения в момент вызова) и её строку `self.topic.<тема>`.
+   добавь тему в `bootstrap/11-http.php` (список тем `self_info`; замыкание, считающее сведения в момент вызова) и её строку `self.topic.<тема>`.
 3. **Изменчивое — из кода, постоянное — из текстов.** Адреса, состояние модулей, права собеседника, версии
    вычисляются при вызове; секреты (токены, ключи) в ответ не попадают — только где они лежат.
 4. **Описание инструмента** — его собственное определение: оно и так у модели, в `self_info` хватает строки.
@@ -99,10 +91,11 @@
 |-------|--------|--------------------|
 | `skill-opencck` | локальный каталог, в git не входит | **Всегда при работе с кодом Меркурия:** структура проекта, модули, контроллеры, сервисы, сущности, репозитории, роутинг (HTTP/WS/SSE), Cycle ORM и миграции, Docker для сервера, тесты `AsyncTestCase`, Prometheus-экспортёр |
 | `skill-amphp` | сабмодуль [opencck/skill-amphp](https://github.com/opencck/skill-amphp) | **Всегда при написании асинхронного PHP:** `Amp\async`, `Future`, отмена и таймауты, HTTP-клиент и сервер, сокеты, параллельные воркеры, отладка event loop. Вместе с `skill-opencck` |
-| `graphify` | локальный каталог (0.9.43), в git не входит | Вопрос по базе знаний, когда нужна связь между источниками, а не один конспект: `/graphify query "<вопрос>"`. После добавления материалов в `docs/` или `notes/` — `/graphify . --update` |
-| `skill-compliance` (`legal-compliance-engine`) | сабмодуль [rekryt/skill-compliance](https://github.com/rekryt/skill-compliance) | Только по запросу: политика конфиденциальности, согласие на обработку персональных данных, оферта — когда Меркурий пойдёт к сторонним пользователям (фаза 12). В разработке ядра не нужен |
+| `graphify` | локальный каталог (0.9.43), в git не входит | Вопрос по базе знаний, когда нужна связь между источниками, а не один конспект: `/graphify query "<вопрос>"`. После добавления материалов в `docs/` или `docs/notes/` — `/graphify . --update` |
+| `skill-compliance` (`legal-compliance-engine`) | сабмодуль [rekryt/skill-compliance](https://github.com/rekryt/skill-compliance) | Только по запросу: политика конфиденциальности, согласие на обработку персональных данных, оферта — когда Меркурий пойдёт к сторонним пользователям. В разработке ядра не нужен |
+| `mercurius-bin` | локальный каталог, в git не входит | Скрипты `bin/`: обновление экземпляра, резервная копия и восстановление, `doctor`, проверка ссылок спецификации, поиск кода по разделу (`--where`) и разделов, которые пора делить (`--coarse`) |
 
-В репозитории лежат только скиллы-сабмодули. Локальные каталоги скиллов исключены в `.gitignore`: после клонирования проекта `skill-opencck` и `graphify` нужно поставить отдельно. Новый локальный скилл без своего репозитория — добавь его каталог в `.gitignore`.
+В репозитории лежат только скиллы-сабмодули. Локальные каталоги скиллов исключены в `.gitignore`: после клонирования проекта `skill-opencck`, `graphify` и `mercurius-bin` нужно поставить отдельно. Новый локальный скилл без своего репозитория — добавь его каталог в `.gitignore`.
 
 ### Установлены у пользователя (вне репозитория)
 
@@ -110,18 +103,11 @@
 |-------|-----------------------------------|
 | `claude-api` | **Перед кодом адаптера Claude API** (третий провайдер после OpenRouter и OpenAI) и при выборе моделей Claude: идентификаторы моделей, параметры, tool use, стриминг, кеширование промптов, подсчёт токенов. Не писать по памяти |
 | `skill-telegram-widgets` | Интерактивные сообщения бота (Bot Widgets): карточки подтверждений, сводки расхода, живой статус задачи. Для обычных сообщений и кнопок не нужен |
-| `skill-3xui` | Нужен тестовый VLESS-сервер или диагностика VLESS/Xray, IPv6, Docker-сети на сервере (фазы 2 и 7) |
-| `skill-dockerize` | Не для Меркурия: он про перенос старых сайтов в Docker. Брать только за справкой по работе за Nginx Proxy Manager |
 | `skill-creator` | Создание или доработка скилла Claude Code для этого проекта (вместе с `superpowers:writing-skills`) |
 | `security-review` | Перед коммитом кода, который исполняет команды, работает с секретами, SSH, прокси или недоверенными данными |
 | `code-review`, `simplify` | Перед коммитом заметного объёма кода: сначала поиск ошибок, затем упрощение. Ревью задачи целиком — `superpowers:requesting-code-review` |
 | `run` | Запустить приложение и убедиться, что изменение работает |
-| `claude-in-chrome` | Перед первым вызовом инструментов `mcp__claude-in-chrome__*`: отладка сервиса браузера (фаза 8), проверка веб-интерфейсов, Telegram Web |
-| `update-config` | Настройка Claude Code для проекта: разрешения, хуки, переменные окружения в `.claude/settings*.json` |
-| `fewer-permission-prompts` | Если в работе над проектом много однотипных запросов разрешений на чтение |
-| `loop`, `schedule` | Повторяющаяся проверка (например, следить за сборкой или развёртыванием) — только по просьбе владельца |
-| `workflow-authoring` | Только если владелец явно попросил оркестрацию многими агентами (Workflow) |
-| `dataviz` | Графики и дашборды — например, сводки расхода токенов и времени по трассам (фаза 4) |
+| `claude-in-chrome` | Перед первым вызовом инструментов `mcp__claude-in-chrome__*`: отладка сервиса браузера, проверка веб-интерфейсов, Telegram Web |
 | `amphp`, `opencck` | Глобальные копии проектных скиллов. В этом проекте используй проектные (`skill-amphp`, `skill-opencck`): их версия зафиксирована вместе с кодом |
 
 Не относятся к разработке и используются только по прямой просьбе: скиллы документов, презентаций и таблиц (`anthropic-skills:*`), артефактов (`artifact-*`), `plugin-authoring`, `keybindings-help`, `init`, `skill-3xui-workspace`.
@@ -201,59 +187,60 @@
 | Сервер | Где настроен | Что даёт | Когда использовать |
 |--------|--------------|----------|--------------------|
 | `ssh-mcp` | `.mcp.json` в корне (включён в `.claude/settings.local.json`); образец — [.mcp.json.example](.mcp.json.example) | SSH на сервер проекта, инструменты `mcp__ssh-mcp__*`: `read-command` (чтение по белому списку), `run-command`, `privileged-command`, интерактивные и фоновые сессии, `sftp-upload` / `sftp-download` | Развёртывание, запуск, проверка и диагностика Меркурия на сервере |
-| `openrouter` | локальная настройка Claude Code для этого проекта (`~/.claude.json`, HTTP, `https://mcp.openrouter.ai/mcp`, вход через OAuth); образец — в [.mcp.json.example](.mcp.json.example) | Каталог моделей и цен (`list-models`, `get-model`, `list-model-endpoints`), документация OpenRouter (`search-docs`), баланс (`get-credits`), разбор генерации (`get-generation`); платные вызовы: `send-message`, `send-batch`, генерация изображений, речи, видео | **Выбор моделей** — только через `list-models`/`get-model`, не по памяти: идентификаторы и цены меняются. **Код адаптера OpenRouter** (фаза 2) — сверяй API через `search-docs`. **Отладка расхода** — `get-generation` по id из трассы. Платные вызовы — только для проверки промпта и по согласию владельца; перед серией — `get-credits` |
-| `claude-in-chrome` | расширение браузера у пользователя | Управление вкладками Chrome, чтение страниц, консоль и сеть | Отладка сервиса браузера (фаза 8), проверка веб-интерфейсов, **проверка бота в Telegram**. Сначала вызвать скилл `claude-in-chrome` |
+| `openrouter` | локальная настройка Claude Code для этого проекта (`~/.claude.json`, HTTP, `https://mcp.openrouter.ai/mcp`, вход через OAuth); образец — в [.mcp.json.example](.mcp.json.example) | Каталог моделей и цен (`list-models`, `get-model`, `list-model-endpoints`), документация OpenRouter (`search-docs`), баланс (`get-credits`), разбор генерации (`get-generation`); платные вызовы: `send-message`, `send-batch`, генерация изображений, речи, видео | **Выбор моделей** — только через `list-models`/`get-model`, не по памяти: идентификаторы и цены меняются. **Код адаптера OpenRouter** — сверяй API через `search-docs`. **Отладка расхода** — `get-generation` по id из трассы. Платные вызовы — только для проверки промпта и по согласию владельца; перед серией — `get-credits` |
+| `claude-in-chrome` | расширение браузера у пользователя | Управление вкладками Chrome, чтение страниц, консоль и сеть | Отладка сервиса браузера, проверка веб-интерфейсов, **проверка бота в Telegram** (чат для проверки — в `SERVER.md`). Сначала вызвать скилл `claude-in-chrome` |
 
-**Проверка бота через Telegram Web.** В Chrome владелец авторизован в Telegram Web; чат с ботом — `https://web.telegram.org/k/#8927332395` (клиент K; клиент A — `/a/` — при плохой связи теряет правки сообщений и показывает устаревший статус вместо ответа).
-Через `claude-in-chrome` можно писать боту от имени владельца и читать ответы: так проверяются изменения в канале Telegram
-после развёртывания. Пиши только в этот чат; другие чаты владельца не открывай и не читай.
 | Коннекторы claude.ai (Docs, Data, Meetings; Asana, Atlassian, Gmail, Google, Slack, Notion и др. — без входа) | аккаунт пользователя | Документы, данные, встречи, сторонние сервисы | К разработке не относятся — только по прямой просьбе |
 
 - `.mcp.json` содержит адрес сервера и пароль, поэтому исключён из git. Не коммить его и не печатай его содержимое.
-- Исходный код сервера `ssh-mcp` лежит в референсах: [references/ssh-mcp/](references/ssh-mcp/), конспект — [notes/ssh-mcp.md](notes/ssh-mcp.md). Он же — образец политики команд для SSH-инструмента самого Меркурия.
+- Исходный код сервера `ssh-mcp` лежит в референсах: [references/ssh-mcp/](references/ssh-mcp/), конспект — [docs/notes/ssh-mcp.md](docs/notes/ssh-mcp.md). Он же — образец политики команд для SSH-инструмента самого Меркурия.
 
-## Сервер: продакшен, тестирование, разработка
+## Сервер разработки и развёртывание
 
-- Доступ — через MCP `ssh-mcp`, профиль `default`. Рабочая папка — `/home/rekryt/docker/mercurius/`.
-- Там держится продакшен-версия Меркурия. Через неё же ведутся проверка, тестирование и разработка: изменения проверяй на сервере, а не только локально.
-- **Ещё два экземпляра для проверки сети агентов** (решение владельца 2026-11-17): `/home/rekryt/docker/mercurius-doorotar/` (@doorotarbot) и `/home/rekryt/docker/mercurius-rekryt/` (@GPT_IIIKA_bot). Это такие же клоны `opencck/mercurius`, обновляются тем же порядком. В `.env` у каждого свой проект Compose, свои ключи и токены, `WEB_ALIAS` и `SANDBOX_SUBNET`; веб-вход через NPM владельца — `https://mercurius-doorotar.srv.rekryt.ru/` и `https://mercurius-rekryt.srv.rekryt.ru/` (2026-11-17), Telegram — через webhook (`APP_URL` задан); с 2026-11-17 у каждого своя песочница (свой `SANDBOX_TOKEN`, подсеть `SANDBOX_SUBNET`: doorotar — `172.31.252.0/24`, rekryt — `172.31.253.0/24`), запускаются все сервисы (`docker compose up -d`), как у основного. Образы общие (`mercurius-app:dev` и т. д.): сборка в любом каталоге обновляет все три. Пишем только в чат основного бота; в чаты этих ботов — только по просьбе владельца.
-- **Третий дополнительный экземпляр — под пользователем `yaon`** (решение владельца 2026-11-17): `/home/yaon/mercurius/`, бот @imercurius_bot, владелец агента — Telegram `451898468`, домен `https://mercurius-yaon.srv.rekryt.ru/` (NPM владельца; псевдоним в сети `web` — `mercurius-yaon`), проект Compose `mercurius-yaon`, с 2026-11-17 своя песочница (подсеть `172.31.251.0/24`) и все сервисы. Каталог принадлежит `yaon`, у `rekryt` — запись через ACL (`setfacl`, выдал владелец); `.env` и `storage/browser` (1777) созданы `rekryt`. Для git на этом клоне у `rekryt` задан `safe.directory`. Ключи моделей и VLESS — те же, что у основного. Обновляется тем же порядком, что два других.
-- **Четвёртый дополнительный экземпляр — machaon** (решение владельца 2026-11-18): `/home/rekryt/docker/mercurius-machaon/`,
-  бот @MercyRouterBot, владелец агента — Telegram `383408372`, домен `https://mercurius-machaon.srv.rekryt.ru/` (NPM
-  владельца; псевдоним в сети `web` — `mercurius-machaon`), проект Compose `mercurius-machaon`, песочница
-  `172.31.249.0/24`, свой ключ OpenRouter, модули — как у doorotar. Обновляется тем же порядком.
-- Работай только внутри `/home/rekryt/docker/mercurius/` (и трёх каталогов выше), а также `/home/yaon/mercurius/`. В `/home/rekryt/docker/` лежат другие проекты владельца — их файлы, контейнеры, сети и тома не трогай.
+- **Данные сервера — в локальном `SERVER.md`** (в git не входит; образец — [SERVER.md.example](SERVER.md.example)): доступ,
+  каталоги экземпляров, домены, боты, чат для проверки, особенности сервера. Перед работой на сервере прочитай его.
+  Файла нет — общего сервера у разработчика нет: проверяй локально через Docker Compose и скажи об этом в итоге.
+- **В git эти сведения не попадают.** В спецификации, комментариях, тестах и сообщениях коммитов нет адресов, путей,
+  имён ботов и людей с сервера разработки; экземпляры называются «основной», B, C, D, E — что за ними стоит, написано
+  в `SERVER.md`. Новое сведение о сервере — в `SERVER.md`, а не в `brief/`.
+- Работай только в каталогах экземпляров из `SERVER.md`; чужие файлы, контейнеры, сети и тома на сервере не трогай.
 - Сервисы запускаются через Docker Compose; имя проекта и файл берутся из `.env` (`COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`).
-- Веб-вход — `https://mercurius.srv.rekryt.ru/` через Nginx Proxy Manager владельца. Сервис приложения подключается к внешней сети `web` (`networks: web: external: true`), порты наружу не публикует. Настройки NPM меняет только владелец; в сеть `web` подключён только сервис с HTTP-входом, база и песочница — нет.
+  Сервис приложения подключается к внешней сети прокси и порты наружу не публикует; настройки прокси меняет владелец.
 - Секреты (`.env`) в git не попадают: на сервер их переноси отдельно и в вывод команд не печатай.
-- Для чтения используй `read-command`; команды, меняющие систему, — только в рамках задачи.
-- Диск сервера заполнен на 90%: следи за размером образов и томов, убирай за собой неиспользуемые образы проекта.
+- Для чтения используй `read-command`; команды, меняющие систему, — только в рамках задачи. За собой убирай
+  неиспользуемые образы проекта.
 
 ### Развёртывание
 
-Код на сервер попадает только через git: каталог `/home/rekryt/docker/mercurius/` — клон `opencck/mercurius` (`master`).
-
-Одной командой шаги 2–4 и 6 делает `bin/update.sh` из каталога экземпляра (на сервере с таймаутом ssh-mcp — в фоне
-через `nohup`); ниже — те же шаги по отдельности.
+Код на сервер попадает только через git: каталог экземпляра — клон `opencck/mercurius` (`master`).
+Одной командой шаги 2–4 и 6 делает `bin/update.sh` из каталога экземпляра (при коротком таймауте SSH — в фоне через
+`nohup`); ниже — те же шаги по отдельности.
 
 1. Закоммитить и отправить изменения (`composer check` зелёный, CI прошёл).
-2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer mcp/mail services/browser services/telegram-bot-api services/media-video services/media-docs skills/skill-creator skills/memory-file` (референсы на сервере не нужны). Модули включаются в `.env` профилем (`COMPOSE_PROFILES`) и токеном — [Модули: сервисы, MCP и скиллы](brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы).
-3. Новые переменные окружения — дописать в серверный `.env` через `sftp-upload` (права `600`), не печатая значения.
-4. Копия перед обновлением: `bin/backup.sh` (дамп базы, данные, `.env`; последние 7 — в `backups/`). Затем `docker compose up -d --build` (на сервере с таймаутом ssh-mcp в 60 с — в фоне через `nohup`, затем ждать `EXIT=` в журнале); проверить `docker compose ps` (`app`, `postgres`, `sandbox` и модули из `COMPOSE_PROFILES` — `healthy`) и журнал `docker compose logs --tail=50 app` (строка `Migrations checked` с применёнными миграциями).
-5. Интеграционные тесты: `docker compose --profile test build test && docker compose --profile test run --rm test` (Compose на сервере не знает `run --build`; в фоне через `nohup`).
-6. Убрать старые образы проекта: `docker image prune -f --filter label=com.docker.compose.project=mercurius` — не трогая чужие.
+2. В каталоге экземпляра: `git pull --ff-only`, затем `git submodule update --init --depth 1 <сабмодули из bin/update.sh>`
+   (референсы на сервере не нужны). Модули включаются в `.env` профилем (`COMPOSE_PROFILES`) и токеном —
+   [Модули](brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы).
+3. Новые переменные окружения — дописать в серверный `.env` (права `600`), не печатая значения.
+4. Копия перед обновлением: `bin/backup.sh` (дамп базы, данные, `.env`; последние 7 — в `backups/`). Затем
+   `docker compose up -d --build`; проверить `docker compose ps` (`app`, `postgres`, `sandbox` и модули из
+   `COMPOSE_PROFILES` — `healthy`) и журнал `docker compose logs --tail=50 app` (строка `Migrations checked`).
+5. Интеграционные тесты: `docker compose --profile test build test && docker compose --profile test run --rm test`.
+6. Убрать старые образы проекта: `docker image prune -f --filter label=com.docker.compose.project=<проект>` — не трогая чужие.
 
-**Откат:** `git checkout <предыдущий коммит> && docker compose up -d --build`, затем вернуться на `master`, когда исправление запушено.
-Миграции только добавляют схему; откат кода не откатывает базу — несовместимые изменения схемы делаются в два шага (добавить → перевести код → удалить).
+**Откат:** `git checkout <предыдущий коммит> && docker compose up -d --build`, затем вернуться на `master`, когда
+исправление запушено. Миграции только добавляют схему; откат кода не откатывает базу — несовместимые изменения схемы
+делаются в два шага (добавить → перевести код → удалить).
 
 ## Секреты и локальные файлы
 
 | Файл | В git | Содержимое |
 |------|-------|------------|
-| `.env` | нет | Секреты: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK` (нужен хотя бы один из четырёх ключей; регион Bedrock — `BEDROCK_REGION`), `VLESS_URI` (задан — запросы к провайдерам моделей идут через VLESS; пуст — напрямую), `TELEGRAM_PROXY` (путь к Telegram: пусто — напрямую, `vless` или прокси), `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (для локального сервера Bot API, профиль `telegram-api`), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN` (пуст — песочница выключена), `METRICS_TOKEN` (пуст — `/metrics` выключен), `MEMORY_SECRET` (ключ отпечатков забытых фактов; пуст — выводится из токена бота), `SECRETS_KEY` (мастер-ключ хранилища секретов, 32 байта в base64; пуст — хранилище и SSH выключены), `BROWSER_TOKEN` (токен сервиса браузера; пуст — браузера у агента нет), `A2A_TOKEN` (токен входа для соседних агентов; пуст — вход по A2A выключен; кто говорит — по ключам ECDSA агентов), `A2A_TRANSPORT` (`ws` — WebSocket `/a2a/ws`, по умолчанию; `http` — `POST /a2a`). `MAIL_MCP_TOKEN` (токен встроенного MCP почты; пуст — почты у агента нет). `JEV_API_KEY` (ключ сервиса-судьи Jev для `EVAL_JUDGE_MODEL=jev:…`; пуст — Jev не используется). Прочее: `COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`, `TELEGRAM_ADMIN_ID` (первый владелец; дальше владение передаётся `/owner`), `APP_URL` (задан — Telegram через webhook, пуст — long polling), лимиты агента и песочницы, окно и модели (`LLM_*`), часовой пояс и тихие часы владельца (`OWNER_TIMEZONE`, `QUIET_HOURS`), лимит токенов задания (`JOB_TOKEN_BUDGET`), время ежедневной сводки (`DIGEST_TIME`), срок хранения трасс. Настройки агента (модели, лимиты, поиск, почта, язык `AGENT_LANGUAGE` и др.) задаются в `.env` как начальные и меняются в диалоге (`/set`) — [Настройки агента](brief/operations.md#настройки-агента). Полный список с пояснениями — `.env.example` |
+| `.env` | нет | Секреты (токены каналов, ключи провайдеров моделей, пароль базы, токены модулей, мастер-ключ хранилища) и начальные настройки агента. Нужен хотя бы один ключ провайдера моделей. Полный список с пояснениями — `.env.example`; настройки агента меняются и в диалоге (`/set`) — [Настройки агента](brief/operations.md#настройки-агента) |
 | `.env.example` | да | Те же переменные без значений. Добавил переменную в `.env` — добавь и сюда |
 | `.mcp.json` | нет | Настройка MCP `ssh-mcp` с адресом и паролем |
 | `.mcp.json.example` | да | Образец без адреса и пароля; заодно показывает, как подключить MCP OpenRouter |
+| `SERVER.md` | нет | Сервер разработки: доступ, каталоги экземпляров, домены, боты, чат для проверки |
+| `SERVER.md.example` | да | Образец `SERVER.md` без данных |
 | `.claude/settings.local.json` | нет | Локальные настройки Claude Code |
 | `graphify-out/` | нет | Граф знаний, пересобирается командой `/graphify` |
 | `storage/app`, `storage/postgres`, `storage/workspace`, `storage/browser` | только каталоги с `.keep` | Данные контейнеров (решение владельца 2026-11-16 — каталоги проекта, не тома Docker): приложение, база PostgreSQL (`pgdata/`), рабочие каталоги участников в песочнице, профили браузера со входами (права 1777: пишет пользователь контейнера) |
@@ -263,45 +250,17 @@
 
 ## База знаний: материалы
 
-Конспект — точка входа в каждый материал. Сводка по всем — в [База знаний](brief/knowledge.md#база-знаний).
-
-### Референсные репозитории (`references/`, git-сабмодули)
-
-Версии и журнал обновлений — в [references/README.md](references/README.md).
-
-| Репозиторий | Зачем проекту | Конспект | Локальная копия |
-|-------------|---------------|----------|-----------------|
-| [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | Образец ядра: агентский цикл, инструменты, делегирование, шлюз, подтверждения, скиллы | [ядро](notes/hermes-agent.md), [память и скиллы](notes/hermes-agent-memory-skills.md), [шлюз и безопасность](notes/hermes-agent-gateway-security.md) | [references/hermes-agent/](references/hermes-agent/) |
-| [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | Образец памяти: хранилище фактов, поиск, доверие, история версий | [notes/hermes-plugin-holographic.md](notes/hermes-plugin-holographic.md) | [references/hermes-plugin-holographic/](references/hermes-plugin-holographic/) |
-| [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | Образец фоновой консолидации памяти | [notes/hermes-dreaming.md](notes/hermes-dreaming.md) | [references/hermes-dreaming/](references/hermes-dreaming/) |
-| [rekryt/amphp-ssh](https://github.com/rekryt/amphp-ssh) | Асинхронный SSH-клиент — основа SSH-инструмента агента | [notes/amphp-ssh.md](notes/amphp-ssh.md) | [references/amphp-ssh/](references/amphp-ssh/) |
-| [rekryt/amphp-vless](https://github.com/rekryt/amphp-vless) | Асинхронный VLESS-клиент — исходящие соединения через VLESS | [notes/amphp-vless.md](notes/amphp-vless.md) | [references/amphp-vless/](references/amphp-vless/) |
-| [tufantunc/ssh-mcp](https://github.com/tufantunc/ssh-mcp) | Образец политики команд, подтверждений и аудита для SSH | [notes/ssh-mcp.md](notes/ssh-mcp.md) | [references/ssh-mcp/](references/ssh-mcp/) |
-| [anthropics/claude-cookbooks](https://github.com/anthropics/claude-cookbooks) | Паттерны агентов, работа с контекстом, памятью, субагентами | [notes/claude-cookbooks.md](notes/claude-cookbooks.md) | [references/claude-cookbooks/](references/claude-cookbooks/) |
-
-### Статьи (`docs/`)
-
-| Материал | Конспект | Локальная копия | Оригинал |
-|----------|----------|-----------------|----------|
-| Anthropic — Building effective AI agents | [notes](notes/anthropic-building-effective-agents.md) | [docs](docs/anthropic-building-effective-agents.md) | [anthropic.com](https://www.anthropic.com/research/building-effective-agents) |
-| Claude Cookbook — Orchestrator-Workers | [notes](notes/claude-cookbook-orchestrator-workers.md) | [docs](docs/claude-cookbook-orchestrator-workers.md) | [platform.claude.com](https://platform.claude.com/cookbook/patterns-agents-orchestrator-workers) |
-| Swarms — Orchestrator-Worker Pattern for LLM Agents | [notes](notes/swarms-orchestrator-worker-pattern.md) | [docs](docs/swarms-orchestrator-worker-pattern.md) | [swarms.ai](https://www.swarms.ai/blog/orchestrator-worker-pattern-llm-agents) |
-| BackendBytes — Multi-agent orchestrator backend | [notes](notes/backendbytes-multi-agent-orchestrator-backend.md) | [docs](docs/backendbytes-multi-agent-orchestrator-backend.md) | [backendbytes.com](https://backendbytes.com/articles/multi-agent-orchestrator-backend/) |
-| MetaCTO — AI agent orchestration patterns | [notes](notes/metacto-ai-agent-orchestration-patterns.md) | [docs](docs/metacto-ai-agent-orchestration-patterns.md) | [metacto.com](https://www.metacto.com/blogs/ai-agent-orchestration-patterns) |
-| Microsoft Azure — AI agent orchestration patterns | [notes](notes/microsoft-azure-ai-agent-design-patterns.md) | [docs](docs/microsoft-azure-ai-agent-design-patterns.md) | [learn.microsoft.com](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) |
-| Vantaige — Orchestrator-workers multi-agent pattern (2026) | [notes](notes/vantaige-orchestrator-workers-2026.md) | [docs](docs/vantaige-orchestrator-workers-2026.md) | [vantaige.io](https://vantaige.io/blog/orchestrator-workers-multi-agent-pattern-2026) |
-| Glukhov — Multi-agent orchestration patterns | [notes](notes/glukhov-multi-agent-orchestration-patterns.md) | [docs](docs/glukhov-multi-agent-orchestration-patterns.md) | [glukhov.org](https://www.glukhov.org/ai-systems/architecture/multi-agent-orchestration-patterns/) |
-| CompileNRun — Orchestrator-Workers | [notes](notes/compilenrun-agents-orchestrator-workers.md) | [docs](docs/compilenrun-agents-orchestrator-workers.md) | [compilenrun.com](https://www.compilenrun.com/docs/ai/agents/agents-multi-agent-systems/agents-orchestrator-workers/) |
-| Built with LangGraph #31 — не скачана (403) | — | [заглушка](docs/plainenglish-langgraph-orchestrator-worker.md) | [ai.plainenglish.io](https://ai.plainenglish.io/built-with-langgraph-31-orchestrator-worker-design-pattern-aa4ed663fc17) |
-
-Новые материалы добавляй по [соглашениям](brief/architecture.md#соглашения) и вноси в эти таблицы.
+Конспект — точка входа в каждый материал. Где что лежит (репозитории, статьи, конспекты, оригиналы) —
+[brief/knowledge.md → Материалы](brief/knowledge.md#материалы-где-что-лежит); по вопросам и источникам —
+[карта конспектов](brief/knowledge.md#карта-конспектов). Новые материалы добавляй по
+[соглашениям](brief/architecture.md#соглашения) и вноси в таблицы `brief/knowledge.md`.
 
 ## Референсные репозитории: версии и обновления
 
 Индекс — [references/README.md](references/README.md): таблица зафиксированных версий сабмодулей и журнал изменений. В нём же отслеживаются сабмодули вне `references/` (скиллы).
 
 - Версия репозитория — это коммит сабмодуля. Таблица в индексе должна совпадать с `git submodule status`.
-- Конспект репозитория в `notes/` привязан к версии: поле `commit` во frontmatter.
+- Конспект репозитория в `docs/notes/` привязан к версии: поле `commit` во frontmatter.
 - При любом обновлении сабмодуля в том же коммите обновляй индекс (коммит, даты) и добавляй запись в журнал: что изменилось в upstream, что это значит для проекта, что обновлено у нас.
 - После обновления проверь, не нужно ли что-то менять в проекте: конспект, выводы в `BRIEF.md`, код и ссылки на референс в комментариях, `brief/`. Новые возможности и приёмы из upstream — повод пересмотреть наши решения; результат проверки запиши в журнал, даже если это «ничего не требуется».
 - Если просят проверить обновления референсов — следуй порядку из раздела «Как проверить и обновить» индекса; без просьбы сабмодули не обновляй.

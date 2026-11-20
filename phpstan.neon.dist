@@ -3,7 +3,5 @@ parameters:
     paths:
         - src
         - test
-        - boot
-        - index.php
-        - sandbox.php
+        - bootstrap
     tmpDir: var/cache/phpstan

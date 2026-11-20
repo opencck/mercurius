@@ -21,7 +21,7 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
 final class ParticipantsToolTest extends AsyncTestCase {
     public function testTheOwnerDecidesTheRoleOfAParticipantWithoutACard(): void {
         $principals = new InMemoryPrincipalRepository();
-        $owner = $principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
+        $owner = $principals->ensureOwner('telegram', '42', 'Сергей Иванов');
         $roman = $principals->createVisitor('telegram', '529769761', 'Roman');
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $tool = new ParticipantsTool($principals, $policies);
@@ -70,18 +70,18 @@ final class ParticipantsToolTest extends AsyncTestCase {
 
     public function testTheOwnerFindsAParticipantByNameWithHisRights(): void {
         $principals = new InMemoryPrincipalRepository();
-        $owner = $principals->ensureOwner('telegram', '42', 'Сергей Крупкин');
-        $visitor = $principals->createVisitor('telegram', '451898468', 'Сергей Аринин');
+        $owner = $principals->ensureOwner('telegram', '42', 'Сергей Иванов');
+        $visitor = $principals->createVisitor('telegram', '100200300', 'Сергей Петров');
         $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $tool = new ParticipantsTool($principals, $policies);
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
 
-        $found = $tool->execute(['query' => 'аринин'], $context)->content;
-        self::assertStringStartsWith('#2 Сергей Аринин — человек, роль user, active', $found);
+        $found = $tool->execute(['query' => 'петров'], $context)->content;
+        self::assertStringStartsWith('#2 Сергей Петров — человек, роль user, active', $found);
         self::assertStringContainsString('инструменты: нет', $found, 'a new user starts without tools');
-        self::assertStringContainsString('#1 Сергей Крупкин', $tool->execute([], $context)->content);
-        self::assertSame('Участника «петров» нет.', $tool->execute(['query' => 'Петров'], $context)->content);
+        self::assertStringContainsString('#1 Сергей Иванов', $tool->execute([], $context)->content);
+        self::assertSame('Участника «сидоров» нет.', $tool->execute(['query' => 'Сидоров'], $context)->content);
 
         $user = $principals->find($visitor->id);
         self::assertNotNull($user);

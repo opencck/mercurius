@@ -16,7 +16,7 @@ use function Amp\async;
  *
  * spec: brief/self-improvement.md#самоулучшение — at least 20 tasks by categories, at least 3 runs, a judge of
  *       another family, the prompt version recorded; no category worse beyond the noise
- * ref: notes/claude-cookbooks.md — scores by category, so a regression shows where it happened
+ * ref: docs/notes/claude-cookbooks.md — scores by category, so a regression shows where it happened
  */
 final class PromptGate {
     /** @param list<EvalTask> $tasks */

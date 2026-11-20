@@ -20,7 +20,7 @@ use function Amp\delay;
 
 final class GroupGateTest extends AsyncTestCase {
     private const GROUP = '-100500';
-    private const BOT = '8927332395';
+    private const BOT = '700100200';
 
     private AgentStack $stack;
     private InMemoryGroupRepository $groups;

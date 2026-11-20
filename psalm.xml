@@ -15,9 +15,7 @@
     <projectFiles>
         <directory name="src"/>
         <directory name="test"/>
-        <directory name="boot"/>
-        <file name="index.php"/>
-        <file name="sandbox.php"/>
+        <directory name="bootstrap"/>
         <ignoreFiles>
             <directory name="vendor"/>
         </ignoreFiles>

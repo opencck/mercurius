@@ -12,7 +12,7 @@ use OpenCCK\App\Eval\EvalTask;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 final class EvalTest extends AsyncTestCase {
-    private const TASKS = __DIR__ . '/../../../resources/eval/tasks.json';
+    private const TASKS = __DIR__ . '/../../../src/App/Eval/tasks.json';
 
     private static function task(string $id): EvalTask {
         foreach (EvalTask::load(self::TASKS) as $task) {

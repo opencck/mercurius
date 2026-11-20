@@ -14,7 +14,7 @@ use OpenCCK\Domain\Server\Server;
 use OpenCCK\Infrastructure\Ssh\AmpSshShell;
 
 /**
- * SSH against the test server of the compose test profile (docker/sshd-test), never a real one.
+ * SSH against the test server of the compose test profile (.docker/sshd-test), never a real one.
  *
  * @group integration
  */
