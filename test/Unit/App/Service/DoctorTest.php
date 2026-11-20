@@ -73,4 +73,14 @@ final class DoctorTest extends AsyncTestCase {
         }
         self::assertMatchesRegularExpression('~Ошибок: \d+, предупреждений: \d+\.~', $text);
     }
+
+    public function testTheDataFolderMustBeWritable(): void {
+        // spec: BRIEF.md#экспорт-и-импорт-агента — archives and marks of the application go into storage/app
+        $ok = Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir()))->run());
+        self::assertStringContainsString('✅ ' . \Mercurius\I18n\t('service.doctor.storage'), $ok);
+
+        $missing = sys_get_temp_dir() . '/no-such-storage-' . bin2hex(random_bytes(4));
+        $failed = Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', $missing))->run());
+        self::assertStringContainsString('❌ ' . \Mercurius\I18n\t('service.doctor.storage') . ': ' . \Mercurius\I18n\t('service.doctor.storage_readonly'), $failed);
+    }
 }

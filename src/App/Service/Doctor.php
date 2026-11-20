@@ -41,7 +41,7 @@ final class Doctor {
 
     /** @return list<array{string, string, string}> status, what, details */
     public function run(): array {
-        return [...$this->settings(), $this->database(), $this->disk(), ...$this->audit(), ...$this->services()];
+        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->audit(), ...$this->services()];
     }
 
     /**
@@ -138,6 +138,17 @@ final class Doctor {
         return $applied === $latest
             ? [self::OK, t('service.doctor.baza'), sprintf(t('service.doctor.migratsii_primeneny'), $applied)]
             : [self::FAIL, t('service.doctor.baza'), sprintf(t('service.doctor.primeneno_iz_migratsiy_perezapustite_pri'), $applied, $latest)];
+    }
+
+    /**
+     * The data folder is a mount of the host: the application writes its archives and marks there as its own user.
+     *
+     * @return array{string, string, string}
+     */
+    private function writable(): array {
+        return is_dir($this->storage) && is_writable($this->storage)
+            ? [self::OK, t('service.doctor.storage'), t('service.doctor.storage_ok')]
+            : [self::FAIL, t('service.doctor.storage'), t('service.doctor.storage_readonly')];
     }
 
     /** @return array{string, string, string} */
