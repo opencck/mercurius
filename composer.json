@@ -20,6 +20,7 @@
         "opencck/mercurius-i18n": "dev-master",
         "opencck/mercurius-llm": "dev-master",
         "opencck/mercurius-mcp-client": "dev-master",
+        "opencck/mercurius-memory": "dev-master",
         "opencck/mercurius-messenger": "dev-master",
         "opencck/mercurius-search": "dev-master",
         "opencck/server": "^1.1.1",
@@ -126,6 +127,16 @@
                 "symlink": false,
                 "versions": {
                     "opencck/mercurius-mcp-client": "dev-master"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/memory",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-memory": "dev-master"
                 }
             }
         }

@@ -75,3 +75,7 @@
 	path = packages/mcp-client
 	url = https://github.com/opencck/mercurius-mcp-client.git
 	branch = master
+[submodule "packages/memory"]
+	path = packages/memory
+	url = https://github.com/opencck/mercurius-memory.git
+	branch = master

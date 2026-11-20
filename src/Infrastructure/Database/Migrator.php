@@ -27,6 +27,19 @@ final class Migrator {
     ) {}
 
     /** @throws MigrationException */
+    /** The migrations of several folders, numbered in one sequence: the agent's own and its packages'. */
+    public static function loadDirectories(string ...$directories): MigrationSet {
+        $files = [];
+        foreach ($directories as $directory) {
+            foreach (listFiles($directory) as $name) {
+                if (str_ends_with($name, '.sql')) {
+                    $files[$name] = read($directory . '/' . $name);
+                }
+            }
+        }
+        return MigrationSet::fromFiles($files);
+    }
+
     public static function loadDirectory(string $directory): MigrationSet {
         $files = [];
         foreach (listFiles($directory) as $name) {

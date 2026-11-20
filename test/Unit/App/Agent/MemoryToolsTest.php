@@ -11,14 +11,14 @@ use OpenCCK\App\Agent\ConversationAudience;
 use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
 use OpenCCK\App\Agent\Tool\Memory\MemorySearchTool;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\AgentStack;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 final class MemoryToolsTest extends AsyncTestCase {
@@ -209,7 +209,7 @@ final class MemoryToolsTest extends AsyncTestCase {
         $proposals = new Proposals($this->store, new TextAnalyzer(), new ContentScreen(), 'k');
         $proposals->onForget($this->cards->forgotten(...));
 
-        $proposal = $proposals->propose(\OpenCCK\Memory\Domain\Proposal::CHANGE, $fact->id, 'Сервер во Франкфурте', 'переехал', ['owner'], 1, null);
+        $proposal = $proposals->propose(\Mercurius\Memory\Domain\Proposal::CHANGE, $fact->id, 'Сервер во Франкфурте', 'переехал', ['owner'], 1, null);
         $this->cards->show($proposal);
         $card = $stack->channel->texts('send')[0] ?? '';
 

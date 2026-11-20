@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Unit\App\Agent;
 
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\AgentStack;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 final class RunSchedulerMemoryTest extends AsyncTestCase {

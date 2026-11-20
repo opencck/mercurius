@@ -53,14 +53,14 @@ final class DailyDigest {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
 
-    private ?\OpenCCK\Memory\Domain\MemoryStore $memory = null;
+    private ?\Mercurius\Memory\Domain\MemoryStore $memory = null;
 
     /**
      * The memory whose waiting proposals the summary counts.
      *
      * spec: BRIEF.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
      */
-    public function useMemory(\OpenCCK\Memory\Domain\MemoryStore $memory): void {
+    public function useMemory(\Mercurius\Memory\Domain\MemoryStore $memory): void {
         $this->memory = $memory;
     }
 
@@ -157,7 +157,7 @@ final class DailyDigest {
         if ($pending === []) {
             return null;
         }
-        $oldest = min(array_map(static fn(\OpenCCK\Memory\Domain\Proposal $p): int => $p->createdAt ?? $now->getTimestamp(), $pending));
+        $oldest = min(array_map(static fn(\Mercurius\Memory\Domain\Proposal $p): int => $p->createdAt ?? $now->getTimestamp(), $pending));
         return sprintf(t('job.daily_digest.memory_waiting'), count($pending), intdiv(max(0, $now->getTimestamp() - $oldest), 86400));
     }
 

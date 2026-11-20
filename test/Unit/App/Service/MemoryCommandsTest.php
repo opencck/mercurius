@@ -8,15 +8,15 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\MemoryCommands;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\Proposal;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\AgentStack;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 
 final class MemoryCommandsTest extends AsyncTestCase {
     private AgentStack $stack;

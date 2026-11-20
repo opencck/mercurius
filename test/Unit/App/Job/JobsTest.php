@@ -20,7 +20,7 @@ use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
-use OpenCCK\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\ContentScreen;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryJobRepository;

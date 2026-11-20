@@ -9,9 +9,9 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Export\AgentImport;
 use OpenCCK\App\Export\PartialImport;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\FakeSandbox;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use RuntimeException;
 
 /**

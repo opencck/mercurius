@@ -141,15 +141,15 @@ use OpenCCK\Infrastructure\Repository\PostgresTraceRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository;
 use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 use OpenCCK\Infrastructure\Ssh\AmpSshShell;
-use OpenCCK\Memory\App\Consolidation;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\TextAnalyzer;
-use OpenCCK\Memory\Infrastructure\PostgresConsolidationJournal;
-use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
+use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Infrastructure\PostgresConsolidationJournal;
+use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
 use Revolt\EventLoop;
 
 use function Mercurius\I18n\t;
@@ -159,6 +159,8 @@ require __DIR__ . '/vendor/autoload.php';
 const PATH_ROOT = __DIR__;
 
 Dotenv::createImmutable(PATH_ROOT)->safeLoad();
+// spec: BRIEF.md#язык-агента — the memory package takes its texts from the agent's catalogs
+\Mercurius\Memory\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 
 // What the start needs before the database: the process, Telegram, the vault key. The rest may come from the
 // settings the owner keeps in the dialog (over .env).
@@ -210,7 +212,7 @@ if ($importedKey !== null && $importedKey !== ($_ENV['SECRETS_KEY'] ?? null)) {
     }
 }
 $db = Database::pool($config->postgres);
-$applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectory(PATH_ROOT . '/migrations'));
+$applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectories(...\OpenCCK\Infrastructure\Database\MigrationFolders::of(PATH_ROOT)));
 $logger->info('Migrations checked', ['applied' => $applied]);
 
 // spec: BRIEF.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
@@ -645,11 +647,11 @@ $proposals = new Proposals(
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $ownerDirectory, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
 // spec: BRIEF.md#консолидация-dreaming — the card says on how many days the person said it, by their own messages
-$corroboration = new \OpenCCK\Memory\App\Corroboration($textAnalyzer);
+$corroboration = new \Mercurius\Memory\App\Corroboration($textAnalyzer);
 $memoryCards->useCorroboration(static function (int $principalId, string $text) use ($corroboration, $transcript): int {
     $zone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');
-    $since = time() - \OpenCCK\Memory\App\Corroboration::WINDOW_DAYS * 86400;
-    return $corroboration->days($text, $transcript->spokenBy($principalId, $since, \OpenCCK\Memory\App\Corroboration::LINES), $zone);
+    $since = time() - \Mercurius\Memory\App\Corroboration::WINDOW_DAYS * 86400;
+    return $corroboration->days($text, $transcript->spokenBy($principalId, $since, \Mercurius\Memory\App\Corroboration::LINES), $zone);
 });
 // spec: BRIEF.md#память-слои — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');

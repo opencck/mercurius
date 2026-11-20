@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Module;
 
 use OpenCCK\Infrastructure\API\AppModuleInterface;
-use OpenCCK\Memory\App\Consolidation;
-use OpenCCK\Memory\Domain\ConsolidationJournal;
+use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\Domain\ConsolidationJournal;
 use Psr\Log\LoggerInterface;
 use Revolt\EventLoop;
 use Throwable;

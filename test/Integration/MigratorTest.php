@@ -74,7 +74,7 @@ final class MigratorTest extends AsyncTestCase {
     }
 
     public function testProjectMigrationsApply(): void {
-        $applied = (new Migrator($this->db, new NullLogger()))->migrate(Migrator::loadDirectory(dirname(__DIR__, 2) . '/migrations'));
+        $applied = (new Migrator($this->db, new NullLogger()))->migrate(Migrator::loadDirectories(...\OpenCCK\Infrastructure\Database\MigrationFolders::of(dirname(__DIR__, 2))));
 
         self::assertNotEmpty($applied);
     }

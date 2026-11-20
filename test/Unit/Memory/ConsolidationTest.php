@@ -6,15 +6,15 @@ namespace OpenCCK\Test\Unit\Memory;
 
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\Infrastructure\Module\MemoryConsolidationModule;
-use OpenCCK\Memory\App\Consolidation;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\ConsolidationJournal;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\Proposal;
-use OpenCCK\Memory\Domain\TextAnalyzer;
-use OpenCCK\Test\Support\InMemoryConsolidationJournal;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\Domain\ConsolidationJournal;
+use Mercurius\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Infrastructure\InMemoryConsolidationJournal;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 
 final class ConsolidationTest extends AsyncTestCase {
     private InMemoryMemoryStore $store;

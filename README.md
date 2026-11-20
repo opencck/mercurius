@@ -38,7 +38,7 @@ API.
 1. Clone the code and the package submodules (reference repositories are not needed to run it):
    ```sh
    git clone https://github.com/opencck/mercurius.git && cd mercurius
-   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client skills/skill-creator
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory skills/skill-creator
    ```
 2. Copy `.env.example` to `.env` (mode `600`) and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your
    Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
@@ -132,8 +132,9 @@ Components useful outside Mercurius live in their own repositories and are inclu
 | [`mercurius-search`](https://github.com/opencck/mercurius-search) | Web search behind one interface: SearXNG, Brave, Tavily and a model with web search, with fallback and a cache. |
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | The texts of the agent in Russian and English: a translator, catalogs, plural forms and a parity check. |
 | [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) | An MCP client: JSON-RPC over Streamable HTTP, tools and resources by pages, files in tool results. |
+| [`mercurius-memory`](https://github.com/opencck/mercurius-memory) | Memory for agents: facts with versions and provenance, recall by keys and HRR vectors, proposals the owner decides, a core layer, nightly consolidation; PostgreSQL and in-memory stores with their migrations. |
 
-Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). The repositories [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy), [`mercurius-memory`](https://github.com/opencck/mercurius-memory) and [`mercurius-peer`](https://github.com/opencck/mercurius-peer) are reserved: their code still lives in this repository (`src/CommandPolicy/`, `src/Memory/`, `src/App/Peer/`); the memory and the agent network move out first.
+Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). The repositories [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy) and [`mercurius-peer`](https://github.com/opencck/mercurius-peer) are reserved: their code still lives in this repository (`src/CommandPolicy/`, `src/App/Peer/`); the agent network moves out next.
 
 ## Repository layout
 

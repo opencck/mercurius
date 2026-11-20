@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Integration;
 
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\TextAnalyzer;
-use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**

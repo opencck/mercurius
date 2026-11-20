@@ -37,7 +37,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 1. Клонировать код и сабмодули пакетов (референсы для запуска не нужны):
    ```sh
    git clone https://github.com/opencck/mercurius.git && cd mercurius
-   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client skills/skill-creator
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory skills/skill-creator
    ```
 2. Скопировать `.env.example` в `.env` (права `600`) и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`
    (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (хватит одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
@@ -131,8 +131,9 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`mercurius-search`](https://github.com/opencck/mercurius-search) | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily и модель с веб-поиском, с порядком и кешем. |
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | Тексты агента на русском и английском: переводчик, каталоги, формы числа и проверка совпадения. |
 | [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате вызова. |
+| [`mercurius-memory`](https://github.com/opencck/mercurius-memory) | Память агента: факты с версиями и происхождением, вспоминание по ключам и векторам HRR, предложения на решение владельца, ядро, ночная проверка; хранилища PostgreSQL и в памяти со своими миграциями. |
 
-Модули — браузер, медиа, почта и свой сервер Bot API — перечислены в разделе [Модули](#модули). Репозитории [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy), [`mercurius-memory`](https://github.com/opencck/mercurius-memory) и [`mercurius-peer`](https://github.com/opencck/mercurius-peer) заведены, но код пока в основном репозитории (`src/CommandPolicy/`, `src/Memory/`, `src/App/Peer/`); первыми выносятся память и сеть агентов.
+Модули — браузер, медиа, почта и свой сервер Bot API — перечислены в разделе [Модули](#модули). Репозитории [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy) и [`mercurius-peer`](https://github.com/opencck/mercurius-peer) заведены, но код пока в основном репозитории (`src/CommandPolicy/`, `src/App/Peer/`); следующей выносится сеть агентов.
 
 ## Устройство репозитория
 

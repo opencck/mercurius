@@ -154,8 +154,8 @@ final class ImportCommandsTest extends AsyncTestCase {
 
     public function testOnlyTheMemoryOfTheArchiveIsTakenAndTheArchiveStillWaits(): void {
         file_put_contents($this->storage . '/import/agent.mrcx', $this->sealed());
-        $memory = new \OpenCCK\Test\Support\InMemoryMemoryStore();
-        $commands = $this->commands(new PartialImport(self::fake(...), $memory, new \OpenCCK\Memory\Domain\TextAnalyzer()));
+        $memory = new \Mercurius\Memory\Infrastructure\InMemoryMemoryStore();
+        $commands = $this->commands(new PartialImport(self::fake(...), $memory, new \Mercurius\Memory\Domain\TextAnalyzer()));
 
         self::assertSame(t('import.nothing'), $commands->start('42', 'memory', null, 1), 'nothing before a checked archive');
         $commands->start('42', self::PASSWORD . ' agent.mrcx', null, 1);

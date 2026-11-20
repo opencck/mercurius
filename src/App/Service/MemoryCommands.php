@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
-use OpenCCK\Memory\App\Audience;
-use OpenCCK\Memory\App\Consolidation;
-use OpenCCK\Memory\App\MemoryContext;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\MemoryStore;
+use Mercurius\Memory\App\Audience;
+use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\Domain\MemoryStore;
 
 use function Mercurius\I18n\t;
 
@@ -81,10 +81,10 @@ final class MemoryCommands {
     /**
      * One line a fact: number, text and where it came from.
      *
-     * @param list<\OpenCCK\Memory\Domain\Fact> $facts
+     * @param list<\Mercurius\Memory\Domain\Fact> $facts
      */
     private static function lines(array $facts): string {
-        return implode("\n", array_map(static fn(\OpenCCK\Memory\Domain\Fact $f): string => sprintf('#%d %s — %s', $f->id, self::cut($f->text), t('memory.provenance.' . $f->provenance)), $facts));
+        return implode("\n", array_map(static fn(\Mercurius\Memory\Domain\Fact $f): string => sprintf('#%d %s — %s', $f->id, self::cut($f->text), t('memory.provenance.' . $f->provenance)), $facts));
     }
 
     public function forget(string $argument): string {

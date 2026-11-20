@@ -8,8 +8,8 @@ use Amp\Cancellation;
 use Closure;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Memory\Domain\MemoryStore;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Domain\MemoryStore;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use RuntimeException;
 
 /**

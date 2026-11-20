@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Integration;
 
 use Amp\Postgres\PostgresConnection;
-use OpenCCK\Memory\Infrastructure\PostgresMemoryStore;
-use OpenCCK\Test\Support\MemoryStoreContract;
+use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
+use Mercurius\Memory\Testing\MemoryStoreContract;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
@@ -24,7 +24,7 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
 
     public function testARunTakesTheRecallsMadeForItWithTheVersions(): void {
         // spec: BRIEF.md#трассировка-и-метрики — a receipt of recall: which run got which version of which fact
-        $fact = $this->store->addFact('owner', \OpenCCK\Memory\Domain\Fact::KNOWLEDGE, 'квитанция', ['квитанция'], 0.5, \OpenCCK\Memory\Domain\Fact::AGENT, null);
+        $fact = $this->store->addFact('owner', \Mercurius\Memory\Domain\Fact::KNOWLEDGE, 'квитанция', ['квитанция'], 0.5, \Mercurius\Memory\Domain\Fact::AGENT, null);
         $this->store->markRecalled($this->conversationId, [$fact->id], [$fact->id => $fact->version]);
         $row = $this->db->execute('SELECT principal_id FROM conversations WHERE id = ?', [$this->conversationId])->fetchRow() ?? [];
         $principal = isset($row['principal_id']) && is_int($row['principal_id']) ? $row['principal_id'] : 0;

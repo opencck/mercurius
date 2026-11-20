@@ -33,7 +33,7 @@ use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
-use OpenCCK\Memory\App\MemoryContext;
+use Mercurius\Memory\App\MemoryContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -611,7 +611,7 @@ final class RunScheduler {
         if ($this->memory !== null) {
             try {
                 // spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
-                $parts[] = $this->memory->core($principal->isOwner() ? \OpenCCK\Memory\App\Audience::OWNER : \OpenCCK\Memory\App\Audience::principal($principal->id));
+                $parts[] = $this->memory->core($principal->isOwner() ? \Mercurius\Memory\App\Audience::OWNER : \Mercurius\Memory\App\Audience::principal($principal->id));
             } catch (Throwable $e) {
                 $this->logger->warning('Memory core is not available', ['error' => $e::class]);
             }

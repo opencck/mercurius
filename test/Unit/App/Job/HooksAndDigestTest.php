@@ -224,7 +224,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     public function testTheSummarySaysHowLongMemoryProposalsWait(): void {
         // spec: BRIEF.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
-        $memory = new \OpenCCK\Test\Support\InMemoryMemoryStore();
+        $memory = new \Mercurius\Memory\Infrastructure\InMemoryMemoryStore();
         $memory->propose('add', null, 'owner', 'кот — Барсик', 'сказал', null, null);
         $memory->propose('add', null, 'owner', 'пёс — Шарик', 'сказал', null, null);
         $later = new DateTimeImmutable('+3 days');

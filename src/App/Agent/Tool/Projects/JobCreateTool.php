@@ -16,7 +16,7 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\JobRepository;
-use OpenCCK\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\ContentScreen;
 
 use function Mercurius\I18n\t;
 

@@ -13,8 +13,8 @@ use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\Proposal;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\Domain\Proposal;
 
 use function Mercurius\I18n\t;
 
@@ -51,7 +51,7 @@ final class MemoryProposeTool implements Tool {
                 'reason' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 500],
                 'about_person' => ['type' => 'boolean', 'description' => t('tool.memory_propose.about_person')],
                 // spec: BRIEF.md#всегда-в-контексте — profile and summary are edited by entries
-                'edit' => ['type' => 'string', 'enum' => \OpenCCK\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
+                'edit' => ['type' => 'string', 'enum' => \Mercurius\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
                 'old_text' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.memory_propose.old_text')],
                 'project' => ['type' => 'boolean', 'description' => t('tool.memory_propose.project')],
                 // spec: BRIEF.md#факты — the real provenance and keywords from the agent
@@ -105,7 +105,7 @@ final class MemoryProposeTool implements Tool {
         if (!$this->cards->show($proposal)) {
             return ToolResult::error(sprintf(t('tool.memory_propose.predlozhenie_sohraneno_no_kartochku_vlad'), $proposal->id));
         }
-        if ($proposal->kind === \OpenCCK\Memory\Domain\Proposal::ADD && $proposal->factId !== null) {
+        if ($proposal->kind === \Mercurius\Memory\Domain\Proposal::ADD && $proposal->factId !== null) {
             return ToolResult::ok(sprintf(t('tool.memory_propose.written'), $proposal->factId));
         }
         return ToolResult::ok(sprintf(t('tool.memory_propose.predlozhenie_otpravleno_vladeltsu_pamyat'), $proposal->id));

@@ -12,8 +12,8 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Memory\App\Audience;
-use OpenCCK\Memory\App\MemoryContext;
+use Mercurius\Memory\App\Audience;
+use Mercurius\Memory\App\MemoryContext;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 

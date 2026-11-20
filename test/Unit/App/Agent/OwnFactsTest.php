@@ -10,12 +10,12 @@ use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\MemoryCards;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Memory\App\Audience;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\ContentScreen;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\App\Audience;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\Domain\ContentScreen;
+use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\InMemoryMemoryStore;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use OpenCCK\Test\Support\InMemoryPrincipalRepository;
 
 /**

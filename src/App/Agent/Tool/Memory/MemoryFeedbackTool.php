@@ -10,8 +10,8 @@ use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\MemoryStore;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\MemoryStore;
 
 use function Mercurius\I18n\t;
 

@@ -6,8 +6,8 @@ namespace OpenCCK\Test\Integration;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Postgres\PostgresConnection;
-use OpenCCK\Memory\Domain\ConsolidationJournal;
-use OpenCCK\Memory\Infrastructure\PostgresConsolidationJournal;
+use Mercurius\Memory\Domain\ConsolidationJournal;
+use Mercurius\Memory\Infrastructure\PostgresConsolidationJournal;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**

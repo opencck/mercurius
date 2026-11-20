@@ -11,7 +11,7 @@ use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Memory\App\Recall;
+use Mercurius\Memory\App\Recall;
 
 use function Mercurius\I18n\t;
 
@@ -63,7 +63,7 @@ final class MemorySearchTool implements Tool {
                 return ToolResult::error(t('tool.memory_search.faded'));
             }
             $faded = $this->recall->faded($scopes);
-            return ToolResult::ok($faded === [] ? t('tool.memory_search.faded_none') : implode("\n", array_map(static fn(\OpenCCK\Memory\Domain\Fact $f): string => sprintf('#%d %s (%.2f)', $f->id, $f->text, $f->trust), $faded)));
+            return ToolResult::ok($faded === [] ? t('tool.memory_search.faded_none') : implode("\n", array_map(static fn(\Mercurius\Memory\Domain\Fact $f): string => sprintf('#%d %s (%.2f)', $f->id, $f->text, $f->trust), $faded)));
         }
         if ($related === null && Args::string($args, 'query') === null) {
             return ToolResult::error(t('tool.memory_search.nuzhen_query_ili_related'));

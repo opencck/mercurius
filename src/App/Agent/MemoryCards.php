@@ -12,11 +12,11 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Repository\PrincipalRepository;
-use OpenCCK\Memory\App\Audience;
-use OpenCCK\Memory\App\Proposals;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\MemoryStore;
-use OpenCCK\Memory\Domain\Proposal;
+use Mercurius\Memory\App\Audience;
+use Mercurius\Memory\App\Proposals;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\MemoryStore;
+use Mercurius\Memory\Domain\Proposal;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
@@ -129,7 +129,7 @@ final class MemoryCards implements CallbackHandler {
         $presser = $this->principals->findByIdentity($callback->channel, $callback->userId);
         $scope = $this->store->fact($factId)?->scope;
         // the owner forgets any fact; a participant — one of their own memory
-        $mine = $presser !== null && $scope === \OpenCCK\Memory\App\Audience::principal($presser->id);
+        $mine = $presser !== null && $scope === \Mercurius\Memory\App\Audience::principal($presser->id);
         if ($presser === null || (!$presser->isOwner() && !$mine)) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
@@ -217,7 +217,7 @@ final class MemoryCards implements CallbackHandler {
             return $lines;
         }
         $key = $days >= 2 ? 'agent.memory_cards.days_many' : ($days === 1 ? 'agent.memory_cards.days_one' : 'agent.memory_cards.days_none');
-        return $lines . "\n" . sprintf(t($key), $days, \OpenCCK\Memory\App\Corroboration::WINDOW_DAYS);
+        return $lines . "\n" . sprintf(t($key), $days, \Mercurius\Memory\App\Corroboration::WINDOW_DAYS);
     }
 
     private function who(?int $principalId): string {

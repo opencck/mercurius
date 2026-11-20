@@ -14,8 +14,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `6160633` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b2b13b6` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `05225c3` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `835818d` | 2026-11-20 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 
-Репозитории `mercurius-command-policy`, `mercurius-memory` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/Memory/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); первыми выносятся `memory` и `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
+Репозитории `mercurius-command-policy` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); следующим выносится `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
 ## Модули: сервисы, MCP, скиллы
 
@@ -43,6 +44,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-20 — memory: вынос памяти
+
+- `mercurius-memory` `835818d`: подключён сабмодулем `packages/memory`. Из приложения ушли `src/Memory/`, семь миграций памяти (номера те же — у работающих баз ничего не меняется), словарь `resources/dictionaries/`, двойники хранилища и контрактный тест, девять модульных тестов. Пространство имён `OpenCCK\Memory` → `Mercurius\Memory`.
 
 ### 2026-11-20 — mcp-client: вынос клиента MCP
 

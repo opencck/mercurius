@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Support;
 
-use OpenCCK\Memory\App\Recall;
-use OpenCCK\Memory\Domain\Fact;
-use OpenCCK\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\App\Recall;
+use Mercurius\Memory\Domain\Fact;
+use Mercurius\Memory\Domain\TextAnalyzer;
+use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 
 /**
  * recall@5 of memory search on a set of facts and questions (test/Fixtures/memory-recall-ru.json).

@@ -33,7 +33,7 @@ final class TestDatabase {
         $db->query('DROP SCHEMA IF EXISTS public CASCADE');
         $db->query('CREATE SCHEMA public');
         if ($migrate) {
-            (new Migrator($db, new NullLogger()))->migrate(Migrator::loadDirectory(dirname(__DIR__, 2) . '/migrations'));
+            (new Migrator($db, new NullLogger()))->migrate(Migrator::loadDirectories(...\OpenCCK\Infrastructure\Database\MigrationFolders::of(dirname(__DIR__, 2))));
         }
         return $db;
     }

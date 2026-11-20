@@ -27,18 +27,19 @@ final class UpgradeTest extends AsyncTestCase {
 
     public function testAnUpdateKeepsTheDataOfThePreviousRelease(): void {
         $db = TestDatabase::connect(false);
-        $directory = dirname(__DIR__, 2) . '/migrations';
         $old = [];
         $all = [];
-        $names = scandir($directory);
-        foreach ($names === false ? [] : $names as $name) {
-            if (!str_ends_with($name, '.sql')) {
-                continue;
-            }
-            $sql = (string) file_get_contents($directory . '/' . $name);
-            $all[$name] = $sql;
-            if ((int) $name <= self::PREVIOUS) {
-                $old[$name] = $sql;
+        foreach (\OpenCCK\Infrastructure\Database\MigrationFolders::of(dirname(__DIR__, 2)) as $directory) {
+            $names = scandir($directory);
+            foreach ($names === false ? [] : $names as $name) {
+                if (!str_ends_with($name, '.sql')) {
+                    continue;
+                }
+                $sql = (string) file_get_contents($directory . '/' . $name);
+                $all[$name] = $sql;
+                if ((int) $name <= self::PREVIOUS) {
+                    $old[$name] = $sql;
+                }
             }
         }
         $migrator = new Migrator($db, new NullLogger());

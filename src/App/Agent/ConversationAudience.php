@@ -7,7 +7,7 @@ namespace OpenCCK\App\Agent;
 use OpenCCK\Domain\Agent\HistoryScope;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ConversationRepository;
-use OpenCCK\Memory\App\Audience;
+use Mercurius\Memory\App\Audience;
 
 /**
  * Who hears a conversation, for memory: the kind of chat comes from its messages and is kept here; a conversation

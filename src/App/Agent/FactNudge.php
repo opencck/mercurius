@@ -19,7 +19,7 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
-use OpenCCK\Memory\App\Proposals;
+use Mercurius\Memory\App\Proposals;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
