@@ -112,6 +112,15 @@ final class SecretMaskerTest extends TestCase {
         self::assertStringContainsString('12345678', $masked, 'a plain number is not a phone');
     }
 
+    public function testACountOfTokensIsNotASecret(): void {
+        // spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — the totals of a run («токенов: …, время: …») stay readable
+        $totals = 'Ходов: 1, токенов: 18318, время: 61 с.';
+        self::assertSame($totals, SecretMasker::mask($totals));
+        self::assertSame('токен: ***', SecretMasker::mask('токен: abc123XYZ'));
+        self::assertSame('Токен бота: ***', SecretMasker::mask('Токен бота: 12345'));
+        self::assertSame('пароль от роутера: *** дальше', SecretMasker::mask('пароль от роутера: hunter2 дальше'));
+    }
+
     public function testAnAuthorIsNotAnAuthorization(): void {
         // spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a name is secret by a whole word: "auth" inside "author" is not one
         foreach (['Co-Authored-By: Claude Opus <noreply@example.org>', 'author: Ivan', 'authority=central', 'Authors: A, B'] as $line) {

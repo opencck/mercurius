@@ -95,8 +95,10 @@ final class SecretMasker {
             '/(\b' . $name . '\s*[=:]\s*)("[^"]*"|\'[^\']*\'|[^\s&"\']+)/i' => '$1***',
             // In Russian: «пароль от роутера: …», «токен …»: the value after a colon, or a word of letters and digits
             // within a few words — the eval caught a password said in Russian landing in a memory fact.
-            '/((?:парол|токен|ключ\s+api|секретн\S*\s+ключ|pin|пин-?код)\S*[^\n:=]{0,40}?[:=]\s*)("[^"]*"|\S+)/iu' => '$1***',
-            '/((?:парол|токен|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
+            // «токенов: 18318» is a count, not a secret; the word itself ends before a colon, so the value masked is the
+            // one after the nearest colon, not after a later one («токенов: 18318, время: 61 с»).
+            '/((?:парол|токен(?!ов(?![\p{L}\d]))|ключ\s+api|секретн\S*\s+ключ|pin|пин-?код)[^\s:=]*[^\n:=]{0,40}?[:=]\s*)("[^"]*"|\S+)/iu' => '$1***',
+            '/((?:парол|токен(?!ов(?![\p{L}\d]))|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
             // ref: references/hermes-agent/agent/redact.py@e96221fa:L620-L640 — a bot token and a PEM private key
             '/(?<![A-Za-z_\d])(bot)?(\d{8,}):[-A-Za-z0-9_]{30,}/' => '$1$2:***',
             '/-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/' => '[PRIVATE KEY]',
