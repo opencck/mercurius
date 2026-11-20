@@ -31,6 +31,8 @@ final class SkillViewTool implements Tool {
     public function __construct(
         private readonly SkillLibrary $library,
         private readonly Closure $projectOf,
+        /** @var (Closure(\OpenCCK\Domain\Entity\Principal): list<Project>)|null the projects a participant works with; null — a missing skill is not looked for elsewhere */
+        private readonly ?Closure $projectsOf = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -43,6 +45,21 @@ final class SkillViewTool implements Tool {
             ],
             'additionalProperties' => false,
         ]);
+    }
+
+    /**
+     * The project of the participant that has the skill, when this chat has not: an agent connected over the network
+     * has no chat bound to a project, so it has to name the project.
+     *
+     * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a skill missing here is pointed at its project
+     */
+    private function elsewhere(string $name, ?Project $here, ToolContext $context): ?string {
+        foreach (array_slice($this->projectsOf === null ? [] : ($this->projectsOf)($context->principal), 0, 10) as $project) {
+            if ($project->id !== $here?->id && $this->library->view($context->principal, $project, $name, null, $context->cancellation) !== null) {
+                return $project->name;
+            }
+        }
+        return null;
     }
 
     public function danger(array $args): DangerClass {
@@ -72,6 +89,10 @@ final class SkillViewTool implements Tool {
         $path = $path === null ? null : ltrim(trim($path), './');
         $skill = $this->library->view($context->principal, $project, $name, $path === '' ? null : $path, $context->cancellation);
         if ($skill === null) {
+            $elsewhere = $path === null ? $this->elsewhere($name, $project, $context) : null;
+            if ($elsewhere !== null) {
+                return ToolResult::error(sprintf(t('tool.skill_view.in_project'), $name, $elsewhere, $elsewhere));
+            }
             return ToolResult::error($path === null ? sprintf(t('tool.skill_view.aktivnogo_skilla_net'), $name) : sprintf(t('tool.skill_view.no_file'), $name, $path));
         }
         return ToolResult::ok($skill['files'] === [] ? $skill['text'] : $skill['text'] . sprintf(t('tool.skill_view.files_list'), implode("\n", array_map(static fn(string $p): string => '- ' . $p, $skill['files']))));

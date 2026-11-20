@@ -152,6 +152,40 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertContains('.mercurius/skills/weekly-report/templates/table.md', array_keys($this->sandbox->files[1]));
     }
 
+    public function testANamedProjectIsThePlaceAndAMissingSkillIsPointedAtItsProject(): void {
+        // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a skill with a project named goes into that project;
+        //       a skill that is not in this chat but is in a project of the participant is pointed at
+        $library = $this->library();
+        $projects = fn(Principal $who): array => array_values($this->projects);
+        $view = new SkillViewTool($library, $this->projectOf(), $projects);
+        $save = new SkillSaveTool($library, $this->projectOf());
+
+        $saved = $save->execute(['name' => 'seo', 'description' => 'SEO сайта', 'body' => 'Шаги.', 'project' => 'Сайт'], $this->context($this->owner));
+        self::assertFalse($saved->isError, $saved->content);
+        self::assertArrayHasKey('projects/12/.mercurius/skills/seo/SKILL.md', $this->sandbox->files[1] ?? [], 'the project was named: the skill is the project\'s, not the participant\'s own');
+        self::assertArrayNotHasKey('.mercurius/skills/seo/SKILL.md', $this->sandbox->files[1] ?? []);
+
+        $missing = $view->execute(['name' => 'seo'], $this->context($this->owner));
+        self::assertTrue($missing->isError);
+        self::assertStringContainsString('Сайт', $missing->content, 'the answer says where the skill is');
+        self::assertStringContainsString('project', $missing->content);
+
+        $nowhere = $view->execute(['name' => 'nothing-like-it'], $this->context($this->owner));
+        self::assertStringNotContainsString('Сайт', $nowhere->content);
+
+        $zip = tempnam(sys_get_temp_dir(), 'zip');
+        self::assertIsString($zip);
+        $archive = new \ZipArchive();
+        $archive->open($zip, \ZipArchive::OVERWRITE);
+        $archive->addFromString('weekly/SKILL.md', self::skill('weekly-report', 'Недельный отчёт'));
+        $archive->close();
+        $this->sandbox->files[1]['inbox/weekly.zip'] = (string) file_get_contents($zip);
+        @unlink($zip);
+        $import = new SkillImportTool(new SkillImporter([new ArchiveSkillSource(new HttpClient(new FakeHttpClient([]), []))]), $library, $this->projectOf(), $this->sandbox);
+        self::assertFalse($import->execute(['path' => 'inbox/weekly.zip', 'project' => 'Сайт'], $this->context($this->owner))->isError);
+        self::assertArrayHasKey('projects/12/.mercurius/skills/weekly-report/SKILL.md', $this->sandbox->files[1] ?? []);
+    }
+
     public function testTheOwnerListsTheSkillsOfTheChat(): void {
         $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
         $usage = new InMemorySkillUsageRepository();

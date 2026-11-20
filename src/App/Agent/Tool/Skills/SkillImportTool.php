@@ -74,7 +74,8 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
-        $where = Args::string($args, 'where') ?? 'mine';
+        // a project named without a place means the project: a skill does not silently land in the participant's own folder
+        $where = Args::string($args, 'where') ?? (trim(Args::string($args, 'project') ?? '') !== '' ? 'project' : 'mine');
         $target = $this->library->target($context->principal, ($this->projectOf)($context->conversationId, Args::string($args, 'project'), $context->principal), $where);
         if ($target === null) {
             return ToolResult::error($where === 'project' ? t('tool.skill_save.no_project') : t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
