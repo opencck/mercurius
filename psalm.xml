@@ -6,6 +6,7 @@
     resolveFromConfigFile="true"
     findUnusedBaselineEntry="true"
     findUnusedCode="false"
+    allConstantsGlobal="true"
     cacheDirectory="var/cache/psalm"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns="https://getpsalm.org/schema/config"
@@ -14,6 +15,7 @@
     <projectFiles>
         <directory name="src"/>
         <directory name="test"/>
+        <directory name="boot"/>
         <file name="index.php"/>
         <file name="sandbox.php"/>
         <ignoreFiles>

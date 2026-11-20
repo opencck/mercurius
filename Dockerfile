@@ -39,6 +39,7 @@ COPY packages ./packages
 RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
 
 COPY index.php ./
+COPY boot ./boot
 COPY src ./src
 COPY migrations ./migrations
 COPY resources ./resources
