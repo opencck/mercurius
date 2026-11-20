@@ -213,6 +213,16 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
         },
         // spec: brief/decisions.md#принятые-владельцем-риски — browser confirmations are off unless the owner turns them on
         \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_CONFIRM') === '1',
+        // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — the profiles of a project are those of its owner for everyone
+        //       who works in it: the owner logs in once, the jobs and the members of the project use that login
+        static function (int $projectId, \OpenCCK\Domain\Entity\Principal $who) use ($httpCookieProjects, $principals): ?int {
+            $project = $httpCookieProjects->find($projectId);
+            $level = $project?->levelOf($who, $httpCookieProjects->memberLevel($projectId, $who->id));
+            if ($project === null || $level?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) !== true) {
+                return null;
+            }
+            return $project->ownerId ?? $principals->owner()?->id;
+        },
     ));
 }
 if ($sandbox !== null) {

@@ -293,6 +293,40 @@ final class JobScheduler implements JobRuns {
         $this->skills = $skills;
     }
 
+    private ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null;
+    /** @var (\Closure(Principal, string): bool)|null tells a participant in their private place; false — not reachable now */
+    private ?\Closure $inbox = null;
+
+    /** spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner, inside the project */
+    public function useProjects(\OpenCCK\Domain\Repository\ProjectRepository $projects): void {
+        $this->projects = $projects;
+    }
+
+    /**
+     * spec: brief/scheduler.md#задания-проекта — a report goes to the owner of the project, a person or an agent
+     *
+     * @param \Closure(Principal, string): bool $inbox
+     */
+    public function useInbox(\Closure $inbox): void {
+        $this->inbox = $inbox;
+    }
+
+    /** The project of a job; null — the job belongs to its participant alone. */
+    private function projectOf(Job $job): ?\OpenCCK\Domain\Project\Project {
+        if ($job->projectId === null) {
+            return null;
+        }
+        return $this->projects?->find($job->projectId) ?? throw new \RuntimeException('the project of the job is gone');
+    }
+
+    /** In whose name a job runs: the owner of its project, else whoever set it. */
+    private function runnerOf(Job $job, ?\OpenCCK\Domain\Project\Project $project): Principal {
+        if ($project !== null) {
+            return ($project->ownerId === null ? $this->principals->owner() : $this->principals->find($project->ownerId)) ?? throw new \RuntimeException('the owner of the project is gone');
+        }
+        return $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
+    }
+
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
     private function policy(Principal $principal, Job $job): ParticipantPolicy {
         $owner = $this->policies->forPrincipal($principal);
@@ -305,11 +339,19 @@ final class JobScheduler implements JobRuns {
     }
 
     private function execute(Job $job, int $number, ?string $event, string $source = 'webhook'): ?string {
-        $principal = $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
+        $project = $this->projectOf($job);
+        $principal = $this->runnerOf($job, $project);
         $policy = $this->policy($principal, $job);
-        $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
+        $chat = sprintf('job-%d-%d', $job->id, $number);
+        $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, $chat);
+        $block = '';
+        if ($project !== null && $this->projects !== null) {
+            // the run is bound to the project while it lasts: its card, skills and browser profile are found as in a chat of the project
+            $this->projects->activate(self::CHANNEL, $chat, $project->id);
+            $block = (new \OpenCCK\App\Agent\ProjectContext($this->projects))->block($principal, self::CHANNEL, $chat);
+        }
         $model = $job->modelRole !== '' && $this->modelOf !== null ? (($this->modelOf)($job->modelRole) ?? $this->model) : $this->model;
-        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $model);
+        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), project: $block, skills: $this->skills?->index($principal, $project) ?? ''), $model);
         // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));
@@ -333,6 +375,7 @@ final class JobScheduler implements JobRuns {
             return null;
         }
         $this->conversations->close(self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
+        $this->projects?->activate(self::CHANNEL, sprintf('job-%d-%d', $job->id, $number), null);
         foreach (array_reverse($this->transcript->runMessages($final->id)) as $message) {
             if ($message->role === Role::Assistant && $message->toolCalls === [] && trim($message->content) !== '') {
                 return trim($message->content);
@@ -352,8 +395,33 @@ final class JobScheduler implements JobRuns {
      * @return array{reason: string, permanent: bool}|null
      */
     private function deliver(Job $job, string $report): ?array {
+        // spec: brief/scheduler.md#задания-проекта — a job of a project reports into the project's topic, else to its owner; a job
+        //       an agent set for itself reports to that agent: a chat of the network of agents is not a chat of the channel
+        $chatId = $job->chatId;
+        $threadId = $job->threadId === '' ? null : $job->threadId;
+        try {
+            $project = $this->projectOf($job);
+        } catch (\RuntimeException) {
+            return ['reason' => 'the project of the job is gone', 'permanent' => true];
+        }
+        $topic = $project === null ? null : ($this->projects?->topicsOf($project->id)[0] ?? null);
+        if ($topic !== null) {
+            $chatId = $topic['chatId'];
+            $threadId = $topic['threadId'] === '' ? null : $topic['threadId'];
+        } elseif ($project !== null || $job->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL) {
+            try {
+                $to = $this->runnerOf($job, $project);
+            } catch (\RuntimeException) {
+                return ['reason' => 'nobody to report to', 'permanent' => true];
+            }
+            if ($this->inbox !== null && ($this->inbox)($to, $report)) {
+                return null;
+            }
+            $this->logger->warning('Job report was not delivered', ['job' => $job->id, 'reason' => 'the participant is not reachable']);
+            return ['reason' => 'the participant is not reachable now', 'permanent' => false];
+        }
         // spec: brief/channels.md#форум-темы--проекты — the report goes back into the topic the job was set in
-        $result = $this->channel->send(new OutgoingMessage($job->chatId, SecretMasker::mask($report), threadId: $job->threadId === '' ? null : $job->threadId));
+        $result = $this->channel->send(new OutgoingMessage($chatId, SecretMasker::mask($report), threadId: $threadId));
         if ($result->success) {
             return null;
         }

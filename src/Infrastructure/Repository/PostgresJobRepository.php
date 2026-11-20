@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\JobRepository;
 use UnexpectedValueException;
 
 final class PostgresJobRepository implements JobRepository {
-    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted, thread_id, hook_filter, model_role";
+    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted, thread_id, hook_filter, model_role, project_id";
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -26,6 +26,24 @@ final class PostgresJobRepository implements JobRepository {
     public function find(int $id): ?Job {
         $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM jobs WHERE id = ?', [$id])->fetchRow();
         return $row === null ? null : self::job($row);
+    }
+
+    public function setProject(int $id, ?int $projectId): bool {
+        return $this->db->execute('UPDATE jobs SET project_id = ? WHERE id = ?', [$projectId, $id])->getRowCount() > 0;
+    }
+
+    public function ofProjects(array $projectIds): array {
+        if ($projectIds === []) {
+            return [];
+        }
+        $found = [];
+        foreach ($this->db->execute(
+            "SELECT " . self::COLUMNS . " FROM jobs WHERE status <> 'done' AND project_id IN (" . implode(',', array_fill(0, count($projectIds), '?')) . ') ORDER BY id DESC LIMIT 50',
+            $projectIds,
+        ) as $row) {
+            $found[] = self::job($row);
+        }
+        return $found;
     }
 
     public function list(?int $principalId): array {
@@ -161,6 +179,6 @@ final class PostgresJobRepository implements JobRepository {
         $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $opt = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $next = isset($row['next']) && is_int($row['next']) ? new DateTimeImmutable('@' . $row['next']) : null;
-        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true, $str('thread_id'), $str('hook_filter'), $str('model_role'));
+        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true, $str('thread_id'), $str('hook_filter'), $str('model_role'), isset($row['project_id']) && is_int($row['project_id']) ? $row['project_id'] : null);
     }
 }

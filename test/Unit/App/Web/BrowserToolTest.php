@@ -65,6 +65,32 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertSame(['p1/main', 'p5/main', 'p5/projects/3/shop', 'p5/main'], $profiles);
     }
 
+    public function testThoseWhoWorkInAProjectUseTheProfilesOfItsOwner(): void {
+        // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — a login made in a chat of the project serves its jobs and members
+        $page = '{"url":"https://example.com/","title":"Example","text":"ok","elements":[]}';
+        $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], $page]]);
+        $this->channel = new FakeChannel();
+        $tool = new BrowserTool(
+            new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'),
+            $this->channel,
+            '42',
+            projectOf: static fn(int $conversationId): int => 3,
+            holderOf: static fn(int $project, Principal $who): ?int => $who->id === 9 ? null : 1,
+        );
+        $member = new Principal(5, PrincipalKind::Agent, Role::user(), 'helper');
+        $reader = new Principal(9, PrincipalKind::Human, Role::user(), null);
+
+        $tool->execute(['action' => 'open', 'url' => 'https://example.com/'], new ToolContext(1, 1, $member, new NullCancellation()));
+        $tool->execute(['action' => 'open', 'url' => 'https://example.com/'], new ToolContext(2, 2, $reader, new NullCancellation()));
+
+        $profiles = array_map(static function (string $body): mixed {
+            /** @var array<string, mixed> $sent */
+            $sent = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
+            return $sent['profile'] ?? null;
+        }, $http->bodies);
+        self::assertSame(['p1/projects/3/main', 'p9/projects/3/main'], $profiles, 'the owner\'s set for a member who writes, their own for one who only reads');
+    }
+
     private static function context(): ToolContext {
         return new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
     }

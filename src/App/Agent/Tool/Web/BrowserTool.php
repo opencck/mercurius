@@ -59,6 +59,11 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         private readonly ?\Closure $projectOf = null,
         /** BROWSER_CONFIRM: clicks and sending forms wait for the owner's card; off by default */
         private readonly bool $confirm = false,
+        /**
+         * @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): ?int)|null whose set of profiles a project uses for this
+         *      participant: the owner of the project for those who work in it; null — the participant's own
+         */
+        private readonly ?\Closure $holderOf = null,
     ) {}
 
     /**
@@ -69,7 +74,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      */
     private function profileOf(string $name, ToolContext $context): string {
         $project = $this->projectOf === null ? null : ($this->projectOf)($context->conversationId);
-        return 'p' . $context->principal->id . ($project === null ? '' : '/projects/' . $project) . '/' . $name;
+        // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — everyone who works in a project uses the profiles of its
+        //       owner there: a login made in a chat of the project serves the jobs of the project and its members
+        $holder = $project === null || $this->holderOf === null ? null : ($this->holderOf)($project, $context->principal);
+        return 'p' . ($holder ?? $context->principal->id) . ($project === null ? '' : '/projects/' . $project) . '/' . $name;
     }
 
     public function definition(): ToolDefinition {

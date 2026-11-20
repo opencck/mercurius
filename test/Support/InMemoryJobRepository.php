@@ -52,6 +52,19 @@ final class InMemoryJobRepository implements JobRepository {
         return $this->jobs[$id] ?? null;
     }
 
+    public function setProject(int $id, ?int $projectId): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole, $projectId);
+        return true;
+    }
+
+    public function ofProjects(array $projectIds): array {
+        return array_values(array_reverse(array_filter($this->jobs, static fn(Job $j): bool => $j->status !== Job::DONE && $j->projectId !== null && in_array($j->projectId, $projectIds, true))));
+    }
+
     public function list(?int $principalId): array {
         return array_values(array_reverse(array_filter($this->jobs, static fn(Job $j): bool => $j->status !== Job::DONE && ($principalId === null || $j->principalId === $principalId))));
     }
@@ -106,7 +119,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole);
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $schedule, $next, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole, $j->projectId);
         return true;
     }
 
@@ -216,6 +229,7 @@ final class InMemoryJobRepository implements JobRepository {
             $j->threadId,
             $hookFilter ?? $j->hookFilter,
             $modelRole ?? $j->modelRole,
+            $j->projectId,
         );
     }
 }

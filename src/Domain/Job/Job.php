@@ -45,6 +45,8 @@ final class Job {
         public readonly string $hookFilter = '',
         /** the model role its runs use: '' — the main model, 'cheap' — for simple checks */
         public readonly string $modelRole = '',
+        /** the project the job belongs to: it runs in the name of the project's owner; null — a job of its participant */
+        public readonly ?int $projectId = null,
     ) {}
 
     public function byEvent(): bool {

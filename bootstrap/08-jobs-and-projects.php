@@ -84,8 +84,12 @@ $jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job 
 });
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
-$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));
-$tools->register(new JobManageTool($jobRepository, $jobScheduler));
+// spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner and reports to them
+$participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
+$jobScheduler->useProjects($projectRepository);
+$jobScheduler->useInbox(static fn(Principal $to, string $text): bool => $participantInbox->tell($to, $text));
+$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs, $projectRepository));
+$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository));
 // spec: brief/scheduler.md#инициатива-агента — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
@@ -107,7 +111,6 @@ $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepositor
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
 // spec: brief/participants.md#доступ-к-проектам-и-передача — a project passes to another participant with their consent: the
 //       taker is told in their private place, the folder of the project follows it into the taker's sandbox
-$participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
 $projectFolders = $sandbox === null ? null : new \OpenCCK\App\Service\ProjectFolders($sandbox, static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
     $principal = $principals->find($id);
     return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;

@@ -23,6 +23,19 @@ interface JobRepository {
     /** spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — the model role of a job's runs: '' or 'cheap' */
     public function setModelRole(int $id, string $role): bool;
 
+    /**
+     * Puts a job into a project, or takes it out (null).
+     *
+     * spec: brief/scheduler.md#задания-проекта
+     */
+    public function setProject(int $id, ?int $projectId): bool;
+
+    /**
+     * @param list<int> $projectIds
+     * @return list<Job> the jobs of these projects that are not done, newest first
+     */
+    public function ofProjects(array $projectIds): array;
+
     public function find(int $id): ?Job;
 
     /** @return list<Job> active and paused jobs of a participant (all of them for null), newest first */

@@ -29,22 +29,25 @@ use function Mercurius\I18n\t;
  */
 final class JobManageTool implements Tool {
     public const NAME = 'job_manage';
-    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust', 'filter', 'model'];
+    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust', 'filter', 'model', 'to_project'];
 
     public function __construct(
         private readonly JobRepository $jobs,
         private readonly JobScheduler $scheduler,
+        /** the projects jobs belong to; null — jobs belong to their participants only */
+        private readonly ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null,
     ) {}
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.job_manage.zadaniya_po_raspisaniyu_action_list')
-            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model'), [
+            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model') . ' ' . t('tool.job_manage.to_project_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
                 'id' => ['type' => 'integer', 'minimum' => 1],
                 'filter' => ['type' => 'string', 'maxLength' => 500],
                 'role' => ['type' => 'string', 'enum' => ['main', 'cheap']],
+                'project' => ['type' => 'string', 'maxLength' => \OpenCCK\Domain\Project\Project::NAME_MAX],
             ],
             'additionalProperties' => false,
         ]);
@@ -71,11 +74,24 @@ final class JobManageTool implements Tool {
         $action = Args::string($args, 'action') ?? ($id === null ? 'list' : 'cancel');
         if ($action === 'list') {
             $list = $this->jobs->list($context->principal->isOwner() ? null : $context->principal->id);
+            // spec: brief/scheduler.md#задания-проекта — the jobs of a project are seen by everyone who works with it
+            if (!$context->principal->isOwner() && $this->projects !== null) {
+                $mine = array_map(static fn(\OpenCCK\Domain\Project\Project $p): int => $p->id, $this->projects->all(100, $context->principal->id));
+                $seen = array_map(static fn(Job $j): int => $j->id, $list);
+                foreach ($this->jobs->ofProjects($mine) as $job) {
+                    if (!in_array($job->id, $seen, true)) {
+                        $list[] = $job;
+                    }
+                }
+            }
             return ToolResult::ok($list === [] ? t('tool.job_manage.zadaniy_net') : implode("\n", array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list)));
         }
         $job = $id === null ? null : $this->jobs->find($id);
-        if ($job === null || $job->status === Job::DONE || (!$context->principal->isOwner() && $job->principalId !== $context->principal->id)) {
+        if ($job === null || $job->status === Job::DONE || !$this->manages($job, $context->principal)) {
             return ToolResult::error(sprintf(t('tool.job_manage.zadaniya_net'), (int) $id));
+        }
+        if ($action === 'to_project') {
+            return $this->toProject($job, $context, trim(Args::string($args, 'project') ?? ''));
         }
         return match ($action) {
             'cancel' => $this->set($job, Job::DONE, t('tool.job_manage.otmeneno')),
@@ -88,6 +104,37 @@ final class JobManageTool implements Tool {
             'model' => $this->model($job, Args::string($args, 'role') ?? 'main'),
             default => ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . $action),
         };
+    }
+
+    /** A job is managed by whoever set it, by the owner of the agent, and by those who change its project. */
+    private function manages(Job $job, \OpenCCK\Domain\Entity\Principal $who): bool {
+        if ($who->isOwner() || $job->principalId === $who->id) {
+            return true;
+        }
+        $project = $job->projectId === null ? null : $this->projects?->find($job->projectId);
+        return $project?->levelOf($who, $this->projects?->memberLevel($project->id, $who->id))?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true;
+    }
+
+    /**
+     * Puts a job into a project (or takes it out with an empty name): from then on it runs in the name of the project's
+     * owner, so only the owner of that project decides it.
+     *
+     * spec: brief/scheduler.md#задания-проекта
+     */
+    private function toProject(Job $job, ToolContext $context, string $name): ToolResult {
+        if ($this->projects === null) {
+            return ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . 'to_project');
+        }
+        if ($name === '') {
+            $this->jobs->setProject($job->id, null);
+            return ToolResult::ok(sprintf(t('tool.job_manage.out_of_project'), $job->id, $job->title));
+        }
+        $project = $this->projects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($context->principal));
+        if ($project === null || !$project->visibleTo($context->principal)) {
+            return ToolResult::error(sprintf(t('tool.job_manage.project_owner_only'), $name));
+        }
+        $this->jobs->setProject($job->id, $project->id);
+        return ToolResult::ok(sprintf(t('tool.job_manage.into_project'), $job->id, $job->title, $project->name));
     }
 
     private function set(Job $job, string $status, string $what): ToolResult {
