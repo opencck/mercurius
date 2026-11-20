@@ -93,6 +93,18 @@ $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
 $memoryStore = new PostgresMemoryStore($db);
 $textAnalyzer = new TextAnalyzer();
+// spec: brief/memory.md#словари — the owner's table of words that mean one thing, before facts are keyed again
+$memoryAliases = new \Mercurius\Memory\App\Aliases(
+    new \Mercurius\Memory\Infrastructure\PostgresAliasStore($db),
+    $textAnalyzer,
+    $memoryStore,
+    new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
+);
+try {
+    $memoryAliases->load();
+} catch (Throwable $e) {
+    $logger->warning('Memory aliases were not read', ['error' => $e::class]);
+}
 $recall = new Recall($memoryStore, $textAnalyzer, null, $memorySettings->hrrWeight);
 try {
     // Facts written before vectors existed get one; a handful, at start.

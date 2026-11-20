@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
+use Mercurius\Memory\App\Aliases;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\Consolidation;
 use Mercurius\Memory\App\MemoryContext;
@@ -30,7 +31,33 @@ final class MemoryCommands {
         private readonly Proposals $proposals,
         private readonly MemoryContext $context,
         private readonly ?Consolidation $consolidation = null,
+        private readonly ?Aliases $aliases = null,
     ) {}
+
+    /**
+     * /aliases — the table of words that mean one thing; /aliases + word, word — a group (or words to the group one of
+     * them is in); /aliases - <number> — remove a group.
+     *
+     * spec: brief/memory.md#словари — the owner sees and edits the table
+     */
+    public function aliases(string $argument): string {
+        if ($this->aliases === null) {
+            return t('service.memory_commands.aliases_off');
+        }
+        $argument = trim($argument);
+        if ($argument === '') {
+            return $this->aliases->list() . "\n\n" . t('service.memory_commands.aliases_help');
+        }
+        if (str_starts_with($argument, '-')) {
+            $id = ltrim(trim(substr($argument, 1)), '#');
+            return ctype_digit($id) ? $this->aliases->remove((int) $id)[1] : t('service.memory_commands.aliases_help');
+        }
+        if (str_starts_with($argument, '+')) {
+            $words = preg_split('~[,;]+~u', substr($argument, 1)) ?: [];
+            return $this->aliases->add(array_values(array_filter(array_map('trim', $words), static fn(string $w): bool => $w !== '')), null)[1];
+        }
+        return t('service.memory_commands.aliases_help');
+    }
 
     /** The nightly check, now, even if memory has not changed. */
     public function consolidate(): string {

@@ -12,9 +12,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `7d48209` | 2026-11-20 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `167ea66` | 2026-11-20 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `72ceba7` | 2026-11-20 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `19cc659` | 2026-11-21 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b0410d4` | 2026-11-21 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `9734a0e` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `609ad20` | 2026-11-21 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `103f76f` | 2026-11-21 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `0242643` | 2026-11-20 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
 Репозиторий `mercurius-command-policy` заведён, код пока в основном репозитории (`src/CommandPolicy/`) — так и сказано в его README (2026-11-20); срока выноса нет. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
@@ -46,6 +46,10 @@ compose, по умолчанию выключен ([Модули: сервисы
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-21 — память: словари и таблица соответствий
+
+- Заимствования в файле, таблица соответствий владельца, инструмент memory_alias, команда /aliases, тема self_info memory. `i18n` `19cc659` → `b0410d4`, `memory` `609ad20` → `103f76f`.
 
 ### 2026-11-21 — память: китайский язык
 

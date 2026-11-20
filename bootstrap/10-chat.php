@@ -55,6 +55,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository $commandAudit
  * @var OpenCCK\Infrastructure\Config\Config $config
  * @var Mercurius\Memory\App\Consolidation $consolidation
+ * @var Mercurius\Memory\App\Aliases $memoryAliases
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var non-falsy-string|null $digestTime
@@ -122,6 +123,8 @@ $dailyDigest->useMemory($memoryStore);
 $dailyDigest->useAudit($commandAudit);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
+// spec: brief/memory.md#словари — the agent fills the owner's table of words that mean one thing
+$tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryAliasTool($memoryAliases));
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
 $tools->register(new ExperienceSearchTool($experience, $audience));
@@ -181,7 +184,7 @@ $chat = new ChatService(
     $approvals,
     new TraceReports(new PostgresTraceReportRepository($db), $traces, $peerRepository, static fn(int $runId): bool => $ownerDirectory->isFormerOwner($runs->find($runId)?->principalId)),
     $logger,
-    new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation),
+    new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation, $memoryAliases),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),

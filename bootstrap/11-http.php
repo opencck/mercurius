@@ -40,6 +40,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\Infrastructure\Services\ServiceModules $serviceModules
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
+ * @var Mercurius\Memory\App\Aliases $memoryAliases
  * @var OpenCCK\App\Agent\Model\ModelLists $modelLists
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
@@ -137,6 +138,9 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
             : (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null ? \Mercurius\I18n\t('self.modules.down') : sprintf(\Mercurius\I18n\t('self.modules.off'), 'mail', 'MAIL_MCP_TOKEN')),
         \OpenCCK\App\Mail\Mailboxes::may($c->principal) ? \Mercurius\I18n\t('self.mail.power_yes') : \Mercurius\I18n\t('self.mail.power_no'),
     ),
+    // spec: brief/memory.md#словари — where memory keeps what, and the owner's table of words as it is now
+    'memory' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.memory') . "\n\n"
+        . \Mercurius\I18n\t('self.memory.aliases') . "\n" . $memoryAliases->list(),
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
 ]));
 

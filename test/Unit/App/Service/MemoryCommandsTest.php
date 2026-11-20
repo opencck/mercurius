@@ -30,7 +30,8 @@ final class MemoryCommandsTest extends AsyncTestCase {
         $this->store = new InMemoryMemoryStore();
         $analyzer = new TextAnalyzer();
         $this->proposals = new Proposals($this->store, $analyzer, new ContentScreen(), 'k');
-        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)));
+        $aliases = new \Mercurius\Memory\App\Aliases(new \Mercurius\Memory\Infrastructure\InMemoryAliasStore(), $analyzer, $this->store, new ContentScreen());
+        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)), null, $aliases);
         $this->chat = new ChatService(new AccessService($this->stack->principals, 'telegram', '42', $this->stack->visitors), $this->stack->conversations, $this->stack->scheduler, $this->stack->channel, memory: $commands);
     }
 
@@ -83,6 +84,19 @@ final class MemoryCommandsTest extends AsyncTestCase {
         self::assertStringContainsString('забыт', $this->lastReply());
         self::assertNull($this->store->fact($fact->id));
         self::assertNotSame([], $this->store->tombstones);
+    }
+
+    public function testTheOwnerEditsTheTableOfWords(): void {
+        // spec: brief/memory.md#словари — the owner sees and edits the table
+        $this->chat->handle($this->stack->message('/aliases + прокс, Proxmox'));
+        self::assertStringContainsString('#1: прокс, proxmox', $this->lastReply());
+
+        $this->chat->handle($this->stack->message('/aliases'));
+        self::assertStringContainsString('#1: прокс, proxmox', $this->lastReply());
+
+        $this->chat->handle($this->stack->message('/aliases - 1'));
+        $this->chat->handle($this->stack->message('/aliases'));
+        self::assertStringContainsString(\Mercurius\I18n\t('app.aliases.none'), $this->lastReply());
     }
 
     public function testOnlyTheOwnerAndOnlyInPrivate(): void {
