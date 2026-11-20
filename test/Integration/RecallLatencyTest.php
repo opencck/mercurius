@@ -9,10 +9,12 @@ use Mercurius\Memory\App\Recall;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\TextAnalyzer;
 use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
+use OpenCCK\Test\Support\RecallBench;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
- * Recall before a run must not hold the answer up: the Russian set against PostgreSQL, words and HRR, p95 of the time.
+ * Recall before a run must not hold the answer up: the sets of all three languages in one memory against PostgreSQL,
+ * words and HRR, p95 of the time.
  *
  * spec: brief/memory.md#как-сделано-области-и-факты — recall within a budget of time (p95)
  *
@@ -21,19 +23,23 @@ use OpenCCK\Test\Support\TestDatabase;
 final class RecallLatencyTest extends AsyncTestCase {
     public const P95_MS = 250.0;
 
-    public function testP95OfRecallOnTheRussianSet(): void {
+    public function testP95OfRecallOnAllTheSets(): void {
         $db = TestDatabase::connect();
         $store = new PostgresMemoryStore($db);
         $analyzer = new TextAnalyzer();
-        /** @var array{facts: list<string>, questions: list<array{q: string, expect: list<int>}>} $set */
-        $set = json_decode((string) file_get_contents(dirname(__DIR__) . '/Fixtures/memory-recall-ru.json'), true, 8, JSON_THROW_ON_ERROR);
-        foreach ($set['facts'] as $text) {
-            $store->addFact('owner', Fact::KNOWLEDGE, $text, $analyzer->keys($text), 0.8, Fact::OWNER_SAID, null);
+        $questions = [];
+        foreach (RecallBench::LANGUAGES as $language) {
+            /** @var array{facts: list<string>, questions: list<array{q: string, expect: list<int>}>} $set */
+            $set = json_decode((string) file_get_contents(RecallBench::file($language)), true, 8, JSON_THROW_ON_ERROR);
+            foreach ($set['facts'] as $text) {
+                $store->addFact('owner', Fact::KNOWLEDGE, $text, $analyzer->keys($text), 0.8, Fact::OWNER_SAID, null);
+            }
+            $questions = [...$questions, ...$set['questions']];
         }
         $recall = new Recall($store, $analyzer, null, 0.3);
         $times = [];
         for ($round = 0; $round < 3; $round++) {
-            foreach ($set['questions'] as $question) {
+            foreach ($questions as $question) {
                 $started = hrtime(true);
                 $recall->find($question['q'], ['owner']);
                 $times[] = (float) (hrtime(true) - $started) / 1e6;
