@@ -77,6 +77,31 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         }
     }
 
+    public function testAProjectIsSharedWithAParticipantAtALevel(): void {
+        // spec: brief/participants.md#доступ-к-проектам-и-передача — the owner of a project gives another participant access to it
+        $mine = $this->projects->create('Дом', 'мой');
+        $this->projects->create('Дача', 'тоже мой');
+
+        self::assertNull($this->projects->memberLevel($mine->id, $this->principalId));
+        self::assertNull($this->projects->byName('Дом', $this->principalId), 'not shared yet');
+
+        $this->projects->share($mine->id, $this->principalId, 'read', null);
+        $this->projects->share($mine->id, $this->principalId, 'full', null);
+
+        self::assertSame('full', $this->projects->memberLevel($mine->id, $this->principalId), 'a second share changes the level');
+        self::assertSame([['principalId' => $this->principalId, 'access' => 'full']], $this->projects->members($mine->id));
+        self::assertSame($mine->id, $this->projects->byName('дом', $this->principalId)?->id, 'a shared project is found by its name');
+        self::assertSame([$mine->id], array_map(static fn(Project $p): int => $p->id, $this->projects->all(10, $this->principalId)));
+        self::assertNull($this->projects->byName('Дача', $this->principalId), 'only what was shared');
+
+        $own = $this->projects->create('Дом', 'свой', $this->principalId);
+        self::assertSame($own->id, $this->projects->byName('Дом', $this->principalId)?->id, 'their own project of that name comes first');
+
+        self::assertTrue($this->projects->unshare($mine->id, $this->principalId));
+        self::assertFalse($this->projects->unshare($mine->id, $this->principalId));
+        self::assertNull($this->projects->memberLevel($mine->id, $this->principalId));
+    }
+
     public function testDeadlinesOfOpenTasksInActiveProjectsComeEarliestFirst(): void {
         $project = $this->projects->create('Дом', '');
         $paused = $this->projects->create('Архив', '');

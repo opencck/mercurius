@@ -37,7 +37,8 @@ final class ProjectContext {
             return '';
         }
         $project = $this->projects->active($channel, $chatId, $threadId);
-        if ($project !== null && !$project->visibleTo($principal)) {
+        // spec: brief/participants.md#доступ-к-проектам-и-передача — the card goes to the owner of the project and to its members
+        if ($project !== null && $project->levelOf($principal, $this->projects->memberLevel($project->id, $principal->id)) === null) {
             return '';
         }
         if ($project === null) {

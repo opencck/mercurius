@@ -133,6 +133,8 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
 };
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $skillLibrary->useUsage($skillUsage);
+// spec: brief/participants.md#доступ-к-проектам-и-передача — the skills of a project are open to its members
+$skillLibrary->useMembers(static fn(\OpenCCK\Domain\Project\Project $project, \OpenCCK\Domain\Entity\Principal $who): ?string => $skillProjects->memberLevel($project->id, $who->id));
 $skillLibrary->useEdits(new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db));
 $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));

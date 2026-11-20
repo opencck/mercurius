@@ -104,7 +104,7 @@ $tools->register($traceReview);
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics));
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals));
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $ownerDirectory, $logger);

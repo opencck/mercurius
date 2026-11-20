@@ -15,6 +15,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Project\Project;
+use OpenCCK\Domain\Project\ProjectLevel;
 use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
@@ -31,7 +32,14 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members'];
+    /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
+    private const NEEDS = [
+        'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
+        'add_task' => ProjectLevel::Write, 'task_status' => ProjectLevel::Write, 'task_due' => ProjectLevel::Write,
+        'relation' => ProjectLevel::Read, 'activate' => ProjectLevel::Read, 'members' => ProjectLevel::Read,
+        'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read,
+    ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
     public const RELATION_MAX = 1000;
@@ -42,6 +50,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         private readonly \DateTimeZone $zone = new \DateTimeZone('UTC'),
         /** in a forum a project gets a topic; null — no forum topics */
         private readonly ?\OpenCCK\App\Service\ForumTopics $forum = null,
+        /** the participants a project is shared with; null — no sharing here */
+        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
     ) {}
 
     /**
@@ -69,7 +79,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . t('tool.project_edit.open_doing_done_dropped_dlya')
             . t('tool.project_edit.relation_otnoshenie_sobesednika_k_proekt')
             . t('tool.project_edit.proekt_proektom_etogo_chata_create')
-            . ' ' . t('tool.project_edit.rename_about'), [
+            . ' ' . t('tool.project_edit.rename_about')
+            . ' ' . t('tool.project_edit.share_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -81,6 +92,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'parent_id' => ['type' => 'integer', 'minimum' => 1],
                 'profile' => ['type' => 'object'],
                 'due' => ['type' => 'string', 'maxLength' => 40],
+                'participant' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
+                'access' => ['type' => 'string', 'enum' => ProjectLevel::GIVEN],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -137,9 +150,18 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             $topic = $meta === null ? '' : ($this->forum?->created($project, $meta) ?? '');
             return ToolResult::ok(trim(sprintf(t('tool.project_edit.proekt_zaveden'), $project->name, $topic)));
         }
+        if ($action === 'deactivate') {
+            return $this->deactivate($context);
+        }
         $project = $this->project($args, $context);
         if ($project === null) {
             return ToolResult::error(t('tool.project_edit.proekt_ne_nayden_nazovi_ego'));
+        }
+        // spec: brief/participants.md#доступ-к-проектам-и-передача — a level says how far a member goes in the project
+        $level = $this->levelOf($project, $context->principal);
+        $needs = self::NEEDS[$action] ?? ProjectLevel::Owner;
+        if ($level === null || !$level->atLeast($needs)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.no_right'), $project->name, $needs->label(), $level?->label() ?? '—'));
         }
         return match ($action) {
             'goal' => $this->update($project, $text === '' ? null : mb_substr($text, 0, Project::GOAL_MAX), null, null, t('tool.project_edit.tsel')),
@@ -153,6 +175,9 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'relation' => $this->relation($project, $context, $text),
             'activate' => $this->activate($project, $context),
             'rename' => $this->rename($project, trim(Args::string($args, 'name') ?? '')),
+            'share' => $this->share($project, $context, Args::string($args, 'participant') ?? '', Args::string($args, 'access') ?? ''),
+            'unshare' => $this->unshare($project, $context, $level, Args::string($args, 'participant') ?? ''),
+            'members' => $this->members($project),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -165,8 +190,69 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         }
         $meta = $this->conversations->meta($context->conversationId);
         $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
-        // spec: brief/participants.md#несколько-пользователей — a participant works only with their own projects
-        return $active !== null && $active->visibleTo($context->principal) ? $active : null;
+        // spec: brief/participants.md#несколько-пользователей — a participant works with their own projects and those shared with them
+        return $active !== null && $this->levelOf($active, $context->principal) !== null ? $active : null;
+    }
+
+    private function levelOf(Project $project, \OpenCCK\Domain\Entity\Principal $who): ?ProjectLevel {
+        return $project->levelOf($who, $this->projects->memberLevel($project->id, $who->id));
+    }
+
+    private function nameOf(?int $principalId): string {
+        if ($principalId === null) {
+            return t('tool.project_edit.agent_owner');
+        }
+        $name = $this->principals?->find($principalId)?->displayName;
+        return sprintf('%s (#%d)', $name ?? '—', $principalId);
+    }
+
+    private function share(Project $project, ToolContext $context, string $participant, string $access): ToolResult {
+        if ($this->principals === null || trim($participant) === '' || ProjectLevel::given($access) === null) {
+            return ToolResult::error(t('tool.project_edit.share_needs'));
+        }
+        $who = \OpenCCK\App\Agent\Tool\Messaging\Recipients::participant($this->principals, $participant);
+        if (is_string($who)) {
+            return ToolResult::error($who);
+        }
+        if ($project->visibleTo($who)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.share_owner'), $this->nameOf($who->id)));
+        }
+        /** @var 'read'|'write'|'full' $access */
+        $this->projects->share($project->id, $who->id, $access, $context->principal->isOwner() ? null : $context->principal->id);
+        return ToolResult::ok(sprintf(t('tool.project_edit.shared'), $this->nameOf($who->id), $access, $project->name));
+    }
+
+    /** Access is taken back by whoever may give it; a member leaves a project by themselves. */
+    private function unshare(Project $project, ToolContext $context, ProjectLevel $level, string $participant): ToolResult {
+        if ($this->principals === null || trim($participant) === '') {
+            return ToolResult::error(t('tool.project_edit.share_needs'));
+        }
+        $who = \OpenCCK\App\Agent\Tool\Messaging\Recipients::participant($this->principals, $participant);
+        if (is_string($who)) {
+            return ToolResult::error($who);
+        }
+        if ($who->id !== $context->principal->id && !$level->atLeast(ProjectLevel::Full)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.no_right'), $project->name, ProjectLevel::Full->label(), $level->label()));
+        }
+        if (!$this->projects->unshare($project->id, $who->id)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.not_member'), $this->nameOf($who->id), $project->name));
+        }
+        return ToolResult::ok(sprintf(t('tool.project_edit.unshared'), $this->nameOf($who->id), $project->name));
+    }
+
+    private function members(Project $project): ToolResult {
+        $members = array_map(fn(array $m): string => sprintf('%s — %s', $this->nameOf($m['principalId']), $m['access']), $this->projects->members($project->id));
+        return ToolResult::ok(sprintf(t('tool.project_edit.members'), $project->name, $this->nameOf($project->ownerId), $members === [] ? t('tool.project_edit.members_none') : implode('; ', $members)));
+    }
+
+    /** spec: brief/participants.md#доступ-к-проектам-и-передача — a participant decides whether their chat is bound to a project */
+    private function deactivate(ToolContext $context): ToolResult {
+        $meta = $this->conversations->meta($context->conversationId);
+        if ($meta === null || $this->projects->active($meta->channel, $meta->chatId, $meta->threadId) === null) {
+            return ToolResult::error(t('tool.project_edit.not_bound'));
+        }
+        $this->projects->activate($meta->channel, $meta->chatId, null, $meta->threadId);
+        return ToolResult::ok(t('tool.project_edit.unbound'));
     }
 
     /** spec: brief/channels.md#форум-темы--проекты — a new name for the project and its forum topics */

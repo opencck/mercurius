@@ -31,10 +31,23 @@ final class Recipients {
 
     /** The active person the name points to; the text — why there is none. */
     public function find(string $to): Principal|string {
+        return self::among($this->principals, $to, false);
+    }
+
+    /**
+     * The active participant the name points to, a person or an agent: "owner", an #id or a name.
+     *
+     * spec: brief/participants.md#доступ-к-проектам-и-передача — access to a project is given to people and to agents alike
+     */
+    public static function participant(PrincipalRepository $principals, string $to): Principal|string {
+        return self::among($principals, $to, true);
+    }
+
+    private static function among(PrincipalRepository $principals, string $to, bool $agents): Principal|string {
         $to = trim($to);
         $people = array_values(array_filter(
-            $this->principals->all(),
-            static fn(Principal $p): bool => $p->kind === PrincipalKind::Human && $p->status === PrincipalStatus::Active,
+            $principals->all(),
+            static fn(Principal $p): bool => ($agents || $p->kind === PrincipalKind::Human) && $p->status === PrincipalStatus::Active,
         ));
         $key = mb_strtolower(ltrim($to, '@#'));
         if (in_array($key, ['owner', 'владелец', 'владельцу'], true)) {

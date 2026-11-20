@@ -22,14 +22,35 @@ interface ProjectRepository {
 
     public function find(int $id): ?Project;
 
-    /** @param int|null $for null — the owner: every project, their own first; otherwise only this participant's */
+    /**
+     * @param int|null $for null — the owner: every project, their own first; otherwise this participant's own first,
+     *        then those shared with them
+     */
     public function byName(string $name, ?int $for = null): ?Project;
 
     /**
-     * @param int|null $for null — the owner: every project; otherwise only this participant's
+     * @param int|null $for null — the owner: every project; otherwise this participant's and those shared with them
      * @return list<Project> active first, then by name
      */
     public function all(int $limit, ?int $for = null): array;
+
+    /**
+     * Gives a participant access to a project; a second call changes the level.
+     *
+     * spec: brief/participants.md#доступ-к-проектам-и-передача
+     * @param 'read'|'write'|'full' $access
+     * @param int|null $by who gave it; null — the owner of the agent
+     */
+    public function share(int $projectId, int $principalId, string $access, ?int $by): void;
+
+    /** Takes the access back; false when there was none. */
+    public function unshare(int $projectId, int $principalId): bool;
+
+    /** The level a participant was given in the project; null — none. The owner of a project is not its member. */
+    public function memberLevel(int $projectId, int $principalId): ?string;
+
+    /** @return list<array{principalId: int, access: string}> by the time the access was given */
+    public function members(int $projectId): array;
 
     /** Changes what is given; null leaves a field as it is. */
     public function update(int $id, ?string $goal, ?string $status, ?string $card): ?Project;

@@ -23,7 +23,7 @@
 - [Планировщик и проекты](brief/scheduler.md) — [Планировщик и проекты](brief/scheduler.md#планировщик-и-проекты)
 - [Каналы](brief/channels.md) — [Telegram: группы, каналы и темы](brief/channels.md#telegram-группы-каналы-и-темы), [Личные сообщения участникам](brief/channels.md#личные-сообщения-участникам)
 - [Сеть агентов](brief/network.md) — [Сеть агентов](brief/network.md#сеть-агентов)
-- [Участники и права](brief/participants.md) — [Несколько пользователей](brief/participants.md#несколько-пользователей), [Права доступа к сущностям](brief/participants.md#права-доступа-к-сущностям)
+- [Участники и права](brief/participants.md) — [Несколько пользователей](brief/participants.md#несколько-пользователей), [Доступ к проектам и передача](brief/participants.md#доступ-к-проектам-и-передача), [Права доступа к сущностям](brief/participants.md#права-доступа-к-сущностям)
 - [Обслуживание](brief/operations.md) — [Настройки агента](brief/operations.md#настройки-агента), [Язык агента](brief/operations.md#язык-агента), [Трассировка и метрики](brief/operations.md#трассировка-и-метрики), [Экспорт и импорт агента](brief/operations.md#экспорт-и-импорт-агента), [Поставка и обслуживание](brief/operations.md#поставка-и-обслуживание)
 - [Решения и открытые вопросы](brief/decisions.md) — [Решения](brief/decisions.md#решения), [Открытые вопросы](brief/decisions.md#открытые-вопросы)
 - [База знаний](brief/knowledge.md) — [База знаний](brief/knowledge.md#спецификация-база-знаний), [Карта конспектов](brief/knowledge.md#карта-конспектов), [Ключевые выводы](brief/knowledge.md#ключевые-выводы), [Расхождения между источниками](brief/knowledge.md#расхождения-между-источниками)

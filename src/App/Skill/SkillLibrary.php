@@ -261,6 +261,22 @@ final class SkillLibrary {
         return $outcome->exitCode === 0 ? null : trim($outcome->stderr);
     }
 
+    /** @var (Closure(Project, Principal): ?string)|null the level a participant was given in a project; null — nobody but its owner */
+    private ?Closure $given = null;
+
+    /**
+     * spec: brief/participants.md#доступ-к-проектам-и-передача — the skills of a project are open to its members
+     *
+     * @param Closure(Project, Principal): ?string $given
+     */
+    public function useMembers(Closure $given): void {
+        $this->given = $given;
+    }
+
+    private function levelOf(Project $project, Principal $who): ?\OpenCCK\Domain\Project\ProjectLevel {
+        return $project->levelOf($who, $this->given === null ? null : ($this->given)($project, $who));
+    }
+
     /** The folder of a project's skills, in the sandbox of the project's owner. */
     public static function projectDir(Project $project): string {
         return 'projects/' . $project->id . '/' . self::MINE;
@@ -276,7 +292,7 @@ final class SkillLibrary {
             return [];
         }
         $places = [];
-        if ($project !== null && $project->visibleTo($who)) {
+        if ($project !== null && $this->levelOf($project, $who) !== null) {
             $owner = $project->ownerId ?? ($this->ownerId)();
             if ($owner !== null) {
                 $places[] = ['dir' => self::projectDir($project), 'owner' => $owner, 'label' => sprintf(t('skill.library.project'), $project->name)];
@@ -406,9 +422,13 @@ final class SkillLibrary {
         $owner = $who->id;
         $dir = self::MINE;
         if ($where === 'project') {
-            if ($project === null || ($project->ownerId ?? ($this->ownerId)()) !== $who->id) {
+            // spec: brief/participants.md#доступ-к-проектам-и-передача — a member with the write level writes the skills of the
+            //       project; they lie in the sandbox of the project's owner
+            $holder = $project === null ? null : ($project->ownerId ?? ($this->ownerId)());
+            if ($project === null || $holder === null || $this->levelOf($project, $who)?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) !== true) {
                 return null;
             }
+            $owner = $holder;
             $dir = self::projectDir($project);
         }
         $limits = ($this->limitsOf)($owner);

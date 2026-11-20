@@ -31,18 +31,43 @@ final class InMemoryProjectRepository implements ProjectRepository {
         return $this->projects[$id] = new Project($id, $name, $goal, Project::ACTIVE, '', time(), $ownerId);
     }
 
+    /** @var array<int, array<int, string>> project => participant => access */
+    private array $members = [];
+
+    public function share(int $projectId, int $principalId, string $access, ?int $by): void {
+        $this->members[$projectId][$principalId] = $access;
+    }
+
+    public function unshare(int $projectId, int $principalId): bool {
+        $had = isset($this->members[$projectId][$principalId]);
+        unset($this->members[$projectId][$principalId]);
+        return $had;
+    }
+
+    public function memberLevel(int $projectId, int $principalId): ?string {
+        return $this->members[$projectId][$principalId] ?? null;
+    }
+
+    public function members(int $projectId): array {
+        $found = [];
+        foreach ($this->members[$projectId] ?? [] as $principalId => $access) {
+            $found[] = ['principalId' => $principalId, 'access' => $access];
+        }
+        return $found;
+    }
+
     public function find(int $id): ?Project {
         return $this->projects[$id] ?? null;
     }
 
     public function byName(string $name, ?int $for = null): ?Project {
-        $found = array_values(array_filter($this->projects, static fn(Project $p): bool => mb_strtolower($p->name) === mb_strtolower($name) && ($for === null || $p->ownerId === $for)));
-        usort($found, static fn(Project $a, Project $b): int => [$a->ownerId !== null, $a->id] <=> [$b->ownerId !== null, $b->id]);
+        $found = array_values(array_filter($this->projects, fn(Project $p): bool => mb_strtolower($p->name) === mb_strtolower($name) && ($for === null || $p->ownerId === $for || isset($this->members[$p->id][$for]))));
+        usort($found, static fn(Project $a, Project $b): int => [$for === null ? $a->ownerId !== null : $a->ownerId !== $for, $a->id] <=> [$for === null ? $b->ownerId !== null : $b->ownerId !== $for, $b->id]);
         return $found[0] ?? null;
     }
 
     public function all(int $limit, ?int $for = null): array {
-        $all = array_values(array_filter($this->projects, static fn(Project $p): bool => $for === null || $p->ownerId === $for));
+        $all = array_values(array_filter($this->projects, fn(Project $p): bool => $for === null || $p->ownerId === $for || isset($this->members[$p->id][$for])));
         usort($all, static fn(Project $a, Project $b): int => [$a->status !== Project::ACTIVE, mb_strtolower($a->name)] <=> [$b->status !== Project::ACTIVE, mb_strtolower($b->name)]);
         return array_slice($all, 0, $limit);
     }

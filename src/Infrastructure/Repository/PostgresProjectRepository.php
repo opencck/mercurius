@@ -57,16 +57,43 @@ final class PostgresProjectRepository implements ProjectRepository {
 
     public function byName(string $name, ?int $for = null): ?Project {
         $row = $this->db->execute(
-            'SELECT ' . self::PROJECT . ' FROM projects WHERE lower(name) = lower(?) AND (?::bigint IS NULL OR owner_id = ?) ORDER BY owner_id IS NOT NULL, id LIMIT 1',
-            [$name, $for, $for],
+            'SELECT ' . self::PROJECT . ' FROM projects WHERE lower(name) = lower(?) AND (?::bigint IS NULL OR owner_id = ?'
+            . ' OR id IN (SELECT project_id FROM project_members WHERE principal_id = ?))'
+            . ' ORDER BY CASE WHEN ?::bigint IS NULL THEN owner_id IS NOT NULL ELSE owner_id IS DISTINCT FROM ? END, id LIMIT 1',
+            [$name, $for, $for, $for, $for, $for],
         )->fetchRow();
         return $row === null ? null : self::project($row);
     }
 
     public function all(int $limit, ?int $for = null): array {
         $found = [];
-        foreach ($this->db->execute("SELECT " . self::PROJECT . " FROM projects WHERE ?::bigint IS NULL OR owner_id = ? ORDER BY status <> 'active', lower(name) LIMIT ?", [$for, $for, $limit]) as $row) {
+        foreach ($this->db->execute("SELECT " . self::PROJECT . " FROM projects WHERE ?::bigint IS NULL OR owner_id = ? OR id IN (SELECT project_id FROM project_members WHERE principal_id = ?) ORDER BY status <> 'active', lower(name) LIMIT ?", [$for, $for, $for, $limit]) as $row) {
             $found[] = self::project($row);
+        }
+        return $found;
+    }
+
+    public function share(int $projectId, int $principalId, string $access, ?int $by): void {
+        $this->db->execute(
+            'INSERT INTO project_members (project_id, principal_id, access, granted_by) VALUES (?, ?, ?, ?)'
+            . ' ON CONFLICT (project_id, principal_id) DO UPDATE SET access = EXCLUDED.access, granted_by = EXCLUDED.granted_by',
+            [$projectId, $principalId, $access, $by],
+        );
+    }
+
+    public function unshare(int $projectId, int $principalId): bool {
+        return $this->db->execute('DELETE FROM project_members WHERE project_id = ? AND principal_id = ?', [$projectId, $principalId])->getRowCount() > 0;
+    }
+
+    public function memberLevel(int $projectId, int $principalId): ?string {
+        $row = $this->db->execute('SELECT access FROM project_members WHERE project_id = ? AND principal_id = ?', [$projectId, $principalId])->fetchRow();
+        return $row === null ? null : self::str($row, 'access');
+    }
+
+    public function members(int $projectId): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT principal_id, access FROM project_members WHERE project_id = ? ORDER BY created_at, principal_id', [$projectId]) as $row) {
+            $found[] = ['principalId' => self::int($row, 'principal_id'), 'access' => self::str($row, 'access')];
         }
         return $found;
     }
