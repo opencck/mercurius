@@ -64,7 +64,7 @@ final class MemoryAliasTool implements Tool {
         }
         $words = Args::strings($args, 'words');
         if (count($words) < 2) {
-            return ToolResult::error(t('app.aliases.few'));
+            return ToolResult::error(t('app.aliases.too_few'));
         }
         [$changed, $said] = $this->aliases->add($words, $context->principal->id);
         return $changed ? ToolResult::ok($said) : ToolResult::error($said);
