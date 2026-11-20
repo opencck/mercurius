@@ -14,7 +14,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `6160633` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b2b13b6` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 
-Остальные пакеты (`command-policy`, `memory`, `browser-service`, `mcp-client`, `peer`) пока живут в основном репозитории и выносятся, когда интерфейс устоится.
+Репозитории `mercurius-command-policy`, `mercurius-memory`, `mercurius-mcp-client` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/Memory/`, `src/App/Mcp/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); первыми выносятся `memory` и `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
 ## Модули: сервисы, MCP, скиллы
 
