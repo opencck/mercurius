@@ -52,8 +52,8 @@ final class SecretMasker {
         return preg_replace('~(?<![\w+.])(?:\+7|8)[\s(-]*\d{3}[\s)-]*\d{3}[\s-]?\d{2}[\s-]?\d{2}(?!\d)~u', '[phone]', $text) ?? $text;
     }
 
-    /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret… */
-    private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth|authorization|cookie|session)[\w-]*)';
+    /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret…; an author is not an auth */
+    private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth(?!or(?!i[sz]))|cookie|session)[\w-]*)';
 
     /**
      * Whether a text carries a secret by its name or its shape: a long hex or base64 string alone is not taken as one

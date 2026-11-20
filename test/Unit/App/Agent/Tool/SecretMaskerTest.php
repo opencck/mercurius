@@ -111,4 +111,15 @@ final class SecretMaskerTest extends TestCase {
         self::assertStringContainsString('2026-11-18', $masked);
         self::assertStringContainsString('12345678', $masked, 'a plain number is not a phone');
     }
+
+    public function testAnAuthorIsNotAnAuthorization(): void {
+        // spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a name is secret by a whole word: "auth" inside "author" is not one
+        foreach (['Co-Authored-By: Claude Opus <noreply@example.org>', 'author: Ivan', 'authority=central', 'Authors: A, B'] as $line) {
+            self::assertSame($line, SecretMasker::mask($line), $line);
+            self::assertFalse(SecretMasker::carriesSecret($line), $line);
+        }
+        foreach (['Authorization: abc123def', 'auth=abc123def', 'x-auth-token: abc123def', 'oauth_token=abc123def', 'authorisation: abc123def'] as $line) {
+            self::assertStringNotContainsString('abc123def', SecretMasker::mask($line), $line);
+        }
+    }
 }

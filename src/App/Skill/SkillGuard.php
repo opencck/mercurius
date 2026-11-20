@@ -59,7 +59,8 @@ final class SkillGuard {
                 if (preg_match(self::HIDDEN, $line) === 1) {
                     $findings[] = ['id' => 'invisible_unicode', 'severity' => 'critical', 'file' => self::key($file), 'line' => $i + 1, 'description' => 'invisible characters that can hide text from the owner'];
                 }
-                if (SecretMasker::mask($line) !== $line) {
+                // by a name or a shape: a long id alone (a path, a hash in a link) is not a finding, as in a chat message
+                if (SecretMasker::carriesSecret($line)) {
                     $findings[] = ['id' => 'secret_in_file', 'severity' => 'high', 'file' => self::key($file), 'line' => $i + 1, 'description' => 'looks like a secret written into the skill'];
                 }
             }
