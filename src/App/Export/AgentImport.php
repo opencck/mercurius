@@ -15,14 +15,14 @@ use function Mercurius\I18n\t;
  * The full import of an agent's archive, in two halves. While the agent runs: the archive is opened by the password and
  * unpacked into storage/import/staging, then, on the owner's yes, marked pending. At the next start, before the
  * database is touched: the schema is replaced by the dump, the data unpacked over storage, the vault key of the
- * archive kept in storage/secrets.key; the working folders go back through the sandbox executor after the start.
+ * archive kept in storage/.vault-key; the working folders go back through the sandbox executor after the start.
  *
  * spec: BRIEF.md#экспорт-и-импорт-агента — a full import replaces the agent, its state saved before
  * ref: bin/restore.sh — the same steps: the schema dropped and restored by pg_restore --no-owner, the data unpacked,
  *      .env not changed; the vault key is the one exception, without it the secrets of the dump cannot be read
  */
 final class AgentImport {
-    public const KEY_FILE = 'secrets.key';
+    public const KEY_FILE = '.vault-key';
     private const REQUIRED = ['db.dump', 'app.tar.gz', 'env', 'commit'];
 
     /**
