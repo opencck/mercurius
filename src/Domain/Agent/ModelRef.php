@@ -21,6 +21,8 @@ final class ModelRef implements Stringable {
     public const CODEX = 'codex';
     public const ANTHROPIC = 'anthropic';
     public const BEDROCK = 'bedrock';
+    /** the owner's ChatGPT subscription through the Codex backend (sign-in by /codex login, not a key) */
+    public const CHATGPT = 'chatgpt';
 
     public function __construct(
         public readonly string $provider,

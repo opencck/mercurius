@@ -119,6 +119,13 @@ final class ChatService implements MessageHandler {
         $this->import = $import;
     }
 
+    private ?CodexCommands $codex = null;
+
+    /** spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — /codex: the owner's ChatGPT subscription */
+    public function useCodex(CodexCommands $codex): void {
+        $this->codex = $codex;
+    }
+
     /** /models — the roles and their latest changes; /models rollback <number> — a role back to that record. */
     private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Principal $who, string $argument): string {
         $parts = preg_split('/\s+/', trim($argument)) ?: [];
@@ -255,6 +262,16 @@ final class ChatService implements MessageHandler {
             }
             if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
+            return;
+        }
+        if ($command === '/codex' && $this->codex !== null) {
+            if (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } else {
+                $this->reply($message, $this->codex->handle($message->chatId, substr($text, strlen($command))));
             }
             return;
         }

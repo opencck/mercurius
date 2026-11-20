@@ -30,6 +30,9 @@ use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
  * @var Monolog\Logger $logger
+ * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
+ * @var OpenCCK\App\Vault\Vault $vault
+ * @var non-empty-string $version
  */
 
 // Models: one client per provider with a key (its profile says which), chosen by the model's prefix; all go through VLESS when VLESS_URI is set.
@@ -43,6 +46,16 @@ $providerClients = ProviderClients::build($llmSettings, $modelHttp, $config->app
 $clients = $providerClients->clients;
 $catalogSources = $providerClients->catalogs;
 $toolReliableSources = $providerClients->toolReliable;
+// spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — the owner's ChatGPT subscription: chatgpt:<model>, signed in
+// by /codex login; its tokens live in the vault, so without the vault it is not offered
+$codexAccount = null;
+$modelProviders = $llmSettings->providers();
+if ($vault->enabled()) {
+    $codexAccount = new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount($modelHttp, $vault, static fn(): ?\OpenCCK\Domain\Entity\Principal => $ownerDirectory->principal());
+    $clients[\OpenCCK\Domain\Agent\ModelRef::CHATGPT] = new \Mercurius\Llm\RetryingClient(new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexClient($modelHttp, $codexAccount, $version), onRetry: $onRetry);
+    $catalogSources[\OpenCCK\Domain\Agent\ModelRef::CHATGPT] = (new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexCatalog($modelHttp, $codexAccount))->fetch(...);
+    $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::CHATGPT;
+}
 $openRouterKey = $llmSettings->openRouterKey();
 $openAiKey = $llmSettings->openAiKey();
 // Model catalog per provider, model roles, the choice of a conversation's model.
@@ -50,7 +63,7 @@ $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: BRIEF.md#модели — a change of the model of a role reaches the open conversations of that role
-$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $llmSettings->providers(), new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
+$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
 $modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);
 $modelRouter = new ModelRouter(
