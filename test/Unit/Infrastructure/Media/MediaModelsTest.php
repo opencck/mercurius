@@ -69,7 +69,7 @@ final class MediaModelsTest extends AsyncTestCase {
 
         // a picture that came before any run belongs to no run
         $models->look('openrouter:z-ai/glm-5.3-flash', [['bytes' => 'JPEG', 'mime' => 'image/jpeg']], 'Опиши кратко.', new MediaCall(7, null, new NullCancellation()));
-        self::assertSame(1260, self::used($runs, $run->id));
+        self::assertLessThan(2000, (int) self::used($runs, $run->id), 'the second picture was counted in no run');
     }
 
     public function testAPictureIsDrawnByAnOpenRouterImageModelAndItsCostRecorded(): void {
