@@ -28,8 +28,8 @@ use function Mercurius\I18n\t;
  * - `idea` — anything else (code, tools, rights): kept for whoever develops Mercurius; the agent changes nothing.
  * Nothing global changes without the owner's press.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
- * spec: brief/decisions.md#границы-самоулучшения — the core changes only through the owner; the agent may propose
+ * spec: brief/self-improvement.md#самоулучшение
+ * spec: brief/self-improvement.md#границы — the core changes only through the owner; the agent may propose
  */
 final class Improvements implements CallbackHandler {
     public const PREFIX = 'im';
@@ -62,7 +62,7 @@ final class Improvements implements CallbackHandler {
     public function propose(string $kind, string $title, string $text, string $reason, ?string $key = null): int {
         $id = $this->store->propose($kind, mb_substr(trim($title), 0, 120), mb_substr(trim($text), 0, PromptNotes::MAX), mb_substr(trim($reason), 0, 1000), $key);
         $this->logger->info('Improvement proposed', ['id' => $id, 'kind' => $kind]);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a kind the owner allowed for good goes without a card
+        // spec: brief/self-improvement.md#самоизменение-с-разрешением-навсегда — a kind the owner allowed for good goes without a card
         if (in_array($kind, self::GRANTABLE, true) && $this->granted !== null && ($this->granted)('self-improve:' . $kind)) {
             $proposal = $this->store->find($id);
             if ($proposal !== null) {
@@ -79,7 +79,7 @@ final class Improvements implements CallbackHandler {
      * At start: a proposal a restart left in checking goes back to proposed, and the owner is told and gets its card
      * again; the number of such proposals.
      *
-     * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — nothing stays in checking after a restart
+     * spec: brief/self-improvement.md#самоулучшение — nothing stays in checking after a restart
      */
     public function recover(): int {
         $ids = $this->store->checking();

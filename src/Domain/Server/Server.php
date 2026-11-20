@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Server;
  * A server of the owner the agent may work on: where it is, who logs in with which secret, its group for the command
  * policy and the host key the owner trusted.
  *
- * spec: brief/servers.md#фаза-7-по-частям
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh
  */
 final class Server {
     public const NAME_PATTERN = '~^[\p{L}\p{N}][\p{L}\p{N}._-]{0,63}$~u';

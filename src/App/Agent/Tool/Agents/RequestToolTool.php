@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * owner for it with a card that names the tool and why. The owner's "yes" gives the tool for good (it is added to the
  * participant's policy) and the run goes on with it; "no" is the answer.
  *
- * spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17
+ * spec: brief/network.md#участник-просит-инструмент
  * ref: references/hermes-agent/tools/approval.py@e96221fa:L64-L111 — hermes asks the owner per action; here the owner
  *      is asked for the right itself, once, and the policy keeps it
  */

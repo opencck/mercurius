@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
 /**
  * The jobs of the caller: the list, cancelling, a pause, resuming and a run now.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1
+ * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов
  * ref: references/hermes-agent/cron/jobs.py@e96221fa:L2141-L2217 (pause_job, resume_job, trigger_job) — pause, resume and
  *      run now; here resuming counts the next run from now, so a slot missed while paused does not run at once
  */
@@ -51,7 +51,7 @@ final class JobManageTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — trusting the source of a job is the owner's, always by a card
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — trusting the source of a job is the owner's, always by a card
         if (Args::string($args, 'action') === 'trust') {
             return DangerClass::Irreversible;
         }
@@ -121,7 +121,7 @@ final class JobManageTool implements Tool {
         return ToolResult::ok(sprintf(t($trusted ? 'tool.job_manage.trusted' : 'tool.job_manage.distrusted'), $job->id, $job->title));
     }
 
-    /** spec: brief/scheduler.md#планировщик-и-проекты-1 — which webhook events wake the job and how long a burst is merged */
+    /** spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — which webhook events wake the job and how long a burst is merged */
     private function filter(Job $job, string $text): ToolResult {
         if (!$job->byEvent()) {
             return ToolResult::error(sprintf(t('tool.job_manage.filter_event_only'), $job->id));
@@ -134,7 +134,7 @@ final class JobManageTool implements Tool {
         return ToolResult::ok(sprintf(t('tool.job_manage.filter_set'), $job->id, $job->title, (string) $filter === '' ? '—' : (string) $filter));
     }
 
-    /** spec: brief/scheduler.md#планировщик-и-проекты-1 — a job of simple checks runs on the cheap model */
+    /** spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job of simple checks runs on the cheap model */
     private function model(Job $job, string $role): ToolResult {
         $this->jobs->setModelRole($job->id, $role === 'cheap' ? 'cheap' : '');
         return ToolResult::ok(sprintf(t('tool.job_manage.model_set'), $job->id, $job->title, $role === 'cheap' ? 'cheap' : 'main'));

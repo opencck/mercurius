@@ -310,7 +310,7 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(1, $this->stack->llm->requests);
         self::assertNotSame([], $this->stack->llm->requests[0]->tools, 'the owner alone: the owner\'s tools');
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a group run gets no more than the weakest one who spoke there
+        // spec: brief/channels.md#права-запуска-в-группе — a group run gets no more than the weakest one who spoke there
         $this->say('а мне можно?', '77');
         $this->say('@mrcuribot покажи файл ещё раз');
         self::assertCount(2, $this->stack->llm->requests);
@@ -411,7 +411,7 @@ final class GroupGateTest extends AsyncTestCase {
     }
 
     public function testAnAgentThatActedInAFreeGroupReportsInsteadOfStayingSilent(): void {
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — silence is for a turn with nothing to say, not for one that acted
+        // spec: brief/channels.md#группа — silence is for a turn with nothing to say, not for one that acted
         $this->stack(new ScriptedLlm([
             ScriptedLlm::calls(new \Mercurius\Llm\ToolCall('c1', 'skill_setup', '{}')),
             ScriptedLlm::text('[SILENT]'),

@@ -125,7 +125,7 @@ $routes[] = ['GET', '/api/ws', static fn(\Amp\Http\Server\HttpServer $http): \Am
     clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $apiParser),
 )];
 
-// spec: brief/scheduler.md#планировщик-и-проекты-1 — a signed event starts a job by event
+// spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — a signed event starts a job by event
 $routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
 
 // Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.

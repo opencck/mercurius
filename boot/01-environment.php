@@ -35,7 +35,7 @@ try {
 }
 
 date_default_timezone_set($config->timezone);
-// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the secrets of the settings are masked by their values everywhere
+// spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — the secrets of the settings are masked by their values everywhere
 foreach ($_ENV as $name => $value) {
     if (is_string($value) && preg_match('~(TOKEN|_KEY|SECRET|PASSWORD|_HASH|_URI)$~', $name) === 1) {
         SecretMasker::remember($value);

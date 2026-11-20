@@ -85,7 +85,7 @@ final class ApiKeys {
         if (!$this->keys->revoke($id)) {
             return false;
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
+        // spec: brief/operations.md#второй-канал-websocket-api — a revoked key does not stay on a connection already open
         foreach ($this->revoked as $revoked) {
             $revoked($id);
         }

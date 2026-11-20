@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * route, the name. A server reinstalled with a new host key is fixed here: forget_host_key, or a new address, drops
  * the trusted key and the next connection asks the owner again.
  *
- * spec: brief/servers.md#фаза-7-по-частям — the registry of servers is changed in the dialogue, no SQL
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the registry of servers is changed in the dialogue, no SQL
  */
 final class ServerEditTool implements Tool, GrantKeyed {
     public const NAME = 'server_edit';

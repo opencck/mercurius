@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * with how often each was opened; `/skill <name>` shows one, `pin`/`unpin` keep it off the list of stale ones,
  * `/skill import <url> [project]` brings one into the owner's or the project's folder.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — skills are files: built-in ones plus the folders of the participant and the project
+ * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillCommands {
     /** @param Closure(string, string, string): ?Project $projectOf the active project of a chat and topic */
@@ -65,7 +65,7 @@ final class SkillCommands {
             }
             return sprintf(t('tool.skill_import.done'), $bundle->name, $dir, $bundle->files === [] ? '—' : implode(', ', array_keys($bundle->files)), $findings === [] ? t('skill.import.clean') : implode("\n", array_slice($findings, 0, 10)));
         }
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — off hides a skill from the index, remove deletes its folder after a snapshot
+        // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — off hides a skill from the index, remove deletes its folder after a snapshot
         if ($action === 'off' || $action === 'on') {
             if (!$this->library->counts()) {
                 return t('service.skill_commands.skill_imya_show_on_off_2');
@@ -75,7 +75,7 @@ final class SkillCommands {
             }
             return sprintf($action === 'off' ? t('service.skill_commands.off_now') : t('service.skill_commands.on_now'), $name);
         }
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — an imported skill is taken again from its source when the revision changed
+        // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — an imported skill is taken again from its source when the revision changed
         if ($action === 'update' && $this->importer !== null) {
             $origin = $this->library->origin($who, $project, $name, new TimeoutCancellation(30));
             if ($origin === null) {
@@ -95,7 +95,7 @@ final class SkillCommands {
             }
             return sprintf(t('service.skill_commands.updated'), $name, $origin['revision'] === '' ? '—' : $origin['revision'], $bundle->revision, $findings === [] ? t('skill.import.clean') : implode("\n", array_slice($findings, 0, 10)));
         }
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — the journal of a skill's edits and the rollback of one of them
+        // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — the journal of a skill's edits and the rollback of one of them
         if ($action === 'history') {
             $edits = $this->library->history($who, $project, $name);
             if ($edits === []) {

@@ -18,7 +18,7 @@ use Psr\Log\NullLogger;
  * Files that came in are kept MEDIA_INBOX_DAYS: then the days' folders of inbox/ are removed, as each participant in
  * their own home. What the agent saved elsewhere stays.
  *
- * spec: brief/internet.md#входящие-вложения — inbox/ is kept 30 days
+ * spec: brief/internet.md#приём — inbox/ is kept 30 days
  */
 final class InboxCleaner {
     public function __construct(

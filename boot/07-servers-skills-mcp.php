@@ -52,14 +52,14 @@ use OpenCCK\Infrastructure\Ssh\AmpSshShell;
  * @var OpenCCK\Infrastructure\Config\VaultSettings $vaultSettings
  */
 
-// spec: brief/servers.md#фаза-7-по-частям — the vault, the registry of servers, SSH with a command policy and a journal
+// spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the vault, the registry of servers, SSH with a command policy and a journal
 if (!$vault->enabled()) {
     $logger->warning('SECRETS_KEY is not set: the vault and SSH are off');
 }
 $serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
 $hostKeyCards = new HostKeyCards($serverRepository, $channel, $ownerDirectory);
-// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the owner may take off any rule of what is never done
+// spec: brief/servers.md#правила-никогда-без-владельца — the owner may take off any rule of what is never done
 $sshNeverOff = array_values(array_filter(array_map('trim', explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SSH_NEVER_OFF') ?? '')), static fn(string $r): bool => $r !== ''));
 $serverConsole = new ServerConsole(
     $serverRepository,
@@ -82,7 +82,7 @@ $tools->register(new FileWriteTool($serverConsole, new SshCommandClassifier($ssh
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
 
-// spec: brief/skills-mcp.md#скиллы-и-mcp — skills are files: built-in ones (submodules in skills/), the participant's folder and the
+// spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills are files: built-in ones (submodules in skills/), the participant's folder and the
 // active project's folder in the sandbox; the index is in the prompt, the texts on demand
 $skillProjects = new PostgresProjectRepository($db);
 $skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
@@ -96,7 +96,7 @@ $skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
     $logger,
 );
 $scheduler->useSkills($skillLibrary);
-// spec: brief/skills-mcp.md#скиллы-и-mcp — skills of the old layout move to .mercurius/skills at start, the old folder kept
+// spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills of the old layout move to .mercurius/skills at start, the old folder kept
 if ($sandbox !== null) {
     \Amp\async(static function () use ($sandbox, $principals, $policies, $skillProjects, $ownerDirectory, $logger): void {
         $limitsOf = static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
@@ -123,7 +123,7 @@ if ($sandbox !== null) {
         }
     })->ignore();
 }
-// spec: brief/skills-mcp.md#скиллы-и-mcp — a project named by the agent (a private chat about it), else the conversation's active one
+// spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a project named by the agent (a private chat about it), else the conversation's active one
 $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $skillProjects): ?\OpenCCK\Domain\Project\Project {
     if ($name !== null && trim($name) !== '') {
         return $skillProjects->byName(trim($name), \OpenCCK\Domain\Project\Project::scopeOf($who));
@@ -136,15 +136,15 @@ $skillLibrary->useUsage($skillUsage);
 $skillLibrary->useEdits(new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db));
 $tools->register(new SkillViewTool($skillLibrary, $skillProjectOf));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
-// spec: brief/skills-mcp.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents, through the SSRF guard
+// spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
-// spec: brief/skills-mcp.md#скиллы-и-mcp — no limit on a skill by default; the owner may cap its number of files
+// spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — no limit on a skill by default; the owner may cap its number of files
 $skillMaxFiles = max(0, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SKILL_MAX_FILES') ?? '0'));
 $skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\GitHubSkillSource($skillHttp, $skillMaxFiles), new \OpenCCK\App\Skill\ArchiveSkillSource($skillHttp, $skillMaxFiles)], $skillMaxFiles);
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
-// spec: brief/skills-mcp.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
+// spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
-// spec: brief/skills-mcp.md#скиллы-и-mcp — the MCP client of the package speaks in the agent's language
+// spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the MCP client of the package speaks in the agent's language
 $mcpTexts = \OpenCCK\App\Mcp\McpLanguage::texts();
 /** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
 $mcpManager = null;
@@ -170,18 +170,18 @@ $mcpManager = new McpManager(
     $logger,
     stdio: $stdioMcp !== null,
 );
-// spec: brief/skills-mcp.md#скиллы-и-mcp — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
+// spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
 $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {
     $mcpManager->useSandbox($sandbox, new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00'));
 }
 \Revolt\EventLoop::defer($mcpManager->connectAll(...));
-// spec: brief/skills-mcp.md#скиллы-и-mcp — servers down at start are tried again, connected ones are listed again for changes
+// spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — servers down at start are tried again, connected ones are listed again for changes
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($mcpManager): void {
     \Amp\async($mcpManager->tick(...))->ignore();
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\McpResourcesTool($mcpManager));
-// spec: brief/skills-mcp.md#скиллы-и-mcp — the built-in mail server: the mailbox from the settings goes in headers of each request
+// spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — the built-in mail server: the mailbox from the settings goes in headers of each request
 $mailHeaders = \OpenCCK\Infrastructure\Config\MailSettings::headers($_ENV);
 $mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');
 if ($mailHeaders !== null && $mailToken !== null) {

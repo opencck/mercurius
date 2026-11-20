@@ -95,7 +95,7 @@ final class ModelCatalogModule implements AppModuleInterface {
     /**
      * Which models call tools well; a failed or empty answer leaves it unknown, so no model is held back by it.
      *
-     * spec: brief/models.md#выбор-моделей-под-задачу
+     * spec: brief/models.md#профиль-модели
      */
     private function markToolReliable(string $provider): void {
         $fetch = $this->toolReliable[$provider] ?? null;

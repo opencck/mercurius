@@ -14,7 +14,7 @@ use Throwable;
 /**
  * POST /hooks/{id} — a signed event for a job by event; the run starts in the background and the answer comes at once.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — events by webhook
+ * spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — events by webhook
  */
 final class JobHookHandler implements RequestHandler {
     public function __construct(private readonly HookReceiver $receiver) {}

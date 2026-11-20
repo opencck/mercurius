@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * — the strong model"): at once, on request or not at all per kind, a preferred model among the owner's, their
  * principles. Only for the participant the agent works for; no card — it changes nobody else's spend.
  *
- * spec: brief/internet.md#входящие-вложения — how users influence it
+ * spec: brief/internet.md#как-влияют-пользователи — how users influence it
  */
 final class MediaPrefsTool implements Tool {
     public const NAME = 'media_prefs';

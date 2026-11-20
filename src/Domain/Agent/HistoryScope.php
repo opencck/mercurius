@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * Which past conversations a reader may search: all of them (the owner in a private chat) or one chat's.
  *
- * spec: brief/decisions.md#контекст-по-месту-и-аудитории — the narrowest listener decides
+ * spec: brief/participants.md#контекст-по-месту-и-аудитории — the narrowest listener decides
  */
 final class HistoryScope {
     private function __construct(

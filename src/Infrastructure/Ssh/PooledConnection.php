@@ -9,7 +9,7 @@ use Closure;
 /**
  * A connection the pool gives out: how many commands use it now and in all, when it was last used.
  *
- * spec: brief/servers.md#фаза-7-по-частям — a pool of SSH connections
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a pool of SSH connections
  */
 final class PooledConnection {
     public int $users = 0;

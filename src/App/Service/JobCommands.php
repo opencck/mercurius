@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
 /**
  * The owner's commands for jobs: the list, the webhook of a job by event, the summary now.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — the secret of a webhook is named, not shown: the owner puts it in the vault
+ * spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — the secret of a webhook is named, not shown: the owner puts it in the vault
  *       with /secret, the chat and the transcript never carry it
  */
 final class JobCommands {

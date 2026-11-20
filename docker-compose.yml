@@ -48,7 +48,7 @@ services:
   # Optional: a local Telegram Bot API server (COMPOSE_PROFILES=telegram-api, TELEGRAM_API_URL=http://telegram-api:8081).
   # By default the bot works with the cloud Bot API. Files up to 2000 MB; TELEGRAM_API_ID and TELEGRAM_API_HASH from
   # my.telegram.org. An HTTP proxy in TELEGRAM_PROXY carries its webhook requests.
-  # spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+  # spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api
   telegram-api:
     profiles: ["telegram-api"]
     build:
@@ -220,7 +220,7 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
-      # spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # spec: brief/agent-loop.md#песочница — /proc is remounted with hidepid at start: participants do not
       # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
       - SYS_ADMIN
     security_opt:
@@ -289,7 +289,7 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
-      # spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # spec: brief/agent-loop.md#песочница — /proc is remounted with hidepid at start: participants do not
       # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
       - SYS_ADMIN
     security_opt:

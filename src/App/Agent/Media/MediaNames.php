@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent\Media;
  * A file name from outside, safe to keep: no slashes or control characters (a name is a name, not a path), no dots or
  * spaces at the ends, up to 100 characters; nothing left — "file".
  *
- * spec: brief/internet.md#входящие-вложения — files from people and agents go into inbox/ and stay there
+ * spec: brief/internet.md#приём — files from people and agents go into inbox/ and stay there
  */
 final class MediaNames {
     public static function clean(string $name): string {

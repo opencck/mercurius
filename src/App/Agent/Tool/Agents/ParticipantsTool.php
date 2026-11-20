@@ -24,13 +24,13 @@ use function Mercurius\I18n\t;
  * Who is in the system: people and agents with their number, role, status and current rights. The owner asks "what
  * can I change for Sergey" — the agent finds him here, then changes his rights by the number.
  *
- * spec: brief/decisions.md#участники-люди-и-агенты — the owner manages participants in the dialog
+ * spec: brief/participants.md#участники-люди-и-агенты — the owner manages participants in the dialog
  */
 final class ParticipantsTool implements Tool {
     /**
      * The roles of the owner's list by name, «talk» for the visitor and «rejected».
      *
-     * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
+     * spec: brief/participants.md#свои-роли
      *
      * @return array<string, array{Role, PrincipalStatus}> role argument => [role, status]
      */
@@ -87,7 +87,7 @@ final class ParticipantsTool implements Tool {
     }
 
     public function danger(array $args): DangerClass {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        // spec: brief/participants.md#выдача-прав-и-владение — granting rights is always a card, in the owner's private chat
         return Args::string($args, 'action') === 'decide' ? DangerClass::Irreversible : DangerClass::Read;
     }
 
@@ -125,7 +125,7 @@ final class ParticipantsTool implements Tool {
      * What a participant may do, decided by the owner in the dialog — also without the card: someone seen in a group
      * gets rights before they write to the bot, and a lost card does not leave them waiting.
      *
-     * spec: brief/decisions.md#участники-люди-и-агенты — roles are the owner's decision
+     * spec: brief/participants.md#участники-люди-и-агенты — roles are the owner's decision
      */
     private function decide(Principal $who, ?int $id, string $query, string $role): ToolResult {
         $decision = self::decisions()[$role] ?? null;
@@ -141,7 +141,7 @@ final class ParticipantsTool implements Tool {
         if ($found[0]->isOwner()) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — a holder of the power changes others, not themselves, and
+        // spec: brief/participants.md#свои-роли — a holder of the power changes others, not themselves, and
         //       gives no role with a power they do not have
         if (!$who->isOwner() && ($found[0]->id === $who->id || array_diff(self::names($decision[0]->powers()), self::names($who->role->powers())) !== [])) {
             return ToolResult::error(t('tool.participants.above_own'));

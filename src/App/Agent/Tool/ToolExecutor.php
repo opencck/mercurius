@@ -52,7 +52,7 @@ final class ToolExecutor {
         $tool = $call->tool;
         $name = $call->call->name;
         $timeout = new TimeoutCancellation($timeoutSeconds);
-        // spec: brief/scheduler.md#планировщик-и-проекты-1 — a snapshot before the first change a run makes in the working folder
+        // spec: brief/scheduler.md#снимки-рабочего-каталога — a snapshot before the first change a run makes in the working folder
         $limits = $context->policy?->sandbox;
         if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
             $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
@@ -95,7 +95,7 @@ final class ToolExecutor {
      * Makes a result small for the budget of the turn: its file and a preview, or a cut to the preview when there is
      * no sandbox.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the results of a turn fit 30% of the window
+     * spec: brief/agent-loop.md#контекст — the results of a turn fit 30% of the window
      */
     public function shrink(string $content, ToolContext $context): string {
         return $this->spill($content, $context, $this->previewChars) ?? $this->truncate($content, $this->previewChars);

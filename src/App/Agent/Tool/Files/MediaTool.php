@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  * a document from an offset, the models and the principles. The model is chosen by the principles of the owner and the
  * participant; only the owner's models are called. What comes back is data from outside.
  *
- * spec: brief/internet.md#входящие-вложения — the media tool
+ * spec: brief/internet.md#инструмент-media — the media tool
  * ref: references/hermes-agent/tools/vision_tools.py@e96221fa:L1-L7 — hermes has vision_analyze and video_analyze; here
  *      one tool for every kind, over the owner's list of models
  */

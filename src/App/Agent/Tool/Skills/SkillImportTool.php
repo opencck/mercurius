@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * sent to the chat (it lies in the sandbox, inbox/) — checks it and unpacks it into the participant's or the active
  * project's folder of skills. The format is the same as of built-in skills: a directory with SKILL.md and files.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — a skill from git or an archive, in the folder of the participant or the project
+ * spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — a skill from git or an archive, in the folder of the participant or the project
  */
 final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
     public const NAME = 'skill_import';
@@ -83,7 +83,7 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
         $url = Args::string($args, 'url') ?? '';
         try {
             if ($path !== null && $path !== '') {
-                // spec: brief/skills-mcp.md#скиллы-и-mcp — a skill sent to the chat as an archive lies in the sandbox (inbox/)
+                // spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — a skill sent to the chat as an archive lies in the sandbox (inbox/)
                 $limits = $context->policy?->sandbox;
                 if ($this->sandbox === null || $limits === null) {
                     return ToolResult::error(t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));

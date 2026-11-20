@@ -102,7 +102,7 @@ final class AgentLoop {
     private ToolUseGuidance $toolUse;
     private ?\OpenCCK\App\Agent\Tool\ToolSearch $toolSearch = null;
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — many MCP tools go to the model through the bridge tool_search */
+    /** spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — many MCP tools go to the model through the bridge tool_search */
     public function useToolSearch(\OpenCCK\App\Agent\Tool\ToolSearch $search): void {
         $this->toolSearch = $search;
     }
@@ -179,7 +179,7 @@ final class AgentLoop {
             [],
             ($this->clock)(),
         );
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a resumed run goes on with the model it switched to
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a resumed run goes on with the model it switched to
         $state->model = $run->fallbackModel;
         $state->switched = $run->fallbackModel !== null;
         $this->loadContext($state);
@@ -205,7 +205,7 @@ final class AgentLoop {
         }
     }
 
-    /** spec: brief/agent-loop.md#агентский-цикл-и-харнесс — AGENT_TOOL_USE_GUIDANCE */
+    /** spec: brief/agent-loop.md#инструменты — AGENT_TOOL_USE_GUIDANCE */
     public function useToolUseGuidance(ToolUseGuidance $guidance): void {
         $this->toolUse = $guidance;
     }
@@ -241,7 +241,7 @@ final class AgentLoop {
 
     /** The ceiling of a group, steering messages, limits, spend and compaction before the call; null — go on. */
     private function prepareTurn(RunState $state): ?Step {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+        // spec: brief/channels.md#права-запуска-в-группе — in a group the rights of the weakest active participant
         $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
         if ($ceiling !== null) {
             $state->policy = $state->policy->narrowedBy($ceiling, keepApproval: $state->principal->isOwner());
@@ -295,7 +295,7 @@ final class AgentLoop {
                 return Step::next();
             }
             // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
+            // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — not for a content filter: it judged the request, the
             //       model works; another model would only be asked to say the same
             if ($state->lastError !== ErrorKind::ContentFilter && $this->switchModel($state)) {
                 return Step::next();
@@ -325,7 +325,7 @@ final class AgentLoop {
         }
         $state->emptyStreak = [];
         $state->lessReasoning = false;
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
+        // spec: brief/agent-loop.md#инструменты — an action is done only by a tool call: an answer that reports one in
         //      words (it copies the system note of earlier runs) is shown back once with a reminder
         // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
         //      completion without tool calls" in the prompt; here the loop also catches the copied note
@@ -338,7 +338,7 @@ final class AgentLoop {
             return Step::next();
         }
         $state->textAction = null;
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — [SILENT] is for a turn with nothing to say: a run that acted (a
+        // spec: brief/channels.md#группа — [SILENT] is for a turn with nothing to say: a run that acted (a
         //      skill set up, a file written) tells what it did and what failed, once asked
         if (!$state->silenceRetried && str_starts_with(ltrim($text), '[SILENT]') && $this->actionsNote($state->run->id) !== '') {
             $state->silenceRetried = true;
@@ -517,7 +517,7 @@ final class AgentLoop {
     private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null, array $tail = []): ChatRequest {
         $summary = $state->summary === null ? [] : [Message::user($state->summary)];
         $model = $state->model ?? $state->run->model;
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — a model of a family that answers in prose is told to act through tools
+        // spec: brief/agent-loop.md#инструменты — a model of a family that answers in prose is told to act through tools
         $system = $tools !== [] && $this->toolUse->applies($model) ? $state->systemPrompt . "\n\n" . \Mercurius\I18n\t('agent.tool_use_guidance') : $state->systemPrompt;
         $messages = [Message::system($system), ...$summary, ...$state->history, ...$this->contextMessages($state), ...$tail];
         $state->messagesAtCall = count($this->transcript->runMessages($state->run->id));

@@ -50,7 +50,7 @@ final class ParticipantPolicyTest extends TestCase {
         $mine = $owner->narrowedBy($weakest, keepApproval: true);
         $theirs = $owner->narrowedBy($weakest);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the card goes to the owner with the exact call
+        // spec: brief/channels.md#права-запуска-в-группе — the card goes to the owner with the exact call
         self::assertTrue($mine->mayRequestApproval);
         self::assertSame(['web_search'], $mine->tools);
         self::assertSame(5, $mine->run->maxTurns);

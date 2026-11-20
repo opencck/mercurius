@@ -11,7 +11,7 @@ use SensitiveParameter;
  * Runs one command on a server. The command is cut off on the server by `timeout`, stdin gets only what is given and
  * is closed, the output is kept within a limit.
  *
- * spec: brief/servers.md#фаза-7-по-частям
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh
  */
 interface RemoteShell {
     /**

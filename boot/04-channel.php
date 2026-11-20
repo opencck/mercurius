@@ -21,7 +21,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  */
 
 // Channel: Telegram — directly, through a proxy or VLESS (TELEGRAM_PROXY); the cloud Bot API or a local server.
-// spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+// spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api
 $telegramHttp = HttpClients::create($telegram->route(), $logger);
 $telegramFiles = rtrim($telegram->filesRoot, '/') . '/';
 // a local server keeps files on its disk; they are read only inside its folder, up to the limit

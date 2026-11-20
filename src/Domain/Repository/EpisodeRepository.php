@@ -11,7 +11,7 @@ use OpenCCK\Domain\Agent\HistoryScope;
  * Past conversations as episodes: the messages themselves, searched by words. Workers' conversations and tool
  * results are not searched.
  *
- * spec: brief/memory.md#память-слои — layer 6
+ * spec: brief/memory.md#как-сделано-эпизоды-и-поиск — layer 6
  */
 interface EpisodeRepository {
     /**

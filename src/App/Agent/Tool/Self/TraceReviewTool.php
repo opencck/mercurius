@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * were refused, calls repeated after a refusal (a check of safety, not only of cost), the costliest runs and the spend
  * by purpose. What failed calls returned is outside text, so the result is untrusted.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a review of its own traces for mistakes, waste and safety
+ * spec: brief/self-improvement.md#самоулучшение — a review of its own traces for mistakes, waste and safety
  * ref: references/hermes-agent/agent/insights.py@e96221fa:L1-L2 (InsightsEngine) — hermes sums sessions, tools and cost of a period; here
  *      for the agent itself, with refusals and repeats after a refusal
  */
@@ -32,7 +32,7 @@ final class TraceReviewTool implements Tool {
 
     public function __construct(private readonly TraceReviewRepository $traces) {}
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — the review names the skills nobody opened for a month */
+    /** spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — the review names the skills nobody opened for a month */
     public function useSkills(\OpenCCK\App\Skill\SkillLibrary $skills): void {
         $this->skills = $skills;
     }

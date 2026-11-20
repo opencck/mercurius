@@ -94,7 +94,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
-        // spec: brief/operations.md#трассировка-и-метрики — the worker is a step of its orchestrator's trace
+        // spec: brief/operations.md#шаги-и-хранение — the worker is a step of its orchestrator's trace
         self::assertContains('worker:1:2:done', $events->events);
         $worker = $stack->runs->find(2);
         self::assertNotNull($worker);
@@ -289,7 +289,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             ScriptedLlm::text('итог'),
         ]);
         $stack = $this->stack($llm);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list, a new one is closed
+        // spec: brief/orchestration.md#белый-список-инструментов-воркера — a worker gets only tools of the white list, a new one is closed
         $this->runner->allowOnly(['read', 'mcp__*']);
         self::assertSame(['read', 'mcp__mail__send'], $this->runner->onTheList(['read', 'push', 'mcp__mail__send']));
 

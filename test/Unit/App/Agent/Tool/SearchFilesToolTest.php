@@ -22,7 +22,7 @@ use OpenCCK\Test\Support\FakeSandbox;
  * The agent searches the files of the participant by content or by name, as a read: one quoted command in the
  * sandbox, the folder of snapshots left out, the number of lines bounded.
  *
- * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
+ * spec: brief/agent-loop.md#инструменты
  */
 final class SearchFilesToolTest extends AsyncTestCase {
     private static function context(): ToolContext {

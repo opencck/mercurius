@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * projects, deadlines and what it knows and writes to the owner only when there is something worth saying — otherwise
  * it answers `[SILENT]` and nothing is sent. Reports go through the scheduler: quiet hours and the daily cap apply.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — initiative messages with a set frequency and quiet hours
+ * spec: brief/scheduler.md#инициатива-агента — initiative messages with a set frequency and quiet hours
  * ref: references/hermes-agent/gateway/turn_context.py@e96221fa:L20-L22 — hermes runs scheduled heartbeats as
  *      proactive work that stays quiet when it has nothing to say; here it is an ordinary job with [SILENT]
  */

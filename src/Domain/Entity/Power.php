@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Entity;
 /**
  * What a role lets a participant do beyond talking. The owner has every power.
  *
- * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли
  */
 enum Power: string {
     /** the role may be given tools */

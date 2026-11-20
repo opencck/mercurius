@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * Scores of the evaluation set by category, kept for each version of the notes to the system prompt.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — scores by category for a version of the prompt, and a report
+ * spec: brief/self-improvement.md#самоулучшение — scores by category for a version of the prompt, and a report
  *       comparing versions
  */
 interface EvalScoreRepository {

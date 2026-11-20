@@ -116,7 +116,7 @@ use Mercurius\Memory\App\Proposals;
  */
 
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
-// spec: brief/operations.md#трассировка-и-метрики — the summary counts the memory proposals waiting for the owner
+// spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — the summary counts the memory proposals waiting for the owner
 $dailyDigest->useMemory($memoryStore);
 $dailyDigest->useAudit($commandAudit);
 $tools->register(new MemorySearchTool($recall, $audience));
@@ -127,7 +127,7 @@ $tools->register(new ExperienceSearchTool($experience, $audience));
 $background->useScheduler($scheduler);
 $approvals->onDecision($scheduler->resumeRun(...));
 $visitors = new VisitorService($principals, $channel, $ownerDirectory, $logger);
-// spec: brief/channels.md#telegram-группы-каналы-и-темы — groups approved by the owner; the bot's name finds mentions
+// spec: brief/channels.md#группа — groups approved by the owner; the bot's name finds mentions
 try {
     $me = $telegramApi->getMe();
     $botUsername = isset($me['username']) && is_string($me['username']) ? $me['username'] : null;
@@ -159,7 +159,7 @@ $groupGate = new \OpenCCK\App\Service\GroupGate(
     },
     is_numeric($groupFreeTokens = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'GROUP_FREE_DAILY_TOKENS')) ? (int) $groupFreeTokens : 200000,
 );
-// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a run in a group gets no more rights than the weakest one who spoke there
+// spec: brief/channels.md#права-запуска-в-группе — a run in a group gets no more rights than the weakest one who spoke there
 $scheduler->useGroupSpeakers($groupGate->speakers(...));
 // spec: brief/channels.md#группа — other bots are heard in groups (as visitors, by mention), the guard ends their loops;
 // participants name the bots and visitors not to hear
@@ -186,14 +186,14 @@ $chat = new ChatService(
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
-    // spec: brief/operations.md#решено-в-фазе-12 — /doctor checks the installation
+    // spec: brief/operations.md#как-сделано-поставка — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...)),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,
     explode(':', $telegram->token(), 2)[0],
     $runMessages,
-    // spec: brief/internet.md#входящие-вложения — files of messages go into the sandbox and are described to the agent; the files of
+    // spec: brief/internet.md#приём — files of messages go into the sandbox and are described to the agent; the files of
     // an answer to the agent's question go to the one who asked
     new \OpenCCK\App\Service\RelayService($messageRelays, $principals, $conversations, $scheduler, $channel, $logger, $attachmentIntake = new \OpenCCK\App\Agent\Media\AttachmentIntake($channel, $sandbox, $mediaSettings, $ownerZone, logger: $logger, maxFile: $telegram->fileLimit, models: $mediaModels, prefs: $mediaPrefs, docs: $docsService), $policies),
     $attachmentIntake,
@@ -201,13 +201,13 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\ApiKeyCommands($apiKeys, $principals),
     new \OpenCCK\App\Service\PromptCommands($promptNotes, $evalScores),
 );
-// spec: brief/operations.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
+// spec: brief/operations.md#расход-что-знает-агент — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SettingsTool($settingsService, $restarter));
 $apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
 $evalJudge = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_JUDGE_MODEL') ?? '';
 $evalRuns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'EVAL_RUNS');
-// spec: brief/decisions.md#границы-самоулучшения — the judge may be of any provider: jev:<model> is the judging service Jev
+// spec: brief/self-improvement.md#границы — the judge may be of any provider: jev:<model> is the judging service Jev
 $jevKey = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JEV_API_KEY');
 $jevJudge = str_starts_with($evalJudge, 'jev:') && $jevKey !== null
     ? new \OpenCCK\Infrastructure\Eval\JevJudge($modelHttp, $jevKey, substr($evalJudge, 4) === '' ? 'jev-latest' : substr($evalJudge, 4))
@@ -219,27 +219,27 @@ $promptGate = new \OpenCCK\App\Improve\PromptGate(
     $evalRuns !== null && ctype_digit($evalRuns) ? (int) $evalRuns : 3,
     $evalJudge !== '',
 );
-// spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — scores of the set by category for each version of the notes
+// spec: brief/self-improvement.md#самоулучшение — scores of the set by category for each version of the notes
 $promptGate->useScores($evalScores);
 $improvements = new \OpenCCK\App\Improve\Improvements(
     $improvementRepository,
     $promptNotes,
     $channel,
     $ownerDirectory,
-    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the owner may switch off the check of a prompt change by the set
+    // spec: brief/self-improvement.md#ворота-изменения-промпта — the owner may switch off the check of a prompt change by the set
     \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'IMPROVE_GATE') === '0'
         ? static fn(string $current, string $candidate): \OpenCCK\App\Improve\GateVerdict => new \OpenCCK\App\Improve\GateVerdict(true, \Mercurius\I18n\t('improve.gate_off'))
         : $promptGate(...),
     static fn(string $key, string $value): string => $settingsService->set($apiOwner, $key, $value),
     $logger,
     background: true,
-    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — self-modification may be allowed for good, kept as a grant
+    // spec: brief/self-improvement.md#самоизменение-с-разрешением-навсегда — self-modification may be allowed for good, kept as a grant
     granted: static fn(string $key): bool => $approvalStore->hasGrant($apiOwner->id, $key),
     grant: static function (string $key) use ($approvalStore, $apiOwner): void {
         $approvalStore->addGrant($apiOwner->id, $key);
     },
 );
-// spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a proposal a restart left in checking goes back to the owner
+// spec: brief/self-improvement.md#самоулучшение — a proposal a restart left in checking goes back to the owner
 \Revolt\EventLoop::defer(static function () use ($improvements, $logger): void {
     try {
         $improvements->recover();
@@ -249,7 +249,7 @@ $improvements = new \OpenCCK\App\Improve\Improvements(
 });
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($improvements));
 $chat->useImprovements($improvements);
-// spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — /models: the roles, their history and a rollback
+// spec: brief/self-improvement.md#самоулучшение — /models: the roles, their history and a rollback
 $chat->useModelRoles($modelRoles);
 // spec: brief/operations.md#экспорт-и-импорт-агента — /export: the archive of the agent sealed by the owner's password
 $exportAgent = static function (string $password, \Amp\Cancellation $cancellation) use ($postgresAccess, $sandbox, $version): string {
@@ -324,7 +324,7 @@ if ($imported !== null || $importFailed) {
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);
 $chat->useRoles($roleCatalog);
-// spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — a holder of reports does not see the private chats of others
+// spec: brief/participants.md#свои-роли — a holder of reports does not see the private chats of others
 $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($runs, $conversations): bool {
     $run = $runs->find($runId);
     $meta = $run === null ? null : $conversations->meta($run->conversationId);

@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * the places of the "never" list (authorized_keys, cron, sudoers, systemd) are written only when the owner allowed this
  * very call, with a warning on the card. A grant names the server and the path. Reading a file is ssh_run with cat.
  *
- * spec: brief/servers.md#фаза-7-по-частям — files through cat and stdin/stdout
+ * spec: brief/servers.md#как-сделано-запросы-к-базам-данных — files through cat and stdin/stdout
  * ref: references/amphp-ssh/examples/stdin-piping.php@9d171ac:L24-L34 — cat > file, pipe, end()
  */
 final class FileWriteTool implements Tool, GrantKeyed {
@@ -59,7 +59,7 @@ final class FileWriteTool implements Tool, GrantKeyed {
         if ($server === '' || $path === '') {
             return null;
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — «always» is for this content written this way at this place:
+        // spec: brief/agent-loop.md#разрешения-навсегда — «always» is for this content written this way at this place:
         //       a saved grant does not let a page steer another content into the same file
         return sprintf(
             '%s:%s:%s:%s:%s',

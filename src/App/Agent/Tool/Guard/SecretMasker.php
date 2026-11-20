@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent\Tool\Guard;
  * Hides secret-looking values in what is shown to people (approval cards): you cannot approve what you cannot see,
  * but the card must not leak a token into the chat history.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — secrets in the card are masked
+ * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — secrets in the card are masked
  * ref: references/hermes-agent/tools/approval.py@e96221fa:L1421-L1479 — hermes shows the command in full; we mask values
  */
 final class SecretMasker {
@@ -22,7 +22,7 @@ final class SecretMasker {
     /**
      * An exact secret value: from now on it is masked wherever it shows up, whatever it looks like. Memory only.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — masks by the value of a secret, not only by its shape
+     * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — masks by the value of a secret, not only by its shape
      * ref: references/hermes-agent/agent/redact_vault_values.py@e96221fa:L13-L40 — a bounded registry of exact values;
      *      hermes keeps one per profile, here one per process
      */
@@ -41,7 +41,7 @@ final class SecretMasker {
      * Text for another agent: secrets masked, and the personal data of people too — e-mail addresses and phone
      * numbers. The other agent works for someone else.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — what goes to another agent carries no addresses and phones
+     * spec: brief/network.md#подпись-адреса-доказательство-ключа-и-маскирование — what goes to another agent carries no addresses and phones
      * ref: references/hermes-agent/agent/redact.py@e96221fa:L757-L759 — E.164 without a word or dot glued before the
      *      plus (a version like 3.14.7+20260901 stays); here also the spaced Russian form, +7 or 8 with brackets
      */
@@ -59,7 +59,7 @@ final class SecretMasker {
      * Whether a text carries a secret by its name or its shape: a long hex or base64 string alone is not taken as one
      * (a hash of a commit, a picture) — the mask of output still hides those.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a message is deleted for a secret, not for a hash
+     * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a message is deleted for a secret, not for a hash
      */
     public static function carriesSecret(string $text): bool {
         foreach (self::patterns(false) as $pattern => $replacement) {

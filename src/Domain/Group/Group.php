@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Group;
 /**
  * A group chat the bot was added to.
  *
- * spec: brief/channels.md#telegram-группы-каналы-и-темы
+ * spec: brief/channels.md#как-сделано-группы
  */
 final class Group {
     public const PENDING = 'pending';

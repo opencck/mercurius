@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * Checks of an installation: settings, the database and its migrations, the disk, the sandbox and the browser. Each
  * check says what is wrong and what to do; values of secrets are never shown.
  *
- * spec: brief/operations.md#решено-в-фазе-12 — doctor finds typical mistakes of an installation
+ * spec: brief/operations.md#как-сделано-поставка — doctor finds typical mistakes of an installation
  * ref: references/hermes-agent/hermes_cli/doctor.py@e96221fa:L114-L134 (DOCTOR_CHECKS) — an ordered list of checks;
  *      here the ones that matter for a Docker install: .env, database and migrations, disk, services
  */
@@ -47,7 +47,7 @@ final class Doctor {
     }
 
     /**
-     * spec: brief/servers.md#фаза-7-по-частям — the chain of hashes of the command journal holds
+     * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the chain of hashes of the command journal holds
      *
      * @return list<array{string, string, string}>
      */
@@ -187,7 +187,7 @@ final class Doctor {
     /** @return list<array{string, string, string}> */
     private function services(): array {
         $out = [];
-        // spec: brief/internet.md#интернет-и-браузер — which receiving server the sender check of mail trusts
+        // spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — which receiving server the sender check of mail trusts
         $mailHost = Env::raw($this->env, 'MAIL_HOST');
         if ($mailHost !== null) {
             $out[] = [self::OK, t('service.doctor.mail'), sprintf(t('service.doctor.mail_authserv'), strtolower(Env::raw($this->env, 'MAIL_AUTHSERV_ID') ?? $mailHost))];

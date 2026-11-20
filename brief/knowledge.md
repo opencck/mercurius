@@ -1,4 +1,4 @@
-# База знаний
+# Спецификация: база знаний
 
 ## База знаний
 
@@ -31,11 +31,11 @@
 | [hermes-agent](../notes/hermes-agent.md) | [репозиторий](../references/hermes-agent/) | Образец ядра: архитектура, агентский цикл, промпт и контекст, провайдеры, инструменты, делегирование, состояние | Главный образец для фаз 2–5; репозиторий огромный, прочитан прицельно |
 | [hermes-agent-memory-skills](../notes/hermes-agent-memory-skills.md) | [репозиторий](../references/hermes-agent/) | Встроенная память, контракт провайдера памяти, скиллы, цикл самоулучшения, cron, плагины | Образец для фаз 6, 9, 10, 11 |
 | [hermes-agent-gateway-security](../notes/hermes-agent-gateway-security.md) | [репозиторий](../references/hermes-agent/) | Шлюз и адаптеры каналов, Telegram, подтверждения, окружения исполнения, браузер, MCP, секреты, развёртывание | Образец для фаз 2, 3, 7, 8, 9 |
-| [hermes-plugin-holographic](../notes/hermes-plugin-holographic.md) | [репозиторий](../references/hermes-plugin-holographic/) | Память как хранилище фактов: схема, поиск, гейт релевантности, доверие, версии, забывание; анализ переноса на PHP и PostgreSQL | Образец памяти (фаза 6); ядро кода прочитано, тесты и часть модулей — нет |
-| [hermes-dreaming](../notes/hermes-dreaming.md) | [репозиторий](../references/hermes-dreaming/) | Ночная консолидация: конвейер, правила решений, паузы, безопасность изменений; что применять автоматически, а что предлагать владельцу | Образец консолидации (фазы 6, 11); главный скрипт прочитан на треть |
-| [amphp-ssh](../notes/amphp-ssh.md) | [репозиторий](../references/amphp-ssh/) | SSH-клиент на AMPHP: API, аутентификация, туннели, свой транспорт; чего в библиотеке нет | Основа SSH-инструмента (фаза 7); код не запускался |
-| [amphp-vless](../notes/amphp-vless.md) | [репозиторий](../references/amphp-vless/) | VLESS-клиент: транспорты, `vless-proxy`, произвольный TCP через туннель, ограничения | Основа маршрутов через VLESS (фазы 2, 7); код не запускался |
-| [ssh-mcp](../notes/ssh-mcp.md) | [репозиторий](../references/ssh-mcp/) | MCP-сервер SSH: инструменты, классификация команд, политика, подтверждения, квоты, аудит и слабые места подхода | Образец политики команд (фазы 3, 7) и справка по MCP, которым пользуется Claude |
+| [hermes-plugin-holographic](../notes/hermes-plugin-holographic.md) | [репозиторий](../references/hermes-plugin-holographic/) | Память как хранилище фактов: схема, поиск, гейт релевантности, доверие, версии, забывание; анализ переноса на PHP и PostgreSQL | Образец памяти; ядро кода прочитано, тесты и часть модулей — нет |
+| [hermes-dreaming](../notes/hermes-dreaming.md) | [репозиторий](../references/hermes-dreaming/) | Ночная консолидация: конвейер, правила решений, паузы, безопасность изменений; что применять автоматически, а что предлагать владельцу | Образец консолидации; главный скрипт прочитан на треть |
+| [amphp-ssh](../notes/amphp-ssh.md) | [репозиторий](../references/amphp-ssh/) | SSH-клиент на AMPHP: API, аутентификация, туннели, свой транспорт; чего в библиотеке нет | Основа SSH-инструмента; код не запускался |
+| [amphp-vless](../notes/amphp-vless.md) | [репозиторий](../references/amphp-vless/) | VLESS-клиент: транспорты, `vless-proxy`, произвольный TCP через туннель, ограничения | Основа маршрутов через VLESS; код не запускался |
+| [ssh-mcp](../notes/ssh-mcp.md) | [репозиторий](../references/ssh-mcp/) | MCP-сервер SSH: инструменты, классификация команд, политика, подтверждения, квоты, аудит и слабые места подхода | Образец политики команд и справка по MCP, которым пользуется Claude |
 | [anthropic-building-effective-agents](../notes/anthropic-building-effective-agents.md) | [статья](../docs/anthropic-building-effective-agents.md) | Определения workflow/agent, каталог из пяти паттернов workflow и автономного агента, три принципа | Первоисточник терминологии; концептуально, без кода и цифр |
 | [claude-cookbooks](../notes/claude-cookbooks.md) | [репозиторий](../references/claude-cookbooks/) | Карта репозитория, разбор `patterns/agents/`, Agent SDK, Managed Agents, таблица «вопрос → файл» | Первоисточник с кодом; агентская часть (паттерны, Agent SDK, Managed Agents, память, компакция, стоимость) прочитана полностью, остальное обзорно |
 | [claude-cookbook-orchestrator-workers](../notes/claude-cookbook-orchestrator-workers.md) | [статья](../docs/claude-cookbook-orchestrator-workers.md) | Веб-версия ноутбука orchestrator-workers | Вводный пример; в копии нет кода — код в [ноутбуке](../references/claude-cookbooks/patterns/agents/orchestrator_workers.ipynb) |

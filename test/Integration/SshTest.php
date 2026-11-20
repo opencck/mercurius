@@ -76,7 +76,7 @@ final class SshTest extends AsyncTestCase {
     }
 
     public function testFiveCommandsInARowGoThroughOneConnection(): void {
-        // spec: brief/servers.md#фаза-7-по-частям — a pool of SSH connections
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a pool of SSH connections
         $shell = new AmpSshShell();
         $connection = new Connection($this->trusted(), self::PASSWORD, 'password');
         for ($i = 0; $i < 5; $i++) {
@@ -99,7 +99,7 @@ final class SshTest extends AsyncTestCase {
 
     public function testThePasswordOfSudoOpensTheTicketAndReachesNoCommand(): void {
         $connection = new Connection($this->trusted(), self::PASSWORD, 'password');
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the way ServerConsole runs `sudo id -u` and `sudo cat`
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the way ServerConsole runs `sudo id -u` and `sudo cat`
         $id = (new AmpSshShell())->run($connection, "sudo -S -p '' sh -c 'id -u < /dev/null'", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");
         self::assertSame("0\n", $id->stdout, $id->stderr);
         $cat = (new AmpSshShell())->run($connection, "sudo -S -p '' sh -c 'cat < /dev/null'", 10, 10_000, new NullCancellation(), self::PASSWORD . "\n");

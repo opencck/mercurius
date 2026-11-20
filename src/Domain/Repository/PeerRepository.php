@@ -11,7 +11,7 @@ use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Peer\Peer;
 
 /**
- * spec: brief/network.md#сеть-агентов-1 — tokens of connecting agents (hashes only), incoming tasks, neighbours, outgoing tasks
+ * spec: brief/network.md#подключения-агентов — tokens of connecting agents (hashes only), incoming tasks, neighbours, outgoing tasks
  */
 interface PeerRepository {
     /** An agent the owner lets in, known by the fingerprint of its key; a new fingerprint replaces the old one. */

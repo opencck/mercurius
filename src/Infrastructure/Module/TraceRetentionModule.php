@@ -15,7 +15,7 @@ use Throwable;
  * Deletes full prompts and answers older than TRACE_RETENTION_DAYS: at start and then once a day. Steps and spend
  * stay; only the bulky payloads go — the server's disk is nearly full.
  *
- * spec: brief/operations.md#трассировка-и-метрики — retention of payloads
+ * spec: brief/operations.md#шаги-и-хранение — retention of payloads
  */
 final class TraceRetentionModule implements AppModuleInterface {
     private ?string $timer = null;

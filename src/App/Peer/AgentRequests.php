@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * a refused key is not shown again. The name and the address are its own words: cleaned, and a name already taken by a
  * known agent gets a tail of the key, so a claimed name never takes over someone else's agent.
  *
- * spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+ * spec: brief/network.md#незнакомый-агент-стучится
  * ref: references/hermes-agent/plugins/platforms/a2a/security.py@e96221fa:L121-L129 — hermes refuses a peer outside
  *      the allow-list it reads from the config; here the owner adds to the list with a button when the peer knocks
  * ref: references/hermes-agent/gateway/pairing.py@e96221fa:L29-L37 — a stranger waits for the owner's approval; as
@@ -146,7 +146,7 @@ final class AgentRequests implements CallbackHandler {
             $request->fingerprint,
         );
         // the address is the agent's own words: no preview, or Telegram would put its page into the owner's card
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — the card offers the roles that may have tools, in order
+        // spec: brief/participants.md#свои-роли — the card offers the roles that may have tools, in order
         $buttons = array_map(static fn(Role $role): Button => new Button(\OpenCCK\App\Service\RoleCatalog::label($role), sprintf('%s:%d', self::PREFIX, $request->id) . \OpenCCK\App\Service\RoleCatalog::code($role)), self::roles());
         $buttons[] = new Button(t('peer.agent_requests.reject'), sprintf('%s:%d:r', self::PREFIX, $request->id));
         $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
@@ -164,7 +164,7 @@ final class AgentRequests implements CallbackHandler {
     /**
      * The owner's private conversation gets what the cards say: asked about a card, the agent knows it.
      *
-     * spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+     * spec: brief/network.md#незнакомый-агент-стучится
      */
     private function note(string $text): void {
         if ($this->conversations === null || $this->transcript === null) {

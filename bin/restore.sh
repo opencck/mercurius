@@ -4,7 +4,7 @@
 #
 #   bin/restore.sh backups/<время>   — из каталога экземпляра на хосте; приложение останавливается на время
 #
-# spec: brief/operations.md#решено-в-фазе-12
+# spec: brief/operations.md#как-сделано-поставка
 set -eu
 
 cd "$(dirname "$0")/.."

@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * The agent proposes an improvement of itself to the owner: a new version of the notes to its prompt, a value of a
  * setting or an idea for whoever develops it. The tool only proposes: the owner decides on a card.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
+ * spec: brief/self-improvement.md#самоулучшение
  * ref: references/hermes-agent/tools/skill_manager_tool.py@e96221fa:L1-L7 — hermes lets the agent change its own skills
  *      and memory directly; here every change of global behaviour is a proposal the owner accepts
  */
@@ -83,7 +83,7 @@ final class ImprovementProposeTool implements Tool {
                 return ToolResult::error($problem);
             }
         }
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — what the owner rejected is not proposed again word for word
+        // spec: brief/self-improvement.md#самоулучшение — what the owner rejected is not proposed again word for word
         $normal = static fn(string $s): string => mb_strtolower(trim(preg_replace('~\s+~u', ' ', $s) ?? $s));
         $rejected = $this->improvements->rejectedTitles();
         foreach ($rejected as $old) {

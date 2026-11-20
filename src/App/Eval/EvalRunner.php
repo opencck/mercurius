@@ -32,7 +32,7 @@ use Throwable;
  * line, the database of the app when the owner's acceptance of a prompt change runs the set (each task in a
  * conversation of its own, channel `eval`).
  *
- * spec: brief/decisions.md#границы-самоулучшения — at least 20 tasks by categories, at least 3 runs, a judge of another
+ * spec: brief/self-improvement.md#границы — at least 20 tasks by categories, at least 3 runs, a judge of another
  *       family, the prompt version recorded
  * Basis: notes/claude-cookbooks.md — scores by category, the prompt version recorded with each result.
  */

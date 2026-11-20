@@ -48,7 +48,7 @@ final class WebToolsTest extends AsyncTestCase {
     }
 
     public function testALongPageIsReadInWindowsFromOneDownload(): void {
-        // spec: brief/internet.md#интернет-и-браузер — offset in web_read and a cache of read pages
+        // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — offset in web_read and a cache of read pages
         $long = '<html><body><main><p>' . str_repeat('а', 20_000) . '</p><p>КОНЕЦ</p></main></body></html>';
         $http = new FakeHttpClient(['https://example.com/long' => [200, ['content-type' => 'text/html'], $long]]);
         $tool = new WebReadTool($http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), new TextExtractor());

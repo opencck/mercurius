@@ -27,7 +27,7 @@ interface ModelRoleRepository {
     /**
      * The changes of the models of roles, newest first: every successful set is one record.
      *
-     * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the history of model roles with a rollback
+     * spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback
      *
      * @return list<array{id: int, role: string, model: ModelRef, reason: string, setBy: string, by: ?int, at: int}>
      */

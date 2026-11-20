@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * Resources of a connected MCP server: without uri — their list, with uri — the text of one. Reading is a read; the
  * text is someone else's data, cleaned of invisible characters and marked untrusted.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — reading the resources of MCP servers
+ * spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — reading the resources of MCP servers
  * ref: references/hermes-agent/tools/mcp_tool_handlers.py@e96221fa:L1022-L1027 (list_resources, read_resource) — two
  *      utilities per server in hermes; here one tool takes the server by name
  */

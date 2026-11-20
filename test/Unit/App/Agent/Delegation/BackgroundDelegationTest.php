@@ -109,7 +109,7 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         self::assertStringContainsString('фонового делегирования #1', $delivery->content);
         self::assertStringContainsString('ответ воркера: 42', $delivery->content);
         self::assertStringContainsString('untrusted-data', $delivery->content);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the run a report starts is marked: it quotes what the worker read
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the run a report starts is marked: it quotes what the worker read
         $delegation = $this->delegations->find(1);
         $marks = array_map(static fn(int $id): ?string => $stack->runs->find($id)?->outside, range(1, 5));
         self::assertContains('worker report', $marks);

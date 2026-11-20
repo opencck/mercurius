@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Skills move from skills/ to .mercurius/skills/ (and in a project's folder the same), the old folder kept as a backup.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — the layout of skills: .mercurius/skills of the participant and of the project
+ * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the layout of skills: .mercurius/skills of the participant and of the project
  */
 final class SkillFoldersTest extends TestCase {
     public function testTheMoveCommandMovesOnceAndKeepsACopy(): void {

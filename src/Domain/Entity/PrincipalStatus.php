@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Entity;
 
 /**
- * spec: brief/decisions.md#участники-люди-и-агенты — a new visitor waits for the owner's decision
+ * spec: brief/participants.md#участники-люди-и-агенты — a new visitor waits for the owner's decision
  */
 enum PrincipalStatus: string {
     case Active = 'active';

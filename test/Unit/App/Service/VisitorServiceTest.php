@@ -105,7 +105,7 @@ final class VisitorServiceTest extends AsyncTestCase {
     }
 
     public function testTheCardOffersTheOwnersOwnRolesAndThePressGivesOne(): void {
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли
         Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
         try {
             $this->stack->say('привет', '99');
@@ -120,7 +120,7 @@ final class VisitorServiceTest extends AsyncTestCase {
     }
 
     public function testAHolderOfTheAdmitPowerGetsTheCardAndDecidesWithinTheirPowers(): void {
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли
         Role::define('gate', 'Привратник', 15, [\OpenCCK\Domain\Entity\Power::Admit, \OpenCCK\Domain\Entity\Power::Tools]);
         try {
             $this->stack->principals->put(new \OpenCCK\Domain\Entity\Principal(7, \OpenCCK\Domain\Entity\PrincipalKind::Human, Role::of('gate'), 'Привратник', PrincipalStatus::Active), 'telegram', '77');
@@ -174,7 +174,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertFalse($this->stack->approvals->hasGrant(1, 'git-push:origin'));
         self::assertSame('Отозвано.', $this->stack->channel->answers[0][1]);
         self::assertSame([], $this->stack->llm->requests);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the list is updated after a revoke
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — the list is updated after a revoke
         $edited = $this->stack->channel->texts('edit');
         self::assertNotSame([], $edited, 'the message of the list changes');
         self::assertStringNotContainsString('git-push:origin', (string) end($edited));

@@ -1,6 +1,6 @@
 -- Как участник хочет обрабатывать каждый вид файлов: сразу, по запросу или никак; предпочтительная модель из списка
 -- владельца и свои принципы выбора текстом. Нет строки — умолчание владельца.
--- spec: brief/internet.md#входящие-вложения
+-- spec: brief/internet.md#как-влияют-пользователи
 
 CREATE TABLE media_prefs (
     principal_id bigint NOT NULL REFERENCES principals (id) ON DELETE CASCADE,

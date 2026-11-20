@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * for every value. A secret is read by its
  * author and the owner, and only by code that needs it at the moment of a call — the model never gets the value.
  *
- * spec: brief/servers.md#фаза-7-по-частям — a secret is its own kind of record, kept encrypted, rights of its author and the
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a secret is its own kind of record, kept encrypted, rights of its author and the
  *       owner; the master key is SECRETS_KEY in .env
  */
 final class Vault {

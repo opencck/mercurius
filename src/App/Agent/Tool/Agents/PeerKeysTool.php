@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * The agent's keys for other agents: the list with fingerprints, a new key, the key a neighbour sees. The agent makes
  * and picks keys itself — the owner is not asked (the owner's decision of 2026-11-17); only for the owner's runs.
  *
- * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+ * spec: brief/network.md#вход-по-websocket-и-несколько-ключей
  */
 final class PeerKeysTool implements Tool {
     public const NAME = 'peer_keys';

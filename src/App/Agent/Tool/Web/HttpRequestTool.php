@@ -84,7 +84,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
     public function grantKey(array $args): ?string {
         $secrets = self::secrets($args);
         if ($secrets !== []) {
-            // spec: brief/servers.md#серверы-и-сеть-1 — a grant binds the secrets to one host, as hermes binds a credential to hosts
+            // spec: brief/servers.md#серверы-и-сеть — a grant binds the secrets to one host, as hermes binds a credential to hosts
             $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
             return is_string($host) && $host !== '' ? sprintf('http-secret:%s %s', implode(',', $secrets), strtolower($host)) : null;
         }
@@ -191,7 +191,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             }
             $values[$name] = $value;
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a login form: secrets go into the body by name, escaped for
+        // spec: brief/servers.md#вход-по-логину-и-паролю — a login form: secrets go into the body by name, escaped for
         //       its type (a form gets url-encoding, JSON — a string escape)
         $type = '';
         foreach ($headers as $name => $value) {
@@ -247,7 +247,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             if ($jar !== [] && !$request->hasHeader('cookie')) {
                 $request->setHeader('cookie', implode('; ', array_map(static fn(string $n, string $v): string => $n . '=' . $v, array_keys($jar), $jar)));
             }
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a model shortens a long token when it copies it
+            // spec: brief/servers.md#секрет-в-http-запросе — a model shortens a long token when it copies it
             //       (QEfxnI…XCsQ), so the token a page of this host gave goes with a change by the code itself
             if (!in_array($method, ['GET', 'HEAD'], true) && !$request->hasHeader('x-csrf-token')) {
                 $csrf = $this->cookies->cookies($scope, self::CSRF . $host)['token'] ?? null;

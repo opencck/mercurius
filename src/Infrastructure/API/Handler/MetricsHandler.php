@@ -15,7 +15,7 @@ use SensitiveParameter;
  * GET /metrics for Prometheus. The domain is public and every path goes through the proxy, so the endpoint needs a
  * bearer token; without a configured token it does not exist.
  *
- * spec: brief/operations.md#трассировка-и-метрики — /metrics behind METRICS_TOKEN
+ * spec: brief/operations.md#метрики-prometheus — /metrics behind METRICS_TOKEN
  */
 final class MetricsHandler implements RequestHandler {
     /** seconds a rendered answer is kept: every scrape does not read the database */
@@ -46,7 +46,7 @@ final class MetricsHandler implements RequestHandler {
         );
     }
 
-    /** spec: brief/operations.md#трассировка-и-метрики — the answer is kept for 30 s */
+    /** spec: brief/operations.md#метрики-prometheus — the answer is kept for 30 s */
     private function text(): string {
         $now = $this->now === null ? microtime(true) : ($this->now)();
         if ($this->kept === null || $now - $this->keptAt >= self::KEEP) {

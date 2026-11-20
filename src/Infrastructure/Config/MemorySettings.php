@@ -9,7 +9,7 @@ use SensitiveParameter;
 /**
  * Memory: the key of the fingerprints a forgotten text leaves behind, and the share of HRR in recall.
  *
- * spec: brief/memory.md#память-слои — forgetting removes the text; a keyed fingerprint keeps it from being stored again
+ * spec: brief/memory.md#запись-сведения-о-людях-и-забывание — forgetting removes the text; a keyed fingerprint keeps it from being stored again
  * spec: brief/memory.md#hrr-с-самого-начала — the weight of HRR is a setting, not a constant
  */
 final class MemorySettings {

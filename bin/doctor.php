@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  *   docker compose run --rm --no-deps app php bin/doctor.php   (or exec app, when it runs)
  *
- * spec: brief/operations.md#решено-в-фазе-12
+ * spec: brief/operations.md#как-сделано-поставка
  */
 
 use Dotenv\Dotenv;

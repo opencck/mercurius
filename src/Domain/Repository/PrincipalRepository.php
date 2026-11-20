@@ -45,7 +45,7 @@ interface PrincipalRepository {
     /**
      * A connecting agent of the network under its name (channel "a2a"); an existing one keeps its id and gets the role.
      *
-     * spec: brief/network.md#сеть-агентов-1 — a connected agent is a participant of kind agent
+     * spec: brief/network.md#как-сделано-связь-двух-агентов — a connected agent is a participant of kind agent
      */
     public function createAgent(string $name, Role $role): Principal;
 

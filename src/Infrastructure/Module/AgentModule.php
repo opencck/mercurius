@@ -37,7 +37,7 @@ final class AgentModule implements AppModuleInterface {
     public function start(): void {
         // Runs first, so a delivered report joins a resumed run instead of racing it; background workers are left
         // to their delegations.
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — answers that did not reach their chat go out before new ones
+        // spec: brief/agent-loop.md#доставка-итогового-ответа — answers that did not reach their chat go out before new ones
         $this->deliveries?->recover();
         $this->scheduler->resumeAll();
         $this->background?->resumeAll();

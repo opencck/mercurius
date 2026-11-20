@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * Searches the files of the participant: inside them by a regular expression (grep) or by name (find). A read: one
  * command in the sandbox with every argument quoted, the folder of snapshots left out, the lines bounded.
  *
- * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — search_files, a read over the files of the participant and the project
+ * spec: brief/agent-loop.md#инструменты — search_files, a read over the files of the participant and the project
  * ref: references/hermes-agent/tools/file_tools.py@e96221fa:L1301-L1318 (SEARCH_FILES_SCHEMA) — pattern, target
  *      content or files, path, file_glob, limit; ripgrep there, grep and find here (they are in the sandbox)
  */

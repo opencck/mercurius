@@ -28,7 +28,7 @@ use function Mercurius\I18n\t;
  * user or an admin, or refuse. Until the owner decides, the stranger gets a short notice and the model is not called.
  * Once let in, the visitor is told so (decision of the owner 2026-11-16); a refusal is not announced.
  *
- * spec: brief/decisions.md#участники-люди-и-агенты — an unknown writer is shown to the owner, who decides
+ * spec: brief/participants.md#участники-люди-и-агенты — an unknown writer is shown to the owner, who decides
  * ref: references/hermes-agent/gateway/pairing.py@e96221fa:L29-L37 — hermes lets a stranger in only after the owner
  *      approves a one-time code in the server CLI; here the owner decides with a button in their own chat instead, so
  *      there is no code to leak or guess, and the decision is taken once in the database
@@ -87,14 +87,14 @@ final class VisitorService implements CallbackHandler {
             ? sprintf(t('service.visitor.novyy_sobesednik_napisal_chto_emu'), $who, $said)
             : sprintf(t('service.visitor.in_group'), $group, $who, $said);
         // the stranger's words may carry a link: no preview of it in the owner's card
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — the card offers the roles in their order
+        // spec: brief/participants.md#свои-роли — the card offers the roles in their order
         $buttons = array_map(static fn(Role $role): Button => new Button(RoleCatalog::label($role), sprintf('pv:%d', $visitor->id) . RoleCatalog::code($role)), Role::assignable());
         $buttons[] = new Button(t('service.visitor.otkazat'), sprintf('pv:%d:r', $visitor->id));
         $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
         if (!$result->success) {
             $this->logger->warning('Visitor card was not delivered', ['visitor' => $visitor->id]);
         }
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — those whose role may admit visitors get the card too
+        // spec: brief/participants.md#свои-роли — those whose role may admit visitors get the card too
         foreach ($this->admitters($message->channel) as $chat) {
             $this->channel->send(new OutgoingMessage($chat, $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
         }

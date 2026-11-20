@@ -60,7 +60,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testTheTextOfACommandIsNotInTheArgumentsOtherUsersSee(): void {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin, not as an argument
+        // spec: brief/agent-loop.md#песочница — the command goes to the shell on stdin, not as an argument
         $result = $this->sh(7, 'echo marker-of-the-command; tr "\0" " " < /proc/$$/cmdline');
         self::assertSame(0, $result->exitCode, $result->stderr);
         [$said, $cmdline] = explode("\n", $result->stdout, 2) + [1 => ''];
@@ -74,7 +74,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testAParticipantDoesNotSeeTheProcessesOfOthers(): void {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc with hidepid: the executor and other participants are hidden
+        // spec: brief/agent-loop.md#песочница — /proc with hidepid: the executor and other participants are hidden
         $result = $this->sh(7, '[ -d /proc/1 ] && echo SEES || echo HIDDEN');
         self::assertSame("HIDDEN\n", $result->stdout);
     }

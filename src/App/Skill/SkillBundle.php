@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * An ordinary skill of another agent: SKILL.md (frontmatter with name and description, then the text) and the files
  * next to it — references/, scripts/ and others. Only UTF-8 text is kept; binary files are listed as skipped.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — ordinary SKILL.md skills of other agents work here
+ * spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — ordinary SKILL.md skills of other agents work here
  * ref: references/hermes-agent/tools/skills_hub_github.py@e96221fa:L190-L205 (_skip_bundle_file, _tree_members) —
  *      dotfiles, bytecode and __pycache__ never ship; a path leaving the skill rejects the bundle
  * ref: references/hermes-agent/tools/skills_guard.py@e96221fa:L614-L615 — hermes caps 50 files, 256 KB a file, 5 MB in
@@ -76,7 +76,7 @@ final class SkillBundle {
     /**
      * The owner's cap on the number of files of a skill; 0 — none.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — SKILL_MAX_FILES
+     * spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — SKILL_MAX_FILES
      *
      * @throws InvalidArgumentException
      */
@@ -89,7 +89,7 @@ final class SkillBundle {
     /**
      * Where an imported skill came from: the address it was imported by and the revision then; empty when not imported.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — the source and revision of an import, for /skill update
+     * spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — the source and revision of an import, for /skill update
      *
      * @return array{source: string, revision: string}
      */

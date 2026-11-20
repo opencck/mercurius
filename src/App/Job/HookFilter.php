@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * several values, `!=` — anything but; `merge=30` — events coming within 30 seconds of each other run the job once,
  * on the last of them. Conditions are joined by `;` and all must hold. An empty filter takes every event at once.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — a filter of webhook events and the merging of a burst
+ * spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — a filter of webhook events and the merging of a burst
  * ref: references/hermes-agent/gateway/platforms/webhook.py@e96221fa:L708-L715 — `events` by the header, then field
  *      filters, an event that does not pass is answered and dropped without a run
  * ref: references/hermes-agent/gateway/platforms/webhook_filters.py@e96221fa:L134-L167 (filter_matches) — hermes has

@@ -68,7 +68,7 @@ final class ProviderClients {
             $clients[$name] = new RetryingClient($client, onRetry: $onRetry);
             $catalogs[$name] = $catalog;
             if ($name === ModelRef::OPENROUTER) {
-                // spec: brief/models.md#выбор-моделей-под-задачу — a model must pass 90% of its tool calls by the catalog to get a part with tools
+                // spec: brief/models.md#надёжность-инструментов-и-решения-о-модели — a model must pass 90% of its tool calls by the catalog to get a part with tools
                 $toolReliable[$name] = static fn(): array => (new OpenRouterCatalog($http, $key))->toolReliable(0.9);
             }
         }

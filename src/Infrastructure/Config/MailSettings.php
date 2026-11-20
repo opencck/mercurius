@@ -7,7 +7,7 @@ namespace OpenCCK\Infrastructure\Config;
 /**
  * The mailbox of the agent from the settings, as headers for the built-in mail MCP server; null when it is not set up.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — the built-in mail server
+ * spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — the built-in mail server
  */
 final class MailSettings {
     /**

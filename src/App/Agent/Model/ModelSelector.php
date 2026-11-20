@@ -72,7 +72,7 @@ final class ModelSelector {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
         $unreliable = $this->unreliable();
-        // spec: brief/models.md#выбор-моделей-под-задачу — a part with tools does not get a model whose tool calls the catalog
+        // spec: brief/models.md#надёжность-инструментов-и-решения-о-модели — a part with tools does not get a model whose tool calls the catalog
         //       saw fail their schemas too often; a model named outright is not chosen here
         $toolsBad = $needsTools ? array_flip($this->catalog->toolUnreliable()) : [];
         // spec: brief/models.md#выбор — urgency: the catalog has no latency, our own calls do

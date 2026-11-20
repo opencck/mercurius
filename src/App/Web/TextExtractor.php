@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * Readable text out of what the web returns: an HTML page without its scripts, styles, menus and footers, the text of
  * a DOCX or the cells of an XLSX. PDF is not read here.
  *
- * spec: brief/internet.md#интернет-и-браузер — text of pages and of DOCX/XLSX
+ * spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — text of pages and of DOCX/XLSX
  */
 final class TextExtractor {
     public const MAX_CHARS = 60_000;

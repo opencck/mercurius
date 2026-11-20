@@ -88,7 +88,7 @@ final class CheckpointsTest extends AsyncTestCase {
             }
         };
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a snapshot before a skill is written
+        // spec: brief/scheduler.md#снимки-рабочего-каталога — a snapshot before a skill is written
         $executor->run(new ValidatedCall(new ToolCall('s1', 'skill_save', '{}'), $save, [], null, DangerClass::Write), self::context(), 10);
 
         self::assertCount(1, array_filter($this->commands(), static fn(string $c): bool => str_contains($c, 'commit')));
@@ -126,7 +126,7 @@ final class CheckpointsTest extends AsyncTestCase {
         $tool->execute(['action' => 'restore', 'id' => 'abc1234', 'path' => 'a.txt'], self::context());
         $tool->execute(['action' => 'list'], self::context());
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the participant writes the folder of the snapshots too: its
+        // spec: brief/scheduler.md#снимки-рабочего-каталога — the participant writes the folder of the snapshots too: its
         //       config is written anew before every command, and git takes no settings from elsewhere
         foreach ($this->commands() as $command) {
             self::assertStringContainsString('GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat', $command);

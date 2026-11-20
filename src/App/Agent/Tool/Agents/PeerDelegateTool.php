@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
 /**
  * Gives a task to a neighbouring agent over A2A and returns at once; the answer comes to this chat later, as data.
  *
- * spec: brief/network.md#сеть-агентов-1 — a remote agent as a worker; remote delegation is always in the background
+ * spec: brief/network.md#как-сделано-связь-двух-агентов — a remote agent as a worker; remote delegation is always in the background
  */
 final class PeerDelegateTool implements Tool, ReadsOutside {
     public const NAME = 'peer_delegate';

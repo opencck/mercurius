@@ -125,7 +125,7 @@ final class A2aLinksTest extends AsyncTestCase {
     }
 
     public function testPeerCallWaitsForTheAnswerAndOrchestrateMergesTheParts(): void {
-        // spec: brief/network.md#сеть-агентов-1 — peer_call waits for one agent, peer_orchestrate gives parts to several and merges
+        // spec: brief/network.md#вызов-и-раздача-соседям — peer_call waits for one agent, peer_orchestrate gives parts to several and merges
         $a = $this->agents['a'];
         $a['network']->open('b');
         $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
@@ -144,7 +144,7 @@ final class A2aLinksTest extends AsyncTestCase {
     }
 
     public function testAQuestionOfTheNeighbourIsAnsweredInTheSameContext(): void {
-        // spec: brief/network.md#сеть-агентов-1 — the leader answers the question of the neighbour in its context
+        // spec: brief/network.md#вызов-и-раздача-соседям — the leader answers the question of the neighbour in its context
         $this->agent('b', '', ['[INPUT_REQUIRED] Какой город?', 'Погода в Москве: ясно.']);
         $this->connectAgents();
         $a = $this->agents['a'];
@@ -166,7 +166,7 @@ final class A2aLinksTest extends AsyncTestCase {
     }
 
     public function testTheLeaderCancelsATaskAndAnOldTaskEndsByItsDeadline(): void {
-        // spec: brief/network.md#сеть-агентов-1 — CancelTask by the leader; a task without an answer ends after two hours
+        // spec: brief/network.md#вызов-и-раздача-соседям — CancelTask by the leader; a task without an answer ends after two hours
         $a = $this->agents['a'];
         $a['network']->open('b');
         $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
@@ -189,7 +189,7 @@ final class A2aLinksTest extends AsyncTestCase {
     }
 
     public function testTheNeighbourKeepsTheLeadersRunAndTakesItsTokenCap(): void {
-        // spec: brief/network.md#сеть-агентов-1 — the leader's run and its token cap go in metadata.mercurius
+        // spec: brief/network.md#вызов-и-раздача-соседям — the leader's run and its token cap go in metadata.mercurius
         $a = $this->agents['a'];
         $a['network']->open('b');
         $conversation = $a['stack']->conversations->openConversation($a['owner']->id, 'telegram', 'a');
@@ -221,7 +221,7 @@ final class A2aLinksTest extends AsyncTestCase {
         $a['network']->open('b');
         $a['network']->delegate($a['owner'], 'b', 'Посчитай', 'telegram', 'a', 0, []);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key does not work on a connection already open
+        // spec: brief/network.md#подпись-адреса-доказательство-ключа-и-маскирование — a revoked key does not work on a connection already open
         $b['peers']->revokeKey('agent-a');
         $refused = null;
         try {

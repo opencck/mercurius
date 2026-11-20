@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * An obligation to deliver a final answer to a chat.
  *
- * spec: brief/agent-loop.md#агентский-цикл-и-харнесс — an answer is not lost to a failed send or a restart
+ * spec: brief/agent-loop.md#доставка-итогового-ответа — an answer is not lost to a failed send or a restart
  */
 final class Delivery {
     public const PENDING = 'pending';

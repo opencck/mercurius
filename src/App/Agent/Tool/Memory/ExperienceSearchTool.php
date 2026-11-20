@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
 /**
  * How earlier delegated parts went, for choosing how to split and whom to give a new one.
  *
- * spec: brief/memory.md#память-слои — layer 7, experience through search
+ * spec: brief/memory.md#как-сделано-эпизоды-и-поиск — layer 7, experience through search
  */
 final class ExperienceSearchTool implements Tool {
     public const NAME = 'experience_search';

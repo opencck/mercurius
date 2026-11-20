@@ -1,5 +1,5 @@
 -- Every change of the model of a role: which, by whom, why, when; /models rollback <number> brings a record back.
--- spec: brief/decisions.md#самоулучшение-решено-2026-11-18
+-- spec: brief/self-improvement.md#самоулучшение
 CREATE TABLE model_role_history (
     id bigserial PRIMARY KEY,
     role text NOT NULL,

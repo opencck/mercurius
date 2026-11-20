@@ -63,7 +63,7 @@ final class MemoryToolsTest extends AsyncTestCase {
         $stack->say('запомни: я пью кофе без сахара');
         $stack->scheduler->awaitIdle();
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the agent writes new facts itself, the owner corrects after
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — the agent writes new facts itself, the owner corrects after
         self::assertCount(1, $this->store->facts, 'written at once');
         $fact = $this->store->recent(['owner'], 1)[0] ?? null;
         self::assertNotNull($fact);
@@ -99,7 +99,7 @@ final class MemoryToolsTest extends AsyncTestCase {
     }
 
     public function testACardAboutAnExistingFactSaysHowItServedInAnswers(): void {
-        // spec: brief/memory.md#память-слои — the owner sees how a fact served before changing or forgetting it
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — the owner sees how a fact served before changing or forgetting it
         $this->current = $stack = $this->stack(new ScriptedLlm([]));
         $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Сервер pve-01 стоит в Хельсинки', ['сервер', 'pve-01'], 0.6, Fact::AGENT, null);
         $this->store->markRecalled(1, [$fact->id]);
@@ -159,14 +159,14 @@ final class MemoryToolsTest extends AsyncTestCase {
         $stack->say('где стоит pve-01?');
         $stack->scheduler->awaitIdle();
 
-        // spec: brief/memory.md#память-слои — useful +0.05, not useful −0.10; below 0.3 a fact is not recalled
+        // spec: brief/memory.md#факты — useful +0.05, not useful −0.10; below 0.3 a fact is not recalled
         self::assertEqualsWithDelta(0.3, $this->store->fact($old->id)->trust ?? 0.0, 0.0001, 'once per run');
         self::assertEqualsWithDelta(0.5, $this->store->fact(2)->trust ?? 0.0, 0.0001, 'a fact outside the audience is not touched');
         $tools = implode("
 ", array_map(static fn($m): string => $m->content, $stack->llm->requests[1]->messages));
         self::assertStringContainsString('не найден', $tools);
 
-        // spec: brief/memory.md#память-слои — the mark goes to the recall journal too
+        // spec: brief/memory.md#факты — the mark goes to the recall journal too
         self::assertSame(1, $this->store->usage($old->id)['unhelpful']);
 
         $this->store->rateFact($old->id, -0.1, false);

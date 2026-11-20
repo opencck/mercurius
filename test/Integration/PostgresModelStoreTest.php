@@ -46,7 +46,7 @@ final class PostgresModelStoreTest extends ModelStoreContract {
     }
 
     public function testModelsThatCallToolsBadlyAreMarkedAfterTheCatalog(): void {
-        // spec: brief/models.md#выбор-моделей-под-задачу
+        // spec: brief/models.md#профиль-модели
         $info = static fn(string $id): \Mercurius\Llm\ModelCatalog\ModelInfo => new \Mercurius\Llm\ModelCatalog\ModelInfo($id, $id, 1000, 0.0, 0.0, ['text'], ['text'], ['tools']);
         $this->catalog->replace('toolrel', [$info('a/good'), $info('b/"odd"'), $info('c/bad')]);
         self::assertSame([], array_values(array_filter($this->catalog->toolUnreliable(), static fn(string $r): bool => str_starts_with($r, 'toolrel:'))), 'not known yet');
@@ -58,7 +58,7 @@ final class PostgresModelStoreTest extends ModelStoreContract {
     }
 
     public function testARunTakesTheDecisionAboutItsModelMadeBeforeItStarted(): void {
-        // spec: brief/models.md#выбор-моделей-под-задачу
+        // spec: brief/models.md#профиль-модели
         [$principalId, $conversationId] = \OpenCCK\Test\Support\TestDatabase::conversation($this->db, 'routing-' . bin2hex(random_bytes(4)));
         $runs = new \OpenCCK\Infrastructure\Repository\PostgresRunRepository($this->db);
         $limits = new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120);

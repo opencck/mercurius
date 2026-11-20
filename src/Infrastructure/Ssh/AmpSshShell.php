@@ -40,7 +40,7 @@ use function Mercurius\I18n\t;
  * the command wrapped in `timeout` on the server (the library cannot stop a remote command reliably), stdin given and
  * closed, output kept within a limit and drained past it.
  *
- * spec: brief/servers.md#фаза-7-по-частям — timeout on the server, output limit, stdin closed, a host key change refuses, routes
+ * spec: brief/servers.md#как-сделано-маршруты-серверов — timeout on the server, output limit, stdin closed, a host key change refuses, routes
  * ref: references/amphp-ssh/src/functions.php@9d171ac:L37-L91 (connect) — no timeout of its own, so one is given, and a
  *      connector of the caller's choosing for proxies, VLESS and jumps; references/amphp-ssh/src/Process.php@9d171ac:
  *      L58-L144 — kill() is advice, join() only detaches, stdin needs end()

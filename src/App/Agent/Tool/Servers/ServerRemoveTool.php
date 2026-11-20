@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * Removes a server from the registry after the owner's card; its secret stays in the vault. A server others reach
  * through (via:<name>) stays until their route changes.
  *
- * spec: brief/servers.md#фаза-7-по-частям — the registry of servers is changed in the dialogue
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the registry of servers is changed in the dialogue
  */
 final class ServerRemoveTool implements Tool, GrantKeyed {
     public const NAME = 'server_remove';

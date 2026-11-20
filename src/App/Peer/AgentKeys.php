@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * neighbours. A named key is made the first time it is asked for and kept in the vault; the agent makes them itself,
  * without asking the owner (the owner's decision of 2026-11-17).
  *
- * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+ * spec: brief/network.md#вход-по-websocket-и-несколько-ключей
  */
 final class AgentKeys implements IdentityKeys {
     public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_-]{0,31}$~';

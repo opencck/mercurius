@@ -38,7 +38,7 @@ use function Mercurius\I18n\t;
  * owner's own (MEDIA_ENDPOINTS, its key a vault secret). The models get only the file and the question, never the
  * conversation; every call is recorded like a text model's.
  *
- * spec: brief/internet.md#входящие-вложения — models, calls, spend
+ * spec: brief/internet.md#модели-вложений — models, calls, spend
  * ref: references/hermes-agent/tools/vision_tools.py@e96221fa:L348-L356 (_image_to_base64_data_url) — an image goes as
  *      a data: URL to an auxiliary vision model; here to the first model of the owner's list that answers
  */
@@ -146,7 +146,7 @@ final class MediaModels {
      * A picture or a video with its question, through the same client as the text models: one way of retries,
      * of errors and of spend.
      *
-     * spec: brief/internet.md#входящие-вложения — models, calls, spend
+     * spec: brief/internet.md#модели-вложений — models, calls, spend
      *
      * @param list<MediaPart> $media
      * @param non-empty-string $purpose

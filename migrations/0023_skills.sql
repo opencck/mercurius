@@ -1,5 +1,5 @@
 -- Скиллы агента: каталог с версиями; в контексте — только индекс, тело — по запросу.
--- spec: brief/skills-mcp.md#скиллы-и-mcp
+-- spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов
 
 CREATE TABLE skills (
     id bigserial PRIMARY KEY,

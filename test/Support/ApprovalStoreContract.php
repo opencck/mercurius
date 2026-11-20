@@ -26,7 +26,7 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
     }
 
     public function testAnApprovalKnowsWhenItsCardWasAskedFor(): void {
-        // spec: brief/operations.md#трассировка-и-метрики — the approval step lasts from the card to the decision
+        // spec: brief/operations.md#шаги-и-хранение — the approval step lasts from the card to the decision
         $before = time() - 5;
         $decided = $this->approvals->decide($this->create('c1'), ApprovalStatus::Approved, null, null);
 
@@ -52,7 +52,7 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
     public function testOnlyRefusalsOfAPersonAreCounted(): void {
         $since = new DateTimeImmutable('-1 day');
         $this->approvals->decide($this->create('c1'), ApprovalStatus::Denied, 'нет', $this->principalId);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a card that did not reach the owner is not their refusal
+        // spec: brief/agent-loop.md#три-отказа-подряд — a card that did not reach the owner is not their refusal
         foreach (['c2', 'c3', 'c4'] as $call) {
             $this->approvals->decide($this->create($call), ApprovalStatus::Denied, 'карточка не дошла', null);
         }

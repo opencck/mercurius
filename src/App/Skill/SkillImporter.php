@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * agent already has (sent to the chat) — and checks it: a critical finding refuses the skill. Where it goes is the
  * caller's choice (the participant's or the project's folder); the findings that do not refuse are returned to show.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — a skill from git or an archive, in the folder of the participant or the project
+ * spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — a skill from git or an archive, in the folder of the participant or the project
  */
 final class SkillImporter {
     /**

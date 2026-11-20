@@ -152,7 +152,7 @@ final class ModelSelectorTest extends AsyncTestCase {
     }
 
     public function testAPartWithToolsSkipsAModelWhoseToolCallsOftenFailInTheCatalog(): void {
-        // spec: brief/models.md#выбор-моделей-под-задачу — tool calls that do not pass their schemas, by the catalog
+        // spec: brief/models.md#надёжность-инструментов-и-решения-о-модели — tool calls that do not pass their schemas, by the catalog
         $this->standard();
         $this->stores->markToolReliable('openrouter', ['a/tiny', 'a/cheap', 'a/mid', 'a/agent', 'a/top', 'a/notools']);
 

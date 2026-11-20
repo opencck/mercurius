@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * /command@bot — or, in the free mode, decides itself and may stay silent ([SILENT]). Other messages are kept as the
  * recent talk of the group and given to the next run as data. Strangers are not answered; other bots are not seen.
  *
- * spec: brief/channels.md#telegram-группы-каналы-и-темы — approved by the owner 2026-11-17
+ * spec: brief/channels.md#группа — approved by the owner 2026-11-17
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L5760-L5800 (_should_process_message) —
  *      mention, reply to the bot and a command addressed to it; L5183-L5187, L5550-L5570 — unmentioned talk observed
  *      without running the agent; gateway/response_filters.py@e96221fa:L242-L256 — silence allowed in a free chat.
@@ -194,7 +194,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $message->threadId,
             $message->isEdited,
             $message->raw,
-            // spec: brief/internet.md#входящие-вложения — in a group files come when the message is addressed to the agent, and always in
+            // spec: brief/internet.md#приём — in a group files come when the message is addressed to the agent, and always in
             //      the free mode, where the agent takes part in everything (only such messages reach this point)
             $message->attachments,
             $message->repliedAttachments,
@@ -368,7 +368,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
      * Who wrote in the chat or forum topic in the last day, as the channel names them: their words are in the context
      * of a run there, so the run gets no more rights than the weakest of them.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/channels.md#права-запуска-в-группе — in a group the rights of the weakest active participant
      * @return list<string>
      */
     public function speakers(string $channel, string $chatId, string $threadId): array {

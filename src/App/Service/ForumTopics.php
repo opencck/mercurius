@@ -37,7 +37,7 @@ final class ForumTopics {
 
     /** After a project was created in a conversation; a line for the agent, '' when the chat is not a forum. */
     public function created(Project $project, ConversationMeta $meta): string {
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — topics are an optional part of a channel
+        // spec: brief/channels.md#форум-темы--проекты — topics are an optional part of a channel
         if (!$this->channel instanceof ForumChannel || !$this->forum($meta->channel, $meta->chatId)) {
             return '';
         }

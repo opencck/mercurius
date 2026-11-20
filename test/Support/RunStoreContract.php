@@ -189,7 +189,7 @@ abstract class RunStoreContract extends AsyncTestCase {
         $args = ['text' => $fact, 'scope' => 'owner'];
         $this->transcript->appendAssistant($this->conversationId, $id, '', [new StoredToolCall('m1', 0, 'memory_propose', $args, json_encode($args, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), DangerClass::Write, ToolCallStatus::Done)]);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in tool arguments
+        // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — forgetting cleans the copies of the fact in tool arguments
         self::assertGreaterThan(0, $this->transcript->redactCalls($fact, '(забыто)'));
         $calls = array_merge(...array_map(static fn(\Mercurius\Llm\Message $m): array => $m->toolCalls, $this->transcript->runMessages($id)));
         self::assertNotSame([], $calls);

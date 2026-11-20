@@ -11,7 +11,7 @@ declare(strict_types=1);
  * Models go through OpenRouter (OPENROUTER_API_KEY), through VLESS when VLESS_URI is set, as in the app. Calls are
  * paid. The exit code is 1 when a category regressed against the baseline.
  *
- * spec: brief/decisions.md#границы-самоулучшения
+ * spec: brief/self-improvement.md#границы
  */
 
 use Dotenv\Dotenv;

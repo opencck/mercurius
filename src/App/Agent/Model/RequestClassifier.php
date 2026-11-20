@@ -95,7 +95,7 @@ final class RequestClassifier {
     /**
      * The call of the cheap model goes into the calls of models: its tokens and money are counted like any other.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
+     * spec: brief/agent-loop.md#модели — every call of a model is counted, the classifier's too
      */
     private function count(?int $conversationId, string $model, ?string $error, float $started, ?\Mercurius\Llm\ChatResponse $response): void {
         if ($this->calls === null) {

@@ -8,7 +8,7 @@ use DomainException;
 use OpenCCK\Domain\Mcp\McpServer;
 
 /**
- * spec: brief/skills-mcp.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие
  */
 interface McpServerRepository {
     /** @throws DomainException when the name is taken */

@@ -52,7 +52,7 @@ final class ApiGateway {
 
     /** One frame of the client; a frame that is not a message or a press gets an error frame back. */
     public function frame(ApiSession $session, string $frame): void {
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the key and the participant are checked on every frame:
+        // spec: brief/operations.md#второй-канал-websocket-api — the key and the participant are checked on every frame:
         //       a revoked key or a participant who is no longer active is not heard, the connection closes
         if ($session->apiKey !== 0 && !$this->keys->alive($session->apiKey, $session->principal->id)) {
             $this->end($session);

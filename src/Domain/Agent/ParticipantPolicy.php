@@ -80,7 +80,7 @@ final class ParticipantPolicy {
      * Narrowed by another participant of a group: tools and limits as capTo. The right to ask for a card may be kept
      * when the run is the owner's: the card shows the owner the exact call, and nothing runs without the owner's press.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/channels.md#права-запуска-в-группе — in a group the rights of the weakest active participant
      */
     public function narrowedBy(self $other, bool $keepApproval = false): self {
         $narrowed = $this->capTo($other);

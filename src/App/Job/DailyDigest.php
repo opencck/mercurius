@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * from the records, spends no tokens, comes once a day at the set time, not in the quiet hours, and is not sent when
  * there is nothing to say.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — the personal manager: deadlines and summaries; initiative messages keep to
+ * spec: brief/scheduler.md#инициатива-агента — the personal manager: deadlines and summaries; initiative messages keep to
  *       the quiet hours; a job of a known shape is a process in code, not a plan of the model
  */
 final class DailyDigest {
@@ -58,7 +58,7 @@ final class DailyDigest {
     /**
      * The memory whose waiting proposals the summary counts.
      *
-     * spec: brief/operations.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
+     * spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — the queue of memory proposals waiting for the owner
      */
     public function useMemory(\Mercurius\Memory\Domain\MemoryStore $memory): void {
         $this->memory = $memory;
@@ -69,7 +69,7 @@ final class DailyDigest {
     /**
      * The command journal whose chain of hashes the summary checks: a broken one is news.
      *
-     * spec: brief/servers.md#фаза-7-по-частям — the chain is checked every day
+     * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the chain is checked every day
      */
     public function useAudit(\OpenCCK\Domain\Repository\CommandAuditRepository $audit): void {
         $this->audit = $audit;

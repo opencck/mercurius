@@ -28,10 +28,10 @@ use function Mercurius\I18n\t;
  * (references/hermes-agent/agent/skill_utils.py@e96221fa:L400-L423, get_skill_search_roots: project > local > …). A skill moves between places as
  * a directory: a built-in one copied into a folder can be changed there; a folder's skill can become a submodule.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — skills are files: built-in ones plus the folders of the participant and the project
+ * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillLibrary {
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — the layout of skills (owner's decision В14) */
+    /** spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the layout of skills (owner's decision В14) */
     public const MINE = '.mercurius/skills';
     /** where the participant's skills were before 2026-11-19; SkillFolders moves them */
     public const LEGACY_MINE = 'skills';
@@ -59,7 +59,7 @@ final class SkillLibrary {
     /**
      * Where a skill of this conversation came from and where it lies: null when it is built in or has no source.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — /skill update
+     * spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — /skill update
      *
      * @return array{source: string, revision: string, target: array{owner: int, dir: string, limits: SandboxLimits}}|null
      */
@@ -84,7 +84,7 @@ final class SkillLibrary {
         return $origin + ['target' => ['owner' => $skill['owner'], 'dir' => dirname($skill['dir']), 'limits' => $limits]];
     }
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — a journal of skill edits with a rollback of one record */
+    /** spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — a journal of skill edits with a rollback of one record */
     public function useEdits(\OpenCCK\Domain\Repository\SkillEditRepository $edits): void {
         $this->edits = $edits;
     }
@@ -157,7 +157,7 @@ final class SkillLibrary {
         return $files === [] ? null : $files;
     }
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — a skill turned off is left out of the index */
+    /** spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — a skill turned off is left out of the index */
     public function useUsage(\OpenCCK\Domain\Repository\SkillUsageRepository $usage): void {
         $this->usage = $usage;
     }
@@ -180,7 +180,7 @@ final class SkillLibrary {
      * The use of each skill of this conversation, by the place the skill comes from. A folder skill without a row gets
      * one now: it is first seen now, and it can grow stale from then.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — the key of the use is the place and the name
+     * spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — the key of the use is the place and the name
      * ref: references/hermes-agent/agent/curator.py@e96221fa:L234-L235 — a never-active skill is anchored on when it
      *      was made or first seen, so it does not go stale at once nor stay fresh for ever
      *
@@ -243,7 +243,7 @@ final class SkillLibrary {
      * Removes a skill's folder after $before took a snapshot of the owner's working folder; null when removed, else why
      * not. A built-in skill is in the code and can only be turned off.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — /skill <name> remove, through a snapshot
+     * spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — /skill <name> remove, through a snapshot
      *
      * @param Closure(int, SandboxLimits): void $before
      */
@@ -363,7 +363,7 @@ final class SkillLibrary {
         }
         try {
             if ($file !== null) {
-                // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — each file of a folder skill passes the check when read
+                // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — each file of a folder skill passes the check when read
                 $text = $this->sandbox->fetch($skill['owner'], $limits, $skill['dir'] . '/' . $file, SkillBundle::READ_BYTES, $cancellation);
                 if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => "---\nname: x\n---\n", $file => $text], 'folder', '')))) {
                     $this->logger->warning('A file of a folder skill is refused by the check', ['dir' => $skill['dir'], 'file' => $file]);
@@ -429,7 +429,7 @@ final class SkillLibrary {
         }
         $root = $target['dir'] . '/' . $bundle->name;
         $before = $this->edits === null ? null : $this->folder($target['owner'], $target['limits'], $root, $cancellation);
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — an imported skill keeps where it came from and which revision it is
+        // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — an imported skill keeps where it came from and which revision it is
         $origin = $from === null || preg_match('~[\r\n]~', $from . $bundle->revision) === 1 ? '' : "source: " . $from . "\nrevision: " . $bundle->revision . "\n";
         $skillMd = "---\nname: " . $bundle->name . "\ndescription: " . str_replace("\n", ' ', $bundle->description) . "\n" . $origin . "---\n\n" . $bundle->body . "\n";
         $this->sandbox->write($target['owner'], $target['limits'], $root . '/SKILL.md', $skillMd, $cancellation);
@@ -437,7 +437,7 @@ final class SkillLibrary {
             $this->sandbox->write($target['owner'], $target['limits'], $root . '/' . $path, $text, $cancellation);
         }
         $this->edits?->record($target['owner'], $root, $bundle->name, $before, $source);
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — a skill has a row of its use from when it is made
+        // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — a skill has a row of its use from when it is made
         try {
             $this->usage?->created(self::place($target['owner'], $root), $bundle->name);
         } catch (Throwable) {
@@ -473,7 +473,7 @@ final class SkillLibrary {
                 $this->logger->notice('A skill was not read', ['dir' => $dir . '/' . $m[1], 'error' => $e::class]);
                 continue;
             }
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the description goes into the prompt: a dangerous skill
+            // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the description goes into the prompt: a dangerous skill
             //       is not in the index at all
             if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => $raw], 'folder', '')))) {
                 $this->logger->warning('A folder skill is left out of the index by the check', ['dir' => $dir . '/' . $m[1]]);

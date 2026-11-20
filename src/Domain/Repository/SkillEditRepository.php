@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * The journal of skill edits: the folder of a skill before each write, for rolling one edit back.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — a journal of skill edits with a rollback of one record
+ * spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — a journal of skill edits with a rollback of one record
  */
 interface SkillEditRepository {
     /**

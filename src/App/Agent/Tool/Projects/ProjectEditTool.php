@@ -47,7 +47,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     /**
      * A deadline in the owner's zone: a date alone means the end of that day.
      *
-     * spec: brief/scheduler.md#планировщик-и-проекты-1 — deadlines for the daily summary
+     * spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — deadlines for the daily summary
      */
     public static function due(string $text, \DateTimeZone $zone): ?\DateTimeImmutable {
         $text = trim($text);
@@ -92,7 +92,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

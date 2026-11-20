@@ -8,7 +8,7 @@ use OpenCCK\App\Agent\ToolUseGuidance;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: brief/agent-loop.md#агентский-цикл-и-харнесс — models that tend to answer in prose get the rule to act through tools
+ * spec: brief/agent-loop.md#инструменты — models that tend to answer in prose get the rule to act through tools
  */
 final class ToolUseGuidanceTest extends TestCase {
     public function testFamiliesThatAnswerInProseGetTheRuleByDefault(): void {

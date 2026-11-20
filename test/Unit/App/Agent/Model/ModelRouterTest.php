@@ -76,7 +76,7 @@ final class ModelRouterTest extends AsyncTestCase {
 
         $classifier->classify(str_repeat('Расскажи подробнее про настройку nginx. ', 8), conversationId: 5);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
+        // spec: brief/agent-loop.md#модели — every call of a model is counted, the classifier's too
         self::assertCount(1, $calls->calls);
         self::assertSame(['classify', 5, 'openrouter:cheap/model'], [$calls->calls[0]->purpose, $calls->calls[0]->conversationId, $calls->calls[0]->model]);
     }

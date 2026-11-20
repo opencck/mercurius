@@ -17,7 +17,7 @@ use Psr\Log\NullLogger;
  * the new migrations apply over it, and the participants, conversations, memory and projects are still there and read
  * by the code of the new release.
  *
- * spec: brief/operations.md#решено-в-фазе-12 — an update keeps the data and the memory; migrations only add to the schema
+ * spec: brief/operations.md#как-сделано-поставка — an update keeps the data and the memory; migrations only add to the schema
  *
  * @group integration
  */

@@ -12,7 +12,7 @@ use function Mercurius\I18n\t;
  * Notes to the system prompt that the owner accepted from the agent's proposals. A version never changes; the active
  * one is a pointer: a new version, a rollback and "off" only move it.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
+ * spec: brief/self-improvement.md#самоулучшение
  * ref: notes/claude-cookbooks.md — a prompt version is immutable, a pointer moves; the version is recorded with results
  */
 final class PromptNotes {

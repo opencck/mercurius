@@ -44,7 +44,7 @@ final class ToolRegistry {
     /**
      * What is wrong with a tool for a model; null — nothing. A missing type of the root is taken as an object.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a tool is checked when it is registered (an MCP one above all)
+     * spec: brief/agent-loop.md#инструменты — a tool is checked when it is registered (an MCP one above all)
      * ref: references/hermes-agent/tools/mcp_tool_schema.py@e96221fa:L78-L123 (_repair_object_shape) — hermes fills a
      *      missing object type; what cannot be read as an object of named properties is refused here
      * @param array<array-key, mixed> $parameters
@@ -97,7 +97,7 @@ final class ToolRegistry {
      * Whether the participant may call the tool: by the policy, and a tool that asks the owner for access to anyone
      * but the owner (the owner has every tool already).
      *
-     * spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17
+     * spec: brief/network.md#участник-просит-инструмент
      */
     public function allows(ParticipantPolicy $policy, string $name): bool {
         $tool = $this->tools[$name] ?? null;
@@ -108,7 +108,7 @@ final class ToolRegistry {
             return $policy->tools !== null;
         }
         if ($tool instanceof ToolSearchTool) {
-            // spec: brief/skills-mcp.md#скиллы-и-mcp — the bridge shows only the tools the participant may use, so anyone may search
+            // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the bridge shows only the tools the participant may use, so anyone may search
             return true;
         }
         return $tool !== null && $policy->allowsTool($name);

@@ -89,7 +89,7 @@ final class ApiGatewayTest extends AsyncTestCase {
         $gateway->frame($laptop, '{"type":"message","text":"раз"}');
         self::assertCount(1, $this->messages);
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key stops working on a connection already open
+        // spec: brief/operations.md#второй-канал-websocket-api — a revoked key stops working on a connection already open
         self::assertTrue($this->keys->revoke($first[1]));
         self::assertSame(['laptop'], $closed->getArrayCopy(), 'the connections of that key close, the others stay');
         $gateway->frame($laptop, '{"type":"message","text":"два"}');

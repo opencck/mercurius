@@ -10,7 +10,7 @@ use OpenCCK\Domain\Agent\StopReason;
  * The verdict of one phase of a turn: the run goes on with the next turn, or stops with a reason (null — it waits for
  * the owner).
  *
- * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
+ * spec: brief/agent-loop.md#запуск-и-цикл
  */
 final class Step {
     private function __construct(

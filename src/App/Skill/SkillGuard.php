@@ -10,7 +10,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
  * A static check of a skill from outside before it reaches the owner's card: what its text and scripts would do if the
  * agent followed them. A critical finding blocks the import; the rest are shown on the card for the owner to weigh.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — a skill from outside is checked before the card
+ * spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a skill from outside is checked before the card
  * ref: references/hermes-agent/tools/skills_guard.py@e96221fa:L172-L560 (THREAT_PATTERNS) — the main categories:
  *      secrets sent out, credential stores read, the environment dumped, reverse shells, persistence, destruction,
  *      instructions planted in the text, invisible characters; hermes has some 400 patterns, these are the ones

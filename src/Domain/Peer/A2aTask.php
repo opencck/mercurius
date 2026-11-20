@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Peer;
 /**
  * A task a neighbouring agent gave this agent.
  *
- * spec: brief/network.md#сеть-агентов-1
+ * spec: brief/network.md#как-сделано-связь-двух-агентов
  */
 final class A2aTask {
     public const SUBMITTED = 'TASK_STATE_SUBMITTED';

@@ -21,8 +21,8 @@ use function Mercurius\I18n\t;
  * opened it. Whoever has the tool by their policy may use it: the owner, or a participant the owner gave it to
  * (request_tool).
  *
- * spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17
- * spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17
+ * spec: brief/network.md#участник-просит-инструмент
+ * spec: brief/network.md#подключения-агентов
  */
 final class PeerLinksTool implements Tool {
     public const NAME = 'peer_links';

@@ -46,7 +46,7 @@ use function Mercurius\I18n\t;
  * scheduler, not the agent, delivers the result — after the quiet hours if it came during them. A job run spends at most
  * $tokenBudget tokens; a job by event runs on a webhook with the event given as data.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1
+ * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов
  * ref: references/hermes-agent/cron/jobs.py@e96221fa:L2642-L2676 (advance_next_runs) — the next run advanced before the
  *      run; references/hermes-agent/cron/scheduler.py@e96221fa:L2540 (run_job) — a fresh session per job, delivery by the
  *      scheduler; here missed runs during a downtime catch up once and a job run has no irreversible steps
@@ -56,7 +56,7 @@ final class JobScheduler implements JobRuns {
     /**
      * The only tools of the self-review job: it reads traces, spend, history and skills and proposes changes.
      *
-     * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the self-review has a white list of tools
+     * spec: brief/self-improvement.md#самоулучшение — the self-review has a white list of tools
      */
     public const SELF_REVIEW_TOOLS = ['trace_review', 'spending', 'self_info', 'history_search', 'experience_search', 'memory_search', 'skill_view', 'improvement_propose'];
     /** The answer of a run when there is nothing to tell: the result is kept, nothing is delivered. */
@@ -168,7 +168,7 @@ final class JobScheduler implements JobRuns {
     /**
      * Goes on with a job run: after the owner's decision ($decided) or after a restart.
      *
-     * spec: brief/participants.md#решения-владельца-2026-11-17 — an action that needs approval sends the card, a saved grant lets
+     * spec: brief/participants.md#решения-владельца-о-правах — an action that needs approval sends the card, a saved grant lets
      *       it run without one
      */
     public function continueRun(Run $run, bool $decided): void {
@@ -203,7 +203,7 @@ final class JobScheduler implements JobRuns {
     private function run(Job $job, ?string $event = null): void {
         $number = $job->runs + 1;
         $source = 'webhook';
-        // spec: brief/scheduler.md#планировщик-и-проекты-1 — a watched address: the model only when what it gives changed
+        // spec: brief/scheduler.md#наблюдение-за-страницей — a watched address: the model only when what it gives changed
         // ref: references/hermes-agent/cron/scheduler.py@e96221fa — hermes runs a pre-check script and skips the agent when
         //      it says nothing changed; here the check is the fingerprint of the page, kept in the job
         if ($event === null && $job->watchUrl !== null && $this->fetch !== null) {
@@ -245,7 +245,7 @@ final class JobScheduler implements JobRuns {
             return;
         }
         $report = sprintf(t('job.job_scheduler.report'), $byEvent ? '⚡' : '⏰', $job->id, $job->title, $byEvent ? t('job.job_scheduler.sobytie') : t('job.job_scheduler.zapusk'), $number, mb_substr($text, 0, self::REPORT_MAX));
-        // spec: brief/scheduler.md#планировщик-и-проекты-1 — quiet hours and the daily cap of initiative messages
+        // spec: brief/scheduler.md#инициатива-агента — quiet hours and the daily cap of initiative messages
         $held = $this->isQuiet(($this->now)(), $job->principalId) || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if ($held) {
@@ -267,7 +267,7 @@ final class JobScheduler implements JobRuns {
     private ?\Closure $modelOf = null;
 
     /**
-     * spec: brief/scheduler.md#планировщик-и-проекты-1 — a job marked cheap runs on the model of the cheap role
+     * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job marked cheap runs on the model of the cheap role
      *
      * @param \Closure(string): ?string $modelOf
      */
@@ -279,7 +279,7 @@ final class JobScheduler implements JobRuns {
     private ?\Closure $core = null;
 
     /**
-     * spec: brief/decisions.md#контекст-по-месту-и-аудитории — a job run knows its owner's memory core only when its report goes
+     * spec: brief/participants.md#контекст-по-месту-и-аудитории — a job run knows its owner's memory core only when its report goes
      *       to the owner's private chat
      *
      * @param \Closure(Principal, Job): string $core
@@ -288,7 +288,7 @@ final class JobScheduler implements JobRuns {
         $this->core = $core;
     }
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too */
+    /** spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the index of skills goes to the runs of jobs too */
     public function useSkills(\OpenCCK\App\Skill\SkillLibrary $skills): void {
         $this->skills = $skills;
     }
@@ -310,7 +310,7 @@ final class JobScheduler implements JobRuns {
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, sprintf('job-%d-%d', $job->id, $number));
         $model = $job->modelRole !== '' && $this->modelOf !== null ? (($this->modelOf)($job->modelRole) ?? $this->model) : $this->model;
         $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), skills: $this->skills?->index($principal, null) ?? ''), $model);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — an event, a watched page or a job set up after outside data
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));
         $run = $this->runs->start($conversation, $principal->id, $model, $policy->run, null, $outside === '' ? null : $outside) ?? throw new \RuntimeException('run did not start');
@@ -352,7 +352,7 @@ final class JobScheduler implements JobRuns {
      * @return array{reason: string, permanent: bool}|null
      */
     private function deliver(Job $job, string $report): ?array {
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — the report goes back into the topic the job was set in
+        // spec: brief/channels.md#форум-темы--проекты — the report goes back into the topic the job was set in
         $result = $this->channel->send(new OutgoingMessage($job->chatId, SecretMasker::mask($report), threadId: $job->threadId === '' ? null : $job->threadId));
         if ($result->success) {
             return null;

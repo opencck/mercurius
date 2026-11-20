@@ -124,7 +124,7 @@ final class WorkerRunner {
     /**
      * The white list of tools for workers; which of them a worker gets, the orchestrator decides.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list the owner may change
+     * spec: brief/orchestration.md#белый-список-инструментов-воркера — a worker gets only tools of the white list the owner may change
      * @param list<string> $names
      */
     public function allowOnly(array $names): void {
@@ -168,7 +168,7 @@ final class WorkerRunner {
     /**
      * Who hears that a worker ended: the trace writes it as a step of the orchestrator.
      *
-     * spec: brief/operations.md#трассировка-и-метрики — nested traces
+     * spec: brief/operations.md#шаги-и-хранение — nested traces
      */
     public function useEvents(\OpenCCK\App\Agent\Trace\AgentEvents $events): void {
         $this->events = $events;
@@ -306,7 +306,7 @@ final class WorkerRunner {
     }
 
     /**
-     * spec: brief/memory.md#память-слои — layer 7: a part's outcome with its profile and model. A failure to record is logged;
+     * spec: brief/memory.md#как-сделано-эпизоды-и-поиск — layer 7: a part's outcome with its profile and model. A failure to record is logged;
      * the report goes on.
      */
     private function remember(ToolContext $parent, WorkerTask $task, WorkerReport $report, int $ms): void {

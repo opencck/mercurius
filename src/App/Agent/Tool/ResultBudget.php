@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent\Tool;
  * How much of the model's window tool results may take: one result at most 15%, all results of a turn at most 30%.
  * The system prompt, the schemas, the history and the answer need the rest.
  *
- * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — tool results are bounded by the window of the model
+ * spec: brief/agent-loop.md#контекст — tool results are bounded by the window of the model
  * ref: references/hermes-agent/tools/budget_config.py@e96221fa:L80-L113 (budget_for_context_window) — the same
  *      fractions of window * 4 chars, floors so a small model still gets a usable result, caps for big ones
  */

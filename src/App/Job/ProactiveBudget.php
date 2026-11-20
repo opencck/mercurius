@@ -12,7 +12,7 @@ use DateTimeZone;
  * How many messages the agent may start itself in a day of the owner (job reports, the initiative): over the cap a
  * report waits for the next day. Counted in memory: a restart starts the day's count again.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — initiative messages with a set frequency and quiet hours
+ * spec: brief/scheduler.md#инициатива-агента — initiative messages with a set frequency and quiet hours
  */
 final class ProactiveBudget {
     /** @var Closure(): DateTimeImmutable */

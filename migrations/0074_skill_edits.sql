@@ -1,5 +1,5 @@
 -- The journal of skill edits: what a skill's folder held before each write, so one edit can be rolled back.
--- spec: brief/skills-mcp.md#скиллы-и-mcp
+-- spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов
 CREATE TABLE skill_edits (
     id bigserial PRIMARY KEY,
     owner_id bigint NOT NULL,

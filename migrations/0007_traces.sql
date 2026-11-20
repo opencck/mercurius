@@ -1,5 +1,5 @@
 -- Трассы запусков: шаги с токенами, временем и стоимостью; полные запросы и ответы со сроком хранения.
--- spec: brief/operations.md#трассировка-и-метрики
+-- spec: brief/operations.md#шаги-и-хранение
 
 CREATE TABLE trace_spans (
     id bigserial PRIMARY KEY,

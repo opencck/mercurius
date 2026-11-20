@@ -111,7 +111,7 @@ final class CommandRunner implements Runner {
      * What the shell of the wrapper reads first: the command up to a NUL, then the stdin of the command itself. The
      * command is not an argument: arguments of every process are seen by other users in /proc.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin
+     * spec: brief/agent-loop.md#песочница — the command goes to the shell on stdin
      * @throws SandboxError a command with a NUL in it
      */
     public static function input(string $command, ?string $stdin = null): string {

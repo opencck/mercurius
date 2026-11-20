@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * tools is hashed, and a server that changes its names, descriptions or schemas is turned off until the owner
  * approves it again — a description is an instruction the model reads.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — servers from outside are untrusted until the owner approves them; a change of a tool's
+ * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — servers from outside are untrusted until the owner approves them; a change of a tool's
  *       description is noticed; invisible Unicode is removed from descriptions and results
  * ref: references/hermes-agent/tools/mcp_tool.py@e96221fa — registration of server tools; here every server is an
  *      owner decision and a changed set disables it
@@ -71,14 +71,14 @@ final class McpManager {
     private ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null;
     private ?OsvCheck $osv = null;
 
-    /** spec: brief/skills-mcp.md#скиллы-и-mcp — the check of MCP packages */
+    /** spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the check of MCP packages */
     public function useOsv(OsvCheck $osv): void {
         $this->osv = $osv;
     }
     private ?\DateTimeZone $zone = null;
 
     /**
-     * spec: brief/internet.md#интернет-и-браузер — files of MCP tools go to and from the participants' sandbox
+     * spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — files of MCP tools go to and from the participants' sandbox
      */
     public function useSandbox(\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox, \DateTimeZone $zone): void {
         $this->sandbox = $sandbox;
@@ -93,7 +93,7 @@ final class McpManager {
      * A server of this installation (the mail server in compose): its tools are ours, so they are registered without
      * the owner's approval; the token and the headers come from the settings.
      *
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — the built-in mail server
+     * spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — the built-in mail server
      */
     public function connectBuiltin(McpServer $server, #[\SensitiveParameter] string $token): void {
         $this->builtin[$server->name] = $token;
@@ -126,7 +126,7 @@ final class McpManager {
             throw new DomainException(t('mcp.mcp_manager.imya_mcp_servera_strochnye_latinskie'));
         }
         if (str_starts_with($url, 'stdio:')) {
-            // spec: brief/skills-mcp.md#скиллы-и-mcp — a stdio server is a command run in the sandbox
+            // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — a stdio server is a command run in the sandbox
             if (!$this->stdio) {
                 throw new DomainException(t('mcp.mcp_manager.stdio_off'));
             }
@@ -147,7 +147,7 @@ final class McpManager {
      */
     public function approve(string $name, Cancellation $cancellation): string {
         $server = $this->servers->find($name) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — the package of an npx/uvx server is looked up in OSV before it starts
+        // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before it starts
         $blocked = str_starts_with($server->url, 'stdio:') ? $this->osv?->check(substr($server->url, 6), $cancellation) : null;
         if ($blocked !== null) {
             $this->logger->warning('MCP server not approved: its package has a malware advisory', ['server' => $name]);
@@ -382,7 +382,7 @@ final class McpManager {
                 }
                 $this->registry->register($mcpTool);
             } catch (\InvalidArgumentException $e) {
-                // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a tool with a schema no model can call is left out
+                // spec: brief/agent-loop.md#инструменты — a tool with a schema no model can call is left out
                 $this->logger->warning('An MCP tool is not registered', ['server' => $server->name, 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);
                 continue;
             }

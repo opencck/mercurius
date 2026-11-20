@@ -58,7 +58,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     }
 
     /**
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — granting rights is always a card and only in the owner's private
+     * spec: brief/participants.md#выдача-прав-и-владение — granting rights is always a card and only in the owner's private
      *       chat: it is what turns one steered call into lasting access
      */
     public function danger(array $args): DangerClass {
@@ -77,7 +77,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
      * The owner changes anyone's settings; a participant whose role has the power over participants changes others',
      * never the owner's or their own, and gives no tool they lack.
      *
-     * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
+     * spec: brief/participants.md#свои-роли
      *
      * @param array<string, mixed> $args
      */

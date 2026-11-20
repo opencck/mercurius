@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Repository;
  * The journal of commands on servers: who, where, what, how it ended. Every record carries the hash of the one before
  * it, so a record changed or removed afterwards breaks the chain.
  *
- * spec: brief/servers.md#фаза-7-по-частям — a journal of every command that cannot be changed unnoticed
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a journal of every command that cannot be changed unnoticed
  * ref: references/ssh-mcp/src/audit/store.ts@e04ebf2:L78-L87, L120-L146 — prevHash and selfHash = sha256(record +
  *      prevHash); here in the database under a lock instead of a file
  */

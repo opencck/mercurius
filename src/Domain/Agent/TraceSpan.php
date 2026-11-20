@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * One step of a run: the run itself, a model call, a tool, an approval, a compaction, a classification.
  *
- * spec: brief/operations.md#трассировка-и-метрики
+ * spec: brief/operations.md#команды-и-отчёты-владельца
  * ref: notes/hermes-agent.md#учёт-токенов-и-стоимости — four token buckets and reasoning, cost with how sure it is
  */
 final class TraceSpan {

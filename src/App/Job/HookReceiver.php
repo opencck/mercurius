@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * "<timestamp>.<body>" with a timestamp within five minutes, or GitHub's HMAC of the body. A delivery is taken once,
  * also after a restart; a repeat gets 200 without a run, a busy job — 409, so the provider retries.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — events by webhook with HMAC and protection from a repeat
+ * spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — events by webhook with HMAC and protection from a repeat
  * ref: references/hermes-agent/gateway/platforms/webhook.py@e96221fa:L874-L935 (_validate_signature) — generic V2 over
  *      "<timestamp>.<body>", GitHub sha256, body-only V1 rejected; L382-L391 (_record_delivery_id) — a delivery taken
  *      once. Here deliveries are kept in the database, and a GitHub delivery is known by the hash of its body: the
@@ -75,7 +75,7 @@ final class HookReceiver {
             $this->logger->warning('Webhook signature refused', ['job' => $job->id]);
             return [401, 'bad signature'];
         }
-        // spec: brief/scheduler.md#планировщик-и-проекты-1 — an event the filter of the job does not want wakes no model
+        // spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — an event the filter of the job does not want wakes no model
         $filter = HookFilter::parse($job->hookFilter);
         $filter = is_string($filter) ? HookFilter::parse('') : $filter;
         if (!$filter instanceof HookFilter) {

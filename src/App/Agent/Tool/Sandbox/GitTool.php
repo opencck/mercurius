@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * still read it with a program git starts, so options that start programs are refused; the rest is the owner's trust
  * (owner's decision 2026-11-18).
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — git access from the vault: a token in the environment of one git command
+ * spec: brief/scheduler.md#git-с-доступом-из-хранилища — git access from the vault: a token in the environment of one git command
  * ref: references/hermes-agent/hermes_cli/git_credentials.py@e96221fa:L137-L165 (with_git_auth) — basic auth as a
  *      one-shot extraheader of the origin in GIT_CONFIG_*; here the token is the owner's secret, not a found login
  * ref: references/hermes-agent/hermes_cli/_subprocess_compat.py@e96221fa:L290-L300 — no prompts; we keep the
@@ -35,7 +35,7 @@ use function Mercurius\I18n\t;
  * grant names that pair — a page the agent read must not be able to send a token to a host of its choice. Only the
  * network commands run with it, and without the settings and hooks of the participant: a program git starts would
  * see the header in its environment. Hermes adds the header and nothing more.
- * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a call with a secret is always a card with the pair secret + address
+ * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a call with a secret is always a card with the pair secret + address
  */
 final class GitTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'git';
@@ -93,7 +93,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             return DangerClass::Irreversible;
         }
         if (in_array($list[0] ?? '', self::READS, true)) {
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a read that would start a program is not a read
+            // spec: brief/scheduler.md#git-с-доступом-из-хранилища — a read that would start a program is not a read
             return self::startsProgram($list) ? DangerClass::Irreversible : DangerClass::Read;
         }
         return DangerClass::Write;
@@ -175,7 +175,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         }
         $check = '';
         if ($secret === null && in_array($list[0], self::READS, true) && !self::startsProgram($list)) {
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a read runs without a card: the settings of the
+            // spec: brief/scheduler.md#git-с-доступом-из-хранилища — a read runs without a card: the settings of the
             //       repository and of the participant that start programs are off, and filters or diff programs in
             //       the repository config stop it (they cannot be turned off from the command line)
             $env += ['GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null'];

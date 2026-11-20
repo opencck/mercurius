@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * end. A command from the "never" list does not run whoever asks; a journal that cannot record the start stops the
  * command; a key the owner has not trusted goes to the owner as a card.
  *
- * spec: brief/servers.md#фаза-7-по-частям
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh
  * ref: references/ssh-mcp/src/tools/pipeline.ts@e04ebf2:L16-L30 — a failure after an allowed start is journalled with
  *      the real decision; here the start itself is a record, so a failure to journal the end is visible too
  */
@@ -210,7 +210,7 @@ final class ServerConsole {
      * stdin, the command runs in `sh -c` with its own stdin from /dev/null. A command of several parts (`;`, `&&`, `|`, a substitution, a second line) gets no password: the other parts would
      * read it. Only a password login has a password to give.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the password of sudo reaches no command
+     * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the password of sudo reaches no command
      * @return array{string, ?string} the command and its stdin
      */
     private function sudo(string $command, Classification $class, Connection $connection): array {

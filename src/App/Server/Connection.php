@@ -11,7 +11,7 @@ use SensitiveParameter;
 /**
  * How to reach a server: its login, the socket route (null — directly) and, for a jump, the server in between.
  *
- * spec: brief/servers.md#фаза-7-по-частям — directly, through a proxy, through VLESS, through another server
+ * spec: brief/servers.md#как-сделано-маршруты-серверов — directly, through a proxy, through VLESS, through another server
  */
 final class Connection {
     public readonly string $credential;

@@ -68,7 +68,7 @@ use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
 
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)), $agentSettings->maxWorkersPerRun);
-// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list
+// spec: brief/orchestration.md#белый-список-инструментов-воркера — a worker gets only tools of the white list
 $workers->allowOnly(explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_WORKER_TOOLS') ?? implode(',', WorkerRunner::ALLOWED)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
@@ -158,7 +158,7 @@ $memoryCards->useCorroboration(static function (int $principalId, string $text) 
     $since = time() - \Mercurius\Memory\App\Corroboration::WINDOW_DAYS * 86400;
     return $corroboration->days($text, $transcript->spokenBy($principalId, $since, \Mercurius\Memory\App\Corroboration::LINES), $zone);
 });
-// spec: brief/memory.md#память-слои — every N turns a cheap model proposes facts through the owner's card
+// spec: brief/memory.md#факты — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
 $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
     $llm,
@@ -171,10 +171,10 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
     $logger,
     is_numeric($factNudgeTurns) ? max(0, min(1000, (int) $factNudgeTurns)) : \OpenCCK\App\Agent\FactNudge::EVERY,
 ))->afterRun(...));
-// spec: brief/memory.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
+// spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
-// spec: brief/operations.md#трассировка-и-метрики — a worker is a step of its orchestrator's trace
+// spec: brief/operations.md#шаги-и-хранение — a worker is a step of its orchestrator's trace
 $workers->useEvents($tracer);
 // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
 $workers->useContext($scheduler->workerContext(...));
@@ -192,7 +192,7 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience,
     $transcript->redact($line, sprintf('[#%d] %s', $fact->id, \Mercurius\I18n\t('memory.forgotten')));
     $traces->redactPayloads($line, sprintf('[#%d] %s', $fact->id, \Mercurius\I18n\t('memory.forgotten')));
     $experience->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
-    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — and the copies of it: arguments of calls and nightly reports
+    // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — and the copies of it: arguments of calls and nightly reports
     $transcript->redactCalls($fact->text, \Mercurius\I18n\t('memory.forgotten'));
     $consolidationJournal->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
 });

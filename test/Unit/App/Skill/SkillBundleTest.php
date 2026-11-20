@@ -50,7 +50,7 @@ final class SkillBundleTest extends TestCase {
     }
 
     public function testThereIsNoLimitUnlessTheOwnerSetsOneOnTheNumberOfFiles(): void {
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — no limit on files or size by default; SKILL_MAX_FILES caps the number of files
+        // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — no limit on files or size by default; SKILL_MAX_FILES caps the number of files
         $many = ['SKILL.md' => self::SKILL, 'big.md' => str_repeat('a', 6 * 1024 * 1024)];
         for ($i = 0; $i < 140; $i++) {
             $many["examples/e$i.html"] = 'x';

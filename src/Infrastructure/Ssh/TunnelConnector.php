@@ -14,7 +14,7 @@ use Amp\Ssh\SshResource;
 /**
  * A socket to the next server opened through an SSH connection to the server in between (ssh -J).
  *
- * spec: brief/servers.md#фаза-7-по-частям — through an intermediate host
+ * spec: brief/servers.md#как-сделано-маршруты-серверов — through an intermediate host
  * ref: references/amphp-ssh/src/SshResource.php@9d171ac:L47-L57 (createTunnel) — direct-tcpip; the server in between
  *      resolves the name
  */

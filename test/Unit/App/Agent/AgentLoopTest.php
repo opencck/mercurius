@@ -209,7 +209,7 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testAModelOfAProseFamilyIsToldToActThroughTools(): void {
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the rule goes with a request that has tools, by the model of that call
+        // spec: brief/agent-loop.md#инструменты — the rule goes with a request that has tools, by the model of that call
         $this->registry->register(new FakeTool('spending'));
         $llm = new ScriptedLlm([ScriptedLlm::text('ok')]);
         $run = $this->runs->start($this->conversationId, 1, 'openrouter:z-ai/glm-5.3-flash', new RunLimits(30, 100_000, 900, 120));
@@ -225,7 +225,7 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testACallThePolicyRefusesIsMarkedForTheReview(): void {
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the review counts calls the policy did not allow
+        // spec: brief/self-improvement.md#самоулучшение — the review counts calls the policy did not allow
         $this->registry->register(new FakeTool('search'));
         $this->registry->register(new FakeTool('shell'));
         $llm = new ScriptedLlm([
@@ -240,7 +240,7 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testManyMcpToolsAreReachedThroughTheBridge(): void {
-        // spec: brief/skills-mcp.md#скиллы-и-mcp — the search of MCP tools: the model gets names, calls a tool through tool_call
+        // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the search of MCP tools: the model gets names, calls a tool through tool_call
         $issue = new FakeTool('mcp_github_create_issue', DangerClass::Read, ['type' => 'object', 'properties' => ['title' => ['type' => 'string']]]);
         $this->registry->register($issue);
         for ($i = 1; $i <= 30; $i++) {
@@ -620,7 +620,7 @@ final class AgentLoopTest extends AsyncTestCase {
 
         $run = $loop->run($this->start(), new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true), $this->owner, $this->observer, new NullCancellation());
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a content filter is a verdict on the request, not a broken model
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a content filter is a verdict on the request, not a broken model
         self::assertSame(StopReason::ModelFailed, $run->stopReason);
         self::assertCount(1, $llm->requests, 'not asked again of another model');
     }
@@ -813,7 +813,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $stack->say('прочитай восемь файлов');
         $stack->scheduler->awaitIdle();
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the results of a turn take at most 30% of the window
+        // spec: brief/agent-loop.md#контекст — the results of a turn take at most 30% of the window
         $tools = array_filter($stack->llm->requests[1]->messages, static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool);
         self::assertCount(8, $tools);
         self::assertLessThanOrEqual(16_000, array_sum(array_map(static fn($m): int => mb_strlen($m->content), $tools)));
@@ -830,7 +830,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $stack->say('прочитай дважды');
         $stack->scheduler->awaitIdle();
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference, not a copy
+        // spec: brief/agent-loop.md#контекст — the same long result again is a reference, not a copy
         $tools = array_values(array_filter($stack->llm->requests[2]->messages, static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool));
         self::assertCount(2, $tools);
         self::assertStringContainsString('тот же длинный текст', $tools[0]->content);

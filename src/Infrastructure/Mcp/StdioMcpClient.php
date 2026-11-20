@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  * The token goes into the environment variable named after the secret (`secret:VARIABLE`, MCP_TOKEN by default).
  * One process serves every request to the server; it is started at the first one and again after it ended.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — stdio servers in the sandbox, not in `app`
+ * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — stdio servers in the sandbox, not in `app`
  * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L199-L221 (_build_safe_env) — a filtered environment
  *      plus the server's own variables; here the sandbox starts from an empty one
  */

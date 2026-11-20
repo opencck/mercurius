@@ -38,7 +38,7 @@ use function Mercurius\I18n\t;
  * segments in order (parallel reads, writes one by one), each irreversible call admitted by a grant, a card or a refusal;
  * results fitted into the window budget, checked by the loop guard and written in the order of the calls.
  *
- * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
+ * spec: brief/agent-loop.md#запуск-и-цикл
  */
 final class ToolRound {
     private const WARN_SHARE = 0.8;
@@ -65,7 +65,7 @@ final class ToolRound {
      * Tools that complete their arguments do it before the call is saved, so the card, the grant and the run all see
      * the same completed call; a call that cannot be completed gets its reason as an error.
      *
-     * spec: brief/internet.md#скрипты-браузера-решение-владельца-2026-11-17
+     * spec: brief/internet.md#скрипты-браузера
      *
      * @param list<ValidatedCall> $calls
      * @return list<ValidatedCall>
@@ -91,7 +91,7 @@ final class ToolRound {
     public function persist(RunState $state, string $text, array $calls): bool {
         $stored = [];
         foreach ($calls as $position => $call) {
-            // spec: brief/skills-mcp.md#скиллы-и-mcp — a call through tool_call is saved as the model made it, the history stays its own
+            // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — a call through tool_call is saved as the model made it, the history stays its own
             $wire = $call->wire ?? $call->call;
             $stored[] = new StoredToolCall(
                 $call->call->id,
@@ -144,7 +144,7 @@ final class ToolRound {
             }
             /** @var array<int, ToolResult> $results */
             $results = await($futures);
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the results of a turn take at most 30% of the window:
+            // spec: brief/agent-loop.md#контекст — the results of a turn take at most 30% of the window:
             //       the largest are spilled to a file (else cut) until the turn fits
             $room = new ResultBudget($this->budget->perResult, max(1, $this->budget->perTurn - $turnUsed));
             $contents = array_map(static fn(ToolResult $r): string => $r->content, $results);
@@ -170,7 +170,7 @@ final class ToolRound {
                 $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content), LoopGuard::isPoll($call->call->name));
                 $halted = $halted || $verdict === GuardVerdict::Halt;
                 $warn = $warn || $verdict === GuardVerdict::Warn;
-                // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference to the first
+                // spec: brief/agent-loop.md#контекст — the same long result again is a reference to the first
                 if (!$result->isError && mb_strlen($result->content) >= self::SAME_RESULT_MIN) {
                     $hash = hash('sha256', $result->content);
                     $first = $state->seenResults[$hash] ?? null;
@@ -186,14 +186,14 @@ final class ToolRound {
                 $this->writeResult($state, $call, $result);
             }
         }
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the loop guard of a run outlives a restart
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — the loop guard of a run outlives a restart
         $this->runs->saveLoopHistory($state->run->id, $state->guard->history());
         return $halted ? StopReason::LoopGuard : null;
     }
     /**
      * Whether a call may run now. Only irreversible calls are checked.
      *
-     * spec: brief/agent-loop.md#подтверждения-и-запреты — approval, saved grants, nobody to ask means refusal
+     * spec: brief/agent-loop.md#разрешения-навсегда — approval, saved grants, nobody to ask means refusal
      * ref: references/hermes-agent/tools/approval.py@e96221fa:L1421-L1479 (check_all_command_guards) — guards in order:
      *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
      *
@@ -229,14 +229,14 @@ final class ToolRound {
             }
         }
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
-        // spec: brief/agent-loop.md#подтверждения-и-запреты — after outside data a grant is not used: the text read may be someone's
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — after outside data a grant is not used: the text read may be someone's
         //      instructions, so the owner sees every irreversible action of this run on a card
         $outside = $this->runs->find($state->run->id)?->outside;
         if ($key !== null && $outside === null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
             $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
             return 'granted';
         }
-        // spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17 — asking for a tool reaches the owner always
+        // spec: brief/network.md#участник-просит-инструмент — asking for a tool reaches the owner always
         if ($this->gate === null || $this->approvals === null || (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess)) {
             return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
         }
@@ -279,7 +279,7 @@ final class ToolRound {
     }
     private function writeResult(RunState $state, ValidatedCall $call, ToolResult $result): void {
         $status = $result->isError ? ToolCallStatus::Failed : ToolCallStatus::Done;
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a call the policy did not allow is marked for the review
+        // spec: brief/self-improvement.md#самоулучшение — a call the policy did not allow is marked for the review
         $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->call->id, $status, $result->content, $call->tool === null);
     }
     /**

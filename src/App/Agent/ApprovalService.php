@@ -175,7 +175,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             if ($revoked !== null) {
                 $this->logger->info('Grant revoked', ['grant' => $revoked->id, 'key' => $revoked->key]);
             }
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the list is updated after a revoke
+            // spec: brief/agent-loop.md#подтверждения-и-запреты — the list is updated after a revoke
             if ($callback->messageId !== null) {
                 [$text, $rows] = $this->grantList();
                 $this->channel->edit($callback->chatId, $callback->messageId, $text, buttons: $rows);
@@ -246,7 +246,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
     }
 
     private function closeCard(Approval $approval, string $outcome): void {
-        // spec: brief/operations.md#трассировка-и-метрики — the approval step lasts from the card to the decision
+        // spec: brief/operations.md#шаги-и-хранение — the approval step lasts from the card to the decision
         $waited = $approval->createdAt === null ? 0.0 : max(0.0, microtime(true) - (float) $approval->createdAt->format('U.u'));
         $this->events->approvalDecided($approval->runId, $approval->tool, $approval->status->value, $waited);
         if ($approval->cardChatId === null || $approval->cardMessageId === null) {

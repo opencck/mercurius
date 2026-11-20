@@ -12,7 +12,7 @@ use function Mercurius\I18n\t;
  * The owner's `/prompt`: the versions of the notes to the system prompt, `rollback <version>` and `off`. A version
  * never changes: a rollback moves the pointer, the next conversation gets that version.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
+ * spec: brief/self-improvement.md#самоулучшение
  */
 final class PromptCommands {
     public function __construct(
@@ -35,7 +35,7 @@ final class PromptCommands {
     /**
      * The scores of the last two versions the evaluation set ran, category by category.
      *
-     * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a report comparing versions; no pairwise judging (decision В7)
+     * spec: brief/self-improvement.md#самоулучшение — a report comparing versions; no pairwise judging (decision В7)
      * ref: notes/claude-cookbooks.md — a score per category, so a regression shows where it happened
      */
     private function scores(): string {

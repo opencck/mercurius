@@ -14,7 +14,7 @@ use Throwable;
  * POST /a2a — JSON-RPC of A2A v1.0 for neighbouring agents, signed both ways; GET /.well-known/agent-card.json — the
  * agent card with its public key.
  *
- * spec: brief/network.md#сеть-агентов-1
+ * spec: brief/network.md#протокол-a2a-v10
  */
 final class A2aHandler implements RequestHandler {
     private const BODY_MAX = 262_144;

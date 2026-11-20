@@ -35,14 +35,14 @@ final class DoctorTest extends AsyncTestCase {
     }
 
     public function testMailNamesTheAuthservIdItTrusts(): void {
-        // spec: brief/internet.md#интернет-и-браузер — doctor names the authserv-id the sender check trusts
+        // spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — doctor names the authserv-id the sender check trusts
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mail.kwinta.net'), self::results(['MAIL_HOST' => 'Mail.Kwinta.net']));
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mx.example.ru'), self::results(['MAIL_HOST' => 'mail.kwinta.net', 'MAIL_AUTHSERV_ID' => 'mx.example.ru']));
         self::assertStringNotContainsString('authserv', self::results([]), 'no mail, no line');
     }
 
     public function testABrokenCommandJournalFails(): void {
-        // spec: brief/servers.md#фаза-7-по-частям — doctor checks the chain of the command journal
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — doctor checks the chain of the command journal
         $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
         $audit->append(['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null]);
         $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), null, $audit);

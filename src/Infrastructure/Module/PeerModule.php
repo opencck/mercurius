@@ -14,7 +14,7 @@ use Throwable;
 /**
  * Every half a minute: the state of tasks given to neighbours, and stale tasks taken from them fail.
  *
- * spec: brief/network.md#сеть-агентов-1
+ * spec: brief/network.md#как-сделано-связь-двух-агентов
  */
 final class PeerModule implements AppModuleInterface {
     private ?string $timer = null;

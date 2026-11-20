@@ -13,7 +13,7 @@ use Throwable;
  * A WebSocket connection as a channel of text frames, on either side (amphp's server client and client connection
  * share the interface). A frame bigger than the limit closes the connection: an agent does not need it.
  *
- * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+ * spec: brief/network.md#вход-по-websocket-и-несколько-ключей
  */
 final class WebsocketA2aChannel implements A2aChannel {
     public const FRAME_MAX = 262_144;

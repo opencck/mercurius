@@ -16,7 +16,7 @@ use Throwable;
  * Wakes the scheduler every half a minute: with no due job it does nothing and spends no tokens. The daily summary is
  * checked on the same tick.
  *
- * spec: brief/scheduler.md#планировщик-и-проекты-1 — a wake gate without tokens when there is no work
+ * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a wake gate without tokens when there is no work
  */
 final class SchedulerModule implements AppModuleInterface {
     private ?string $timer = null;

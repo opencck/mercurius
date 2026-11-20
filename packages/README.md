@@ -2,38 +2,38 @@
 
 Компоненты Меркурия, вынесенные в отдельные репозитории `github.com/opencck/mercurius-<имя>`, подключены сюда
 git-сабмодулями (ветка `master`). Правила — в [CLAUDE.md](../CLAUDE.md) (пункт «Пакеты») и
-[BRIEF.md → Качество кода и CI](../brief/requirements.md#качество-кода-и-ci).
+[Качество кода и CI](../brief/requirements.md#качество-кода-и-ci).
 
 ## Подключённые пакеты
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `5dcb689` | 2026-11-19 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
-| [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `a02c64a` | 2026-11-16 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `cdd4e30` | 2026-11-20 | Канал связи: адаптеры Telegram и WebSocket |
-| [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `d1726aa` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `5f43734` | 2026-11-20 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
+| [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `7d48209` | 2026-11-20 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `0965c93` | 2026-11-20 | Канал связи: адаптеры Telegram и WebSocket |
+| [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `72ceba7` | 2026-11-20 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `6834505` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
-| [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `21f83a9` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `7a11e39` | 2026-11-20 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
-| [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `3de4077` | 2026-11-20 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
+| [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `9734a0e` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `6a83df6` | 2026-11-20 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `57f5856` | 2026-11-20 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
 Репозиторий `mercurius-command-policy` заведён, код пока в основном репозитории (`src/CommandPolicy/`) — так и сказано в его README (2026-11-20); срока выноса нет. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
 ## Модули: сервисы, MCP, скиллы
 
 Тяжёлое и необязательное — отдельные репозитории сабмодулями в `services/`, `mcp/`, `skills/`, сервис — в своём профиле
-compose, по умолчанию выключен ([BRIEF.md → Модули](../brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы)). Журнал модулей ведётся
+compose, по умолчанию выключен ([Модули: сервисы, MCP и скиллы](../brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы)). Журнал модулей ведётся
 здесь же.
 
 | Модуль | Каталог | Коммит | Проверено | Профиль | Назначение |
 |--------|---------|--------|-----------|---------|------------|
-| [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `566ea98` | 2026-11-17 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
-| [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `b0e1580` | 2026-11-18 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `d5b5951` | 2026-11-19 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `59d35aa` | 2026-11-20 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
+| [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `7019cef` | 2026-11-20 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `b5d93d1` | 2026-11-20 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `80022ef` | 2026-11-18 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `341c076` | 2026-11-20 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
-| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `84a87fa` | 2026-11-18 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `7c92c44` | 2026-11-19 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
+| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `394f785` | 2026-11-20 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
+| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `149c776` | 2026-11-20 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 ## Как работать с пакетом
 
@@ -46,6 +46,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-20 — ссылки на новые заголовки спецификации
+
+- Спецификация перестроена (решения — в файлах подсистем, заголовки без дат и номеров фаз), ссылки `spec:` и ссылки брифов сабмодулей переведены на новые якоря: `mail` `7c92c44` → `149c776`, `connectors` `a02c64a` → `7d48209`, `llm` `5dcb689` → `5f43734`, `mcp-client` `21f83a9` → `9734a0e`, `memory` `7a11e39` → `6a83df6`, `messenger` `cdd4e30` → `0965c93`, `peer` `3de4077` → `57f5856`, `search` `d1726aa` → `72ceba7`, `browser` `d5b5951` → `b5d93d1`, `media-docs` `b0e1580` → `7019cef`, `media-video` `566ea98` → `59d35aa`, `telegram-bot-api` `84a87fa` → `394f785`.
 
 ### 2026-11-20 — встроенный скилл memory-file
 
@@ -738,7 +742,7 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 
 - Новый пакет `mercurius-i18n` (`1ceb9bd`, требование владельца 2026-11-17 — язык агента настраивается):
   `Translator`, `CatalogTranslator`, `Plural`, `Lang` с `t()`/`tp()`, каталоги `lang/ru.php` и `lang/en.php`
-  (пока ответы чата); проверка одинаковых ключей и подстановок. Устройство — [BRIEF.md → Язык агента](../brief/operations.md#язык-агента).
+  (пока ответы чата); проверка одинаковых ключей и подстановок. Устройство — [Язык агента](../brief/operations.md#язык-агента).
 
 ### 2026-11-17 — messenger: посты канала и права бота
 

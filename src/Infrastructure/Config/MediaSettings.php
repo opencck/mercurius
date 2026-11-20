@@ -12,7 +12,7 @@ use OpenCCK\Domain\Agent\ProviderProfile;
  * owner's decision: until one is named, the agent does not look), the image models that draw, endpoints of the owner's
  * own models (OpenAI-compatible), which kinds are processed at once, and the thresholds.
  *
- * spec: brief/internet.md#входящие-вложения — models are not set by default; a reference like a text model's, plus custom:
+ * spec: brief/internet.md#модели-вложений — models are not set by default; a reference like a text model's, plus custom:
  * spec: brief/models.md#категории-моделей — a category is a list of models, or none
  */
 final class MediaSettings {
@@ -56,7 +56,7 @@ final class MediaSettings {
         $models = [];
         $rules = [];
         foreach (self::KINDS as $kind) {
-            // spec: brief/internet.md#входящие-вложения — the owner's principles of choosing a model for this kind, in words
+            // spec: brief/internet.md#как-влияют-пользователи — the owner's principles of choosing a model for this kind, in words
             $rule = trim(Env::raw($env, 'MEDIA_' . strtoupper($kind) . '_RULES') ?? '');
             if (mb_strlen($rule) > 1000) {
                 throw ConfigException::invalid('MEDIA_' . strtoupper($kind) . '_RULES', 'up to 1000 characters');

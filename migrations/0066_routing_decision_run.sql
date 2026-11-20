@@ -2,7 +2,7 @@
 -- made before the run started (the router of a conversation, the profile of a worker) is taken by the run when it
 -- starts: the latest decision of the conversation for its model, made in the last two minutes and not taken yet. A
 -- worker looks in the conversation of the run that delegated to it.
--- spec: brief/models.md#выбор-моделей-под-задачу — every decision about the model is kept and shown in /trace
+-- spec: brief/models.md#надёжность-инструментов-и-решения-о-модели — every decision about the model is kept and shown in /trace
 ALTER TABLE routing_decisions ADD COLUMN run_id bigint REFERENCES runs (id) ON DELETE CASCADE;
 CREATE INDEX routing_decisions_run ON routing_decisions (run_id) WHERE run_id IS NOT NULL;
 

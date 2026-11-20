@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
 /**
  * Proposes a change to memory; the owner accepts or rejects it with a card. The run does not wait for the decision.
  *
- * spec: brief/memory.md#фаза-6-по-частям — the agent proposes, the owner decides
+ * spec: brief/memory.md#как-сделано-области-и-факты — the agent proposes, the owner decides
  */
 final class MemoryProposeTool implements Tool {
     public const NAME = 'memory_propose';

@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * with confidence — substitutions, eval, code in a string for an interpreter, heredocs, "download and run" — is
  * irreversible too and has no grant key, so it is asked about every time.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — threshold, recognised actions, keys of saved grants
+ * spec: brief/agent-loop.md#разрешения-навсегда — threshold, recognised actions, keys of saved grants
  * ref: references/hermes-agent/tools/approval_detection.py@e96221fa:L1603-L1619 (_command_detection_variants) —
  *      normalise before matching (quotes, escapes, split words like pu""sh); hermes keeps a blacklist of dangerous
  *      patterns, we keep a short list of outward actions and refuse to guess about the rest

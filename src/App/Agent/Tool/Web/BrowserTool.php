@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * owner's chat. Every page is untrusted data. An internal address waits for the owner, and the browser lets in that
  * host alone (the key is shared with http_request and web_read).
  *
- * spec: brief/internet.md#интернет-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
+ * spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
  *       card; profiles keep logins
  */
 final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService {
@@ -65,7 +65,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      * Where a profile lives: the participant's own set (`p<id>/<name>`), inside the active project of the conversation
      * its own set there (`p<id>/projects/<project>/<name>`). The model names a profile, never a path of someone else's.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — profiles of the browser are laid out by participants and projects
+     * spec: brief/agent-loop.md#раскладка-каталогов — profiles of the browser are laid out by participants and projects
      */
     private function profileOf(string $name, ToolContext $context): string {
         $project = $this->projectOf === null ? null : ($this->projectOf)($context->conversationId);
@@ -104,14 +104,14 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
     public function danger(array $args): DangerClass {
         return match (Args::string($args, 'action')) {
             'open' => $this->internalHost($args) === null ? DangerClass::Read : DangerClass::Irreversible,
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — clicks and sending forms go without a card unless the owner
+            // spec: brief/decisions.md#принятые-владельцем-риски — clicks and sending forms go without a card unless the owner
             //       turned confirmations on (BROWSER_CONFIRM): an accepted risk of the owner
             'click' => $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
             'type' => ($args['submit'] ?? false) === true && $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
             // picking in a list fills a form, it sends nothing: a write like typing without submit
             'select' => DangerClass::Write,
             'close' => DangerClass::Write,
-            // spec: brief/internet.md#скрипты-браузера-решение-владельца-2026-11-17 — reading a copy is a read, acting waits for a card
+            // spec: brief/internet.md#скрипты-браузера — reading a copy is a read, acting waits for a card
             'script' => self::scriptMode(Args::string($args, 'path') ?? '') === 'act' ? DangerClass::Irreversible : DangerClass::Read,
             default => DangerClass::Read,
         };
@@ -150,7 +150,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      * A script call gets the text of its file and the hash: the card shows that text, the grant is keyed by it, and
      * exactly that text runs — the file may change after the card, the call does not.
      *
-     * spec: brief/internet.md#скрипты-браузера-решение-владельца-2026-11-17
+     * spec: brief/internet.md#скрипты-браузера
      */
     public function prepare(array $args, \OpenCCK\Domain\Entity\Principal $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
         if (Args::string($args, 'action') !== 'script') {
@@ -273,7 +273,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      * The agent looks at the screenshot itself with a vision model: the participant's choice or the owner's list, as for
      * a photo. What the model says about the page is data from outside.
      *
-     * spec: brief/internet.md#интернет-и-браузер — the agent sees what is on the screen
+     * spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — the agent sees what is on the screen
      * ref: references/hermes-agent/tools/browser_use_cli.py@e96221fa:L309-L328 (_native_screenshot_result) — hermes
      *      attaches the screenshot to the tool result when the main model sees images; here a vision model of the
      *      owner's media settings looks and answers in text, so any main model gets it and the history stays small
@@ -326,7 +326,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 $elements[] = $list[$k];
             }
         }
-        // spec: brief/internet.md#интернет-и-браузер — a dialog of the page was dismissed at once; the agent learns what it said
+        // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — a dialog of the page was dismissed at once; the agent learns what it said
         $dialogs = [];
         /** @var mixed $line */
         foreach (isset($data['dialogs']) && is_array($data['dialogs']) ? $data['dialogs'] : [] as $line) {

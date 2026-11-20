@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Server;
  * What changes in a server of the registry; null — stays. A new host or port, or forgetHostKey, forgets the trusted
  * host key and the one waiting for the owner: the next connection asks again.
  *
- * spec: brief/servers.md#фаза-7-по-частям — the registry of servers
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the registry of servers
  */
 final class ServerChanges {
     public function __construct(

@@ -17,7 +17,7 @@ use Mercurius\Search\SearchProvider;
  * Search providers from .env: SEARCH_PROVIDERS lists them in order (searxng, brave, tavily, openrouter); a provider
  * without its setting is skipped. Nothing set — OpenRouter web search when its key is there.
  *
- * spec: brief/participants.md#решения-владельца-2026-11-17 — search through an interface with pluggable providers
+ * spec: brief/participants.md#решения-владельца-о-правах — search through an interface with pluggable providers
  */
 final class SearchSettings {
     public const NAMES = ['searxng', 'brave', 'tavily', 'openrouter'];

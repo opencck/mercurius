@@ -22,7 +22,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The registry of servers is changed in the dialogue: a field, the trusted host key, the whole server.
  *
- * spec: brief/servers.md#фаза-7-по-частям — the registry of servers
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the registry of servers
  */
 final class ServerEditToolsTest extends TestCase {
     private InMemoryServerRepository $servers;
@@ -59,7 +59,7 @@ final class ServerEditToolsTest extends TestCase {
     }
 
     public function testAChangedHostKeyIsForgottenWithoutSql(): void {
-        // spec: brief/servers.md#фаза-7-по-частям — a server whose host key changed is fixed in the dialogue
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a server whose host key changed is fixed in the dialogue
         $result = (new ServerEditTool($this->servers, $this->vault))->execute(['name' => 'web', 'forget_host_key' => true], $this->context);
 
         self::assertFalse($result->isError, $result->content);
@@ -91,7 +91,7 @@ final class ServerEditToolsTest extends TestCase {
     }
 
     public function testTheJournalSaysWhoRanEachCommand(): void {
-        // spec: brief/servers.md#фаза-7-по-частям — the participant in /audit
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the participant in /audit
         $audit = new InMemoryCommandAuditRepository();
         $audit->append(['principal' => 7, 'run' => 3, 'server' => 'web', 'command' => 'uptime', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null]);
         $audit->names[7] = 'Аня';

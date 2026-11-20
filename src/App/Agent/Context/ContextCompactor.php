@@ -187,7 +187,7 @@ final class ContextCompactor {
             if ($summary === '') {
                 return null;
             }
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the identifiers of the compacted part stay word for word
+            // spec: brief/agent-loop.md#контекст — the identifiers of the compacted part stay word for word
             $anchors = AnchorIndex::build($text);
             return $anchors === '' ? $summary : $summary . "\n\n" . $anchors;
         } catch (CancelledException $e) {

@@ -10,7 +10,7 @@ use InvalidArgumentException;
  * One task of the evaluation set: the request, the tools the agent gets (fakes with fixed results), checks made by
  * code and a rubric for the judge.
  *
- * spec: brief/decisions.md#границы-самоулучшения — a change is accepted when the set shows no regression in any category
+ * spec: brief/self-improvement.md#границы — a change is accepted when the set shows no regression in any category
  */
 final class EvalTask {
     /**

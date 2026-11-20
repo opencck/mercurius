@@ -9,7 +9,7 @@ use OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — scores by category for a version of the notes
+ * spec: brief/self-improvement.md#самоулучшение — scores by category for a version of the notes
  *
  * @group integration
  */

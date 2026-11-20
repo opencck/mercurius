@@ -24,7 +24,7 @@ use OpenCCK\Test\Support\InMemoryImprovementRepository;
  * notes is taken only when the evaluation set shows no category worse than the noise; versions stay, a rollback
  * moves the pointer back.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
+ * spec: brief/self-improvement.md#самоулучшение
  */
 final class ImprovementsTest extends AsyncTestCase {
     private InMemoryImprovementRepository $store;
@@ -144,7 +144,7 @@ final class ImprovementsTest extends AsyncTestCase {
         $buttons = array_map(static fn($b): string => $b->data, (array_values(array_filter($this->channel->buttons))[0] ?? [[]])[0]);
         self::assertContains(sprintf('im:%d:g', $first), $buttons, 'the card offers to allow this kind for good');
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — self-modification may be allowed for good
+        // spec: brief/self-improvement.md#самоизменение-с-разрешением-навсегда — self-modification may be allowed for good
         $this->press($improvements, $first, 'g');
         self::assertSame(['self-improve:setting'], $grants->getArrayCopy());
         self::assertSame(['LLM_CHEAP_MODEL', 'a/one'], $this->lastSetting());
@@ -182,7 +182,7 @@ final class ImprovementsTest extends AsyncTestCase {
     }
 
     public function testTheReportComparesTheScoresOfTwoVersions(): void {
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the report compares versions category by category
+        // spec: brief/self-improvement.md#самоулучшение — the report compares versions category by category
         $first = $this->notes->add('Правило один.', 'первое');
         $scores = new \OpenCCK\Test\Support\InMemoryEvalScoreRepository();
         $commands = new PromptCommands($this->notes, $scores);
@@ -198,7 +198,7 @@ final class ImprovementsTest extends AsyncTestCase {
     }
 
     public function testAProposalLeftInCheckingByARestartWaitsForTheOwnerAgain(): void {
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a restart in the middle of the gate leaves nothing in checking
+        // spec: brief/self-improvement.md#самоулучшение — a restart in the middle of the gate leaves nothing in checking
         $id = $this->store->propose('prompt', 'Короче', 'Отвечай короче.', 'длинные ответы', null);
         $this->store->move($id, ['proposed'], 'checking');
 
@@ -210,7 +210,7 @@ final class ImprovementsTest extends AsyncTestCase {
     }
 
     public function testARejectedTitleIsNotProposedAgainWordForWord(): void {
-        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the agent sees what was refused and does not repeat it
+        // spec: brief/self-improvement.md#самоулучшение — the agent sees what was refused and does not repeat it
         $id = $this->store->propose('prompt', 'Короче отвечать', 'Отвечай короче.', 'длинные ответы', null);
         $this->store->move($id, ['proposed'], 'rejected');
         $tool = new \OpenCCK\App\Agent\Tool\Self\ImprovementProposeTool($this->improvements());

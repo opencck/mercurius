@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * write; one statement only, so the transaction cannot be closed from inside. A write waits for the owner. The password
  * goes on stdin, never on the command line.
  *
- * spec: brief/servers.md#фаза-7-по-частям — SQL tools for PostgreSQL and MariaDB/MySQL go the same way
+ * spec: brief/servers.md#как-сделано-запросы-к-базам-данных — SQL tools for PostgreSQL and MariaDB/MySQL go the same way
  *
  * The text goes to psql or mysql, and both clients read their own commands from the same input: `\!` and `system`
  * start a shell on the server, `\c` opens a new session outside the transaction, `\copy … to program` runs a
@@ -33,7 +33,7 @@ use function Mercurius\I18n\t;
  * A secret goes only where the owner allowed it: with a secret the call waits for a card, and the grant names the
  * server, the engine, the database host, port and user and the secret — another host is another card. A grant for a
  * write names the exact statement. The password is masked in what the client prints.
- * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a call with a secret is always a card; a grant for a write names
+ * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a call with a secret is always a card; a grant for a write names
  *       the statement and the connection
  */
 final class SqlQueryTool implements Tool, GrantKeyed {
@@ -82,7 +82,7 @@ final class SqlQueryTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

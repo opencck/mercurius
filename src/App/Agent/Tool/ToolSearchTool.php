@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * gives their schemas. Only tools the participant may use are seen. The third, `tool_call`, is not a tool: the
  * validator turns it into a call of the tool it names.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — the search of MCP tools
+ * spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the search of MCP tools
  * ref: references/hermes-agent/tools/tool_search.py@e96221fa:L38-L39, L442-L546 (dispatch_tool_search,
  *      dispatch_tool_describe) — at most 7 queries and 10 names a call, matches by query with the records of the tools
  *      once, names not found with a hint to search again

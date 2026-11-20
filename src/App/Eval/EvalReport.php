@@ -8,7 +8,7 @@ namespace OpenCCK\App\Eval;
  * Scores by category with their noise, and the comparison with a baseline: a category regresses when its mean falls
  * below the baseline by more than the noise (two standard errors of the difference, at least 0.05).
  *
- * spec: brief/decisions.md#границы-самоулучшения — no regression in any category beyond noise
+ * spec: brief/self-improvement.md#границы — no regression in any category beyond noise
  */
 final class EvalReport {
     public const MIN_MARGIN = 0.05;

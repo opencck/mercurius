@@ -136,7 +136,7 @@ final class RunScheduler {
      * Who spoke in a group chat or topic in the last day: a run there gets no more rights than the weakest of them,
      * and someone who joins during a run narrows it before the model reads their words.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/channels.md#права-запуска-в-группе — in a group the rights of the weakest active participant
      * @param Closure(string, string, string): list<string> $speakers channel, chat, topic => user ids of the channel
      */
     public function useGroupSpeakers(Closure $speakers): void {
@@ -209,7 +209,7 @@ final class RunScheduler {
      * Outside data came to a conversation outside a run (the answer of a neighbour): the run now going, or the next
      * one, is marked — no saved grant applies in it.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
+     * spec: brief/agent-loop.md#запуск-начатый-внешними-данными
      */
     public function taint(int $conversationId, string $source): void {
         $run = $this->runs->active($conversationId);
@@ -267,7 +267,7 @@ final class RunScheduler {
      *        run that takes it is marked; null — the message is the participant's own words
      */
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
+        // spec: brief/channels.md#форум-темы--проекты — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
         $this->silence[$conversationId] = isset($this->pending[$conversationId]) ? ($this->silence[$conversationId] ?? false) && $silenceAllowed : $silenceAllowed;
@@ -281,7 +281,7 @@ final class RunScheduler {
             return;
         }
         if ($run !== null) {
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — someone who joins a group's run narrows it before the
+            // spec: brief/channels.md#права-запуска-в-группе — someone who joins a group's run narrows it before the
             //      model reads their words (the ceiling is read before the next model call, which delivers the text)
             if ($this->speakers !== null && $principal->id !== $run->principalId) {
                 $starter = $this->principals->find($run->principalId);
@@ -291,7 +291,7 @@ final class RunScheduler {
                 }
             }
             if ($outside !== null) {
-                // spec: brief/internet.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
+                // spec: brief/internet.md#безопасность — files are data from outside: no saved grant in this run from now on
                 $this->runs->markOutside($run->id, $outside);
             }
             $this->transcript->inbox($run->id, $text, $message->messageId);
@@ -494,8 +494,8 @@ final class RunScheduler {
     }
 
     /** The active project of a chat goes into the prompt of its new conversations. */
-    /** spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the active notes the owner accepted come into new prompts */
-    /** spec: brief/network.md#сеть-агентов-1 — the agent knows its own address and how a neighbour connects to it */
+    /** spec: brief/self-improvement.md#самоулучшение — the active notes the owner accepted come into new prompts */
+    /** spec: brief/network.md#подключения-агентов — the agent knows its own address and how a neighbour connects to it */
     public function useInstance(string $about): void {
         $this->instance = $about;
     }
@@ -580,7 +580,7 @@ final class RunScheduler {
         return $this->audience ??= new ConversationAudience($this->conversations);
     }
 
-    /** spec: brief/decisions.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
+    /** spec: brief/participants.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
     /** The active notes the owner accepted ('' when none); the prompt text kept with the conversation records them. */
     private function notes(): string {
         try {
@@ -661,7 +661,7 @@ final class RunScheduler {
 
     /** The facts that answer the text go after it as reference data; memory failing never stops the run. */
     /**
-     * spec: brief/skills-mcp.md#скиллы-и-mcp — a change of the catalog in the middle of a conversation is a one-off note on the
+     * spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a change of the catalog in the middle of a conversation is a one-off note on the
      *       next message, the prompt stays as it was
      */
     private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
@@ -688,7 +688,7 @@ final class RunScheduler {
         $memory = $this->memory;
         $scopes = $this->audience()->scopes($principal, $meta->id);
         try {
-            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a slow recall does not hold the answer: after the time
+            // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a slow recall does not hold the answer: after the time
             //       the run starts without it
             /** @var string $facts */
             $facts = async(static fn(): string => $memory->facts($text, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
@@ -737,8 +737,8 @@ final class RunScheduler {
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policyIn($conversationId, $principal);
-        // spec: brief/agent-loop.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the mark is set at the start, before the model reads anything
+        // spec: brief/agent-loop.md#разрешения-навсегда — in a group other people's words are in the context: saved grants do not apply
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the mark is set at the start, before the model reads anything
         $sources = array_values(array_unique([...(str_starts_with($meta->chatId, '-') ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
         unset($this->tainted[$conversationId]);
         $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, $sources === [] ? null : implode(', ', $sources));

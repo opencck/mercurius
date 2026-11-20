@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * Handles one incoming message: checks who writes, answers commands, and hands everything else to the run scheduler.
  * It returns at once, so the chat queue is never held by a running task and /stop always gets through.
  *
- * spec: brief/decisions.md#участники-люди-и-агенты — a stranger waits for the owner; a refused one is refused
+ * spec: brief/participants.md#участники-люди-и-агенты — a stranger waits for the owner; a refused one is refused
  * spec: brief/agent-loop.md#подтверждения-и-запреты — control commands bypass a busy conversation
  */
 final class ChatService implements MessageHandler {
@@ -100,7 +100,7 @@ final class ChatService implements MessageHandler {
     private ?RoleCatalog $roles = null;
     private ?\OpenCCK\App\Agent\Model\ModelRoles $modelRoles = null;
 
-    /** spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — /models: roles, their history and a rollback */
+    /** spec: brief/self-improvement.md#самоулучшение — /models: roles, their history and a rollback */
     public function useModelRoles(\OpenCCK\App\Agent\Model\ModelRoles $roles): void {
         $this->modelRoles = $roles;
     }
@@ -172,7 +172,7 @@ final class ChatService implements MessageHandler {
 
     public function handle(IncomingMessage $message): void {
         if (!$message->isPrivateChat && $this->groups !== null) {
-            // spec: brief/channels.md#telegram-группы-каналы-и-темы — a group decides who is answered and when
+            // spec: brief/channels.md#группа — a group decides who is answered and when
             $routed = $this->groups->route($message);
             if ($routed === null) {
                 return;
@@ -201,7 +201,7 @@ final class ChatService implements MessageHandler {
     private function proceed(Principal $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
 
         $text = trim($message->text);
-        // spec: brief/internet.md#входящие-вложения — a message with files is not empty: a photo without a caption reaches the agent
+        // spec: brief/internet.md#приём — a message with files is not empty: a photo without a caption reaches the agent
         $intake = $this->intake;
         $policies = $this->policies;
         $attached = ($message->attachments !== [] || $message->repliedAttachments !== []) && $intake !== null && $policies !== null;
@@ -235,7 +235,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/memory', '/forget', '/consolidate'], true) && $this->memory !== null) {
-            // spec: brief/decisions.md#контекст-по-месту-и-аудитории — memory is the owner's and is shown only in a private chat
+            // spec: brief/participants.md#контекст-по-месту-и-аудитории — memory is the owner's and is shown only in a private chat
             if (!$principal->isOwner()) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
@@ -250,7 +250,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/secret' && $this->servers !== null) {
-            // spec: brief/servers.md#фаза-7-по-частям — a secret goes to the vault and its message leaves the chat
+            // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a secret goes to the vault and its message leaves the chat
             $argument = substr($text, strlen($command));
             $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
             if (!$principal->role->may(Power::Secrets)) {
@@ -330,7 +330,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/peer', '/peers'], true) && $this->peers !== null) {
-            // spec: brief/network.md#сеть-агентов-1 — tokens are shown once, so only in the private chat
+            // spec: brief/network.md#подключения-агентов — tokens are shown once, so only in the private chat
             $this->reply($message, match (true) {
                 !$principal->isOwner() => t(self::OWNER_ONLY),
                 !$message->isPrivateChat => t(self::SECRET_PRIVATE),
@@ -339,7 +339,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/roles', '/role'], true) && $this->roles !== null) {
-            // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — only the owner, only in the private chat
+            // spec: brief/participants.md#свои-роли — only the owner, only in the private chat
             $this->reply($message, match (true) {
                 !$principal->isOwner() => t(self::OWNER_ONLY),
                 !$message->isPrivateChat => t(self::PRIVATE_ONLY),
@@ -360,7 +360,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/proposals' && $this->improvements !== null) {
-            // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — a lost card is shown again
+            // spec: brief/self-improvement.md#самоулучшение — a lost card is shown again
             if (!$principal->isOwner()) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif ($this->improvements->showOpen() === 0) {
@@ -369,7 +369,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/prompt' && $this->prompt !== null) {
-            // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — versions of the notes and a rollback, the owner only
+            // spec: brief/self-improvement.md#самоулучшение — versions of the notes and a rollback, the owner only
             $this->reply($message, $principal->isOwner() ? $this->prompt->handle(substr($text, strlen($command))) : t(self::OWNER_ONLY));
             return;
         }
@@ -435,7 +435,7 @@ final class ChatService implements MessageHandler {
 
         $message = $this->withoutSecrets($principal, $message);
         if ($message->isPrivateChat) {
-            // spec: brief/channels.md#telegram-группы-каналы-и-темы — the agent sees what a message answers
+            // spec: brief/channels.md#группа — the agent sees what a message answers
             $header = MessageMeta::header($message, $this->botId, run: $this->runOfReply($message));
             if ($header !== '') {
                 $message = self::withText($message, $header . "\n" . $message->text);
@@ -456,7 +456,7 @@ final class ChatService implements MessageHandler {
      * A secret pasted into an ordinary message: the message leaves the chat, its text is kept in the vault (in a private
      * chat), and the agent gets the text with the secret masked and the name it is kept under.
      *
-     * spec: brief/servers.md#фаза-7-по-частям — a secret that appeared in Telegram is deleted by the bot and kept in the vault
+     * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a secret that appeared in Telegram is deleted by the bot and kept in the vault
      */
     private function withoutSecrets(Principal $principal, IncomingMessage $message): IncomingMessage {
         if (!SecretMasker::carriesSecret($message->text) || $this->servers === null) {
@@ -499,20 +499,20 @@ final class ChatService implements MessageHandler {
         );
     }
 
-    /** spec: brief/operations.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */
+    /** spec: brief/operations.md#команды-и-отчёты-владельца — reports for the owner; a long one goes as a file */
     private function report(\OpenCCK\Domain\Entity\Principal $principal, string $command, string $argument, IncomingMessage $message): void {
-        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — reports are a power of a role too
+        // spec: brief/participants.md#свои-роли — reports are a power of a role too
         if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Power::Reports)) || $this->reports === null) {
             $this->reply($message, t(self::OWNER_ONLY));
             return;
         }
-        // spec: brief/decisions.md#контекст-по-месту-и-аудитории — a group hears what is said; reports are for the owner alone
+        // spec: brief/participants.md#контекст-по-месту-и-аудитории — a group hears what is said; reports are for the owner alone
         if (!$message->isPrivateChat) {
             $this->reply($message, t(self::PRIVATE_ONLY));
             return;
         }
         $words = preg_split('/\s+/', trim($argument)) ?: [];
-        // spec: brief/operations.md#трассировка-и-метрики — /trace <run> <step>: the step's prompt and answer as a file
+        // spec: brief/operations.md#команды-и-отчёты-владельца — /trace <run> <step>: the step's prompt and answer as a file
         if ($command === '/trace' && count($words) === 2 && ctype_digit($words[0]) && ctype_digit($words[1])) {
             $run = (int) $words[0];
             $visible = $principal->isOwner() || $this->runVisible === null || ($this->runVisible)($run, $principal);

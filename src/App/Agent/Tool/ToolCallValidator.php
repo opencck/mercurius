@@ -41,7 +41,7 @@ final class ToolCallValidator {
             $call = new ToolCall($id, $call->name, $json);
             $wire = null;
             if ($call->name === ToolSearch::CALL) {
-                // spec: brief/skills-mcp.md#скиллы-и-mcp — tool_call is checked and run as a call of the tool it names
+                // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — tool_call is checked and run as a call of the tool it names
                 $target = $this->unwrap($json, $truncated);
                 if (is_string($target)) {
                     $result[] = $this->invalid($call, null, null, $target);
@@ -146,7 +146,7 @@ final class ToolCallValidator {
      * Strings of simple types read as the schema says: "42" for an integer, "true" for a boolean, a JSON text for an
      * array or an object. What does not parse stays as it was, and the schema check speaks about it.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — arguments of simple types are brought to the schema first
+     * spec: brief/agent-loop.md#инструменты — arguments of simple types are brought to the schema first
      * ref: references/hermes-agent/tools/arg_coercion.py@e96221fa:L173-L240 (_coerce_value) — the same rules: a number
      *      that is not finite or an integer with decimals stays a string, booleans by "true"/"false"
      * @param mixed $args the decoded arguments, an object

@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * Gives a task to one neighbouring agent and waits for its answer, up to `wait` seconds; an answer later than that
  * comes to the chat, as for peer_delegate.
  *
- * spec: brief/network.md#сеть-агентов-1 — peer_call next to peer_delegate (decision В9)
+ * spec: brief/network.md#вызов-и-раздача-соседям — peer_call next to peer_delegate (decision В9)
  * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L172-L196 (a2a_call) — call one agent and wait;
  *      the answer is the result of the call, a question of the agent comes back as such
  */
@@ -87,7 +87,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
      * The context of the neighbour to answer a question of task $replyTo in: null — no answer, a new context; false —
      * not a task of this participant to this neighbour.
      *
-     * spec: brief/network.md#сеть-агентов-1 — an answer to the question of a neighbour goes into the same context
+     * spec: brief/network.md#вызов-и-раздача-соседям — an answer to the question of a neighbour goes into the same context
      */
     public static function replyContext(PeerRepository $peers, ToolContext $context, string $peer, ?int $replyTo): string|false|null {
         if ($replyTo === null) {

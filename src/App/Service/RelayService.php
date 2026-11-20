@@ -60,7 +60,7 @@ final class RelayService {
             return false;
         }
         $name = $sender->displayName ?? '#' . $sender->id;
-        // spec: brief/internet.md#входящие-вложения — the files of the answer are taken as the asker's own, kept in its sandbox
+        // spec: brief/internet.md#между-агентами — the files of the answer are taken as the asker's own, kept in its sandbox
         $taken = '';
         if ($this->intake !== null && $this->policies !== null && $message->attachments !== []) {
             $taken = $this->intake->intake($asker, $this->policies->forPrincipal($asker), $message, new \Amp\NullCancellation(), $relay->originConversationId)->text;
@@ -85,7 +85,7 @@ final class RelayService {
         $this->channel->send(new OutgoingMessage($message->chatId, sprintf(t('relay.passed'), $asker->displayName ?? '#' . $asker->id), $message->messageId));
         $this->logger->info('Answer relayed', ['relay' => $relay->id, 'conversation' => $relay->originConversationId]);
         // in a group the agent may stay silent there after answering in private, as it was asked
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — someone's answer is data from outside: no saved grant in its run
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — someone's answer is data from outside: no saved grant in its run
         $this->scheduler->submit($asker, $relayed, $relay->originConversationId, $shared, 'relay');
         return true;
     }

@@ -9,7 +9,7 @@ use DomainException;
 /**
  * Encrypted secrets: the store never sees a value, only its nonce and ciphertext.
  *
- * spec: brief/servers.md#фаза-7-по-частям
+ * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh
  */
 interface SecretRepository {
     /** @throws DomainException when a secret with this name exists */

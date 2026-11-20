@@ -9,7 +9,7 @@ namespace OpenCCK\App\Agent\Tool;
  * reaches the owner even when the participant may not ask for approvals otherwise. Once it ran (the owner agreed), the
  * granted tool joins the running run at once.
  *
- * spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17
+ * spec: brief/network.md#участник-просит-инструмент
  */
 interface RequestsAccess {
     /** @param array<string, mixed> $args the tool the call asked for */

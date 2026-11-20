@@ -14,7 +14,7 @@ use function Amp\async;
  * The gate of a prompt change: the evaluation set runs the current notes and the candidate under the same model, the
  * same judge and the same number of runs, and the candidate passes only when no category got worse beyond the noise.
  *
- * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — at least 20 tasks by categories, at least 3 runs, a judge of
+ * spec: brief/self-improvement.md#самоулучшение — at least 20 tasks by categories, at least 3 runs, a judge of
  *       another family, the prompt version recorded; no category worse beyond the noise
  * ref: notes/claude-cookbooks.md — scores by category, so a regression shows where it happened
  */
@@ -33,7 +33,7 @@ final class PromptGate {
 
     private ?\OpenCCK\Domain\Repository\EvalScoreRepository $scores = null;
 
-    /** spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the scores of both versions are kept by category */
+    /** spec: brief/self-improvement.md#самоулучшение — the scores of both versions are kept by category */
     public function useScores(\OpenCCK\Domain\Repository\EvalScoreRepository $scores): void {
         $this->scores = $scores;
     }

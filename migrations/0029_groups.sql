@@ -1,5 +1,5 @@
 -- Группы, куда добавили бота: работает только в одобренных владельцем; режим — по упоминанию или свободно.
--- spec: brief/channels.md#telegram-группы-каналы-и-темы
+-- spec: brief/channels.md#как-сделано-группы
 
 CREATE TABLE chat_groups (
     channel text NOT NULL,

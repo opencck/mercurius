@@ -72,7 +72,7 @@ final class ChannelRunObserver implements RunObserver {
         $this->started = true;
         $this->startedAt = ($this->clock)();
         $this->channel->typing($this->chatId);
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — a channel that cannot edit gets no status message, only what is final
+        // spec: brief/agent-loop.md#канал — a channel that cannot edit gets no status message, only what is final
         if (!$this->channel->capabilities()->canEdit) {
             if ($notice !== null) {
                 $this->channel->send(new OutgoingMessage($this->chatId, $notice, $this->replyTo, threadId: $this->threadId));
@@ -133,7 +133,7 @@ final class ChannelRunObserver implements RunObserver {
     /**
      * The status message a waiting run left says the decision came: «waiting for the owner» does not stay forever.
      *
-     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
+     * spec: brief/agent-loop.md#подтверждения-и-запреты
      */
     public function settled(string $text): void {
         if ($this->messageId !== null) {
@@ -147,7 +147,7 @@ final class ChannelRunObserver implements RunObserver {
     }
 
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
-        // spec: brief/channels.md#telegram-группы-каналы-и-темы — in a free group the agent may stay silent
+        // spec: brief/channels.md#группа — in a free group the agent may stay silent
         // ref: references/hermes-agent/gateway/response_filters.py@e96221fa:L241-L256 (silence_allowed) — only a turn nobody
         //      waits for may vanish; someone who asked gets a visible answer
         if ($reason === StopReason::Answered && str_starts_with(ltrim($finalText), '[SILENT]') && !$this->silenceAllowed) {
@@ -179,7 +179,7 @@ final class ChannelRunObserver implements RunObserver {
             }
         }
         $first = array_shift($parts) ?? $finalText;
-        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
+        // spec: brief/agent-loop.md#доставка-итогового-ответа — the answer is an obligation before it is sent
         $obligation = $this->obligation($run, $finalText, $mode);
         $messageId = $this->messageId;
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)

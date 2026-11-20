@@ -85,7 +85,7 @@ final class SettingsCatalog {
         'BRAVE_SEARCH_API_KEY' => ['search', self::SECRET, 'settings.about.brave_search_api_key'],
         'TAVILY_API_KEY' => ['search', self::SECRET, 'settings.about.tavily_api_key'],
         'WEB_SEARCH_MODEL' => ['search', self::TEXT, 'settings.about.web_search_model'],
-        // spec: brief/internet.md#входящие-вложения — media models are unset by default
+        // spec: brief/internet.md#модели-вложений — media models are unset by default
         'MEDIA_VISION_MODELS' => ['media', self::TEXT, 'settings.about.media_vision_models'],
         'MEDIA_IMAGE_MODELS' => ['media', self::TEXT, 'settings.about.media_image_models'],
         'MEDIA_VIDEO_MODELS' => ['media', self::TEXT, 'settings.about.media_video_models'],

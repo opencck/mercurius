@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * The way a participant's files are handled: their own choice over the owner's defaults (MEDIA_AUTO, the order of the
  * model lists, the owner's principles). The model a participant prefers is only one of the owner's for that kind.
  *
- * spec: brief/internet.md#входящие-вложения — how users influence it; the owner's settings are only the default
+ * spec: brief/internet.md#как-влияют-пользователи — how users influence it; the owner's settings are only the default
  */
 final class MediaPrefs {
     /** what model a kind of file needs */

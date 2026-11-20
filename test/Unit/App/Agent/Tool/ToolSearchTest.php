@@ -24,7 +24,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Many tools of MCP servers do not go to the model whole: over a threshold it gets their names and three bridge tools.
  *
- * spec: brief/skills-mcp.md#скиллы-и-mcp — the search of MCP tools
+ * spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the search of MCP tools
  */
 final class ToolSearchTest extends TestCase {
     /** @return list<ToolDefinition> */

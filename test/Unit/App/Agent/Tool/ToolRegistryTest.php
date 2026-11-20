@@ -51,7 +51,7 @@ final class ToolRegistryTest extends TestCase {
 
     public function testAToolWithABadSchemaIsNotRegistered(): void {
         $registry = new ToolRegistry();
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a tool is checked when it is registered
+        // spec: brief/agent-loop.md#инструменты — a tool is checked when it is registered
         foreach ([
             new FakeTool('bad name!'),
             new FakeTool('list', parameters: ['type' => 'array']),

@@ -87,7 +87,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         self::assertSame(['start', 'done'], array_column($this->audit->records, 'event'));
         self::assertSame('read', $this->audit->records[0]['class']);
         self::assertSame(7, $this->audit->records[1]['run']);
-        // spec: brief/servers.md#фаза-7-по-частям — the record of the end keeps the exit code and the time
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the record of the end keeps the exit code and the time
         self::assertSame(0, $this->audit->records[1]['exit']);
         self::assertNotNull($this->audit->records[1]['ms']);
         self::assertNull($this->audit->verify());
@@ -199,7 +199,7 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
     public function testSudoGetsTheLoginPasswordOnStdin(): void {
         $this->console()->run($this->owner, null, 'web', 'sudo systemctl restart nginx', 30, new NullCancellation());
 
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the password goes to sudo alone, never to the command
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the password goes to sudo alone, never to the command
         self::assertSame("sudo -S -p '' sh -c 'systemctl restart nginx < /dev/null'", $this->ran[0][2]);
         $this->console()->run($this->owner, null, 'web', "sudo echo 'a b'", 30, new NullCancellation());
         self::assertSame("sudo -S -p '' sh -c 'echo '\''a b'\'' < /dev/null'", $this->ran[1][2], 'quotes of the command are kept');
@@ -246,7 +246,7 @@ cat", 'sudo sh -c "$(cat)"', 'sudo id `cat`'] as $command) {
         self::assertSame($key, $tool->grantKey(['server' => 'web', 'command' => ' systemctl restart nginx ']));
         self::assertNotSame($key, $tool->grantKey(['server' => 'web', 'command' => 'systemctl restart php']));
         self::assertStringContainsString(':v' . SshCommandClassifier::VERSION . ':', (string) $key);
-        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good; sudo apart
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — everything the owner is asked may be allowed for good; sudo apart
         self::assertStringStartsWith('ssh-sudo:v' . SshCommandClassifier::VERSION . ':web:', (string) $tool->grantKey(['server' => 'web', 'command' => 'sudo systemctl restart nginx']));
         self::assertNull($tool->grantKey(['server' => 'web', 'command' => 'df -h']), 'a read needs no grant');
     }

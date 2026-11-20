@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * Gives parts of a task to several neighbouring agents at once and brings their answers together, in the order of the
  * parts; a part not answered within `wait` seconds is named, and its answer comes to the chat later.
  *
- * spec: brief/network.md#сеть-агентов-1 — peer_orchestrate next to peer_delegate (decision В9)
+ * spec: brief/network.md#вызов-и-раздача-соседям — peer_orchestrate next to peer_delegate (decision В9)
  * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L254-L289 (a2a_orchestrate) — parallel calls, at
  *      most 6, answers joined in blocks; hermes sends the same message to every agent with a capability, here each
  *      part is its own task to its own agent, and the wait is one for all parts
