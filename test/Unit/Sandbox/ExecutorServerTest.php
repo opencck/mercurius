@@ -100,6 +100,10 @@ final class ExecutorServerTest extends AsyncTestCase {
         mkdir($from . '/p7/notes', 0777, true);
         mkdir($to);
         file_put_contents($from . '/p7/notes/a.txt', 'заметка');
+        mkdir($from . '/p7/app/node_modules/x', 0777, true);
+        file_put_contents($from . '/p7/app/node_modules/x/index.js', 'deps');
+        mkdir($from . '/p7/.cache/pip', 0777, true);
+        file_put_contents($from . '/p7/.cache/pip/w', 'cache');
         $files = $this->createMock(FileStore::class);
         $runner = $this->createMock(Runner::class);
 
@@ -112,6 +116,8 @@ final class ExecutorServerTest extends AsyncTestCase {
 
         self::assertSame(200, $answer->getStatus(), buffer($answer->getBody()));
         self::assertSame('заметка', file_get_contents($to . '/p7/notes/a.txt'));
+        self::assertDirectoryDoesNotExist($to . '/p7/app/node_modules', 'dependencies are installed again, not carried');
+        self::assertDirectoryDoesNotExist($to . '/p7/.cache', 'caches are not carried');
     }
 
     public function testMissingTokenIs401(): void {

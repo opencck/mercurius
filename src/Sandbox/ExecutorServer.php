@@ -23,6 +23,9 @@ use function Mercurius\I18n\t;
  * spec: BRIEF.md#песочница — executor behind a token, only the sandbox network
  */
 final class ExecutorServer implements RequestHandler {
+    /** folders the archive of the working folders leaves out, by name at any depth */
+    private const ARCHIVE_SKIPPED = ['node_modules', '__pycache__', '.venv', 'venv', 'site-packages', '.cache', '.npm', '.tox', '.nox', '.pytest_cache', '.mypy_cache', '.ruff_cache'];
+
     /** a file of 25 MB in base64 with its JSON: files the agent receives and sends go through here */
     private const MAX_BODY = 40 * 1024 * 1024;
 
@@ -76,12 +79,16 @@ final class ExecutorServer implements RequestHandler {
 
     /**
      * The working folders of all participants as tar.gz, a stream: for the archive of the agent. Read as root, the
-     * ownership of every file kept.
+     * ownership of every file kept; dependencies and caches stay out, they are installed again.
+     *
+     * ref: references/hermes-agent/hermes_cli/backup.py@e96221fa:L79-L97 (_EXCLUDED_DIRS) — the same dependency and cache
+     *      folders; .git is kept here, a participant's repository may hold work not pushed anywhere
      *
      * spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
      */
     private function archive(): Response {
-        $process = \Amp\Process\Process::start(['tar', '--numeric-owner', '-czf', '-', '-C', $this->workspace->root, '.']);
+        $excluded = array_map(static fn(string $name): string => '--exclude=' . $name, self::ARCHIVE_SKIPPED);
+        $process = \Amp\Process\Process::start(['tar', '--numeric-owner', ...$excluded, '-czf', '-', '-C', $this->workspace->root, '.']);
         \Amp\async(static function () use ($process): void {
             \Amp\ByteStream\buffer($process->getStderr());
             $process->join();
