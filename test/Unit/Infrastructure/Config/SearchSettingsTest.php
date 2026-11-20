@@ -21,12 +21,16 @@ final class SearchSettingsTest extends AsyncTestCase {
     public function testProvidersFollowTheOrderAndThoseWithoutSettingsAreSkipped(): void {
         $http = HttpClientBuilder::buildDefault();
 
-        [$search, $skipped] = SearchSettings::build(['SEARCH_PROVIDERS' => 'searxng, brave,openrouter', 'SEARXNG_URL' => 'http://searxng:8080'], $http, 'sk-or');
+        [$search, $skipped] = SearchSettings::build(['SEARCH_PROVIDERS' => 'searxng, brave,openrouter', 'SEARXNG_URL' => 'http://searxng:8080', 'WEB_SEARCH_MODELS' => 'openrouter:author/search, author/other'], $http, 'sk-or');
         self::assertSame('searxng>openrouter', $search?->name());
         self::assertSame(['brave'], $skipped);
 
-        [$default] = SearchSettings::build([], $http, 'sk-or');
-        self::assertSame('openrouter', $default?->name(), 'OpenRouter by default');
+        // spec: brief/models.md#списки-моделей-по-категориям — the search has no model until the owner names one
+        [$none, $skippedNone] = SearchSettings::build([], $http, 'sk-or');
+        self::assertNull($none, 'a key alone is not a search: no model was named');
+        self::assertSame(['openrouter'], $skippedNone);
+        [$named] = SearchSettings::build(['WEB_SEARCH_MODELS' => 'author/search'], $http, 'sk-or');
+        self::assertSame('openrouter', $named?->name());
         self::assertNull(SearchSettings::build([], $http, null)[0], 'no key, no search');
 
         $this->expectException(ConfigException::class);

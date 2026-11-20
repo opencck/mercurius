@@ -46,12 +46,12 @@ final class FallbackModels {
         $why = '';
         if ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, self::OPENAI_PREFIX) && in_array(ModelRef::OPENAI, $providers, true)) {
             $twin = new ModelRef(ModelRef::OPENAI, substr($ref->model, strlen(self::OPENAI_PREFIX)));
-            if ($this->catalog->find($twin) !== null) {
+            if ($this->roles->allowedText($twin) && $this->catalog->find($twin) !== null) {
                 [$next, $why] = [$twin, t('model.fallback_models.ta_zhe_model_napryamuyu_u')];
             }
         } elseif ($ref->provider === ModelRef::OPENAI && in_array(ModelRef::OPENROUTER, $providers, true)) {
             $twin = new ModelRef(ModelRef::OPENROUTER, self::OPENAI_PREFIX . $ref->model);
-            if ($this->catalog->find($twin) !== null) {
+            if ($this->roles->allowedText($twin) && $this->catalog->find($twin) !== null) {
                 [$next, $why] = [$twin, t('model.fallback_models.ta_zhe_model_cherez_openrouter')];
             }
         }

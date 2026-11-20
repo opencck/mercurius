@@ -32,7 +32,23 @@ final class ModelRoles {
         private readonly array $providers = [ModelRef::OPENROUTER],
         /** moves the open conversations of a role to its new model; null — they keep theirs */
         private readonly ?RoleConversations $conversations = null,
+        /** the models the owner allowed for each role; null — any model of the catalog (tests of the roles themselves) */
+        private readonly ?ModelLists $lists = null,
     ) {}
+
+    /**
+     * Whether the model may answer in a conversation at all: it is in one of the owner's text lists.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — a model in no list is never called
+     */
+    public function allowedText(ModelRef $model): bool {
+        return $this->lists === null || $this->lists->allowsText($model);
+    }
+
+    /** @return list<ModelRef> the owner's list of a role; empty — no list is kept (any model) */
+    public function listOf(string $role): array {
+        return $this->lists?->of($role) ?? [];
+    }
 
     /** @return list<string> */
     public function providers(): array {
@@ -46,6 +62,21 @@ final class ModelRoles {
     /** A role whose model is of a provider without a key falls back to the seed value of the providers there are. */
     public function model(string $role): ModelRef {
         $row = $this->roles->all()[$role] ?? null;
+        if ($this->lists !== null) {
+            // spec: brief/models.md#списки-моделей-по-категориям — the model of a role is one of its list: the one chosen, while
+            //       it is still there, else the first of the list
+            $role = isset(ModelLists::TEXT[$role]) ? $role : ModelRole::MAIN;
+            $row = $this->roles->all()[$role] ?? null;
+            if ($row !== null && $this->lists->allows($role, $row->model) && in_array($row->model->provider, $this->providers, true)) {
+                return $row->model;
+            }
+            foreach ($this->lists->of($role) as $allowed) {
+                if (in_array($allowed->provider, $this->providers, true)) {
+                    return $allowed;
+                }
+            }
+            return $this->lists->of($role)[0] ?? $this->lists->of(ModelRole::MAIN)[0] ?? ModelRef::parse($this->seedTable()[ModelRole::MAIN]);
+        }
         if ($row !== null && in_array($row->model->provider, $this->providers, true)) {
             return $row->model;
         }
@@ -61,6 +92,18 @@ final class ModelRoles {
      * @return array<string, string>
      */
     private function seedTable(): array {
+        if ($this->lists !== null) {
+            $seed = [];
+            foreach (array_keys(ModelLists::TEXT) as $role) {
+                $first = $this->lists->of($role)[0] ?? null;
+                if ($first !== null) {
+                    $seed[$role] = (string) $first;
+                }
+            }
+            if (isset($seed[ModelRole::MAIN])) {
+                return $seed;
+            }
+        }
         foreach (ProviderProfile::all() as $name => $profile) {
             if (in_array($name, $this->providers, true)) {
                 return $profile->roles;
@@ -149,6 +192,11 @@ final class ModelRoles {
         }
         if (!in_array($ref->provider, $this->providers, true)) {
             throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers)));
+        }
+        // spec: brief/models.md#списки-моделей-по-категориям — the agent chooses among the models the owner allowed for the role
+        if ($this->lists !== null && !$this->lists->allows($role, $ref)) {
+            $allowed = implode(', ', array_map(static fn(ModelRef $m): string => (string) $m, $this->lists->of($role)));
+            throw new DomainException(sprintf(t('model.model_roles.not_in_list'), (string) $ref, $role, $allowed === '' ? '—' : $allowed, ModelLists::TEXT[$role] ?? 'LLM_MAIN_MODELS'));
         }
         $info = $this->catalog->find($ref);
         if ($info === null) {

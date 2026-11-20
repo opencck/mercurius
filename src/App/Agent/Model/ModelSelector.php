@@ -84,7 +84,8 @@ final class ModelSelector {
         $providerOf = [];
         foreach ($this->roles->providers() as $provider) {
             foreach ($this->catalog->models($provider) as $m) {
-                if ($this->eligible($m, $needsTools, $profile, $window, $ceiling)) {
+                // spec: brief/models.md#списки-моделей-по-категориям — the choice by the profile of a task is among the allowed models
+                if ($this->roles->allowedText(new ModelRef($provider, $m->id)) && $this->eligible($m, $needsTools, $profile, $window, $ceiling)) {
                     $providerOf[count($eligible)] = $provider;
                     $eligible[] = $m;
                 }

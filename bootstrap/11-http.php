@@ -40,6 +40,8 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\Infrastructure\Services\ServiceModules $serviceModules
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
+ * @var OpenCCK\App\Agent\Model\ModelLists $modelLists
+ * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
  * @var OpenCCK\App\Vault\Vault $vault
  * @var non-empty-string $version
@@ -115,6 +117,17 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'projects' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.projects'),
     // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — how to log in and which profile is used
     'browser' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.browser'),
+    // spec: brief/models.md#списки-моделей-по-категориям — the categories of models and what the owner allowed in each, as of now
+    'models' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($modelLists, $modelRoles): string {
+        $parts = [];
+        foreach (\OpenCCK\App\Agent\Model\ModelLists::TEXT as $role => $setting) {
+            $parts[] = sprintf('%s (%s): %s; выбрана %s', $role, $setting, implode(', ', array_map(static fn(\OpenCCK\Domain\Agent\ModelRef $m): string => (string) $m, $modelLists->of($role))), (string) $modelRoles->model($role));
+        }
+        foreach (\OpenCCK\App\Agent\Model\ModelLists::OTHER as $category => $setting) {
+            $parts[] = sprintf('%s (%s): %s', $category, $setting, implode(', ', $modelLists->other($category)) ?: '—');
+        }
+        return \Mercurius\I18n\t('self.models') . "\n\n" . sprintf(\Mercurius\I18n\t('self.models.now'), "\n- " . implode("\n- ", $parts));
+    },
     // spec: brief/skills-mcp.md#ящики-участников-и-проектов — how a mailbox is connected and who confirms sending; whether
     // the tools are there and whether the one who asks may use them is counted at the call
     'mail' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.mail') . "\n\n" . sprintf(

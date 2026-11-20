@@ -31,11 +31,30 @@ final class SearchSettings {
     ];
 
     /**
+     * The first model of the owner's list for the search; null — none was named.
+     *
+     * @param array<array-key, mixed> $env
+     * @return ?non-empty-string
+     */
+    private static function searchModel(array $env): ?string {
+        foreach (explode(',', Env::raw($env, 'WEB_SEARCH_MODELS') ?? '') as $name) {
+            $name = trim($name);
+            // the provider takes the id of OpenRouter itself
+            $name = str_starts_with($name, 'openrouter:') ? substr($name, strlen('openrouter:')) : $name;
+            if ($name !== '' && preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $name) === 1) {
+                return $name;
+            }
+        }
+        return null;
+    }
+
+    /**
      * @param array<array-key, mixed> $env
      * @return array{SearchProvider|null, list<string>, array<string, SearchProvider>} the search in order (null — none),
      *         the providers skipped for a missing setting, and each configured provider by name
      */
     public static function build(array $env, HttpClient $http, ?string $openRouterKey): array {
+        $searchModel = self::searchModel($env);
         $order = array_values(array_filter(array_map('trim', explode(',', strtolower(Env::raw($env, 'SEARCH_PROVIDERS') ?? 'openrouter'))), static fn(string $n): bool => $n !== ''));
         $providers = [];
         $skipped = [];
@@ -44,7 +63,8 @@ final class SearchSettings {
                 'searxng' => ($url = Env::raw($env, 'SEARXNG_URL')) === null ? null : new SearxngProvider($http, $url),
                 'brave' => ($key = Env::raw($env, 'BRAVE_SEARCH_API_KEY')) === null ? null : new BraveProvider($http, $key),
                 'tavily' => ($key = Env::raw($env, 'TAVILY_API_KEY')) === null ? null : new TavilyProvider($http, $key),
-                'openrouter' => $openRouterKey === null ? null : new OpenRouterProvider($http, $openRouterKey, Env::raw($env, 'WEB_SEARCH_MODEL') ?? 'openai/gpt-5.6-luna'),
+                // spec: brief/models.md#списки-моделей-по-категориям — the search has no model until the owner names one
+                'openrouter' => $openRouterKey === null || $searchModel === null ? null : new OpenRouterProvider($http, $openRouterKey, $searchModel),
                 default => throw ConfigException::invalid('SEARCH_PROVIDERS', 'a list of ' . implode(', ', self::NAMES)),
             };
             if ($provider === null) {

@@ -95,7 +95,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertNull($openAi->openRouterKey());
         self::assertSame('sk-proj-secret', $openAi->openAiKey());
         self::assertSame('openai:gpt-6.1-terra', $openAi->model, 'no OpenRouter: an OpenAI model by default');
-        self::assertSame('openai:gpt-6-luna', $openAi->cheapModel);
+        self::assertSame('openai:gpt-6.1-terra', $openAi->cheapModel, 'no cheap model of its own: the starting model serves');
         self::assertStringNotContainsString('sk-proj-secret', print_r($openAi, true));
         self::assertSame(['openrouter', 'openai', 'codex'], $both->providers());
         self::assertSame('z-ai/glm-5.3-flash', $both->model);
@@ -109,7 +109,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame(['anthropic'], $anthropic->providers());
         self::assertSame('sk-ant-secret', $anthropic->anthropicKey());
         self::assertSame('anthropic:claude-sonnet-5-5', $anthropic->model, 'only Anthropic: a Claude model by default');
-        self::assertSame('anthropic:claude-haiku-5-5', $anthropic->cheapModel);
+        self::assertSame('anthropic:claude-sonnet-5-5', $anthropic->cheapModel, 'no cheap model of its own: the starting model serves');
         self::assertStringNotContainsString('sk-ant-secret', print_r($anthropic, true));
         self::assertSame(['openrouter', 'openai', 'codex', 'anthropic'], $all->providers());
         self::assertSame('anthropic:claude-opus-5-5', $all->model);
@@ -125,7 +125,7 @@ final class ServiceSettingsTest extends TestCase {
         self::assertSame('us-east-1', $bedrock->bedrockRegion, 'the region with every Claude model');
         self::assertSame('eu-central-1', $eu->bedrockRegion);
         self::assertSame('bedrock:anthropic.claude-sonnet-5-5', $bedrock->model);
-        self::assertSame('bedrock:anthropic.claude-haiku-5-5', $bedrock->cheapModel);
+        self::assertSame('bedrock:anthropic.claude-sonnet-5-5', $bedrock->cheapModel, 'no cheap model of its own: the starting model serves');
         self::assertStringNotContainsString('bedrock-secret', print_r($bedrock, true));
     }
 
@@ -187,7 +187,9 @@ final class ServiceSettingsTest extends TestCase {
         $settings = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k']);
 
         self::assertSame(131072, $settings->contextWindow);
-        self::assertSame('openai/gpt-5.6-luna', $settings->cheapModel);
+        // spec: brief/models.md#списки-моделей-по-категориям — no model is built in: the starting one serves the auxiliary calls
+        self::assertSame($settings->model, $settings->cheapModel);
+        self::assertSame('author/cheap', LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_CHEAP_MODEL' => 'author/cheap'])->cheapModel);
         self::assertSame(16384, LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'k', 'LLM_CONTEXT_WINDOW' => '16384'])->contextWindow);
     }
 

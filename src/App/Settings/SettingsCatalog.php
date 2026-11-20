@@ -63,6 +63,10 @@ final class SettingsCatalog {
         'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
         'LLM_MODEL' => ['models', self::TEXT, 'settings.about.llm_model'],
         'LLM_CHEAP_MODEL' => ['models', self::TEXT, 'settings.about.llm_cheap_model'],
+        // spec: brief/models.md#списки-моделей-по-категориям — the lists the agent chooses a model from
+        'LLM_CHEAP_MODELS' => ['models', self::TEXT, 'settings.about.llm_cheap_models'],
+        'LLM_MAIN_MODELS' => ['models', self::TEXT, 'settings.about.llm_main_models'],
+        'LLM_STRONG_MODELS' => ['models', self::TEXT, 'settings.about.llm_strong_models'],
         'LLM_REASONING_EFFORT' => ['models', self::TEXT, 'settings.about.llm_reasoning_effort'],
         'LLM_MAX_TOKENS' => ['models', self::INT, 'settings.about.llm_max_tokens'],
         'LLM_HISTORY_LIMIT' => ['models', self::INT, 'settings.about.llm_history_limit'],
@@ -84,9 +88,11 @@ final class SettingsCatalog {
         'SEARXNG_URL' => ['search', self::TEXT, 'settings.about.searxng_url'],
         'BRAVE_SEARCH_API_KEY' => ['search', self::SECRET, 'settings.about.brave_search_api_key'],
         'TAVILY_API_KEY' => ['search', self::SECRET, 'settings.about.tavily_api_key'],
-        'WEB_SEARCH_MODEL' => ['search', self::TEXT, 'settings.about.web_search_model'],
+        'WEB_SEARCH_MODELS' => ['search', self::TEXT, 'settings.about.web_search_models'],
         // spec: brief/internet.md#модели-вложений — media models are unset by default
         'MEDIA_VISION_MODELS' => ['media', self::TEXT, 'settings.about.media_vision_models'],
+        'MEDIA_AUDIO_GEN_MODELS' => ['media', self::TEXT, 'settings.about.media_audio_gen_models'],
+        'MEDIA_VIDEO_GEN_MODELS' => ['media', self::TEXT, 'settings.about.media_video_gen_models'],
         'MEDIA_IMAGE_MODELS' => ['media', self::TEXT, 'settings.about.media_image_models'],
         'MEDIA_VIDEO_MODELS' => ['media', self::TEXT, 'settings.about.media_video_models'],
         'MEDIA_SPEECH_MODELS' => ['media', self::TEXT, 'settings.about.media_speech_models'],

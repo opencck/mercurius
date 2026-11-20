@@ -88,7 +88,8 @@ final class LlmSettings {
             maxTokens: Env::positiveInt($env, 'LLM_MAX_TOKENS', 4096, 200_000),
             historyLimit: Env::positiveInt($env, 'LLM_HISTORY_LIMIT', 40, 1000),
             contextWindow: $window,
-            cheapModel: self::model($env, 'LLM_CHEAP_MODEL', self::bare($first->cheapModel), $providers),
+            // spec: brief/models.md#списки-моделей-по-категориям — no model of its own by default: the starting model serves
+            cheapModel: self::model($env, 'LLM_CHEAP_MODEL', $model, $providers),
             bedrockRegion: $region,
         );
     }

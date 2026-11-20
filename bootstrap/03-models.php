@@ -63,7 +63,9 @@ $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
-$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
+// spec: brief/models.md#списки-моделей-по-категориям — the agent calls only the models the owner listed
+$modelLists = \OpenCCK\App\Agent\Model\ModelLists::fromEnv($_ENV, $llmSettings->model);
+$modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger), $modelLists);
 $modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);
 $modelRouter = new ModelRouter(
