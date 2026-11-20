@@ -49,7 +49,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
                 'token_budget' => ['type' => 'integer', 'minimum' => 1],
                 'run_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.set_participant_policy.sekundy')],
                 'tool_timeout' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.set_participant_policy.sekundy')],
-                'may_request_approval' => ['type' => 'boolean'],
+                'may_request_approval' => ['type' => 'boolean', 'description' => t('tool.set_participant_policy.may_request_approval')],
                 'daily_spend_usd' => ['type' => 'number', 'minimum' => 0, 'maximum' => 10000, 'description' => t('tool.set_participant_policy.daily_spend')],
             ],
             'required' => ['principal_id'],

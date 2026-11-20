@@ -328,4 +328,19 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         self::assertSame([], $this->push->calls);
         self::assertStringContainsString('требует подтверждения владельца', $llm->requests[1]->messages[3]->content);
     }
+
+    public function testAParticipantWithoutTheRightToAskLearnsWhoCanGiveIt(): void {
+        // spec: brief/agent-loop.md#права-участника — without may_request_approval an irreversible call is refused at once;
+        //      the refusal names the right and who gives it, so the model reports it instead of trying again
+        $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{}')), ScriptedLlm::text('не смог')]);
+
+        $run = $this->execute($this->loop($llm), $this->start(), mayAsk: false);
+
+        $refusal = $llm->requests[1]->messages[3]->content;
+        self::assertSame([], $this->asked, 'no card goes to the owner');
+        self::assertStringContainsString('may_request_approval', $refusal);
+        self::assertStringContainsString('владелец', $refusal);
+        self::assertStringContainsString('Не повторяй', $refusal);
+        self::assertSame(RunStatus::Done, $run->status);
+    }
 }

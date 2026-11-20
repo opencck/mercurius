@@ -237,8 +237,13 @@ final class ToolRound {
             return 'granted';
         }
         // spec: brief/network.md#участник-просит-инструмент — asking for a tool reaches the owner always
-        if ($this->gate === null || $this->approvals === null || (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess)) {
+        if ($this->gate === null || $this->approvals === null) {
             return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
+        }
+        // spec: brief/agent-loop.md#права-участника — the refusal names the missing right and who gives it, so the model
+        //      reports it to the participant instead of trying again
+        if (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess) {
+            return ToolResult::error(t('agent.agent_loop.net_prava_prosit_podtverzhdenie'));
         }
         // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
         $this->transcript->setCallStatus($state->run->id, $call->call->id, ToolCallStatus::AwaitingApproval);
