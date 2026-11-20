@@ -27,7 +27,10 @@ DB="$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2-)"
 USER="$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)"
 
 docker compose exec -T postgres pg_dump -U "$USER" -d "$DB" -Fc > "$DIR/db.dump"
-tar -czf "$DIR/app.tar.gz" -C storage app
+# Данные приложения пишет пользователь контейнера (часть файлов — 600): читаются из образа приложения от root.
+# Архивы агента (exports/, import/) в копию не входят — они сами копии.
+docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/app:/a:ro" app \
+    -czf - --exclude=./exports --exclude=./import --transform 's,^\.,app,' -C /a . > "$DIR/app.tar.gz"
 # Рабочие каталоги участников принадлежат пользователям песочницы: читаются из образа приложения от root, только на чтение.
 docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/workspace:/w:ro" app -czf - -C /w . > "$DIR/workspace.tar.gz"
 cp .env "$DIR/env"

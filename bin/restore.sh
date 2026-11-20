@@ -18,7 +18,9 @@ docker compose stop app
 # Схема пересоздаётся: в базе не остаётся таблиц, которых не было в копии.
 docker compose exec -T postgres psql -U "$USER" -d "$DB" -q -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 docker compose exec -T postgres pg_restore -U "$USER" -d "$DB" --no-owner --exit-on-error < "$DIR/db.dump"
-tar -xzf "$DIR/app.tar.gz" -C storage
+# Поверх данных приложения, с владельцами файлов из копии: от root через образ приложения.
+docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/app:/a" app \
+    -xzf - --strip-components=1 -C /a < "$DIR/app.tar.gz"
 if [ -s "$DIR/workspace.tar.gz" ]; then
     docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/workspace:/w" app -xzf - -C /w < "$DIR/workspace.tar.gz"
 fi
