@@ -14,10 +14,10 @@ use OpenCCK\App\Agent\Tool\CanonicalJson;
  * cycles. Its history is kept on the run: a run resumed after an approval or a restart goes on counting.
  *
  * spec: brief/agent-loop.md#запуск-и-цикл — loop guard
- * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L37-L46, L125-L130 — thresholds 3 and 5, period up to 4
- * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L450-L536 (observe_call, _detect_identical_cycle) —
+ * ref: references/hermes-agent/agent/tool_guardrails.py@e96221fa:L37-L46, L125-L130 — thresholds 3 and 5, period up to 4
+ * ref: references/hermes-agent/agent/tool_guardrails.py@e96221fa:L450-L536 (observe_call, _detect_identical_cycle) —
  *      streak and cycle laps; we skip the separate counters for different failing commands
- * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L380-L446 (after_call, _no_progress) — an unchanged
+ * ref: references/hermes-agent/agent/tool_guardrails.py@e96221fa:L380-L446 (after_call, _no_progress) — an unchanged
  *      result of the same call counts even with other calls between; pollers are exempt (an unchanged poll is progress)
  */
 final class LoopGuard {

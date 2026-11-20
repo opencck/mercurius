@@ -9,7 +9,7 @@ use function Mercurius\I18n\t;
 /**
  * Keeps the beginning and the end of a stream while it is read, never more than head + tail bytes in memory.
  *
- * ref: references/hermes-agent/tools/environments/base.py@e96221f:L726-L790 (execute, bounded_capture) — output is
+ * ref: references/hermes-agent/tools/environments/base.py@e96221fa:L726-L790 (execute, bounded_capture) — output is
  *      capped while the stream is read, not after it is collected
  */
 final class OutputWindow {

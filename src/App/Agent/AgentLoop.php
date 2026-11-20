@@ -60,9 +60,9 @@ use function Mercurius\I18n\t;
  * after a restart.
  *
  * spec: brief/agent-loop.md#запуск-и-цикл, BRIEF.md#лимиты, BRIEF.md#устойчивость
- * ref: references/hermes-agent/agent/conversation_loop.py@e96221f:L1648-L1807 (_run_conversation_turn) — iteration as
+ * ref: references/hermes-agent/agent/conversation_loop.py@e96221fa:L1648-L1807 (_run_conversation_turn) — iteration as
  *      phases with a verdict; we add a token budget reserved before each call and resume interrupted runs
- * ref: references/hermes-agent/agent/turn_tool_round.py@e96221f:L49-L238 (run_tool_round) — validate, persist before
+ * ref: references/hermes-agent/agent/turn_tool_round.py@e96221fa:L49-L238 (run_tool_round) — validate, persist before
  *      execution, execute, guardrail
  */
 final class AgentLoop {
@@ -428,7 +428,7 @@ final class AgentLoop {
      * Steering messages go in only here, between iterations, after the results of the last answer — so a
      * call and its result are never split.
      *
-     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221f:L175-L181, L284-L295 — /steer delivered after the
+     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221fa:L175-L181, L284-L295 — /steer delivered after the
      *      last tool result
      */
     private function deliverInbox(RunState $state): void {
@@ -750,7 +750,7 @@ final class AgentLoop {
     /**
      * After a limit the model gets one call without tools to sum up; other stops get a short explanation.
      *
-     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221f:L406-L416 — the grace call after the budget ends
+     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221fa:L406-L416 — the grace call after the budget ends
      */
     private function finish(RunState $state, StopReason $reason): Run {
         $run = $state->run;

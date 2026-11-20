@@ -194,7 +194,7 @@ final class ToolRound {
      * Whether a call may run now. Only irreversible calls are checked.
      *
      * spec: brief/agent-loop.md#подтверждения-и-запреты — approval, saved grants, nobody to ask means refusal
-     * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 (check_all_command_guards) — guards in order:
+     * ref: references/hermes-agent/tools/approval.py@e96221fa:L1421-L1479 (check_all_command_guards) — guards in order:
      *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
      *
      * @return bool|'granted'|'approved'|ToolResult true — run; 'granted' — run by a saved grant; 'approved' — run, the owner
@@ -283,7 +283,7 @@ final class ToolRound {
         $this->transcript->appendToolResult($state->run->conversationId, $state->run->id, $call->call->id, $status, $result->content, $call->tool === null);
     }
     /**
-     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221f:L41-L99, L183-L186 — one-time budget warning
+     * ref: references/hermes-agent/agent/turn_iteration_prep.py@e96221fa:L41-L99, L183-L186 — one-time budget warning
      *      appended to the last tool result, not a separate message (keeps role alternation and the prompt cache)
      */
     private function withNotes(RunState $state, ToolResult $result, bool $repeating): ToolResult {

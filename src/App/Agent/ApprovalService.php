@@ -38,7 +38,7 @@ use function Mercurius\I18n\t;
  * text from the owner while the run waits, with that text as the reason.
  *
  * spec: brief/agent-loop.md#подтверждения-и-запреты
- * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L3844-L3861 (_send_exec_approval_prompt),
+ * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L3844-L3861 (_send_exec_approval_prompt),
  *      L4347-L4389 (_handle_exec_approval_callback) — short id in the button, decide first then edit the card,
  *      "already decided" for a second press; the approval lives in the database here, not in process memory
  */

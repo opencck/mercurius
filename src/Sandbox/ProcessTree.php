@@ -9,7 +9,7 @@ namespace OpenCCK\Sandbox;
  * session — background jobs and nohup included — dies with it. A process that starts yet another session escapes;
  * there is no cgroup per command.
  *
- * ref: references/hermes-agent/tools/environments/base.py@e96221f:L117 (kill_live_foreground_processes) — hermes kills
+ * ref: references/hermes-agent/tools/environments/base.py@e96221fa:L117 (kill_live_foreground_processes) — hermes kills
  *      registered foreground processes; we kill by session found through /proc
  */
 final class ProcessTree {

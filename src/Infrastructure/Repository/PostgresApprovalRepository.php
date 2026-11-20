@@ -15,7 +15,7 @@ use UnexpectedValueException;
 
 /**
  * spec: brief/agent-loop.md#подтверждения-и-запреты — the decision is fixed atomically before the card is edited
- * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L4347-L4389 (_handle_exec_approval_callback)
+ * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L4347-L4389 (_handle_exec_approval_callback)
  *      — "resolve, then draw"; hermes pops in-memory state, we decide by a conditional UPDATE
  */
 final class PostgresApprovalRepository implements ApprovalRepository {

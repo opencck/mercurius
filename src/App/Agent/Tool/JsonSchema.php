@@ -10,7 +10,7 @@ use function Mercurius\I18n\t;
  * The subset of JSON Schema that tool arguments use: type, properties, required, enum, items,
  * additionalProperties: false, minimum, maximum, maxLength. Errors are in Russian, for the model.
  *
- * ref: references/hermes-agent/tools/arg_validation.py@e96221f:L100 (check_tool_args) — required and unknown
+ * ref: references/hermes-agent/tools/arg_validation.py@e96221fa:L100 (check_tool_args) — required and unknown
  *      arguments by the schema before the handler; we also check types instead of coercing them
  */
 final class JsonSchema {

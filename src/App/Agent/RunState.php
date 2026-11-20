@@ -13,7 +13,7 @@ use OpenCCK\Domain\Entity\Principal;
 /**
  * Everything one run's iterations share. Phases read and update it instead of passing locals around.
  *
- * ref: references/hermes-agent/agent/conversation_loop.py@e96221f:L1463-L1543 (_LoopState) — one state object for all phases
+ * ref: references/hermes-agent/agent/conversation_loop.py@e96221fa:L1463-L1543 (_LoopState) — one state object for all phases
  */
 final class RunState {
     public readonly LoopGuard $guard;

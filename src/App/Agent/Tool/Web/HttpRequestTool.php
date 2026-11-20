@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * target is checked by AddressGuard again; the client's connector checks the address it actually dials as well.
  *
  * spec: brief/agent-loop.md#инструменты — http_request; GET/HEAD read, internal addresses only with the owner's permission
- * ref: references/hermes-agent/website/docs/user-guide/security.md@e96221f:L819-L833 — redirect chains re-checked at every hop
+ * ref: references/hermes-agent/website/docs/user-guide/security.md@e96221fa:L819-L833 — redirect chains re-checked at every hop
  */
 final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
     public const NAME = 'http_request';

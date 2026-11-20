@@ -9,7 +9,7 @@ namespace OpenCCK\App\Agent\Tool\Guard;
  * but the card must not leak a token into the chat history.
  *
  * spec: brief/agent-loop.md#подтверждения-и-запреты — secrets in the card are masked
- * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 — hermes shows the command in full; we mask values
+ * ref: references/hermes-agent/tools/approval.py@e96221fa:L1421-L1479 — hermes shows the command in full; we mask values
  */
 final class SecretMasker {
     /** shorter values are too much like ordinary words to be replaced everywhere */

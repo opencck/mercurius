@@ -50,9 +50,9 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/agent-loop.md#запуск-и-цикл — one active run per conversation, steering
  * spec: brief/agent-loop.md#устойчивость — resume after restart without repeating side effects
- * ref: references/hermes-agent/gateway/platforms/base.py@e96221f:L3690-L3697 (_text_debounce_delay) — merge window
+ * ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L3690-L3697 (_text_debounce_delay) — merge window
  *      0.35 s after the last message, at most 1 s after the first
- * ref: references/hermes-agent/gateway/run_busy.py@e96221f:L200-L215 — a steering note left after the turn becomes
+ * ref: references/hermes-agent/gateway/run_busy.py@e96221fa:L200-L215 — a steering note left after the turn becomes
  *      the next turn instead of vanishing
  */
 final class RunScheduler {

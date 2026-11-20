@@ -87,7 +87,7 @@ final class ToolExecutor {
      * Null when it is short or there is nowhere to put it (no sandbox, write failed).
      *
      * spec: brief/agent-loop.md#инструменты — a large result is saved to a file, a preview and the path stay in the context
-     * ref: references/hermes-agent/tools/tool_result_storage.py@e96221f:L278-L300, L424 (generate_preview,
+     * ref: references/hermes-agent/tools/tool_result_storage.py@e96221fa:L278-L300, L424 (generate_preview,
      *      maybe_persist_tool_result) — persist instead of cutting, preview with the path; the threshold is fixed here
      *      until the model catalogue gives the window size
      */

@@ -15,11 +15,11 @@ use function Mercurius\I18n\t;
  * Checks tool calls of one model answer before anything runs.
  *
  * spec: brief/agent-loop.md#запуск-и-цикл — validation before execution
- * ref: references/hermes-agent/agent/turn_tool_validation.py@e96221f:L97-L269 (validate_tool_calls) — unique ids,
+ * ref: references/hermes-agent/agent/turn_tool_validation.py@e96221fa:L97-L269 (validate_tool_calls) — unique ids,
  *      empty arguments as {}, error results with the allowed names, mixed batches run their valid calls, arguments
  *      that do not parse and do not end with } or ] count as cut off whatever finish_reason says. We do not repair
  *      misspelled names and do not silently retry broken JSON: the model gets the error as the call's result.
- * ref: references/hermes-agent/run_agent.py@e96221f:L1216-L1233 (_deduplicate_tool_calls) — duplicates by name and
+ * ref: references/hermes-agent/run_agent.py@e96221fa:L1216-L1233 (_deduplicate_tool_calls) — duplicates by name and
  *      canonical arguments; hermes drops them, we keep them with a stub result so every saved call has a result.
  */
 final class ToolCallValidator {

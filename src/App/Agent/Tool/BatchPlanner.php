@@ -12,9 +12,9 @@ use OpenCCK\Domain\Agent\DangerClass;
  * fully sequential execution.
  *
  * spec: brief/agent-loop.md#запуск-и-цикл — reads in parallel, a write is a barrier
- * ref: references/hermes-agent/agent/tool_dispatch_helpers.py@e96221f:L213-L259 (_plan_tool_batch_segments) — ordered
+ * ref: references/hermes-agent/agent/tool_dispatch_helpers.py@e96221fa:L213-L259 (_plan_tool_batch_segments) — ordered
  *      segments with barriers; we split by danger class instead of a whitelist and path overlap (no file tools yet)
- * ref: references/hermes-agent/run_agent.py@e96221f:L143 (_MAX_TOOL_WORKERS) — at most 8 at once
+ * ref: references/hermes-agent/run_agent.py@e96221fa:L143 (_MAX_TOOL_WORKERS) — at most 8 at once
  */
 final class BatchPlanner {
     public const MAX_PARALLEL = 8;
