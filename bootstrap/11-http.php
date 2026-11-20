@@ -100,12 +100,13 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
         }
         return \Mercurius\I18n\t('self.tools') . "\n" . implode("\n", $lines);
     },
-    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules): string {
-        $lines = [];
-        foreach ($serviceModules->states() as $name => $up) {
-            $lines[] = '- ' . $name . ': ' . ($up ? \Mercurius\I18n\t('self.modules.up') : \Mercurius\I18n\t('self.modules.down'));
+    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules, $tools): string {
+        $states = $serviceModules->states();
+        // the mail module is an MCP server: it is set up when its token is, and up while its tools are registered
+        if (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null) {
+            $states['mail'] = $tools->get('mcp_mail_mail_list') !== null;
         }
-        return \Mercurius\I18n\t('self.modules') . "\n" . ($lines === [] ? '—' : implode("\n", $lines));
+        return \Mercurius\I18n\t('self.modules') . "\n" . implode("\n", \OpenCCK\App\Service\ModuleReport::lines($states));
     },
     'limits' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.limits') . "\n" . ($c->policy === null ? '—' : json_encode($c->policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
     'skills' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.skills'),
@@ -118,7 +119,9 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     // the tools are there and whether the one who asks may use them is counted at the call
     'mail' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.mail') . "\n\n" . sprintf(
         \Mercurius\I18n\t('self.mail.now'),
-        $tools->get('mcp_mail_mail_list') !== null ? \Mercurius\I18n\t('self.modules.up') : \Mercurius\I18n\t('self.modules.down'),
+        $tools->get('mcp_mail_mail_list') !== null
+            ? \Mercurius\I18n\t('self.modules.up')
+            : (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null ? \Mercurius\I18n\t('self.modules.down') : sprintf(\Mercurius\I18n\t('self.modules.off'), 'mail', 'MAIL_MCP_TOKEN')),
         \OpenCCK\App\Mail\Mailboxes::may($c->principal) ? \Mercurius\I18n\t('self.mail.power_yes') : \Mercurius\I18n\t('self.mail.power_no'),
     ),
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
