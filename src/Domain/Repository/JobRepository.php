@@ -38,6 +38,16 @@ interface JobRepository {
 
     public function find(int $id): ?Job;
 
+    /**
+     * Jobs that ran and are over (a one-off job after its run), newest first: they stay visible for a while, so nobody
+     * takes a finished job for one that never was.
+     *
+     * @param ?int $principalId null — of everyone
+     * @param list<int> $projectIds also the jobs of these projects
+     * @return list<Job>
+     */
+    public function finished(?int $principalId, array $projectIds, DateTimeImmutable $since): array;
+
     /** @return list<Job> active and paused jobs of a participant (all of them for null), newest first */
     public function list(?int $principalId): array;
 

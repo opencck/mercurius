@@ -694,15 +694,34 @@ final class AgentLoopTest extends AsyncTestCase {
     public function testLoopGuardHaltsOnFifthRepeat(): void {
         $this->registry->register(new FakeTool('t'));
         $script = [];
-        for ($i = 1; $i <= 6; $i++) {
+        for ($i = 1; $i <= 5; $i++) {
             $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 't', '{"q":"same"}'));
         }
+        $script[] = ScriptedLlm::text('Успел узнать: ответ тот же.');
         $llm = new ScriptedLlm($script);
 
         $run = $this->execute($llm, $this->start());
 
         self::assertSame(StopReason::LoopGuard, $run->stopReason);
-        self::assertSame(5, $run->turns);
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — five turns of the repeat, then one call
+        //       without tools: a run stopped for repeating itself still tells what it found
+        self::assertSame(6, $run->turns);
+        self::assertSame([], $llm->requests[5]->tools);
+        self::assertStringContainsString('Успел узнать', $this->observer->final ?? '');
+    }
+
+    public function testTheSameCallWrittenSeveralTimesInOneAnswerIsNotALoop(): void {
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a model that writes one call five times in an
+        //       answer slipped once: the call runs once, the copies are answered, the run goes on
+        $tool = new FakeTool('t');
+        $this->registry->register($tool);
+        $copies = array_map(static fn(int $i): ToolCall => new ToolCall('c' . $i, 't', '{"q":"same"}'), range(1, 6));
+        $llm = new ScriptedLlm([ScriptedLlm::calls(...$copies), ScriptedLlm::text('Готово.')]);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        self::assertSame(2, $run->turns);
     }
 
     public function testTheLoopGuardOfAResumedRunRemembersTheRepeatsBefore(): void {
@@ -722,7 +741,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $again = $this->execute(new ScriptedLlm($script), $this->runs->find($resumed->id) ?? $resumed);
 
         self::assertSame(StopReason::LoopGuard, $again->stopReason);
-        self::assertSame(3, $again->turns, 'two repeats before the restart count');
+        self::assertSame(4, $again->turns, 'two repeats before the restart count: three turns, then the closing answer');
     }
 
     public function testInboxMessageIsDeliveredAfterToolResults(): void {

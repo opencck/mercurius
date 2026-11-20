@@ -46,6 +46,18 @@ final class PostgresJobRepository implements JobRepository {
         return $found;
     }
 
+    public function finished(?int $principalId, array $projectIds, DateTimeImmutable $since): array {
+        $inProjects = $projectIds === [] ? 'false' : 'project_id IN (' . implode(',', array_map('intval', $projectIds)) . ')';
+        $found = [];
+        foreach ($this->db->execute(
+            'SELECT ' . self::COLUMNS . " FROM jobs WHERE status = 'done' AND runs > 0 AND last_run_at >= to_timestamp(?) AND (?::bigint IS NULL OR principal_id = ? OR " . $inProjects . ') ORDER BY id DESC LIMIT 20',
+            [$since->getTimestamp(), $principalId, $principalId],
+        ) as $row) {
+            $found[] = self::job($row);
+        }
+        return $found;
+    }
+
     public function list(?int $principalId): array {
         $found = [];
         foreach ($this->db->execute(

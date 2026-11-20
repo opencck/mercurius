@@ -408,6 +408,11 @@ final class JobScheduler implements JobRuns {
         if ($topic !== null) {
             $chatId = $topic['chatId'];
             $threadId = $topic['threadId'] === '' ? null : $topic['threadId'];
+            // an agent that set the job hears its outcome too: the topic is a chat of people, the agent is not in it
+            $setter = $job->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL ? $this->principals->find($job->principalId) : null;
+            if ($setter !== null && $setter->isAgent() && $this->inbox !== null && !($this->inbox)($setter, $report)) {
+                $this->logger->info('Job report did not reach the agent that set it', ['job' => $job->id]);
+            }
         } elseif ($project !== null || $job->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL) {
             try {
                 $to = $this->runnerOf($job, $project);

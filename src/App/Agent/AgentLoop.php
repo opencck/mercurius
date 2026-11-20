@@ -762,7 +762,8 @@ final class AgentLoop {
             $messages = $this->transcript->runMessages($run->id);
             $text = $state->finalText ?? ($messages === [] ? '' : $messages[array_key_last($messages)]->content);
             $text = trim($text) === '' ? t('agent.agent_loop.model_vernula_pustoy_otvet') : $text;
-        } elseif ($reason->isLimit()) {
+        } elseif ($reason->isLimit() || $reason === StopReason::LoopGuard) {
+            // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a run stopped for repeating itself still tells what it found
             $summary = $this->callModel(
                 $state,
                 $this->request($state, [], min(self::SUMMARY_TOKENS, $this->maxTokens), sprintf(t('agent.agent_loop.limit_ischerpan_kratko_podvedi_itog'), $reason->label())),

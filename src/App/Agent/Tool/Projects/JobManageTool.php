@@ -74,6 +74,8 @@ final class JobManageTool implements Tool {
         $action = Args::string($args, 'action') ?? ($id === null ? 'list' : 'cancel');
         if ($action === 'list') {
             $list = $this->jobs->list($context->principal->isOwner() ? null : $context->principal->id);
+            /** @var list<int> $mine the projects the participant works with */
+            $mine = [];
             // spec: brief/scheduler.md#задания-проекта — the jobs of a project are seen by everyone who works with it
             if (!$context->principal->isOwner() && $this->projects !== null) {
                 $mine = array_map(static fn(\OpenCCK\Domain\Project\Project $p): int => $p->id, $this->projects->all(100, $context->principal->id));
@@ -84,11 +86,20 @@ final class JobManageTool implements Tool {
                     }
                 }
             }
-            return ToolResult::ok($list === [] ? t('tool.job_manage.zadaniy_net') : implode("\n", array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list)));
+            $lines = array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list);
+            // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a one-off job that ran stays in the list for a day, with its outcome
+            foreach ($this->jobs->finished($context->principal->isOwner() ? null : $context->principal->id, $mine, new DateTimeImmutable('-1 day')) as $job) {
+                $lines[] = self::finishedLine($job);
+            }
+            return ToolResult::ok($lines === [] ? t('tool.job_manage.zadaniy_net') : implode("\n", $lines));
         }
         $job = $id === null ? null : $this->jobs->find($id);
-        if ($job === null || $job->status === Job::DONE || !$this->manages($job, $context->principal)) {
+        if ($job === null || !$this->manages($job, $context->principal) || ($job->status === Job::DONE && $job->runs === 0)) {
             return ToolResult::error(sprintf(t('tool.job_manage.zadaniya_net'), (int) $id));
+        }
+        if ($job->status === Job::DONE) {
+            // a finished job is not "no such job": the answer says it ran and what came of it
+            return ToolResult::ok(self::finishedLine($job));
         }
         if ($action === 'to_project') {
             return $this->toProject($job, $context, trim(Args::string($args, 'project') ?? ''));
@@ -196,6 +207,10 @@ final class JobManageTool implements Tool {
         }
         $this->jobs->setNext($job->id, new DateTimeImmutable());
         return ToolResult::ok(sprintf(t('tool.job_manage.zadanie_zapustitsya_v_techenie_minuty'), $job->id, $job->title));
+    }
+
+    private static function finishedLine(Job $job): string {
+        return sprintf(t('tool.job_manage.finished'), $job->id, $job->title, $job->runs, mb_substr(trim(preg_replace('~\s+~u', ' ', $job->lastResult ?? '') ?? ''), 0, 600) ?: '—');
     }
 
     public static function line(Job $job, JobScheduler $scheduler): string {

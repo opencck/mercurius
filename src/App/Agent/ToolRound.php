@@ -124,6 +124,8 @@ final class ToolRound {
         $halted = false;
         $warn = false;
         $turnUsed = 0;
+        /** @var array<string, true> $observed what the guard already saw in this answer */
+        $observed = [];
         foreach ($this->planner->segments($calls) as $segment) {
             if ($halted) {
                 foreach ($segment as $call) {
@@ -169,7 +171,13 @@ final class ToolRound {
                 if (!$result instanceof ToolResult) {
                     throw new \LogicException('A tool call produced no result');
                 }
-                $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content), LoopGuard::isPoll($call->call->name));
+                // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — the same call written several times in one
+                //       answer is one slip of the model, not a loop: the guard counts it once
+                $signature = $call->args === null ? null : LoopGuard::signature($call->call->name, $call->args, $result->content);
+                $verdict = $signature === null || isset($observed[$signature]) ? GuardVerdict::Ok : $state->guard->observe($signature, LoopGuard::isPoll($call->call->name));
+                if ($signature !== null) {
+                    $observed[$signature] = true;
+                }
                 $halted = $halted || $verdict === GuardVerdict::Halt;
                 $warn = $warn || $verdict === GuardVerdict::Warn;
                 // spec: brief/agent-loop.md#контекст — the same long result again is a reference to the first

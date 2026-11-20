@@ -65,6 +65,11 @@ final class InMemoryJobRepository implements JobRepository {
         return array_values(array_reverse(array_filter($this->jobs, static fn(Job $j): bool => $j->status !== Job::DONE && $j->projectId !== null && in_array($j->projectId, $projectIds, true))));
     }
 
+    public function finished(?int $principalId, array $projectIds, \DateTimeImmutable $since): array {
+        return array_values(array_reverse(array_filter($this->jobs, static fn(Job $j): bool => $j->status === Job::DONE && $j->runs > 0
+            && ($principalId === null || $j->principalId === $principalId || ($j->projectId !== null && in_array($j->projectId, $projectIds, true))))));
+    }
+
     public function list(?int $principalId): array {
         return array_values(array_reverse(array_filter($this->jobs, static fn(Job $j): bool => $j->status !== Job::DONE && ($principalId === null || $j->principalId === $principalId))));
     }

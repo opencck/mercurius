@@ -107,7 +107,9 @@ final class ProjectJobsTest extends AsyncTestCase {
 
         self::assertContains('4', $this->stack->channel->threads);
         self::assertStringContainsString('Готово.', implode("\n", $this->stack->channel->texts('send')));
-        self::assertSame([], $this->told);
+        // spec: brief/scheduler.md#задания-проекта — the agent that set the job hears its outcome too: it is not in the topic
+        self::assertSame([$this->agent->id], array_map(static fn(array $told): int => $told[0], $this->told));
+        self::assertStringContainsString('Готово.', $this->told[0][1]);
     }
 
     public function testAJobAnAgentSetForItselfReportsToThatAgent(): void {
