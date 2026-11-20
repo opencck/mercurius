@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "318704fae49f0199bc44eb7ffda42e1a",
+    "content-hash": "47b0b69abd8185505f912185145d1ef0",
     "packages": [
         {
             "name": "amphp/amp",
@@ -3225,6 +3225,76 @@
                 "chat",
                 "messenger",
                 "telegram"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "opencck/mercurius-peer",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "packages/peer",
+                "reference": "641812b8722fab0e689466571e63e194fb551d5c"
+            },
+            "require": {
+                "amphp/amp": "^3",
+                "amphp/http-client": "^5",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "ext-openssl": "*",
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "amphp/phpunit-util": "^3",
+                "phpstan/phpstan": "^2",
+                "phpunit/phpunit": "^9.6",
+                "psalm/plugin-phpunit": "^0.22.2",
+                "vimeo/psalm": "^6"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mercurius\\Peer\\": "src/"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Mercurius\\Peer\\Test\\": "test/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit"
+                ],
+                "phpstan": [
+                    "phpstan analyse --no-progress --memory-limit=1G"
+                ],
+                "psalm": [
+                    "psalm --no-progress --show-info=false"
+                ],
+                "check": [
+                    "@test",
+                    "@phpstan",
+                    "@psalm"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Agent-to-agent (A2A v1.0) client for AMPHP: ECDSA P-256 identities, signed HTTP requests and a WebSocket with a key handshake, files sent ahead of a message",
+            "keywords": [
+                "a2a",
+                "agent",
+                "amphp",
+                "ecdsa",
+                "json-rpc",
+                "websocket"
             ],
             "transport-options": {
                 "symlink": false,
@@ -7990,6 +8060,7 @@
         "opencck/mercurius-mcp-client": 20,
         "opencck/mercurius-memory": 20,
         "opencck/mercurius-messenger": 20,
+        "opencck/mercurius-peer": 20,
         "opencck/mercurius-search": 20
     },
     "prefer-stable": false,

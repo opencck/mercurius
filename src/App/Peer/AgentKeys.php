@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Peer;
 
+use Mercurius\Peer\IdentityKeys;
+use Mercurius\Peer\AgentIdentity;
 use Closure;
 use DomainException;
 use OpenCCK\App\Vault\Vault;
@@ -18,8 +20,10 @@ use function Mercurius\I18n\t;
  *
  * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
  */
-final class AgentKeys {
+final class AgentKeys implements IdentityKeys {
     public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_-]{0,31}$~';
+    /** the vault name of the main key; a named key is this, '-' and its name */
+    public const VAULT_NAME = 'a2a-identity-key';
 
     /** @var array<string, AgentIdentity> */
     private array $loaded = [];
@@ -30,6 +34,16 @@ final class AgentKeys {
         private readonly Closure $owner,
         private readonly AgentIdentity $main,
     ) {}
+
+    /** The main key from the vault, made and kept there on the first start. */
+    public static function loadMain(Vault $vault, Principal $owner): AgentIdentity {
+        $pem = $vault->reveal(self::VAULT_NAME, $owner);
+        if ($pem === null) {
+            $pem = AgentIdentity::generate()->privatePem();
+            $vault->put(self::VAULT_NAME, 'private_key', $pem, $owner);
+        }
+        return AgentIdentity::fromPem($pem);
+    }
 
     public function main(): AgentIdentity {
         return $this->main;
@@ -47,7 +61,7 @@ final class AgentKeys {
             return $this->loaded[$name];
         }
         $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
-        $secret = AgentIdentity::VAULT_NAME . '-' . $name;
+        $secret = self::VAULT_NAME . '-' . $name;
         $pem = $this->vault->reveal($secret, $owner);
         if ($pem === null) {
             $made = AgentIdentity::generate();
@@ -59,7 +73,7 @@ final class AgentKeys {
 
     public function exists(string $name): bool {
         $owner = ($this->owner)();
-        return $name === '' || ($owner !== null && in_array(AgentIdentity::VAULT_NAME . '-' . $name, array_column($this->vault->names($owner), 'name'), true));
+        return $name === '' || ($owner !== null && in_array(self::VAULT_NAME . '-' . $name, array_column($this->vault->names($owner), 'name'), true));
     }
 
     /** @return list<array{name: string, fingerprint: string}> the main key ('') and the named ones */
@@ -69,7 +83,7 @@ final class AgentKeys {
         if ($owner === null) {
             return $keys;
         }
-        $prefix = AgentIdentity::VAULT_NAME . '-';
+        $prefix = self::VAULT_NAME . '-';
         foreach (array_column($this->vault->names($owner), 'name') as $secret) {
             if (str_starts_with($secret, $prefix)) {
                 $name = substr($secret, strlen($prefix));

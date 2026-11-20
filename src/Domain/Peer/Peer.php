@@ -10,7 +10,7 @@ namespace OpenCCK\Domain\Peer;
  *
  * spec: BRIEF.md#сеть-агентов
  */
-final class Peer {
+final class Peer implements \Mercurius\Peer\PeerEndpoint {
     /** @param array<array-key, mixed>|null $card */
     public function __construct(
         public readonly string $name,
@@ -23,4 +23,24 @@ final class Peer {
         /** the connection to it is kept: opened again after a drop or a restart */
         public readonly bool $keep = false,
     ) {}
+
+    public function peerName(): string {
+        return $this->name;
+    }
+
+    public function peerUrl(): string {
+        return $this->url;
+    }
+
+    public function peerPublicKey(): string {
+        return $this->publicKey;
+    }
+
+    public function peerCard(): ?array {
+        return $this->card;
+    }
+
+    public function peerIdentity(): string {
+        return $this->identity;
+    }
 }

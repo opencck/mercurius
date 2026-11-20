@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Peer;
 
+use Mercurius\Peer\AgentIdentity;
+use Mercurius\Peer\A2aClient;
+use Mercurius\Peer\A2aSocket;
+use Mercurius\Peer\A2aLinks;
+use Mercurius\Peer\A2aMoved;
 use Closure;
 use DomainException;
 use Mercurius\Messenger\Channel;

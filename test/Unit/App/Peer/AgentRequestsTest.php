@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Unit\App\Peer;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\IncomingCallback;
-use OpenCCK\App\Peer\AgentIdentity;
+use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\AgentRequests;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;

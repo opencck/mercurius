@@ -6,8 +6,8 @@ namespace OpenCCK\Test\Unit\App\Peer;
 
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Peer\A2aServer;
-use OpenCCK\App\Peer\A2aSocket;
-use OpenCCK\App\Peer\AgentIdentity;
+use Mercurius\Peer\A2aSocket;
+use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Principal;
@@ -53,7 +53,7 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->requests = new \OpenCCK\App\Peer\AgentRequests($peers, $follower->principals, $follower->channel, '42', retryDelays: []);
         $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox, requests: $this->requests);
         $follower->scheduler->useJobRuns($this->server);
-        $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \OpenCCK\App\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
+        $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \Mercurius\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
         $network->allow('leader', $this->leaderKey->fingerprint(), Role::user());
     }
 
@@ -104,7 +104,7 @@ final class A2aSocketTest extends AsyncTestCase {
         [$end] = $this->connection();
         $socket = A2aSocket::open($end, $this->leaderKey, $this->followerKey->publicKey, audience: self::FOLLOWER);
 
-        $sent = $socket->request('SendMessage', \OpenCCK\App\Peer\A2aClient::message('m-files', 'Посмотри QR', 0, [], [['name' => 'qr.png', 'bytes' => 'QRPNG'], ['name' => '../../etc/passwd', 'bytes' => 'x']]));
+        $sent = $socket->request('SendMessage', \Mercurius\Peer\A2aClient::message('m-files', 'Посмотри QR', 0, [], [['name' => 'qr.png', 'bytes' => 'QRPNG'], ['name' => '../../etc/passwd', 'bytes' => 'x']]));
 
         $task = self::field($sent, 'task', 'id');
         self::assertNotSame('', $task);

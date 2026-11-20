@@ -6,7 +6,7 @@ namespace OpenCCK\Infrastructure\Peer;
 
 use Amp\Cancellation;
 use Amp\Websocket\WebsocketClient;
-use OpenCCK\App\Peer\A2aChannel;
+use Mercurius\Peer\A2aChannel;
 use Throwable;
 
 /**

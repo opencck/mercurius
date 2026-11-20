@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Peer;
 
+use Mercurius\Peer\A2a;
 use Amp\Http\Server\FormParser\FormParser;
 use DateTimeImmutable;
 use OpenCCK\App\Agent\Media\MediaNames;
@@ -19,11 +20,11 @@ use function Amp\Http\Server\FormParser\parseContentBoundary;
  */
 final class A2aFiles {
     /** a file and all files of one message, as Telegram */
-    public const FILE_MAX = 20_000_000;
-    public const COUNT_MAX = 10;
+    public const FILE_MAX = A2a::FILE_MAX;
+    public const COUNT_MAX = A2a::COUNT_MAX;
     /** the body of an upload: the files and the multipart overhead */
-    public const BODY_MAX = 21_000_000;
-    public const SCHEME = 'a2a-file:';
+    public const BODY_MAX = A2a::BODY_MAX;
+    public const SCHEME = A2a::SCHEME;
 
     public function __construct(private readonly A2aFileRepository $files) {}
 
@@ -132,22 +133,7 @@ final class A2aFiles {
 
     /** The type the sender gave when it is a plain media type, else by the extension. */
     public static function mediaType(string $given, string $name): string {
-        $given = strtolower(trim($given));
-        if ($given !== '' && $given !== 'application/octet-stream' && preg_match('~^[a-z]+/[a-z0-9.+-]{1,100}$~', $given) === 1) {
-            return $given;
-        }
-        return match (strtolower(pathinfo($name, PATHINFO_EXTENSION))) {
-            'jpg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif',
-            'mp3' => 'audio/mpeg', 'ogg', 'oga', 'opus' => 'audio/ogg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav',
-            'mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime',
-            'pdf' => 'application/pdf', 'txt', 'log' => 'text/plain', 'md' => 'text/markdown', 'csv' => 'text/csv',
-            'json' => 'application/json', 'html', 'htm' => 'text/html', 'xml' => 'application/xml',
-            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'zip' => 'application/zip',
-            default => 'application/octet-stream',
-        };
+        return A2a::mediaType($given, $name);
     }
 
     /**
@@ -157,15 +143,6 @@ final class A2aFiles {
      * @return array{string, string} [content type, body]
      */
     public static function multipart(array $files): array {
-        $boundary = '----mercurius' . bin2hex(random_bytes(12));
-        $body = '';
-        foreach ($files as $index => $file) {
-            $name = str_replace(['"', "\r", "\n", '\\'], '_', $file['name']);
-            $body .= '--' . $boundary . "\r\n"
-                . 'Content-Disposition: form-data; name="file' . $index . '"; filename="' . $name . '"' . "\r\n"
-                . 'Content-Type: ' . self::mediaType($file['mediaType'] ?? '', $file['name']) . "\r\n\r\n"
-                . $file['bytes'] . "\r\n";
-        }
-        return ['multipart/form-data; boundary=' . $boundary, $body . '--' . $boundary . "--\r\n"];
+        return A2a::multipart($files);
     }
 }

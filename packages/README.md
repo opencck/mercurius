@@ -15,8 +15,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b2b13b6` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `05225c3` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `835818d` | 2026-11-20 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `2025caf` | 2026-11-20 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
-Репозитории `mercurius-command-policy` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); следующим выносится `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
+Репозиторий `mercurius-command-policy` заведён, код пока в основном репозитории (`src/CommandPolicy/`) — так и сказано в его README (2026-11-20); срока выноса нет. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
 ## Модули: сервисы, MCP, скиллы
 
@@ -44,6 +45,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-20 — peer: вынос клиента A2A
+
+- `mercurius-peer` `2025caf`: подключён сабмодулем `packages/peer`. Из приложения ушли `A2aClient`, `A2aSocket`, `A2aLinks`, `A2aChannel`, `A2aMoved`, `AgentIdentity`; общие коды, пределы файлов и разбор сообщения — `Mercurius\Peer\A2a`. `Peer` реализует `PeerEndpoint`, `AgentKeys` — `IdentityKeys` и хранит главный ключ в хранилище (`loadMain`). Сервер A2A, сеть агентов, запросы незнакомых агентов и файлы остаются в приложении.
 
 ### 2026-11-20 — memory: вынос памяти
 

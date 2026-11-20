@@ -161,6 +161,7 @@ const PATH_ROOT = __DIR__;
 Dotenv::createImmutable(PATH_ROOT)->safeLoad();
 // spec: BRIEF.md#язык-агента — the memory package takes its texts from the agent's catalogs
 \Mercurius\Memory\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
+\Mercurius\Peer\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 
 // What the start needs before the database: the process, Telegram, the vault key. The rest may come from the
 // settings the owner keeps in the dialog (over .env).
@@ -909,8 +910,8 @@ $selfUrl = $config->appUrl === null ? null : rtrim($config->appUrl, '/');
 // The entrance token comes from .env; who speaks is known by the ECDSA key of each agent (kept in the vault).
 $a2aToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'A2A_TOKEN');
 $agentIdentity = $vault->enabled()
-    ? \OpenCCK\App\Peer\AgentIdentity::load($vault, $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null))
-    : \OpenCCK\App\Peer\AgentIdentity::generate();
+    ? \OpenCCK\App\Peer\AgentKeys::loadMain($vault, $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null))
+    : \Mercurius\Peer\AgentIdentity::generate();
 // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — keys the agent makes itself, the
 // transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
 $agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $ownerDirectory->principal(), $agentIdentity);
@@ -925,7 +926,7 @@ $a2aFiles = new \OpenCCK\App\Peer\A2aFiles(new \OpenCCK\Infrastructure\Repositor
     $a2aFiles->sweep(new \DateTimeImmutable());
 }));
 $a2aConnector = new \Amp\Websocket\Client\Rfc6455Connector(new \Amp\Websocket\Client\Rfc6455ConnectionFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $a2aParser));
-$a2aConnect = static function (string $url, string $token) use ($a2aConnector, $a2aFrameMax): \OpenCCK\App\Peer\A2aChannel {
+$a2aConnect = static function (string $url, string $token) use ($a2aConnector, $a2aFrameMax): \Mercurius\Peer\A2aChannel {
     if (preg_match('~^wss?://~', $url) !== 1) {
         throw new \RuntimeException('not a websocket address');
     }
@@ -934,7 +935,7 @@ $a2aConnect = static function (string $url, string $token) use ($a2aConnector, $
 };
 // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — live connections both ways, shared by the client and
 // the server; requests a neighbour sends back on a connection this agent opened are answered by the server
-$a2aLinks = new \OpenCCK\App\Peer\A2aLinks();
+$a2aLinks = new \Mercurius\Peer\A2aLinks();
 $a2aServeFor = static function (string $fingerprint, string $name, string $url) use (&$a2aServer): ?\Closure {
     return $a2aServer?->handlerFor($fingerprint, $name, $url);
 };
@@ -942,7 +943,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $peerRepository,
     $principals,
     $vault,
-    new \OpenCCK\App\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor, $selfUrl ?? '', $a2aFileTransport),
+    new \Mercurius\Peer\A2aClient(HttpClients::create(), $agentIdentity, $agentKeys, $a2aConnect, $a2aLinks, $a2aServeFor, $selfUrl ?? '', $a2aFileTransport),
     $conversations,
     $transcript,
     $channel,

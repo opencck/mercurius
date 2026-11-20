@@ -22,6 +22,7 @@
         "opencck/mercurius-mcp-client": "dev-master",
         "opencck/mercurius-memory": "dev-master",
         "opencck/mercurius-messenger": "dev-master",
+        "opencck/mercurius-peer": "dev-master",
         "opencck/mercurius-search": "dev-master",
         "opencck/server": "^1.1.1",
         "psr/log": "^3",
@@ -137,6 +138,16 @@
                 "symlink": false,
                 "versions": {
                     "opencck/mercurius-memory": "dev-master"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/peer",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-peer": "dev-master"
                 }
             }
         }

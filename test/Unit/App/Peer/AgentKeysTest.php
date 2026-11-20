@@ -6,9 +6,9 @@ namespace OpenCCK\Test\Unit\App\Peer;
 
 use Amp\Http\Client\HttpClient;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Peer\A2aClient;
+use Mercurius\Peer\A2aClient;
 use OpenCCK\App\Peer\A2aServer;
-use OpenCCK\App\Peer\AgentIdentity;
+use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\AgentKeys;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
@@ -54,7 +54,7 @@ final class AgentKeysTest extends AsyncTestCase {
         $this->owner = $stack->principals->ensureOwner('telegram', '7', 'Leader');
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('follower-entrance', 'token', self::ENTRANCE, $this->owner);
-        $this->main = AgentIdentity::load($this->vault, $this->owner);
+        $this->main = AgentKeys::loadMain($this->vault, $this->owner);
         $keys = new AgentKeys($this->vault, fn(): Principal => $this->owner, $this->main);
         $connect = static function (string $url, string $token) use ($server): InProcessA2aChannel {
             [$mine, $theirs] = InProcessA2aChannel::pair();

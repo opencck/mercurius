@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Peer;
 
+use Mercurius\Peer\A2a;
+use Mercurius\Peer\AgentIdentity;
+use Mercurius\Peer\A2aSocket;
+use Mercurius\Peer\A2aLinks;
+use Mercurius\Peer\A2aChannel;
 use Amp\DeferredCancellation;
 use Closure;
 use DateTimeImmutable;
@@ -65,8 +70,8 @@ final class A2aServer implements JobRuns {
     public const ERR_METHOD_NOT_FOUND = -32601;
     public const ERR_TASK_NOT_FOUND = -32001;
     public const ERR_TASK_NOT_CANCELABLE = -32002;
-    public const ERR_UNAUTHORIZED = -32050;
-    public const ERR_RATE_LIMITED = -32051;
+    public const ERR_UNAUTHORIZED = A2a::ERR_UNAUTHORIZED;
+    public const ERR_RATE_LIMITED = A2a::ERR_RATE_LIMITED;
 
     /** method => [handler, is A2A v1.0 name] */
     private const METHODS = [
@@ -802,14 +807,7 @@ final class A2aServer implements JobRuns {
 
     /** @param array<array-key, mixed> $message */
     public static function text(array $message): string {
-        $texts = [];
-        /** @var mixed $part */
-        foreach (isset($message['parts']) && is_array($message['parts']) ? $message['parts'] : [] as $part) {
-            if (is_array($part) && isset($part['text']) && is_string($part['text'])) {
-                $texts[] = $part['text'];
-            }
-        }
-        return trim(implode("\n", $texts));
+        return A2a::text($message);
     }
 
     /**
@@ -872,6 +870,6 @@ final class A2aServer implements JobRuns {
 
     /** @return array<string, mixed> */
     public static function error(mixed $id, int $code, string $message): array {
-        return ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => $code, 'message' => $message]];
+        return A2a::error($id, $code, $message);
     }
 }

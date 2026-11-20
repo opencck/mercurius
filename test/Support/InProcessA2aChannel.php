@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Support;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
-use OpenCCK\App\Peer\A2aChannel;
+use Mercurius\Peer\A2aChannel;
 
 /**
  * Two ends of one connection in memory: what one sends the other receives, in order; closing one closes both.

@@ -79,3 +79,7 @@
 	path = packages/memory
 	url = https://github.com/opencck/mercurius-memory.git
 	branch = master
+[submodule "packages/peer"]
+	path = packages/peer
+	url = https://github.com/opencck/mercurius-peer.git
+	branch = master

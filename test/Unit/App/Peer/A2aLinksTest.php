@@ -6,10 +6,10 @@ namespace OpenCCK\Test\Unit\App\Peer;
 
 use Amp\Http\Client\HttpClient;
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\App\Peer\A2aClient;
-use OpenCCK\App\Peer\A2aLinks;
+use Mercurius\Peer\A2aClient;
+use Mercurius\Peer\A2aLinks;
 use OpenCCK\App\Peer\A2aServer;
-use OpenCCK\App\Peer\AgentIdentity;
+use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Principal;

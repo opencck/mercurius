@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Peer;
 
+use Mercurius\Peer\A2aClient;
 use Mercurius\Messenger\Button;
 use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
@@ -61,8 +62,7 @@ final class AgentRequests implements CallbackHandler {
 
     /** The first label of the host of an address: what an instance calls itself to a neighbour. */
     public static function nameOfUrl(string $url): string {
-        $host = parse_url($url, PHP_URL_HOST);
-        return is_string($host) ? explode('.', $host)[0] : '';
+        return A2aClient::nameOfUrl($url);
     }
 
     /**
