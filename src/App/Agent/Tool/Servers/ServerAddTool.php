@@ -57,7 +57,7 @@ final class ServerAddTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * Tiers by how often they change: constant rules → context of the participant and the date → volatile (empty for now).
  * Anything new in the middle of a conversation goes into a user message or a tool result instead.
  *
- * spec: brief/agent-loop.md#модели — three tiers, unchanged during the conversation
+ * spec: brief/agent-loop.md#контекст — three tiers, unchanged during the conversation
  */
 final class PromptBuilder {
     /**

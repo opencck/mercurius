@@ -58,7 +58,7 @@ final class DailyDigest {
     /**
      * The memory whose waiting proposals the summary counts.
      *
-     * spec: brief/operations.md#настройки-агента — the queue of memory proposals waiting for the owner
+     * spec: brief/operations.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
      */
     public function useMemory(\Mercurius\Memory\Domain\MemoryStore $memory): void {
         $this->memory = $memory;

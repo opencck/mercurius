@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * Sorts a request into short, normal or complex: heuristics first, the cheap model when they cannot tell.
  * A wrong or missing answer means normal — the default model, never a guess towards the expensive one.
  *
- * spec: brief/agent-loop.md#канал — heuristics (length, commands), unclear — the cheap model
+ * spec: brief/agent-loop.md#модели — heuristics (length, commands), unclear — the cheap model
  */
 final class RequestClassifier {
     private const SHORT = 200;

@@ -92,7 +92,7 @@ $tools->withServices($serviceModules->up(...));
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($serviceModules): void {
     $serviceModules->check();
 }));
-// spec: brief/agent-loop.md#контекст — a host the owner allowed is dialled through a guard that lets it alone in
+// spec: brief/agent-loop.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
 $guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
 // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — cookies of http_request live with the project of the conversation,
 //       else with the participant, like browser profiles
@@ -149,7 +149,7 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: brief/scheduler.md#планировщик-и-проекты-1 — git with a token of the vault in the environment of one command
     $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
-    // spec: brief/agent-loop.md#подтверждения-и-запреты — a file the agent made goes to the chat it was asked in
+    // spec: brief/agent-loop.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: brief/internet.md#между-агентами — in a task of another agent a file goes with the answer
     $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
         return $a2aServer instanceof \OpenCCK\App\Peer\A2aServer && $a2aServer->answerFile($runId, $name, $bytes);
@@ -267,7 +267,7 @@ $loop = new AgentLoop(
     fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),
     spend: new SpendGuard($llmCalls, $agentSettings->dailySpendCap, $agentSettings->monthlySpendCap, $logger),
 );
-// spec: brief/agent-loop.md#подходы — models that answer in prose are told to act through tools
+// spec: brief/agent-loop.md#агентский-цикл-и-харнесс — models that answer in prose are told to act through tools
 $loop->useToolUseGuidance(new \OpenCCK\App\Agent\ToolUseGuidance(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_TOOL_USE_GUIDANCE') ?? 'auto'));
 // spec: brief/skills-mcp.md#скиллы-и-mcp — over 5% of the window the tools of MCP servers go behind tool_search
 $tools->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::SEARCH, $tools));

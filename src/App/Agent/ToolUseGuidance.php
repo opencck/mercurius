@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent;
  * Whether a model gets the rule to act through tools instead of describing what it would do. Some families answer in
  * prose with no tool call and end the turn on a promise; the rule goes with their requests that have tools.
  *
- * spec: brief/agent-loop.md#подходы — the rule to act through tools, by the model of the call
+ * spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the rule to act through tools, by the model of the call
  * ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L344-L362 (TOOL_USE_ENFORCEMENT_GUIDANCE,
  *      TOOL_USE_ENFORCEMENT_MODELS) — the text and the families; nemotron is left out there by measurement, here too
  * ref: references/hermes-agent/agent/system_prompt.py@e96221fa:L42-L53 (_model_gate), L589-L594 — auto by the list,

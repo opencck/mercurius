@@ -60,7 +60,7 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
         return DangerClass::Write;
     }
 
-    /** spec: brief/agent-loop.md#контекст — a skill of another agent is outside text */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — a skill of another agent is outside text */
     public function readsOutside(array $args): bool {
         return true;
     }

@@ -4,7 +4,7 @@
 
 Mercurius is an autonomous personal agent. You run it on your own server with Docker Compose and talk to it through a Telegram bot. It is meant to help with any kind of work: searching the web, working with servers over SSH, writing code and running software projects, planning, research and testing.
 
-**Status:** runs on the owner's server and on four test instances. The development phases of [`ROADMAP.md`](ROADMAP.md) are done; the finishing work after a review and a security audit is in [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md) (both in Russian): phases Д1–Д14 are done, some waiting for live checks by the owner; delivery, the code structure and the final specification are in progress.
+**Status:** runs on the owner's server and on four test instances. The development phases and the finishing work after a review and a security audit are done; their outcome, the decisions and what still waits for the owner are in [`brief/history.md`](brief/history.md) (in Russian).
 
 ## What works now
 
@@ -27,7 +27,7 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 
 ## Planned
 
-MCP servers over stdio in the sandbox. Details are in [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md).
+MCP servers over stdio in the sandbox. Open questions are in [`brief/decisions.md`](brief/decisions.md).
 
 ## Running it
 
@@ -142,7 +142,6 @@ Modules — the browser, media, mail and the local Bot API server — are listed
 | Path | Contents |
 |------|----------|
 | [`BRIEF.md`](BRIEF.md) | Specification: requirements, design, decisions (in Russian) |
-| [`ROADMAP.md`](ROADMAP.md), [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md) | Development phases and the finishing work, with their status (in Russian; temporary, removed at the end) |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `sandbox.php`, `src/Sandbox/` | The sandbox executor |

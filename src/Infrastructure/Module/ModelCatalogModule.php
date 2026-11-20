@@ -21,7 +21,7 @@ use function Amp\async;
  * Loading runs in the background, so the agent starts without waiting for the network; a failed load keeps the old
  * catalog.
  *
- * spec: brief/agent-loop.md#канал — the catalog is loaded daily and at start when older than a day, per provider
+ * spec: brief/agent-loop.md#модели — the catalog is loaded daily and at start when older than a day, per provider
  */
 final class ModelCatalogModule implements AppModuleInterface {
     /** Seconds before a failed first load is tried again. */

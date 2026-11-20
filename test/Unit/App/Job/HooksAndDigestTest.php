@@ -222,7 +222,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     }
 
     public function testTheSummarySaysHowLongMemoryProposalsWait(): void {
-        // spec: brief/operations.md#настройки-агента — the queue of memory proposals waiting for the owner
+        // spec: brief/operations.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
         $memory = new \Mercurius\Memory\Infrastructure\InMemoryMemoryStore();
         $memory->propose('add', null, 'owner', 'кот — Барсик', 'сказал', null, null);

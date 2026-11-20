@@ -197,13 +197,13 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
         };
     }
 
-    /** spec: brief/agent-loop.md#контекст — mail and other services bring text written by others */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — mail and other services bring text written by others */
     public function readsOutside(array $args): bool {
         return true;
     }
 
     /**
-     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     /** @return non-empty-string */

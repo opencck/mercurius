@@ -9,7 +9,7 @@ use InvalidArgumentException;
 /**
  * A participant's share of the sandbox.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — per-participant limits inside one sandbox
+ * spec: brief/agent-loop.md#песочница — per-participant limits inside one sandbox
  */
 final class SandboxLimits {
     /** @var positive-int size of the participant's directory */

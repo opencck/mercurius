@@ -19,7 +19,7 @@ use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use Revolt\EventLoop;
 
 Dotenv::createImmutable(PATH_ROOT)->safeLoad();
-// spec: brief/operations.md#решено-в-фазе-4 — the memory package takes its texts from the agent's catalogs
+// spec: brief/operations.md#язык-агента — the memory package takes its texts from the agent's catalogs
 \Mercurius\Memory\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 \Mercurius\Peer\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 

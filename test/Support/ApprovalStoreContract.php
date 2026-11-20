@@ -26,7 +26,7 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
     }
 
     public function testAnApprovalKnowsWhenItsCardWasAskedFor(): void {
-        // spec: brief/operations.md#настройки-агента — the approval step lasts from the card to the decision
+        // spec: brief/operations.md#трассировка-и-метрики — the approval step lasts from the card to the decision
         $before = time() - 5;
         $decided = $this->approvals->decide($this->create('c1'), ApprovalStatus::Approved, null, null);
 

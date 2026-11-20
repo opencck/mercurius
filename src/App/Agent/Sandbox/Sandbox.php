@@ -11,7 +11,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
  * The sandbox as the core sees it: every call names the participant and their limits. Paths are relative to the
  * participant's home or absolute inside it.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты
+ * spec: brief/agent-loop.md#песочница
  */
 interface Sandbox {
     /**

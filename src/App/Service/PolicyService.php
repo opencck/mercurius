@@ -16,7 +16,7 @@ use OpenCCK\Domain\Repository\PolicyRepository;
 /**
  * Policy of a participant: defaults of the role, then the participant's overrides, capped by the owner.
  *
- * spec: brief/agent-loop.md#лимиты
+ * spec: brief/agent-loop.md#права-участника
  */
 final class PolicyService {
     public function __construct(

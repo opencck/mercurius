@@ -66,7 +66,7 @@ $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectories(...\OpenCCK\Infrastructure\Database\MigrationFolders::of(PATH_ROOT)));
 $logger->info('Migrations checked', ['applied' => $applied]);
 
-// spec: brief/operations.md#трассировка-и-метрики — settings from the dialog over .env; a stored value is checked by the start checks
+// spec: brief/operations.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
 // when it is kept, and once more here: if they fail, the agent starts on .env and says why.
 $principals = new PostgresPrincipalRepository($db, TelegramChannel::NAME);
 // spec: brief/participants.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
@@ -114,7 +114,7 @@ $settingsService = new \OpenCCK\App\Settings\SettingsService(
     static fn(): ?Principal => $ownerDirectory->principal(),
 );
 $overlay = $settingsService->overlay();
-// spec: brief/operations.md#трассировка-и-метрики — a stored key the release no longer has is not applied; it is named
+// spec: brief/operations.md#настройки-агента — a stored key the release no longer has is not applied; it is named
 if (($outdated = $settingsService->unknown()) !== []) {
     $logger->warning('Stored settings this version does not know', ['keys' => $outdated]);
 }
@@ -124,7 +124,7 @@ if ($settingsProblem === null) {
 } else {
     $logger->error('Stored settings ignored: the agent starts on .env', ['problem' => $settingsProblem]);
 }
-// spec: brief/operations.md#решено-в-фазе-4 — the language of everything the agent writes itself; Russian by default
+// spec: brief/operations.md#язык-агента — the language of everything the agent writes itself; Russian by default
 /** @var mixed $agentLanguage */
 $agentLanguage = $_ENV['AGENT_LANGUAGE'] ?? 'ru';
 \Mercurius\I18n\Lang::use(new \Mercurius\I18n\CatalogTranslator(is_string($agentLanguage) ? $agentLanguage : 'ru', \Mercurius\I18n\Catalogs::bundled()));

@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * The executor's HTTP API. POST /v1/<operation> with a JSON body and a bearer token; GET /health without one.
  * Refusals keep their text for the model; anything unexpected becomes a generic error, the class goes to the log.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — executor behind a token, only the sandbox network
+ * spec: brief/agent-loop.md#песочница — executor behind a token, only the sandbox network
  */
 final class ExecutorServer implements RequestHandler {
     /** folders the archive of the working folders leaves out, by name at any depth */
@@ -135,7 +135,7 @@ final class ExecutorServer implements RequestHandler {
             'usage' => ['bytes' => $this->files->usage($id)],
             'fetch' => ['content' => base64_encode($this->files->fetch($id, $limits, $request->string('path'), $request->int('max_bytes', 5_000_000, 1, 25_000_000)))],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
-            // spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API: a process lives between the calls
+            // spec: brief/agent-loop.md#песочница — the streaming API: a process lives between the calls
             'spawn' => ['session' => $this->streams()->spawn($id, $limits, $request->string('command'), $this->workspace->resolve($id, $request->string('cwd', '.')), $request->env())],
             'send' => $this->send($request),
             'receive' => $this->streams()->receive($id, $request->string('session'), max(1, $request->int('max_bytes', Streams::RECEIVE_MAX, 1, Streams::RECEIVE_MAX)), (float) $request->int('wait', 20, 0, Streams::WAIT_MAX)),

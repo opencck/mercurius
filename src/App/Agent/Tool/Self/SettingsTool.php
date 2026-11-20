@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * The agent reads and changes its settings in the dialog with the owner. A change and a restart wait for the owner's
  * card; a secret setting takes a vault secret by name, so its value never enters the dialog.
  *
- * spec: brief/operations.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  */
 final class SettingsTool implements Tool, GrantKeyed {
     public const NAME = 'settings';
@@ -55,7 +55,7 @@ final class SettingsTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

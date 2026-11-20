@@ -24,8 +24,8 @@ use function Mercurius\I18n\t;
  * Runs one validated call. A tool error, an exception or a timeout is always a result for the model;
  * only cancellation of the run itself (/stop, shutdown) propagates.
  *
- * spec: brief/agent-loop.md#песочница — an error is a result, not an exception
- * spec: brief/agent-loop.md#устойчивость — timeout per tool call
+ * spec: brief/agent-loop.md#инструменты — an error is a result, not an exception
+ * spec: brief/agent-loop.md#лимиты — timeout per tool call
  */
 final class ToolExecutor {
     /**
@@ -86,7 +86,7 @@ final class ToolExecutor {
      * A long result goes into the participant's sandbox home; the context gets its beginning and the path.
      * Null when it is short or there is nowhere to put it (no sandbox, write failed).
      *
-     * spec: brief/agent-loop.md#песочница — a large result is saved to a file, a preview and the path stay in the context
+     * spec: brief/agent-loop.md#инструменты — a large result is saved to a file, a preview and the path stay in the context
      * ref: references/hermes-agent/tools/tool_result_storage.py@e96221f:L278-L300, L424 (generate_preview,
      *      maybe_persist_tool_result) — persist instead of cutting, preview with the path; the threshold is fixed here
      *      until the model catalogue gives the window size

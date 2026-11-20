@@ -21,8 +21,8 @@ use function Mercurius\I18n\t;
  * A shell command in the participant's sandbox home. Each command is independent: no shell state between calls,
  * state lives in files. Commands that act outside (git push, ssh, uploads) become irreversible with approvals.
  *
- * spec: brief/agent-loop.md#песочница — run_command
- * spec: brief/agent-loop.md#подтверждения-и-запреты — each command independent, cwd as an argument
+ * spec: brief/agent-loop.md#инструменты — run_command
+ * spec: brief/agent-loop.md#песочница — each command independent, cwd as an argument
  */
 final class RunCommandTool extends SandboxTool implements GrantKeyed {
     public const NAME = 'run_command';

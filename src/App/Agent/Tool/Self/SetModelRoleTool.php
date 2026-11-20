@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * Changes which model plays a role. A write without approval; the reason is required and stays in the table.
  * Who may call it is the participant's tool policy: the owner always, others when the owner allowed it.
  *
- * spec: brief/agent-loop.md#канал — set_model_role, who manages roles
+ * spec: brief/agent-loop.md#модели — set_model_role, who manages roles
  */
 final class SetModelRoleTool implements Tool, GrantKeyed {
     public const NAME = 'set_model_role';
@@ -57,7 +57,7 @@ final class SetModelRoleTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

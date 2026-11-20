@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Everything the agent writes itself comes from the catalogs, in the language set by AGENT_LANGUAGE.
  *
- * spec: brief/operations.md#решено-в-фазе-4
+ * spec: brief/operations.md#язык-агента
  */
 final class LanguageTest extends TestCase {
     protected function tearDown(): void {

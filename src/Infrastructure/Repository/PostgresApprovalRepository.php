@@ -14,7 +14,7 @@ use OpenCCK\Domain\Repository\ApprovalRepository;
 use UnexpectedValueException;
 
 /**
- * spec: brief/agent-loop.md#контекст — the decision is fixed atomically before the card is edited
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — the decision is fixed atomically before the card is edited
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L4347-L4389 (_handle_exec_approval_callback)
  *      — "resolve, then draw"; hermes pops in-memory state, we decide by a conditional UPDATE
  */

@@ -135,7 +135,7 @@ final class TracerTest extends AsyncTestCase {
     }
 
     public function testAWorkerIsAStepOfItsOrchestrator(): void {
-        // spec: brief/operations.md#настройки-агента — nested traces: a worker step points at the worker's run
+        // spec: brief/operations.md#трассировка-и-метрики — nested traces: a worker step points at the worker's run
         $orchestrator = $this->execute(new ScriptedLlm([self::priced('готово')]));
         $tracer = new Tracer($this->traces, $this->catalog, new NullLogger());
 

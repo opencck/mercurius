@@ -65,7 +65,7 @@ final class SshRunTool implements Tool, GrantKeyed {
         if ($command === '' || $server === '') {
             return null;
         }
-        // spec: brief/agent-loop.md#контекст — the owner may allow even a command of the "never" list for good; its
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — the owner may allow even a command of the "never" list for good; its
         //      key is apart, so the list of grants shows it
         $prefix = match ($this->console->classify($command, $server)->class) {
             Classification::CHANGE => 'ssh',

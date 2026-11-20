@@ -76,7 +76,7 @@ final class ServerConsole {
 
     /**
      * @param bool $approved the owner allowed this very call (a card or a saved grant): only then a command of the "never"
-     *                       list runs — spec: brief/agent-loop.md#контекст, the owner decides even about those
+     *                       list runs — spec: brief/agent-loop.md#подтверждения-и-запреты, the owner decides even about those
      * @return array{bool, string} success and the text for the model (already masked)
      */
     public function run(Principal $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation, bool $approved = false): array {

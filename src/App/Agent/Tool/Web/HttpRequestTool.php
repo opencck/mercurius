@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * one call or for good, and only that host is let through. The result is untrusted data. Redirects are followed by hand, at most 5, and every
  * target is checked by AddressGuard again; the client's connector checks the address it actually dials as well.
  *
- * spec: brief/agent-loop.md#песочница — http_request; GET/HEAD read, internal addresses only with the owner's permission
+ * spec: brief/agent-loop.md#инструменты — http_request; GET/HEAD read, internal addresses only with the owner's permission
  * ref: references/hermes-agent/website/docs/user-guide/security.md@e96221f:L819-L833 — redirect chains re-checked at every hop
  */
 final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
@@ -90,7 +90,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         }
         $method = self::method($args);
         if (in_array($method, ['GET', 'HEAD'], true)) {
-            // spec: brief/agent-loop.md#контекст — reading an internal address is granted per host
+            // spec: brief/agent-loop.md#подтверждения-и-запреты — reading an internal address is granted per host
             $internal = $this->internalHost($args);
             return $internal === null ? null : 'addr:' . $internal;
         }

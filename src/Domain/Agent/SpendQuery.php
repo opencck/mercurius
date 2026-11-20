@@ -10,7 +10,7 @@ use DateTimeImmutable;
  * What spend to sum and how to split it: by topic, chat, project, participant, model or day; for [from, to); for one
  * participant and one place (a chat, a topic) or all.
  *
- * spec: brief/operations.md#настройки-агента — spend by topics, projects, participants and periods
+ * spec: brief/operations.md#трассировка-и-метрики — spend by topics, projects, participants and periods
  */
 final class SpendQuery {
     public const BY = ['topic', 'chat', 'project', 'participant', 'model', 'day'];

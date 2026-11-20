@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * The settings of the agent: stored values over .env. A value is checked by the same checks as at the start before it
  * is kept, so a bad one cannot stop the agent; it takes effect after a restart. Secret values live in the vault.
  *
- * spec: brief/operations.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  */
 final class SettingsService {
     public const VAULT_PREFIX = 'setting.';
@@ -62,7 +62,7 @@ final class SettingsService {
     /**
      * Stored keys the catalog no longer has: a release renamed or removed them; they are not applied.
      *
-     * spec: brief/operations.md#трассировка-и-метрики
+     * spec: brief/operations.md#настройки-агента
      * @return list<string>
      */
     public function unknown(): array {

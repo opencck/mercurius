@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * Which model plays which role. The agent chooses models for tasks itself; so do the owner and those the owner
  * allowed (the set_model_role tool). What the owner fixed, only the owner changes.
  *
- * spec: brief/agent-loop.md#канал — role table, who manages it
+ * spec: brief/agent-loop.md#модели — role table, who manages it
  * spec: brief/models.md#начальная-таблица-ролей-моделей — seed values
  */
 final class ModelRoles {
@@ -128,7 +128,7 @@ final class ModelRoles {
      * Puts a model into a role. A fix (owner only) stops anyone else from changing the role later. The open
      * conversations of the role move to the new model from their next run.
      *
-     * spec: brief/agent-loop.md#канал — a change of the model of a role reaches the open conversations of that role
+     * spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
      *
      * @throws DomainException with a message for the model when the change is refused
      */

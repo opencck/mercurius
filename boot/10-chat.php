@@ -116,7 +116,7 @@ use Mercurius\Memory\App\Proposals;
  */
 
 $dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
-// spec: brief/operations.md#настройки-агента — the summary counts the memory proposals waiting for the owner
+// spec: brief/operations.md#трассировка-и-метрики — the summary counts the memory proposals waiting for the owner
 $dailyDigest->useMemory($memoryStore);
 $dailyDigest->useAudit($commandAudit);
 $tools->register(new MemorySearchTool($recall, $audience));
@@ -201,7 +201,7 @@ $chat = new ChatService(
     new \OpenCCK\App\Service\ApiKeyCommands($apiKeys, $principals),
     new \OpenCCK\App\Service\PromptCommands($promptNotes, $evalScores),
 );
-// spec: brief/operations.md#настройки-агента — spend by topics, projects, participants and periods of the owner's days
+// spec: brief/operations.md#трассировка-и-метрики — spend by topics, projects, participants and periods of the owner's days
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SpendingTool(new TraceReports(new PostgresTraceReportRepository($db), $traces), $runs, $runMessages, $conversations, $principals, $ownerZone->getName()));
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SettingsTool($settingsService, $restarter));
 $apiOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);

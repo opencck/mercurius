@@ -62,7 +62,7 @@ $openAiKey = $llmSettings->openAiKey();
 $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
-// spec: brief/agent-loop.md#канал — a change of the model of a role reaches the open conversations of that role
+// spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
 $modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);

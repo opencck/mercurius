@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * Common part of the tools that work in the participant's sandbox home. Without sandbox limits in the policy the
  * participant has no sandbox; a sandbox refusal is a result for the model.
  *
- * spec: brief/agent-loop.md#песочница — file and command tools run in the sandbox
+ * spec: brief/agent-loop.md#инструменты — file and command tools run in the sandbox
  */
 abstract class SandboxTool implements Tool {
     public function __construct(protected readonly Sandbox $sandbox) {}

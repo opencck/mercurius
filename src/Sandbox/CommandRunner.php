@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * address space), setpriv drops to the participant's uid with no supplementary groups, env -i leaves only a minimal
  * environment, setsid gives the command its own session so a timeout kills everything it started.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — commands as the participant, limits, clean environment, kill on timeout
+ * spec: brief/agent-loop.md#песочница — commands as the participant, limits, clean environment, kill on timeout
  * ref: references/hermes-agent/tools/environments/docker.py@e96221f:L328-L410 (_BASE_SECURITY_ARGS,
  *      _build_security_args) — least privilege; hermes isolates per container, we isolate per Unix user inside one
  */

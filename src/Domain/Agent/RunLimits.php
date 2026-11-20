@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 use InvalidArgumentException;
 
 /**
- * spec: brief/agent-loop.md#устойчивость
+ * spec: brief/agent-loop.md#лимиты
  */
 final class RunLimits {
     /** @var positive-int model calls per run */

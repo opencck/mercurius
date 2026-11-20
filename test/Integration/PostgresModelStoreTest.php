@@ -30,7 +30,7 @@ final class PostgresModelStoreTest extends ModelStoreContract {
     }
 
     public function testTheRoleAConversationOpenedWithIsReadAndItsModelSwitched(): void {
-        // spec: brief/agent-loop.md#канал
+        // spec: brief/agent-loop.md#модели
         [, $id] = \OpenCCK\Test\Support\TestDatabase::conversation($this->db, 'role-' . bin2hex(random_bytes(4)));
         $conversations = new \OpenCCK\Infrastructure\Repository\PostgresConversationRepository($this->db);
         $conversations->setMeta($id, 'промпт', 'openrouter:x/a');

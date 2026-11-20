@@ -17,7 +17,7 @@ use Throwable;
  * record the model alone decides, and only when the old model stood in this one role. A run already going keeps its
  * model: the next run of the conversation takes the new one.
  *
- * spec: brief/agent-loop.md#канал — a change of the model of a role reaches the open conversations of that role
+ * spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
  * ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221fa:L2386-L2423 (switch_model) — hermes swaps the
  *      model of a live session and recomputes the context window of its compressor; here the swap waits for the
  *      next run, whose compactor reads the window of the run's model

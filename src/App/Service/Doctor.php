@@ -145,7 +145,7 @@ final class Doctor {
     /**
      * Stored settings a release renamed or removed: they are not applied, the owner should know and may remove them.
      *
-     * spec: brief/operations.md#трассировка-и-метрики
+     * spec: brief/operations.md#настройки-агента
      * @return list<array{string, string, string}>
      */
     private function outdated(): array {

@@ -47,7 +47,7 @@ final class ChannelRunObserverTest extends AsyncTestCase {
     }
 
     public function testAChannelWithoutEditsGetsOnlyWhatIsFinal(): void {
-        // spec: brief/agent-loop.md#подходы — the core reads what a channel can do: no edits, no status message
+        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the core reads what a channel can do: no edits, no status message
         $channel = new FakeChannel(canEdit: false);
         $observer = $this->observer($channel);
         $observer->start();

@@ -9,7 +9,7 @@ use OpenCCK\Domain\Repository\MetricsRepository;
 /**
  * The Prometheus text exposition format (0.0.4) of the agent's counters.
  *
- * spec: brief/operations.md#настройки-агента — runs, tokens and cost by model, tools, step durations, approvals
+ * spec: brief/operations.md#трассировка-и-метрики — runs, tokens and cost by model, tools, step durations, approvals
  * ref: .claude/skills/skill-opencck/references/prometheus-exporter.md — HELP and TYPE lines, labels in braces; here
  *      label values are escaped as the format requires
  */
@@ -71,7 +71,7 @@ final class MetricsText {
             $out[] = self::line('mercurius_step_duration_seconds_sum', ['kind' => $row['kind']], $row['sum']);
             $out[] = self::line('mercurius_step_duration_seconds_count', ['kind' => $row['kind']], $row['count']);
         }
-        // spec: brief/operations.md#настройки-агента — how many workers a run starts
+        // spec: brief/operations.md#трассировка-и-метрики — how many workers a run starts
         $workers = $this->figures->workersPerRun(self::WORKER_BOUNDS);
         self::head($out, 'mercurius_workers_per_run', 'histogram', 'Worker runs started by each finished top-level run');
         foreach (self::WORKER_BOUNDS as $i => $bound) {

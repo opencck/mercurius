@@ -13,7 +13,7 @@ use OpenCCK\App\Agent\Tool\ToolResult;
  * A listener must not throw and must not slow the run down noticeably.
  *
  * spec: brief/architecture.md#устройство-приложения-на-opencck — tracing subscribes to events instead of living in the loop
- * spec: brief/operations.md#настройки-агента
+ * spec: brief/operations.md#трассировка-и-метрики
  */
 interface AgentEvents {
     /** A run starts or resumes after a restart. */
@@ -35,7 +35,7 @@ interface AgentEvents {
     /**
      * A worker run of an orchestrator ended: done, failed, limit or stopped.
      *
-     * spec: brief/operations.md#настройки-агента — nested traces
+     * spec: brief/operations.md#трассировка-и-метрики — nested traces
      */
     public function workerFinished(int $parentRunId, int $workerRunId, string $model, string $status, float $seconds): void;
 

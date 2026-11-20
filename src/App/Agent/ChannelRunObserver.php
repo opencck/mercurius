@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * Shows a run in the chat with one status message: a placeholder, then the current step, then the streamed answer;
  * the final text replaces it, long text goes on in new messages. Edits are throttled as in the plain chat.
  *
- * spec: brief/agent-loop.md#три-отказа-подряд-2026-11-17 — one status message edited as the run goes
+ * spec: brief/agent-loop.md#канал — one status message edited as the run goes
  */
 final class ChannelRunObserver implements RunObserver {
     public const PLACEHOLDER = '…';
@@ -72,7 +72,7 @@ final class ChannelRunObserver implements RunObserver {
         $this->started = true;
         $this->startedAt = ($this->clock)();
         $this->channel->typing($this->chatId);
-        // spec: brief/agent-loop.md#подходы — a channel that cannot edit gets no status message, only what is final
+        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — a channel that cannot edit gets no status message, only what is final
         if (!$this->channel->capabilities()->canEdit) {
             if ($notice !== null) {
                 $this->channel->send(new OutgoingMessage($this->chatId, $notice, $this->replyTo, threadId: $this->threadId));
@@ -179,7 +179,7 @@ final class ChannelRunObserver implements RunObserver {
             }
         }
         $first = array_shift($parts) ?? $finalText;
-        // spec: brief/agent-loop.md#подходы — the answer is an obligation before it is sent
+        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
         $obligation = $this->obligation($run, $finalText, $mode);
         $messageId = $this->messageId;
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)

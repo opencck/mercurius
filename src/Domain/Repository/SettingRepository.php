@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Repository;
 
 /**
- * spec: brief/operations.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  */
 interface SettingRepository {
     /** @return array<string, array{value: ?string, secret: bool}> every stored setting by key */

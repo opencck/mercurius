@@ -32,7 +32,7 @@ use function Amp\delay;
  * The loop over the real OpenRouter client and a provider that misbehaves on the wire: a stream that stalls before its
  * first event, a stream that breaks in the middle of a tool call. ScriptedLlm hides both.
  *
- * spec: brief/agent-loop.md#подходы
+ * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
  */
 final class AgentLoopOverHttpTest extends AsyncTestCase {
     private InMemoryRunRepository $runs;

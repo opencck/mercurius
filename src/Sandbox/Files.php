@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * File operations as the participant's user: the kernel enforces the home boundary (homes are 0700), so a symlink
  * to another home or a root-only file fails like it would for the participant. Only the size check runs as root.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — paths only inside the participant's home; size checked before writing
+ * spec: brief/agent-loop.md#песочница — paths only inside the participant's home; size checked before writing
  */
 final class Files implements FileStore {
     private const LIST_LIMIT = 500;
@@ -55,7 +55,7 @@ final class Files implements FileStore {
     /**
      * The whole file as bytes, read as the participant: the shell gives it in base64 so binary files come whole.
      *
-     * spec: brief/agent-loop.md#подтверждения-и-запреты — a file the agent made goes to the chat
+     * spec: brief/agent-loop.md#песочница — a file the agent made goes to the chat
      */
     public function fetch(int $principalId, SandboxLimits $limits, string $path, int $maxBytes): string {
         $file = $this->workspace->resolve($principalId, $path);

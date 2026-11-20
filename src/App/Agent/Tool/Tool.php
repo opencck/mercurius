@@ -11,7 +11,7 @@ use OpenCCK\Domain\Agent\DangerClass;
  * A registry entry: description and argument schema for the model, danger class, handler.
  * A handler returns errors as results; an exception is caught by the executor and becomes an error result.
  *
- * spec: brief/agent-loop.md#песочница
+ * spec: brief/agent-loop.md#инструменты
  */
 interface Tool {
     public function definition(): ToolDefinition;

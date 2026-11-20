@@ -10,7 +10,7 @@ use InvalidArgumentException;
  * What a participant may do: tools, run limits, sandbox limits, whether their runs may ask for approval.
  * No value may exceed the owner's.
  *
- * spec: brief/agent-loop.md#лимиты
+ * spec: brief/agent-loop.md#права-участника
  */
 final class ParticipantPolicy {
     private const RUN_KEYS = ['max_turns' => true, 'token_budget' => true, 'run_timeout' => true, 'tool_timeout' => true];

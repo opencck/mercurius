@@ -9,7 +9,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: brief/agent-loop.md#подтверждения-и-запреты — the address space of a command: 0 is no limit, the narrower of two set limits wins
+ * spec: brief/agent-loop.md#песочница — the address space of a command: 0 is no limit, the narrower of two set limits wins
  */
 final class SandboxLimitsTest extends TestCase {
     public function testNoAddressSpaceLimitGivesWayToASetOne(): void {

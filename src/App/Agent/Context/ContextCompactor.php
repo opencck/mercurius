@@ -34,7 +34,7 @@ use function Mercurius\I18n\t;
  * outside the protected tail are cut to 200 characters. If that is not enough, the middle is summarised by the cheap
  * model. Nothing is deleted: shortened texts and the summary live next to the originals.
  *
- * spec: brief/agent-loop.md#модели
+ * spec: brief/agent-loop.md#контекст
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L3277 (_prune_old_tool_results) — prune long tool
  *      results outside the tail first, without a model; hermes drops the text, we keep 200 characters and the path
  *      of a spilled result

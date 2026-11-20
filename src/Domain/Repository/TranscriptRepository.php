@@ -12,7 +12,7 @@ use OpenCCK\Domain\Agent\ToolCallStatus;
 /**
  * Messages of conversations and runs, tool calls and steering messages.
  *
- * spec: brief/agent-loop.md#права-участника — save before execution, history of earlier runs
+ * spec: brief/agent-loop.md#запуск-и-цикл — save before execution, history of earlier runs
  */
 interface TranscriptRepository {
     public function appendUser(int $conversationId, ?int $runId, string $content, ?string $externalId = null): void;

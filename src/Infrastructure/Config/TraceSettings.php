@@ -9,7 +9,7 @@ use SensitiveParameter;
 /**
  * Tracing: how long full prompts and answers are kept, and the token that opens /metrics.
  *
- * spec: brief/operations.md#настройки-агента
+ * spec: brief/operations.md#трассировка-и-метрики
  */
 final class TraceSettings {
     private readonly ?string $metricsToken;

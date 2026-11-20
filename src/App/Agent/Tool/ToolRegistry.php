@@ -9,7 +9,7 @@ use Mercurius\Llm\ToolDefinition;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 
 /**
- * spec: brief/agent-loop.md#песочница — registry entry
+ * spec: brief/agent-loop.md#инструменты — registry entry
  */
 final class ToolRegistry {
     /** @var array<string, Tool> */

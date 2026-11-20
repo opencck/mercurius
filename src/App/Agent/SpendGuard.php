@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * Caps in money over everything the agent spends: a run, its workers, background work and compaction alike. A token
  * budget does not see price: the same tokens cost fifty times more on a strong model.
  *
- * spec: brief/agent-loop.md#устойчивость — daily and monthly caps in USD
+ * spec: brief/agent-loop.md#лимиты — daily and monthly caps in USD
  * ref: references/claude-cookbooks/managed_agents/CMA_cap_session_spend.ipynb@ce8b262 — one cap in money across all
  *      threads, subagents included; here a run stops at the cap instead of pausing
  */

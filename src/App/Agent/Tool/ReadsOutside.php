@@ -9,7 +9,7 @@ namespace OpenCCK\App\Agent\Tool;
  * someone else may carry instructions for the model, so once it is read, saved grants stop applying in that run:
  * every irreversible action goes to the owner's card again.
  *
- * spec: brief/agent-loop.md#контекст — outside data cannot spend the owner's grants
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — outside data cannot spend the owner's grants
  */
 interface ReadsOutside {
     /** @param array<string, mixed> $args whether this call reads outside data */

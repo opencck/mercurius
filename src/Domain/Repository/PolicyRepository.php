@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * Stored overrides of participant policies.
  *
- * spec: brief/agent-loop.md#лимиты
+ * spec: brief/agent-loop.md#права-участника
  */
 interface PolicyRepository {
     /** @return array<string, mixed>|null overrides, or null when the participant has none */

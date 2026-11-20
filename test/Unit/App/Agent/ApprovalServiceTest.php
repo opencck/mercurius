@@ -271,7 +271,7 @@ final class ApprovalServiceTest extends AsyncTestCase {
     }
 
     public function testTheApprovalStepLastsFromTheCardToTheDecision(): void {
-        // spec: brief/operations.md#настройки-агента — the approval step of a trace is the owner's wait
+        // spec: brief/operations.md#трассировка-и-метрики — the approval step of a trace is the owner's wait
         $events = new RecordingEvents();
         $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"origin"}')), ScriptedLlm::text('готово')]), events: $events);
         $this->stack->registry->register(new FakeKeyedTool('push', 'git-push:origin'));

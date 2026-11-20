@@ -19,7 +19,7 @@ final class SystemPrompt {
     public const VERSION = 7;
 
     public static function text(): string {
-        // spec: brief/operations.md#решено-в-фазе-4 — the prompt in the agent's language
+        // spec: brief/operations.md#язык-агента — the prompt in the agent's language
         return t('prompt.system');
     }
 }

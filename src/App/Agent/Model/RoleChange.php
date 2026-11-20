@@ -9,7 +9,7 @@ use OpenCCK\Domain\Agent\ModelRef;
 /**
  * A model put into a role, and how many open conversations of the role moved to it.
  *
- * spec: brief/agent-loop.md#канал
+ * spec: brief/agent-loop.md#модели
  */
 final class RoleChange {
     public function __construct(

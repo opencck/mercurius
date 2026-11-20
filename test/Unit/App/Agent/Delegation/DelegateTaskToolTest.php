@@ -94,7 +94,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
-        // spec: brief/operations.md#настройки-агента — the worker is a step of its orchestrator's trace
+        // spec: brief/operations.md#трассировка-и-метрики — the worker is a step of its orchestrator's trace
         self::assertContains('worker:1:2:done', $events->events);
         $worker = $stack->runs->find(2);
         self::assertNotNull($worker);

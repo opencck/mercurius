@@ -197,7 +197,7 @@ services:
 
   # Sandbox: commands and files of the agent, one Unix user per participant. No core secrets, no database,
   # no web network; root with a minimal capability set, every operation runs as the participant.
-  # spec: brief/agent-loop.md#подтверждения-и-запреты
+  # spec: brief/agent-loop.md#песочница
   sandbox:
     build:
       context: .
@@ -305,7 +305,7 @@ networks:
   # The app and the browser only.
   browser:
   # A fixed subnet. The sandbox may reach the host and the LAN (owner's decision): no firewall rule is set for it.
-  # spec: brief/agent-loop.md#подтверждения-и-запреты
+  # spec: brief/agent-loop.md#песочница
   sandbox:
     ipam:
       config:

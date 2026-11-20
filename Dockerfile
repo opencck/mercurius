@@ -73,7 +73,7 @@ CMD ["composer", "test-integration"]
 # Sandbox: where the agent runs commands and keeps files. Runtimes the agent can build tools on (owner decision):
 # PHP 8.2 with Composer, Python 3, Node.js with npm, Go. Documents and video are modules (media-docs, media-video), not here. The executor runs as root with a minimal capability set
 # (compose) and does every participant operation as that participant's Unix user.
-# spec: brief/agent-loop.md#подтверждения-и-запреты
+# spec: brief/agent-loop.md#песочница
 FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

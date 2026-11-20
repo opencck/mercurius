@@ -12,7 +12,7 @@ use OpenCCK\Domain\Agent\Grant;
 /**
  * Approvals and saved grants.
  *
- * spec: brief/agent-loop.md#контекст
+ * spec: brief/agent-loop.md#подтверждения-и-запреты
  */
 interface ApprovalRepository {
     public function create(int $runId, string $callId, int $principalId, string $tool, string $summary, ?string $grantKey, DateTimeImmutable $expiresAt): Approval;

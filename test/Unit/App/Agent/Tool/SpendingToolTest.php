@@ -45,7 +45,7 @@ final class SpendingToolTest extends AsyncTestCase {
     }
 
     public function testTheSpendOfATaskIsTheSumOfItsRuns(): void {
-        // spec: brief/operations.md#настройки-агента — the spend of a task is counted from its runs, never estimated
+        // spec: brief/operations.md#трассировка-и-метрики — the spend of a task is counted from its runs, never estimated
         $principals = new InMemoryPrincipalRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $figures = new FakeTraceReports();

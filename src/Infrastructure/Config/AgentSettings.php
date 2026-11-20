@@ -9,7 +9,7 @@ use OpenCCK\Domain\Agent\RunLimits;
 /**
  * Limits of one agent run. They are the owner's limits and the ceiling for every other participant.
  *
- * spec: brief/agent-loop.md#устойчивость — defaults and what each limit bounds
+ * spec: brief/agent-loop.md#лимиты — defaults and what each limit bounds
  */
 final class AgentSettings {
     /**

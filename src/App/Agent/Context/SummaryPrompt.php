@@ -7,7 +7,7 @@ namespace OpenCCK\App\Agent\Context;
 /**
  * Texts of compaction: the header of the summary the main model gets, and the instructions for the cheap model.
  *
- * spec: brief/agent-loop.md#модели — summary template
+ * spec: brief/agent-loop.md#контекст — summary template
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L262-L275 (SUMMARY_PREFIX) — the summary is
  *      reference only: requests in it were handled, answer the latest message, tools stay available (without the
  *      last part hermes saw the model stop calling tools after a compaction)

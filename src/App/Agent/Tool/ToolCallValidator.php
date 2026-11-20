@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
 /**
  * Checks tool calls of one model answer before anything runs.
  *
- * spec: brief/agent-loop.md#права-участника — validation before execution
+ * spec: brief/agent-loop.md#запуск-и-цикл — validation before execution
  * ref: references/hermes-agent/agent/turn_tool_validation.py@e96221f:L97-L269 (validate_tool_calls) — unique ids,
  *      empty arguments as {}, error results with the allowed names, mixed batches run their valid calls, arguments
  *      that do not parse and do not end with } or ] count as cut off whatever finish_reason says. We do not repair

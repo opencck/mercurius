@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * One execution of the agent over a task: its model, limits, spend and status.
  *
- * spec: brief/agent-loop.md#права-участника
+ * spec: brief/agent-loop.md#запуск-и-цикл
  */
 final class Run {
     public function __construct(

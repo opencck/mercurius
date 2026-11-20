@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * Changes another participant's tools and limits. Works only in the owner's runs: the owner asks in words,
  * the agent calls the tool. Values above the owner's are cut down to them.
  *
- * spec: brief/agent-loop.md#лимиты — who changes policies
+ * spec: brief/agent-loop.md#права-участника — who changes policies
  */
 final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     public const NAME = 'set_participant_policy';

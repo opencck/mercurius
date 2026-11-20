@@ -48,8 +48,8 @@ use function Mercurius\I18n\t;
  * hands the message over and returns, so /stop and later messages are never stuck behind a run. A message that
  * arrives during a run goes into it as a steering note; messages that come within a short window are merged.
  *
- * spec: brief/agent-loop.md#права-участника — one active run per conversation, steering
- * spec: brief/agent-loop.md#инструменты — resume after restart without repeating side effects
+ * spec: brief/agent-loop.md#запуск-и-цикл — one active run per conversation, steering
+ * spec: brief/agent-loop.md#устойчивость — resume after restart without repeating side effects
  * ref: references/hermes-agent/gateway/platforms/base.py@e96221f:L3690-L3697 (_text_debounce_delay) — merge window
  *      0.35 s after the last message, at most 1 s after the first
  * ref: references/hermes-agent/gateway/run_busy.py@e96221f:L200-L215 — a steering note left after the turn becomes
@@ -275,7 +275,7 @@ final class RunScheduler {
         $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
-        // spec: brief/agent-loop.md#контекст — a text from the owner while the run waits is a denial with that reason
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
         if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, t('agent.run_scheduler.otkazano_vladelets_otvetil_tekstom'), $principal->id) === true) {
             $this->resumeRun($run->id);
             return;
@@ -720,7 +720,7 @@ final class RunScheduler {
             $model = $this->model;
         }
         if ($meta->systemPrompt === null) {
-            // spec: brief/agent-loop.md#канал — the model is chosen when the conversation opens and kept while the model of its role
+            // spec: brief/agent-loop.md#модели — the model is chosen when the conversation opens and kept while the model of its role
             //       stays; a change of the role moves the open conversation (RoleConversations), its next run reads it here
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
             $skills = '';
@@ -737,7 +737,7 @@ final class RunScheduler {
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policyIn($conversationId, $principal);
-        // spec: brief/agent-loop.md#контекст — in a group other people's words are in the context: saved grants do not apply
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
         // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the mark is set at the start, before the model reads anything
         $sources = array_values(array_unique([...(str_starts_with($meta->chatId, '-') ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
         unset($this->tainted[$conversationId]);

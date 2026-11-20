@@ -72,7 +72,7 @@ if ($a2aServer !== null) {
     }
 }
 
-// spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the prompt holds one line, the details come from self_info by topic
+// spec: brief/agent-loop.md#знания-агента-о-себе — the prompt holds one line, the details come from self_info by topic
 if ($a2aServer !== null) {
     $selfBase = rtrim($a2aServer->self, '/');
     $selfHost = parse_url($selfBase, PHP_URL_HOST);

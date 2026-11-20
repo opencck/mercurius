@@ -10,7 +10,7 @@ use function Mercurius\I18n\t;
  * Marks content from outside as data. Markers inside the content are defanged, so a poisoned page
  * cannot close the block early.
  *
- * spec: brief/agent-loop.md#песочница — untrusted results
+ * spec: brief/agent-loop.md#инструменты — untrusted results
  * ref: references/hermes-agent/agent/tool_dispatch_helpers.py@e96221f:L579-L612 (_neutralize_delimiters,
  *      _maybe_wrap_untrusted) — wording and defanging; we wrap short results too
  */

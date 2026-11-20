@@ -25,10 +25,10 @@ use function Mercurius\I18n\t;
  * It returns at once, so the chat queue is never held by a running task and /stop always gets through.
  *
  * spec: brief/decisions.md#участники-люди-и-агенты — a stranger waits for the owner; a refused one is refused
- * spec: brief/agent-loop.md#контекст — control commands bypass a busy conversation
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — control commands bypass a busy conversation
  */
 final class ChatService implements MessageHandler {
-    // spec: brief/operations.md#решено-в-фазе-4 — the texts live in the mercurius-i18n catalogs; these are their keys
+    // spec: brief/operations.md#язык-агента — the texts live in the mercurius-i18n catalogs; these are their keys
     public const REFUSAL = 'chat.refusal';
     public const NOT_TEXT = 'chat.not_text';
     public const NEW_CONVERSATION = 'chat.new_conversation';
@@ -311,7 +311,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if (in_array($command, ['/settings', '/set', '/restart'], true) && $this->settings !== null) {
-            // spec: brief/operations.md#трассировка-и-метрики — settings by commands, without a model; a secret value leaves the chat
+            // spec: brief/operations.md#настройки-агента — settings by commands, without a model; a secret value leaves the chat
             $argument = substr($text, strlen($command));
             if (!$principal->isOwner()) {
                 $this->reply($message, t(self::OWNER_ONLY));
@@ -499,7 +499,7 @@ final class ChatService implements MessageHandler {
         );
     }
 
-    /** spec: brief/operations.md#настройки-агента — reports for the owner; a long one goes as a file */
+    /** spec: brief/operations.md#трассировка-и-метрики — reports for the owner; a long one goes as a file */
     private function report(\OpenCCK\Domain\Entity\Principal $principal, string $command, string $argument, IncomingMessage $message): void {
         // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — reports are a power of a role too
         if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Power::Reports)) || $this->reports === null) {
@@ -512,7 +512,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         $words = preg_split('/\s+/', trim($argument)) ?: [];
-        // spec: brief/operations.md#настройки-агента — /trace <run> <step>: the step's prompt and answer as a file
+        // spec: brief/operations.md#трассировка-и-метрики — /trace <run> <step>: the step's prompt and answer as a file
         if ($command === '/trace' && count($words) === 2 && ctype_digit($words[0]) && ctype_digit($words[1])) {
             $run = (int) $words[0];
             $visible = $principal->isOwner() || $this->runVisible === null || ($this->runVisible)($run, $principal);

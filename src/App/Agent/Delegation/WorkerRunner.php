@@ -168,7 +168,7 @@ final class WorkerRunner {
     /**
      * Who hears that a worker ended: the trace writes it as a step of the orchestrator.
      *
-     * spec: brief/operations.md#настройки-агента — nested traces
+     * spec: brief/operations.md#трассировка-и-метрики — nested traces
      */
     public function useEvents(\OpenCCK\App\Agent\Trace\AgentEvents $events): void {
         $this->events = $events;
@@ -639,7 +639,7 @@ final class WorkerRunner {
                 if (!$run->status->isActive()) {
                     return $this->report($index, $run);
                 }
-                // spec: brief/agent-loop.md#инструменты — writes that were running when the server stopped are not repeated
+                // spec: brief/agent-loop.md#устойчивость — writes that were running when the server stopped are not repeated
                 foreach ($this->transcript->pendingCalls($run->id) as $call) {
                     if ($call->status === ToolCallStatus::Running && $call->danger !== DangerClass::Read) {
                         $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, \Mercurius\I18n\t(RunScheduler::INTERRUPTED));

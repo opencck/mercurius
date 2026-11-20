@@ -10,7 +10,7 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 
 /**
- * spec: brief/agent-loop.md#права-участника, BRIEF.md#лимиты, BRIEF.md#устойчивость
+ * spec: brief/agent-loop.md#запуск-и-цикл, BRIEF.md#лимиты, BRIEF.md#устойчивость
  */
 interface RunRepository {
     /** A new running run; null when the conversation already has an active one. */

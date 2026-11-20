@@ -76,7 +76,7 @@ final class WebSearchTool implements Tool, ReadsOutside {
         return DangerClass::Read;
     }
 
-    /** spec: brief/agent-loop.md#контекст — search results are written by others */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — search results are written by others */
     public function readsOutside(array $args): bool {
         return true;
     }

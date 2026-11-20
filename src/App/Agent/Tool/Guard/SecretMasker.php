@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent\Tool\Guard;
  * Hides secret-looking values in what is shown to people (approval cards): you cannot approve what you cannot see,
  * but the card must not leak a token into the chat history.
  *
- * spec: brief/agent-loop.md#контекст — secrets in the card are masked
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — secrets in the card are masked
  * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 — hermes shows the command in full; we mask values
  */
 final class SecretMasker {

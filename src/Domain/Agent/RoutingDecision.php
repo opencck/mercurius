@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * Why a conversation got its model: the rough class of the first request, how it was found, the role and model.
  *
- * spec: brief/agent-loop.md#канал — every choice is logged with a reason, as data for the full model selection
+ * spec: brief/agent-loop.md#модели — every choice is logged with a reason, as data for the full model selection
  */
 final class RoutingDecision {
     public function __construct(

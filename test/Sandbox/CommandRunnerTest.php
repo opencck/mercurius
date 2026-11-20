@@ -23,7 +23,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testAddressSpaceIsLimitedOnlyWhenSet(): void {
-        // spec: brief/agent-loop.md#подтверждения-и-запреты — no address-space limit by default: WebAssembly in Node reserves ~10 GB of addresses
+        // spec: brief/agent-loop.md#песочница — no address-space limit by default: WebAssembly in Node reserves ~10 GB of addresses
         $none = new \OpenCCK\Domain\Agent\SandboxLimits(1024 ** 3, 64, 60, 0, 2);
         self::assertSame("unlimited
 ", $this->sh(7, 'ulimit -v', limits: $none)->stdout);

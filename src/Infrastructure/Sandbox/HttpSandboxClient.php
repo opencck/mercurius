@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * Talks to the sandbox executor over the sandbox network with a bearer token. Cancelling an exec also asks the
  * executor to kill the command.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — executor behind a token
+ * spec: brief/agent-loop.md#песочница — executor behind a token
  */
 final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv {
     private const FILE_TIMEOUT = 60;

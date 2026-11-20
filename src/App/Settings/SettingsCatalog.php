@@ -10,7 +10,7 @@ use function Mercurius\I18n\t;
  * The settings the owner changes in the dialog. Everything else stays in .env: the link to Telegram (the first
  * setup goes through it), the database, Compose, the vault master key, the tokens the sandbox and browser read.
  *
- * spec: brief/operations.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  */
 final class SettingsCatalog {
     public const SECRET = 'secret';

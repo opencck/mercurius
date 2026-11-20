@@ -68,7 +68,7 @@ final class PeerOrchestrateTool implements Tool, ReadsOutside, LongRunning {
         return DangerClass::Write;
     }
 
-    /** spec: brief/agent-loop.md#контекст — answers of other agents are outside text */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — answers of other agents are outside text */
     public function readsOutside(array $args): bool {
         return true;
     }

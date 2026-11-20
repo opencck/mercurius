@@ -84,7 +84,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
     }
 
     /** Workers read pages and files: their reports carry what they read, so they are data, not instructions. */
-    /** spec: brief/agent-loop.md#контекст — a worker may have read pages: its report carries their text */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — a worker may have read pages: its report carries their text */
     public function readsOutside(array $args): bool {
         return true;
     }

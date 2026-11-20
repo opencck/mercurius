@@ -58,7 +58,7 @@ final class PeerCallTool implements Tool, ReadsOutside, LongRunning {
         return DangerClass::Write;
     }
 
-    /** spec: brief/agent-loop.md#контекст — the answer of another agent is outside text */
+    /** spec: brief/agent-loop.md#подтверждения-и-запреты — the answer of another agent is outside text */
     public function readsOutside(array $args): bool {
         return true;
     }

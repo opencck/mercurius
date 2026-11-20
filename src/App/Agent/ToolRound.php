@@ -38,7 +38,7 @@ use function Mercurius\I18n\t;
  * segments in order (parallel reads, writes one by one), each irreversible call admitted by a grant, a card or a refusal;
  * results fitted into the window budget, checked by the loop guard and written in the order of the calls.
  *
- * spec: brief/agent-loop.md#подходы
+ * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
  */
 final class ToolRound {
     private const WARN_SHARE = 0.8;
@@ -193,7 +193,7 @@ final class ToolRound {
     /**
      * Whether a call may run now. Only irreversible calls are checked.
      *
-     * spec: brief/agent-loop.md#контекст — approval, saved grants, nobody to ask means refusal
+     * spec: brief/agent-loop.md#подтверждения-и-запреты — approval, saved grants, nobody to ask means refusal
      * ref: references/hermes-agent/tools/approval.py@e96221f:L1421-L1479 (check_all_command_guards) — guards in order:
      *      saved permissions, then asking a person; with nobody to ask (cron, API) the answer is an immediate denial
      *
@@ -229,7 +229,7 @@ final class ToolRound {
             }
         }
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
-        // spec: brief/agent-loop.md#контекст — after outside data a grant is not used: the text read may be someone's
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — after outside data a grant is not used: the text read may be someone's
         //      instructions, so the owner sees every irreversible action of this run on a card
         $outside = $this->runs->find($state->run->id)?->outside;
         if ($key !== null && $outside === null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {

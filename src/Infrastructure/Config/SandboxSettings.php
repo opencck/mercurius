@@ -11,7 +11,7 @@ use SensitiveParameter;
  * Where the sandbox executor is and the owner's share of it. Without SANDBOX_TOKEN the sandbox is off and the
  * file and command tools are not registered.
  *
- * spec: brief/agent-loop.md#подтверждения-и-запреты — limits from .env
+ * spec: brief/agent-loop.md#песочница — limits from .env
  */
 final class SandboxSettings {
     private readonly ?string $token;
@@ -41,7 +41,7 @@ final class SandboxSettings {
                 // Well below the container's pids limit, so one participant cannot take every process slot.
                 processes: Env::positiveInt($env, 'SANDBOX_COMMAND_PROCESSES', 128, 100_000),
                 cpuSeconds: Env::positiveInt($env, 'SANDBOX_COMMAND_CPU_SECONDS', 600, 86_400),
-                // spec: brief/agent-loop.md#подтверждения-и-запреты — no address-space limit by default; 0 or empty is none
+                // spec: brief/agent-loop.md#песочница — no address-space limit by default; 0 or empty is none
                 memoryBytes: in_array(Env::raw($env, 'SANDBOX_COMMAND_MEMORY'), [null, '0'], true) ? 0 : Env::bytes($env, 'SANDBOX_COMMAND_MEMORY', 1),
                 concurrentCommands: Env::positiveInt($env, 'SANDBOX_CONCURRENT_COMMANDS', 4, 64),
             ),

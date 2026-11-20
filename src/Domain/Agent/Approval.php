@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * A paused tool call waiting for the owner. The id is short and goes into the button data.
  *
- * spec: brief/agent-loop.md#контекст
+ * spec: brief/agent-loop.md#подтверждения-и-запреты
  */
 final class Approval {
     public function __construct(

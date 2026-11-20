@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * participant, self-improvement, the version. Constant texts live in the catalog of texts (`self.*`), what changes
  * comes from code at the moment of the call.
  *
- * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
+ * spec: brief/agent-loop.md#знания-агента-о-себе
  * ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L171-L182 (HERMES_AGENT_HELP_GUIDANCE) — one line in
  *      the stable prompt points to the details; hermes keeps them in the `hermes-agent` skill and its docs, here a
  *      tool, because a part of them (address, modules, limits) is known only at run time

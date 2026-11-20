@@ -174,7 +174,7 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
 // spec: brief/memory.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
-// spec: brief/operations.md#настройки-агента — a worker is a step of its orchestrator's trace
+// spec: brief/operations.md#трассировка-и-метрики — a worker is a step of its orchestrator's trace
 $workers->useEvents($tracer);
 // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
 $workers->useContext($scheduler->workerContext(...));
