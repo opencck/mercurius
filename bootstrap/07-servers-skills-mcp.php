@@ -160,9 +160,10 @@ $stdioMcp = $sandbox === null ? null : new \OpenCCK\Infrastructure\Mcp\StdioMcpC
     $logger,
     $mcpTexts,
 );
+$mcpClient = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create(), $mcpTexts), $stdioMcp);
 $mcpManager = new McpManager(
     $mcpServers,
-    new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create(), $mcpTexts), $stdioMcp),
+    $mcpClient,
     $vault,
     $tools,
     static fn(): ?Principal => $ownerDirectory->principal(),
@@ -183,10 +184,35 @@ if ($sandbox !== null) {
     \Amp\async($mcpManager->tick(...))->ignore();
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\McpResourcesTool($mcpManager));
-// spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — the built-in mail server: the mailbox from the settings goes in headers of each request
-$mailHeaders = \OpenCCK\Infrastructure\Config\MailSettings::headers($_ENV);
+// spec: brief/skills-mcp.md#ящики-участников-и-проектов — the built-in mail server keeps no mailbox: each call brings the
+// mailbox of the caller in its headers, the password comes from the vault at that moment
 $mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');
-if ($mailHeaders !== null && $mailToken !== null) {
-    $mailServer = new \OpenCCK\Domain\Mcp\McpServer(0, 'mail', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ACTIVE, null, 'встроенный', $mailHeaders);
-    \Revolt\EventLoop::defer(static fn() => $mcpManager->connectBuiltin($mailServer, $mailToken));
+if ($mailToken !== null) {
+    $mailServer = new \OpenCCK\Domain\Mcp\McpServer(0, 'mail', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ACTIVE, null, 'встроенный');
+    $mailboxes = new \OpenCCK\App\Mail\Mailboxes(
+        new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db),
+        $vault,
+        $principals,
+        $addressGuard,
+        static fn(int $conversationId, Principal $who): ?\OpenCCK\Domain\Project\Project => $skillProjectOf($conversationId, null, $who),
+        static fn(\OpenCCK\Domain\Project\Project $project, Principal $who): ?\OpenCCK\Domain\Project\ProjectLevel => $project->levelOf($who, $skillProjects->memberLevel($project->id, $who->id)),
+    );
+    $tools->register(new \OpenCCK\App\Mail\MailboxTool(
+        $mailboxes,
+        static fn(string $name, Principal $who): ?\OpenCCK\Domain\Project\Project => $skillProjects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($who)),
+        /** @param array<non-empty-string, string> $account */
+        static function (#[\SensitiveParameter] array $account, \Amp\Cancellation $cancellation) use ($mcpClient, $mailServer, $mailToken): ?string {
+            try {
+                [$text, $failed] = $mcpClient->call($mailServer->withHeaders($account), $mailToken, 'mail_folders', [], $cancellation);
+                return $failed ? mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($text), 0, 300) : null;
+            } catch (\RuntimeException $e) {
+                return mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($e->getMessage()), 0, 300);
+            }
+        },
+    ));
+    \Revolt\EventLoop::defer(static fn() => $mcpManager->connectBuiltin(
+        $mailServer,
+        $mailToken,
+        static fn(\OpenCCK\App\Mcp\McpTool $tool, string $remoteName): \OpenCCK\App\Agent\Tool\Tool => new \OpenCCK\App\Mail\MailTool($tool, $remoteName, $mailboxes),
+    ));
 }

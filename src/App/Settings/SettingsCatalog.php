@@ -120,13 +120,6 @@ final class SettingsCatalog {
         'AGENT_TOOL_USE_GUIDANCE' => ['agent', self::TEXT, 'settings.about.agent_tool_use_guidance'],
         'SSH_NEVER_OFF' => ['servers', self::TEXT, 'settings.about.ssh_never_off'],
         'METRICS_TOKEN' => ['traces', self::SECRET, 'settings.about.metrics_token'],
-        'MAIL_HOST' => ['mail', self::TEXT, 'settings.about.mail_host'],
-        'MAIL_IMAP_PORT' => ['mail', self::INT, 'settings.about.mail_imap_port'],
-        'MAIL_SMTP_PORT' => ['mail', self::INT, 'settings.about.mail_smtp_port'],
-        'MAIL_USER' => ['mail', self::TEXT, 'settings.about.mail_user'],
-        'MAIL_PASSWORD' => ['mail', self::SECRET, 'settings.about.mail_password'],
-        'MAIL_FROM' => ['mail', self::TEXT, 'settings.about.mail_from'],
-        'MAIL_AUTHSERV_ID' => ['mail', self::TEXT, 'settings.about.mail_authserv_id'],
         'A2A_NAME' => ['network', self::TEXT, 'settings.about.a2a_name'],
         'A2A_DESCRIPTION' => ['network', self::TEXT, 'settings.about.a2a_description'],
     ];

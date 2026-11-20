@@ -69,7 +69,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
                 private readonly InMemoryTranscriptRepository $transcript,
             ) {}
 
-            public function request(Run $run, ValidatedCall $call, Principal $principal): void {
+            public function request(Run $run, ValidatedCall $call, Principal $principal, ?Principal $decider = null): void {
                 $this->test->asked[] = $call->call->id;
                 $this->test->statesAtRequest[] = [$this->runs->find($run->id)?->status, $this->transcript->status($run->id, $call->call->id)];
                 $this->approvals->create($run->id, $call->call->id, $principal->id, $call->call->name, 'show', null, new \DateTimeImmutable('+30 minutes'));

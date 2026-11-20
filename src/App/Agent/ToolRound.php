@@ -72,11 +72,13 @@ final class ToolRound {
      */
     public function prepare(RunState $state, array $calls): array {
         return array_map(function (ValidatedCall $call) use ($state): ValidatedCall {
-            if (!$call->executable() || !$call->tool instanceof PreparesCall || $call->args === null) {
+            if (!$call->executable() || $call->args === null || !($call->tool instanceof PreparesCall || $call->tool instanceof Tool\PreparesInConversation)) {
                 return $call;
             }
             try {
-                $prepared = $call->tool->prepare($call->args, $state->principal, $state->policy, $state->cancellation);
+                $prepared = $call->tool instanceof PreparesCall
+                    ? $call->tool->prepare($call->args, $state->principal, $state->policy, $state->cancellation)
+                    : $call->tool->prepareIn($call->args, $state->principal, $state->run->conversationId, $state->cancellation);
             } catch (\Amp\CancelledException $e) {
                 throw $e;
             } catch (Throwable $e) {
@@ -242,13 +244,16 @@ final class ToolRound {
         }
         // spec: brief/agent-loop.md#права-участника — the refusal names the missing right and who gives it, so the model
         //      reports it to the participant instead of trying again
-        if (!$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess) {
+        // spec: brief/skills-mcp.md#ящики-участников-и-проектов — what leaves a mailbox is decided by the one who connected it
+        $decider = $call->tool instanceof Tool\DecidedByParticipant ? $call->tool->decider($call->args) : null;
+        $decider = $decider?->isOwner() === true ? null : $decider;
+        if ($decider === null && !$state->policy->mayRequestApproval && !$call->tool instanceof RequestsAccess) {
             return ToolResult::error(t('agent.agent_loop.net_prava_prosit_podtverzhdenie'));
         }
         // Saved as waiting before the owner sees the card: a press that comes at once must find the run waiting.
         $this->transcript->setCallStatus($state->run->id, $call->call->id, ToolCallStatus::AwaitingApproval);
         $this->runs->setStatus($state->run->id, RunStatus::WaitingApproval);
-        $this->gate->request($this->runs->find($state->run->id) ?? $state->run, $call, $state->principal);
+        $this->gate->request($this->runs->find($state->run->id) ?? $state->run, $call, $state->principal, $decider);
         return false;
     }
     private function runCall(RunState $state, ValidatedCall $call, bool $approved = false): ToolResult {

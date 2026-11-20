@@ -62,7 +62,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | текст офисных документов и PDF; новые docx, xlsx, pptx |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | встроенный скилл: как агент держит `MEMORY.md` участника в пределе |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | встроенный скилл: как агент создаёт и дорабатывает свои скиллы (грузится при старте, без сервиса) |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовый ящик по IMAP и SMTP |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовые ящики участников по IMAP и SMTP |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | файлы до 2000 МБ в Telegram |
 
 Например, браузер и документы:

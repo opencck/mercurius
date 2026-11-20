@@ -24,6 +24,8 @@ enum Power: string {
     case Participants = 'participants';
     /** publishes to channels on behalf of the agent */
     case Publish = 'publish';
+    /** own mailboxes: reading and sending mail through them */
+    case Mail = 'mail';
     /** reports and traces, without the private chats of others */
     case Reports = 'reports';
 }

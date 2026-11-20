@@ -32,7 +32,30 @@ final class PolicyService {
         'channel_post' => Power::Publish,
         'participants' => Power::Participants,
         'set_participant_policy' => Power::Participants,
+        'mailbox_edit' => Power::Mail,
+        'mcp_mail_mail_folders' => Power::Mail,
+        'mcp_mail_mail_list' => Power::Mail,
+        'mcp_mail_mail_read' => Power::Mail,
+        'mcp_mail_mail_attachment' => Power::Mail,
+        'mcp_mail_mail_send' => Power::Mail,
     ];
+
+    /**
+     * Mail comes with its power, whatever the list of tools of the role says.
+     *
+     * spec: brief/skills-mcp.md#ящики-участников-и-проектов — who has the power of mail uses IMAP and SMTP
+     */
+    private static function withMail(Principal $principal, ParticipantPolicy $policy): ParticipantPolicy {
+        if (!$principal->role->may(Power::Mail)) {
+            return $policy;
+        }
+        foreach (self::POWER_TOOLS as $tool => $power) {
+            if ($power === Power::Mail) {
+                $policy = $policy->withTool($tool);
+            }
+        }
+        return $policy;
+    }
 
     public function owner(): ParticipantPolicy {
         return new ParticipantPolicy(null, $this->ownerLimits, $this->ownerSandbox, true);
@@ -51,11 +74,11 @@ final class PolicyService {
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
         // spec: brief/participants.md#свои-роли — without the power of tools a role talks, nothing more
         if (!$principal->role->may(Power::Tools)) {
-            return $base->capTo($owner);
+            return self::withMail($principal, $base)->capTo($owner);
         }
         $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
         // spec: brief/participants.md#свои-роли — a tool of a power stays out of a role without it
-        return $policy->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Power $p): bool => !$principal->role->may($p))));
+        return self::withMail($principal, $policy)->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Power $p): bool => !$principal->role->may($p))));
     }
 
     /** @return array<string, mixed> */

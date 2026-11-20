@@ -59,6 +59,15 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
         return false;
     }
 
+    /**
+     * The same server with other headers: the account of one request.
+     *
+     * @param array<non-empty-string, string> $headers
+     */
+    public function withHeaders(#[\SensitiveParameter] array $headers): self {
+        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude);
+    }
+
     public function endpointName(): string {
         return $this->name;
     }

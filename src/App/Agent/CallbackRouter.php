@@ -45,12 +45,12 @@ final class CallbackRouter implements CallbackHandler {
 
     public function handleCallback(IncomingCallback $callback): void {
         $open = in_array(explode(':', $callback->data, 2)[0], $this->openPrefixes, true);
-        if (!$open && !$this->byOwner($callback->userId)) {
+        $prefix = explode(':', $callback->data, 2)[0];
+        $handler = $this->handlers[$prefix] ?? null;
+        if (!$open && !$this->byOwner($callback->userId) && !($handler instanceof TakesOwnPresses && $handler->ownPress($callback))) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
         }
-        $prefix = explode(':', $callback->data, 2)[0];
-        $handler = $this->handlers[$prefix] ?? null;
         if ($handler === null) {
             $this->channel->answerCallback($callback->callbackId);
             return;

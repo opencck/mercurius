@@ -42,7 +42,7 @@ use function Mercurius\I18n\t;
  *      L4347-L4389 (_handle_exec_approval_callback) — short id in the button, decide first then edit the card,
  *      "already decided" for a second press; the approval lives in the database here, not in process memory
  */
-final class ApprovalService implements ApprovalGate, CallbackHandler {
+final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPresses {
     /** Refusals in a row after which exactly the same action is refused without asking the owner again. */
     public const REFUSALS = 3;
     /** Longer actions go to the owner as a file next to the card: you cannot approve what you cannot see. */
@@ -64,12 +64,16 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         private readonly AgentEvents $events = new NullEvents(),
     ) {}
 
+    private ?string $participantChannel = null;
+
     /** @param Closure(int): void $resume */
     public function onDecision(Closure $resume): void {
         $this->resume = $resume;
     }
 
-    public function request(Run $run, ValidatedCall $call, Principal $principal): void {
+    public function request(Run $run, ValidatedCall $call, Principal $principal, ?Principal $decider = null): void {
+        // spec: brief/skills-mcp.md#ящики-участников-и-проектов — the card of a participant's own thing goes to that participant
+        $chat = $decider === null ? OwnerDirectory::chat($this->ownerChatId) : $this->privateChat($decider);
         $args = $call->args ?? [];
         $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($args) : null;
         $label = SecretMasker::mask($call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name);
@@ -87,6 +91,14 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $key,
             new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)),
         );
+        if ($chat === null) {
+            $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, t('agent.approval_service.decider_unreachable'), null);
+            if ($decided !== null) {
+                // The run is still pausing in this fiber: it continues once the pause is saved.
+                EventLoop::defer(fn() => $this->continue($decided));
+            }
+            return;
+        }
         if ($refusedBefore >= self::REFUSALS) {
             $this->logger->notice('Action refused without a card: refused in a row before', ['approval' => $approval->id, 'run' => $run->id, 'tool' => $call->call->name]);
             $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, sprintf(t('agent.approval_service.refused_in_a_row'), $refusedBefore), null);
@@ -100,7 +112,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         $inFile = mb_strlen($shown) > self::CARD_LIMIT;
         // ref: references/hermes-agent/gateway/platforms/base.py@e96221fa:L2744-L2763 (send_exec_approval) — an action
         //      the owner could not read in full can only be refused
-        $unreadable = $inFile && !$this->channel->sendFile(OwnerDirectory::chat($this->ownerChatId), sprintf('approval-%d.json', $approval->id), $shown, t('agent.approval_service.deystvie_tselikom'))->success;
+        $unreadable = $inFile && !$this->channel->sendFile($chat, sprintf('approval-%d.json', $approval->id), $shown, t('agent.approval_service.deystvie_tselikom'))->success;
         $text = sprintf(
             t('agent.approval_service.podtverdite_deystvie_instrument_argument'),
             $label,
@@ -122,7 +134,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
         }
         $row[] = new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id));
         // arguments may carry an address from outside data: no preview of it in the card
-        $card = new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $text, disableLinkPreview: true, buttons: [$row]);
+        $card = new OutgoingMessage($chat, $text, disableLinkPreview: true, buttons: [$row]);
         $sent = $this->channel->send($card);
         // The run streams into the same chat: a short flood is waited out before the action is refused.
         if (!$sent->success && $sent->errorKind === \Mercurius\Messenger\SendErrorKind::RateLimited && $sent->retryAfter !== null && $sent->retryAfter <= self::FLOOD_WAIT) {
@@ -130,7 +142,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
             $sent = $this->channel->send($card);
         }
         if ($sent->success && $sent->messageId !== null) {
-            $this->approvals->setCard($approval->id, OwnerDirectory::chat($this->ownerChatId), $sent->messageId);
+            $this->approvals->setCard($approval->id, $chat, $sent->messageId);
         } elseif (!$sent->success) {
             // ref: references/hermes-agent/tools/approval.py@e96221fa:L950 — a card nobody can see is a refusal now,
             //      not a wait for the timeout
@@ -147,6 +159,36 @@ final class ApprovalService implements ApprovalGate, CallbackHandler {
     }
 
     /** Sends the active grants with a revoke button each; false when there are none. */
+    /**
+     * The channel where people have private chats: a card for a participant goes there.
+     *
+     * spec: brief/skills-mcp.md#ящики-участников-и-проектов
+     */
+    public function useParticipantCards(string $channelName): void {
+        $this->participantChannel = $channelName;
+    }
+
+    /** The private chat of a person; an agent and a person with no chat have none. */
+    private function privateChat(Principal $decider): ?string {
+        if ($this->participantChannel === null || $decider->isAgent()) {
+            return null;
+        }
+        return $this->principals->externalId($decider->id, $this->participantChannel);
+    }
+
+    /**
+     * A press on a card that was sent to a participant, in the private chat it was sent to: theirs to make.
+     *
+     * spec: brief/skills-mcp.md#ящики-участников-и-проектов — the owner of a mailbox confirms what is sent from it
+     */
+    public function ownPress(IncomingCallback $callback): bool {
+        if (preg_match('/^ap:(\d+):[agd]$/', $callback->data, $match) !== 1 || $callback->userId !== $callback->chatId) {
+            return false;
+        }
+        $approval = $this->approvals->find((int) $match[1]);
+        return $approval !== null && $approval->cardChatId !== null && $approval->cardChatId === $callback->chatId;
+    }
+
     public function showGrants(string $chatId, ?string $replyTo): bool {
         if ($this->approvals->grants() === []) {
             return false;

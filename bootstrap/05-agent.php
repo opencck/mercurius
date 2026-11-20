@@ -164,6 +164,8 @@ $tracer = new Tracer($traces, $modelCatalog, $logger);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
 $approvals = new ApprovalService($approvalStore, $principals, $channel, $ownerDirectory, $agentSettings->approvalTimeout, $logger, $tracer);
+// spec: brief/skills-mcp.md#ящики-участников-и-проектов — a card about a participant's own mailbox goes to their private chat
+$approvals->useParticipantCards(TelegramChannel::NAME);
 // spec: brief/internet.md#модели-вложений — vision, speech and video models through the models' HTTP client (VLESS when set);
 // an own endpoint's key is the vault secret media-endpoint-<name>
 $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(

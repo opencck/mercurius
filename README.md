@@ -63,7 +63,7 @@ compose profile, off by default. Turn one on with its submodule, a profile in `C
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | the text of office documents and PDF; new docx, xlsx, pptx |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | a built-in skill: how the agent keeps a participant's `MEMORY.md` within its limit |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | a built-in skill: how the agent creates and improves its skills (loaded at the start, no service) |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | a mailbox over IMAP and SMTP |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | mailboxes of the participants over IMAP and SMTP |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | files up to 2000 MB in Telegram |
 
 For example, the browser and documents:

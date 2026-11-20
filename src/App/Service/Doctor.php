@@ -187,11 +187,6 @@ final class Doctor {
     /** @return list<array{string, string, string}> */
     private function services(): array {
         $out = [];
-        // spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — which receiving server the sender check of mail trusts
-        $mailHost = Env::raw($this->env, 'MAIL_HOST');
-        if ($mailHost !== null) {
-            $out[] = [self::OK, t('service.doctor.mail'), sprintf(t('service.doctor.mail_authserv'), strtolower(Env::raw($this->env, 'MAIL_AUTHSERV_ID') ?? $mailHost))];
-        }
         foreach ([
             t('service.doctor.sandbox') => ['SANDBOX_TOKEN', Env::raw($this->env, 'SANDBOX_URL') ?? 'http://sandbox:9000'],
             t('service.doctor.browser') => ['BROWSER_TOKEN', Env::raw($this->env, 'BROWSER_URL') ?? 'http://browser:3000'],

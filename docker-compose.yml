@@ -70,7 +70,7 @@ services:
       - internal
 
   # The built-in mail server (MCP, module mercurius-mail-mcp in mcp/mail, COMPOSE_PROFILES=mail, MAIL_MCP_TOKEN): IMAP and
-  # SMTP of the mailbox in the agent's settings. It keeps no credentials: the app sends the mailbox in headers.
+  # SMTP of the mailboxes the participants connected. It keeps no credentials: the app sends the mailbox of a call in headers.
   # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
   mail-mcp:
     profiles: ["mail"]

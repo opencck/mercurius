@@ -88,15 +88,23 @@ final class McpManager {
     /** At start: the tools of every active server; a changed one is turned off. */
     /** @var array<string, string> bearer tokens of built-in servers by name */
     private array $builtin = [];
+    /** @var array<string, \Closure(McpTool, string): \OpenCCK\App\Agent\Tool\Tool> what a built-in server puts around its tools, by server name */
+    private array $wraps = [];
 
     /**
      * A server of this installation (the mail server in compose): its tools are ours, so they are registered without
-     * the owner's approval; the token and the headers come from the settings.
+     * the owner's approval; the token comes from the settings. $wrap puts the application's own tool around each tool
+     * of the server (the mail server: the mailbox of the caller).
+     *
+     * @param (\Closure(McpTool, string): \OpenCCK\App\Agent\Tool\Tool)|null $wrap
      *
      * spec: brief/skills-mcp.md#почта-встроенный-mcp-сервер — the built-in mail server
      */
-    public function connectBuiltin(McpServer $server, #[\SensitiveParameter] string $token): void {
+    public function connectBuiltin(McpServer $server, #[\SensitiveParameter] string $token, ?\Closure $wrap = null): void {
         $this->builtin[$server->name] = $token;
+        if ($wrap !== null) {
+            $this->wraps[$server->name] = $wrap;
+        }
         $this->builtinServers[$server->name] = $server;
         try {
             $count = $this->sync($server, false, new NullCancellation());
@@ -380,7 +388,8 @@ final class McpManager {
                 if ($this->sandbox !== null && $this->zone !== null) {
                     $mcpTool->useSandbox($this->sandbox, $this->zone);
                 }
-                $this->registry->register($mcpTool);
+                $wrap = $this->wraps[$server->name] ?? null;
+                $this->registry->register($wrap === null ? $mcpTool : $wrap($mcpTool, $tool['name']));
             } catch (\InvalidArgumentException $e) {
                 // spec: brief/agent-loop.md#инструменты — a tool with a schema no model can call is left out
                 $this->logger->warning('An MCP tool is not registered', ['server' => $server->name, 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);

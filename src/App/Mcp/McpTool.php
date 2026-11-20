@@ -224,6 +224,19 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
+        return $this->executeWith($args, $context, null);
+    }
+
+    /**
+     * The call with the headers of this one request instead of the server's own: the account of the caller.
+     *
+     * spec: brief/skills-mcp.md#ящики-участников-и-проектов — the mailbox goes in the headers of each request
+     *
+     * @param array<string, mixed> $args
+     * @param array<non-empty-string, string>|null $headers null — the headers of the server
+     */
+    public function executeWith(array $args, ToolContext $context, #[\SensitiveParameter] ?array $headers): ToolResult {
+        $server = $headers === null ? $this->server : $this->server->withHeaders($headers);
         $refusal = $this->breaker->refusal($this->server->name);
         if ($refusal !== null) {
             return ToolResult::error($refusal);
@@ -236,7 +249,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
             $args['files'] = $files;
         }
         try {
-            $answer = $this->client->call($this->server, ($this->token)(), $this->remoteName, $args, $context->cancellation);
+            $answer = $this->client->call($server, ($this->token)(), $this->remoteName, $args, $context->cancellation);
             [$text, $error] = $answer;
             $returned = $answer[2] ?? [];
         } catch (RuntimeException $e) {

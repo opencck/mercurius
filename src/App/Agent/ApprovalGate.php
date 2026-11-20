@@ -15,5 +15,6 @@ use OpenCCK\Domain\Entity\Principal;
  * spec: brief/agent-loop.md#подтверждения-и-запреты — a paused tool call, the owner answers through the channel
  */
 interface ApprovalGate {
-    public function request(Run $run, ValidatedCall $call, Principal $principal): void;
+    /** @param ?Principal $decider the participant who decides instead of the owner: the card goes to their private chat */
+    public function request(Run $run, ValidatedCall $call, Principal $principal, ?Principal $decider = null): void;
 }

@@ -114,6 +114,13 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'projects' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.projects'),
     // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — how to log in and which profile is used
     'browser' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.browser'),
+    // spec: brief/skills-mcp.md#ящики-участников-и-проектов — how a mailbox is connected and who confirms sending; whether
+    // the tools are there and whether the one who asks may use them is counted at the call
+    'mail' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.mail') . "\n\n" . sprintf(
+        \Mercurius\I18n\t('self.mail.now'),
+        $tools->get('mcp_mail_mail_list') !== null ? \Mercurius\I18n\t('self.modules.up') : \Mercurius\I18n\t('self.modules.down'),
+        \OpenCCK\App\Mail\Mailboxes::may($c->principal) ? \Mercurius\I18n\t('self.mail.power_yes') : \Mercurius\I18n\t('self.mail.power_no'),
+    ),
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
 ]));
 
