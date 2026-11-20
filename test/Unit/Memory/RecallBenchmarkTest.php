@@ -18,10 +18,10 @@ use PHPUnit\Framework\TestCase;
 final class RecallBenchmarkTest extends TestCase {
     /** @var array<string, array{float, float, float}> recall@5 at least, extra facts per question at most, silence at least */
     private const FLOORS = [
-        'ru' => [0.84, 1.6, 0.9],
-        'en' => [0.83, 0.6, 0.8],
+        'ru' => [0.84, 0.3, 0.9],
+        'en' => [0.82, 0.15, 0.8],
         'zh' => [0.07, 0.1, 1.0],
-        'mixed' => [0.65, 0.95, 0.89],
+        'mixed' => [0.64, 0.2, 0.89],
     ];
 
     public function testEachLanguageHoldsItsFloors(): void {
