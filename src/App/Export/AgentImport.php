@@ -64,6 +64,11 @@ final class AgentImport {
         return ['commit' => trim((string) file_get_contents($staging . '/commit')), 'bytes' => (int) filesize($staging . '/db.dump')];
     }
 
+    /** Where a checked archive lies until the yes, the no or a partial import. */
+    public function staging(): string {
+        return $this->dir('staging');
+    }
+
     public function prepared(): bool {
         return is_dir($this->dir('staging'));
     }

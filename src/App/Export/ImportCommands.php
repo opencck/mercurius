@@ -47,9 +47,11 @@ final class ImportCommands {
         private readonly LoggerInterface $logger,
         /** storage/app/import: archives the owner put there and the downloaded one */
         private readonly string $folder,
+        private readonly ?PartialImport $partial = null,
     ) {}
 
-    public function start(string $chatId, #[\SensitiveParameter] string $argument, ?Attachment $file): string {
+    /** @param int $owner who asks: the skills of a partial import go into this participant's folder */
+    public function start(string $chatId, #[\SensitiveParameter] string $argument, ?Attachment $file, int $owner = 0): string {
         $argument = trim($argument);
         if ($this->busy) {
             return t('export.busy');
@@ -61,6 +63,9 @@ final class ImportCommands {
         }
         if (strtolower($argument) === 'yes') {
             return $this->confirm($chatId);
+        }
+        if (in_array(strtolower($argument), ['memory', 'skills'], true)) {
+            return $this->part($chatId, strtolower($argument), $owner);
         }
         // a password may hold spaces: with a file attached it is the whole argument, otherwise the last word is the name
         $password = $argument;
@@ -135,6 +140,40 @@ final class ImportCommands {
             }
         })->ignore();
         return t('import.saving');
+    }
+
+    /** A part of the checked archive into the running agent; the archive stays for the other part or the yes. */
+    private function part(string $chatId, string $part, int $owner): string {
+        if ($this->partial === null) {
+            return t('import.usage');
+        }
+        $prepared = $this->prepared;
+        if ($prepared === null || !$this->import->prepared()) {
+            return t('import.nothing');
+        }
+        if (time() - $prepared['at'] > self::CONFIRM_SECONDS) {
+            $this->prepared = null;
+            $this->import->discard();
+            return t('import.expired');
+        }
+        $this->busy = true;
+        $partial = $this->partial;
+        async(function () use ($chatId, $part, $owner, $partial): void {
+            try {
+                if ($part === 'memory') {
+                    $this->say($chatId, sprintf(t('import.memory_done'), $partial->memory($this->import->staging())));
+                } else {
+                    $names = $partial->skills($this->import->staging(), $owner, new TimeoutCancellation(self::TIMEOUT));
+                    $this->say($chatId, $names === [] ? t('import.skills_none') : sprintf(t('import.skills_done'), implode(', ', $names)));
+                }
+            } catch (Throwable $e) {
+                $this->logger->error('Partial import failed', ['part' => $part, 'error' => $e::class, 'message' => mb_substr($e->getMessage(), 0, 300)]);
+                $this->say($chatId, t('import.failed'));
+            } finally {
+                $this->busy = false;
+            }
+        })->ignore();
+        return t('import.part_started');
     }
 
     private function download(?Attachment $file): ?string {

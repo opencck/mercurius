@@ -12,6 +12,7 @@ use OpenCCK\App\Export\AgentExport;
 use OpenCCK\App\Export\AgentImport;
 use OpenCCK\App\Export\ArchiveCrypto;
 use OpenCCK\App\Export\ImportCommands;
+use OpenCCK\App\Export\PartialImport;
 use OpenCCK\Test\Support\FakeChannel;
 use Psr\Log\NullLogger;
 
@@ -51,6 +52,10 @@ final class ImportCommandsTest extends AsyncTestCase {
      * @param array<string, string> $env
      */
     private static function fake(array $command, array $env): void {
+        if ($command[0] === 'pg_restore') {
+            file_put_contents($command[4] ?? '', "COPY public.facts (id, scope, category, text, trust, provenance, status) FROM stdin;\n1\towner\tknowledge\tИз архива\t0.8\towner_said\tactive\n\\.\n");
+            return;
+        }
         if ($command[0] === 'tar' && $command[1] === '-xf') {
             foreach (explode('|', (string) file_get_contents($command[2])) as $part) {
                 [$name, $content] = explode('=', $part, 2) + [1 => ''];
@@ -67,7 +72,7 @@ final class ImportCommandsTest extends AsyncTestCase {
         return (string) file_get_contents($bytes);
     }
 
-    private function commands(): ImportCommands {
+    private function commands(?PartialImport $partial = null): ImportCommands {
         $storage = $this->storage;
         return new ImportCommands(
             new AgentImport(self::fake(...), ['host' => 'h', 'port' => 5432, 'user' => 'u', 'password' => 'p', 'name' => 'n'], $storage),
@@ -81,6 +86,7 @@ final class ImportCommandsTest extends AsyncTestCase {
             $this->channel,
             new NullLogger(),
             $storage . '/import',
+            $partial,
         );
     }
 
@@ -144,5 +150,22 @@ final class ImportCommandsTest extends AsyncTestCase {
         $answer = $commands->start('42', self::PASSWORD, new Attachment(AttachmentKind::Document, 'f1', 'agent.mrcx', null, ImportCommands::DOWNLOAD_LIMIT + 1));
 
         self::assertSame(t('import.too_large'), $answer);
+    }
+
+    public function testOnlyTheMemoryOfTheArchiveIsTakenAndTheArchiveStillWaits(): void {
+        file_put_contents($this->storage . '/import/agent.mrcx', $this->sealed());
+        $memory = new \OpenCCK\Test\Support\InMemoryMemoryStore();
+        $commands = $this->commands(new PartialImport(self::fake(...), $memory, new \OpenCCK\Memory\Domain\TextAnalyzer()));
+
+        self::assertSame(t('import.nothing'), $commands->start('42', 'memory', null, 1), 'nothing before a checked archive');
+        $commands->start('42', self::PASSWORD . ' agent.mrcx', null, 1);
+        delay(0.6);
+        self::assertSame(t('import.part_started'), $commands->start('42', 'memory', null, 1));
+        delay(0.1);
+
+        self::assertSame(['Из архива'], array_map(static fn($f): string => $f->text, $memory->active(10)));
+        self::assertStringContainsString(sprintf(t('import.memory_done'), 1), $this->texts());
+        self::assertSame(0, $this->restarts(), 'nothing replaced, no restart');
+        self::assertDirectoryExists($this->storage . '/import/staging', 'the archive waits for the other part or the yes');
     }
 }

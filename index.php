@@ -1166,6 +1166,17 @@ $chat->useImport(new \OpenCCK\App\Export\ImportCommands(
     $channel,
     $logger,
     PATH_ROOT . '/storage/import',
+    // spec: BRIEF.md#экспорт-и-импорт-агента — /import memory, /import skills: a part of the archive, nothing replaced
+    new \OpenCCK\App\Export\PartialImport(
+        \OpenCCK\App\Export\ProcessRunner::closure(),
+        $memoryStore,
+        $textAnalyzer,
+        $sandbox,
+        static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principals->find($id);
+            return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+        },
+    ),
 ));
 // after an import: the working folders back through the executor, and the owner told how it went
 if ($imported !== null || $importFailed) {

@@ -282,9 +282,9 @@ final class ChatService implements MessageHandler {
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, t(self::SECRET_PRIVATE));
             } else {
-                $this->reply($message, $this->import->start($message->chatId, $argument, $file));
+                $this->reply($message, $this->import->start($message->chatId, $argument, $file, $principal->id));
             }
-            if (!in_array(strtolower($argument), ['', 'yes', 'no'], true) && !$this->channel->delete($message->chatId, $message->messageId)) {
+            if (!in_array(strtolower($argument), ['', 'yes', 'no', 'memory', 'skills'], true) && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
