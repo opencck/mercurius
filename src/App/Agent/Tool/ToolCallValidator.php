@@ -99,8 +99,10 @@ final class ToolCallValidator {
         if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
             return $this->invalid($call, $tool, null, t('tool.tool_call_validator.argumenty_dolzhny_byt_json_obektom'));
         }
+        /** @var array<array-key, mixed> $object */
+        $object = $decoded;
         /** @var array<string, mixed> $args */
-        $args = self::coerce($decoded, $tool->definition()->parameters);
+        $args = self::coerce(self::unglue($object), $tool->definition()->parameters);
 
         $key = $call->name . "\0" . CanonicalJson::encode($args);
         if (isset($seen[$key])) {
@@ -114,6 +116,48 @@ final class ToolCallValidator {
         }
 
         return new ValidatedCall($call, $tool, $args, null, $tool->danger($args));
+    }
+
+    /**
+     * Takes apart the names of arguments that carry the tags of a model's own call format. Some models write a call as
+     * `<arg_key>name</arg_key><arg_value>value</arg_value>` and, on a long value, let a piece of it into the JSON: the
+     * name becomes `where=project</arg_value><arg_key>body`. The value after the last name goes to that name; what
+     * stood before it is the earlier argument and its value — an empty one stays empty, for the schema to say so:
+     * a lost value is not guessed.
+     *
+     * spec: brief/agent-loop.md#инструменты — a name glued by a leaked call format is taken apart before the schema check
+     * ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221fa:L70-L80 — hermes knows the same leak
+     *      (`<arg_key>`, `</arg_value>`) and cuts it out of the text of an answer; here it is repaired in the names of
+     *      arguments, where it breaks a call
+     *
+     * @param array<array-key, mixed> $args
+     * @return array<array-key, mixed>
+     */
+    private static function unglue(array $args): array {
+        $bare = static fn(string $text): string => trim(preg_replace('~</?arg_(?:key|value)>~i', '', $text) ?? $text);
+        $out = [];
+        /** @psalm-suppress MixedAssignment the values are whatever the model sent; the schema judges them later */
+        foreach ($args as $name => $value) {
+            if (!is_string($name) || preg_match('~</?arg_(?:key|value)>~i', $name) !== 1) {
+                $out[$name] = $value;
+                continue;
+            }
+            $parts = preg_split('~(?:</arg_value>)?\s*<arg_key>~i', preg_replace('~</arg_key>\s*(?:<arg_value>)?$~i', '', $name) ?? $name);
+            $parts = $parts === false ? [$name] : $parts;
+            $last = $bare($parts[count($parts) - 1]);
+            $parts = array_slice($parts, 0, -1);
+            foreach ($parts as $part) {
+                $pair = preg_split('~\s*(?:=|</arg_key>\s*<arg_value>)\s*~i', trim($part), 2);
+                $earlier = $bare($pair === false ? $part : $pair[0]);
+                if ($earlier !== '' && !array_key_exists($earlier, $out)) {
+                    $out[$earlier] = $bare($pair === false ? '' : ($pair[1] ?? ''));
+                }
+            }
+            if ($last !== '') {
+                $out[$last] = $value;
+            }
+        }
+        return $out;
     }
 
     /** @param array<string, true> $taken */

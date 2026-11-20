@@ -119,6 +119,35 @@ final class ToolCallValidatorTest extends TestCase {
         self::assertSame(['call_0', 'call_0-2', 'call_1-2'], array_map(static fn($c) => $c->call->id, $outcome->calls));
     }
 
+    public function testArgumentNamesGluedByALeakedCallFormatAreTakenApart(): void {
+        // spec: brief/agent-loop.md#инструменты — a name of an argument that carries the tags of the model's own call format
+        //       is taken apart: the value goes to the argument it belongs to, a lost value stays empty for the schema to name
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('save', DangerClass::Write, [
+            'type' => 'object',
+            'properties' => ['name' => ['type' => 'string'], 'where' => ['type' => 'string', 'enum' => ['mine', 'project']], 'body' => ['type' => 'string']],
+            'required' => ['name', 'body'],
+            'additionalProperties' => false,
+        ]));
+        $validator = new ToolCallValidator($registry);
+        $policy = new ParticipantPolicy(['save'], new RunLimits(30, 1000, 900, 120), null, true);
+
+        $kept = $validator->validate([new ToolCall('c1', 'save', '{"name":"memo","where=project</arg_value><arg_key>body":"text of the skill"}')], $policy);
+        self::assertNull($kept->calls[0]->error);
+        self::assertSame(['name' => 'memo', 'where' => 'project', 'body' => 'text of the skill'], $kept->calls[0]->args);
+
+        $lost = $validator->validate([new ToolCall('c2', 'save', '{"name":"memo","where=</arg_value><arg_key>body":"text of the skill"}')], $policy);
+        self::assertSame('text of the skill', $lost->calls[0]->args['body'] ?? null, 'the text reached its argument');
+        self::assertStringContainsString('where:', (string) $lost->calls[0]->error, 'the value that was lost is named, not guessed');
+        self::assertStringNotContainsString('arg_key', (string) $lost->calls[0]->error);
+
+        $wrapped = $validator->validate([new ToolCall('c3', 'save', '{"<arg_key>name</arg_key>":"memo","body":"x"}')], $policy);
+        self::assertSame(['name' => 'memo', 'body' => 'x'], $wrapped->calls[0]->args);
+
+        $plain = $validator->validate([new ToolCall('c4', 'save', '{"name":"a=b","body":"1 < 2 </arg_value>"}')], $policy);
+        self::assertSame(['name' => 'a=b', 'body' => '1 < 2 </arg_value>'], $plain->calls[0]->args, 'values are not touched');
+    }
+
     public function testSchemaErrorsAreListed(): void {
         $outcome = $this->validator->validate([new ToolCall('c1', 'read', '{"q": 5}')], $this->policy());
 
