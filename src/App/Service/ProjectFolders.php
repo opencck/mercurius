@@ -12,14 +12,17 @@ use RuntimeException;
 
 /**
  * Moves the folder of a project (`projects/<n>`: its skills and files) from the sandbox of one participant to that of
- * another, when the project gets a new owner. Each side is worked by its own participant: one packs, the other
- * unpacks; the source is removed only after the copy is in place.
+ * another, when the project gets a new owner. Each side is worked by its own participant: one packs the folder and cuts
+ * the archive into pieces, the pieces go over one by one, the other puts them together and unpacks; the source is
+ * removed only after the copy is in place.
  *
  * spec: brief/participants.md#доступ-к-проектам-и-передача — the folder of a project follows the project
  */
 final class ProjectFolders {
-    /** an archive of a project larger than this is not moved: the handover is refused with the reason */
-    public const MAX_BYTES = 256 * 1024 * 1024;
+    /** a piece of the archive: the sandbox gives a file of up to 25 MB in one read */
+    public const PIECE_BYTES = 16_000_000;
+    /** an archive of more pieces than this (about 1 GB) is not moved: the handover is refused with the reason */
+    public const MAX_PIECES = 64;
 
     /** @param Closure(int): ?SandboxLimits $limitsOf the sandbox limits of a participant; null — no sandbox for them */
     public function __construct(
@@ -36,25 +39,39 @@ final class ProjectFolders {
         }
         // the paths are made of the project's number alone
         $dir = 'projects/' . $project;
-        $archive = '.mercurius/handover-' . $project . '.tgz';
+        $archive = '.mercurius/handover-' . $project;
         $none = new NullCancellation();
-        $packed = $this->sandbox->exec($from, $source, 'project-pack-' . $project, sprintf('if [ -d %1$s ]; then mkdir -p .mercurius && tar -czf %2$s %1$s && echo packed; else echo none; fi', $dir, $archive), '.', 300, $none);
+        $packed = $this->sandbox->exec($from, $source, 'project-pack-' . $project, sprintf(
+            'if [ -d %1$s ]; then mkdir -p .mercurius && rm -f %2$s.part-* && tar -czf %2$s.tgz %1$s && split -b %3$d -d -a 4 %2$s.tgz %2$s.part- && rm -f %2$s.tgz && echo "parts $(ls %2$s.part-* | wc -l)"; else echo none; fi',
+            $dir,
+            $archive,
+            self::PIECE_BYTES,
+        ), '.', 600, $none);
         if (trim($packed->stdout) === 'none') {
             return;
         }
-        if (trim($packed->stdout) !== 'packed') {
+        if (preg_match('/^parts\s+(\d+)$/', trim($packed->stdout), $m) !== 1 || (int) $m[1] < 1) {
             throw new RuntimeException('the folder could not be packed: ' . mb_substr(trim($packed->stderr), 0, 200));
         }
+        $pieces = (int) $m[1];
+        $clean = fn(): \OpenCCK\App\Agent\Sandbox\CommandOutcome => $this->sandbox->exec($from, $source, 'project-clean-' . $project, sprintf('rm -f %s.part-*', $archive), '.', 60, $none);
+        if ($pieces > self::MAX_PIECES) {
+            $clean();
+            throw new RuntimeException(sprintf('the folder is too large to move: more than %d MB packed', intdiv(self::PIECE_BYTES * self::MAX_PIECES, 1_000_000)));
+        }
         try {
-            $this->sandbox->put($to, $target, $archive, $this->sandbox->fetch($from, $source, $archive, self::MAX_BYTES, $none), $none);
-            $unpacked = $this->sandbox->exec($to, $target, 'project-unpack-' . $project, sprintf('tar -xzf %1$s && echo unpacked; rm -f %1$s', $archive), '.', 300, $none);
+            for ($i = 0; $i < $pieces; $i++) {
+                $piece = sprintf('%s.part-%04d', $archive, $i);
+                $this->sandbox->put($to, $target, $piece, $this->sandbox->fetch($from, $source, $piece, self::PIECE_BYTES + 1, $none), $none);
+            }
+            $unpacked = $this->sandbox->exec($to, $target, 'project-unpack-' . $project, sprintf('cat %1$s.part-* | tar -xzf - && echo unpacked; rm -f %1$s.part-*', $archive), '.', 600, $none);
             if (trim($unpacked->stdout) !== 'unpacked') {
-                throw new RuntimeException('the folder could not be unpacked: ' . mb_substr(trim($unpacked->stderr), 0, 200));
+                throw new RuntimeException('the folder was not unpacked: ' . mb_substr(trim($unpacked->stderr), 0, 200));
             }
         } catch (\Throwable $e) {
-            $this->sandbox->exec($from, $source, 'project-pack-' . $project, 'rm -f ' . $archive, '.', 60, $none);
+            $clean();
             throw $e;
         }
-        $this->sandbox->exec($from, $source, 'project-drop-' . $project, sprintf('rm -rf %s %s', $dir, $archive), '.', 120, $none);
+        $this->sandbox->exec($from, $source, 'project-drop-' . $project, sprintf('rm -rf %s %s.part-*', $dir, $archive), '.', 120, $none);
     }
 }
