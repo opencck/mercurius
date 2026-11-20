@@ -83,3 +83,7 @@
 	path = packages/peer
 	url = https://github.com/opencck/mercurius-peer.git
 	branch = master
+[submodule "skills/memory-file"]
+	path = skills/memory-file
+	url = https://github.com/opencck/mercurius-skill-memory-file.git
+	branch = master

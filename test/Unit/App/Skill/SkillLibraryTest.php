@@ -83,6 +83,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertSame('Моя выкладка', $private['deploy']['description'] ?? null, 'the participant beats the built-in');
         self::assertArrayHasKey('notes', $private);
         self::assertArrayHasKey('skill-creator', $private, 'built-in ones are everywhere');
+        self::assertArrayHasKey('memory-file', $private, 'the skill that keeps MEMORY.md within its limit');
         self::assertArrayNotHasKey('seo', $private, 'no project, no project skills');
         self::assertArrayNotHasKey('other-name', $private);
 
@@ -283,5 +284,18 @@ description: Отчёт
         self::assertStringContainsString('r2', $commands->skill($this->owner, $message, 'weekly update'));
         self::assertStringContainsString('Версия r2.', $this->sandbox->files[1]['.mercurius/skills/weekly/SKILL.md'] ?? '');
         self::assertStringContainsString('нет источника', $commands->skill($this->owner, $message, 'deploy update'), 'a skill without a source');
+    }
+
+    public function testABuiltInSkillTakesNoFilesOfItsRepository(): void {
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — README, LICENSE and the BRIEF.md of a skill's repository are not its files
+        $builtin = \OpenCCK\App\Skill\BuiltinSkills::load(dirname(__DIR__, 4) . '/skills');
+
+        foreach (['skill-creator', 'memory-file'] as $name) {
+            $files = array_keys($builtin[$name]->files ?? []);
+            self::assertNotContains('BRIEF.md', $files, $name);
+            self::assertNotContains('README.md', $files, $name);
+        }
+        self::assertContains('references/structure.md', array_keys($builtin['memory-file']->files ?? []));
+        self::assertLessThanOrEqual(\OpenCCK\Domain\Skill\Skill::DESCRIPTION_MAX, mb_strlen($builtin['memory-file']->description ?? ''));
     }
 }

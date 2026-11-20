@@ -38,7 +38,7 @@ API.
 1. Clone the code and the package submodules (reference repositories are not needed to run it):
    ```sh
    git clone https://github.com/opencck/mercurius.git && cd mercurius
-   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator
+   git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
    ```
 2. Copy `.env.example` to `.env` (mode `600`) and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your
    Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
@@ -61,6 +61,7 @@ compose profile, off by default. Turn one on with its submodule, a profile in `C
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: pages, clicks, scripts, screenshots |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | frames and sound of a video for models that do not watch video |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | the text of office documents and PDF; new docx, xlsx, pptx |
+| [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | a built-in skill: how the agent keeps a participant's `MEMORY.md` within its limit |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | a built-in skill: how the agent creates and improves its skills (loaded at the start, no service) |
 | [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | a mailbox over IMAP and SMTP |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | files up to 2000 MB in Telegram |

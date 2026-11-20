@@ -13,7 +13,7 @@ use Psr\Log\NullLogger;
  * and its files — the same format as a skill in a sandbox folder or one imported from GitHub or an archive. They are
  * read at the start and served as they are, everywhere; nothing is copied, so updating the code brings no conflicts:
  * a changed copy lives in a folder of the participant or the project and wins over the built-in one by its name.
- * The repository's README, licence and CI are not part of the skill.
+ * The repository's README, BRIEF.md, licence and CI are not part of the skill.
  *
  * spec: brief/skills-mcp.md#скиллы-и-mcp — built-in skills plus the folders of the participant and the project
  * ref: references/hermes-agent/optional-skills/software-development/hermes-agent-skill-authoring/SKILL.md@e96221fa:L16-L22
@@ -21,7 +21,7 @@ use Psr\Log\NullLogger;
  */
 final class BuiltinSkills {
     /** files of the repository, not of the skill */
-    private const NOT_SKILL = ['README.md', 'README.ru.md', 'LICENSE', 'composer.json', 'composer.lock', 'package.json'];
+    private const NOT_SKILL = ['README.md', 'README.ru.md', 'BRIEF.md', 'LICENSE', 'composer.json', 'composer.lock', 'package.json'];
 
     /** @return array<string, SkillBundle> name => skill */
     public static function load(string $directory, LoggerInterface $logger = new NullLogger()): array {

@@ -35,7 +35,7 @@ jobs:
       # The package submodules (installed as Composer path repositories) and the built-in skill the tests read.
       # Reference submodules (references/) are large and not needed for the checks.
       - name: Package submodules
-        run: git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator
+        run: git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
 
       - uses: shivammathur/setup-php@v2
         with:
