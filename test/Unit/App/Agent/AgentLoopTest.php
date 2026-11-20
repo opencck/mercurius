@@ -307,6 +307,25 @@ final class AgentLoopTest extends AsyncTestCase {
         }
     }
 
+    public function testAnAnswerAboutTheWorldIsNotADenialOfAnAbility(): void {
+        // spec: brief/agent-loop.md#знания-агента-о-себе — «так делать нельзя» says nothing of the agent: the answer goes out as it is
+        $self = new FakeTool('self_info');
+        $this->registry->register($self);
+        foreach ([
+            'Спирт туда лить нельзя: пластик помутнеет. Протрите влажной салфеткой.',
+            'Вернуть билет после вылета невозможно, но сбор за багаж вернут.',
+            'У него нет возможности приехать раньше пятницы.',
+        ] as $answer) {
+            $llm = new ScriptedLlm([ScriptedLlm::text($answer)]);
+
+            $this->execute($llm, $this->start('что будет, если так сделать?'));
+
+            self::assertCount(1, $llm->requests, $answer);
+            self::assertSame($answer, $this->observer->final);
+        }
+        self::assertCount(0, $self->calls);
+    }
+
     public function testADenialAfterSelfInfoIsLetThrough(): void {
         $this->registry->register(new FakeTool('self_info'));
         $llm = new ScriptedLlm([

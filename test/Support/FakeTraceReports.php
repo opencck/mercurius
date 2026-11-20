@@ -15,7 +15,7 @@ final class FakeTraceReports implements TraceReportRepository {
      * @param list<array{model: string, calls: int, input: int, output: int, cost: float}> $models
      * @param list<array{day: string, calls: int, cost: float}> $days
      * @param list<array{id: int, cost: float, tokens: int}> $costliest
-     * @param list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}> $runs
+     * @param list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string, helpers?: list<array{model: string, tokens: int, cost: float}>}> $runs
      */
     public function __construct(
         public array $models = [],

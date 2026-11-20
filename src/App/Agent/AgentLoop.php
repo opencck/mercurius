@@ -85,9 +85,12 @@ final class AgentLoop {
     private const DENIAL_MARKERS = [
         'не вижу такой возможности', 'нет такой возможности', 'такой возможности нет', 'нет возможности',
         'нет такой функции', 'такой функции нет', 'нет инструмента', 'нет такого инструмента', 'не умею',
-        'не поддерживаю', 'не могу', 'нельзя', 'невозможно',
-        "can't", 'cannot', 'not able to', 'unable to', 'no such feature', "don't have the ability", 'not possible',
+        'не поддерживаю', 'не могу',
+        "can't", 'cannot', 'not able to', 'unable to', 'no such feature', "don't have the ability",
     ];
+    /** words that deny anything at all («так делать нельзя»): a denial of the agent's own ability only next to a word about itself */
+    private const IMPERSONAL_MARKERS = ['нет возможности', 'нельзя', 'невозможно', 'not possible'];
+    private const ABOUT_ITSELF = '~(?<![\p{L}])(?:я|мне|меня|мной|мо[йяеёию]|моей|моих|моим|i|me|my)(?![\p{L}])~iu';
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
@@ -661,9 +664,18 @@ final class AgentLoop {
     /** The answer says the agent has no such ability or feature: worth a look in self_info first. */
     private static function deniesAbility(string $text): bool {
         $lower = mb_strtolower($text);
-        foreach (self::DENIAL_MARKERS as $marker) {
+        foreach (array_diff(self::DENIAL_MARKERS, self::IMPERSONAL_MARKERS) as $marker) {
             if (str_contains($lower, $marker)) {
                 return true;
+            }
+        }
+        // spec: brief/agent-loop.md#знания-агента-о-себе — «спирт туда лить нельзя» is an answer about the world, not a denial of
+        //       an ability: an impersonal word counts only in a sentence where the agent speaks of itself
+        foreach (preg_split('~[.!?\n]+~u', $lower) ?: [] as $sentence) {
+            foreach (self::IMPERSONAL_MARKERS as $marker) {
+                if (str_contains($sentence, $marker) && preg_match(self::ABOUT_ITSELF, $sentence) === 1) {
+                    return true;
+                }
             }
         }
         return false;

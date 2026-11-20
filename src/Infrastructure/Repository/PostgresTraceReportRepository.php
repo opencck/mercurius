@@ -141,7 +141,10 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
             "SELECT r.id, r.status, r.stop_reason, r.model, r.turns, r.tokens_used AS tokens, r.active_ms::int AS active_ms,
                     to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS started,
                     coalesce((SELECT sum(cost_usd) FROM llm_calls c
-                              WHERE c.run_id IN (SELECT r.id UNION ALL SELECT w.id FROM runs w WHERE w.parent_run_id = r.id)), 0)::float8 AS cost
+                              WHERE c.run_id IN (SELECT r.id UNION ALL SELECT w.id FROM runs w WHERE w.parent_run_id = r.id)), 0)::float8 AS cost,
+                    coalesce((SELECT string_agg(h.model || ' ' || h.tokens || ' ' || h.cost, ';' ORDER BY h.cost DESC, h.model)
+                              FROM (SELECT c.model, sum(c.input_tokens + c.cache_read_tokens + c.cache_write_tokens + c.output_tokens)::bigint AS tokens, sum(c.cost_usd)::float8 AS cost
+                                    FROM llm_calls c WHERE c.run_id = r.id AND c.model <> r.model GROUP BY c.model) h), '') AS helpers
              FROM runs r WHERE (cardinality(?::bigint[]) = 0 AND r.parent_run_id IS NULL
                                 AND r.conversation_id NOT IN (SELECT id FROM conversations WHERE channel = 'eval') OR r.id = ANY(?::bigint[]))
                AND (?::text IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT ?",
@@ -158,9 +161,22 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
                 'active_ms' => self::int($row, 'active_ms'),
                 'cost' => self::float($row, 'cost'),
                 'started' => self::str($row, 'started'),
+                'helpers' => self::helpers(self::str($row, 'helpers')),
             ];
         }
         return $rows;
+    }
+
+    /** @return list<array{model: string, tokens: int, cost: float}> */
+    private static function helpers(string $packed): array {
+        $found = [];
+        foreach ($packed === '' ? [] : explode(';', $packed) as $part) {
+            $fields = explode(' ', $part);
+            if (count($fields) === 3) {
+                $found[] = ['model' => $fields[0], 'tokens' => (int) $fields[1], 'cost' => (float) $fields[2]];
+            }
+        }
+        return $found;
     }
 
     public function delegation(DateTimeImmutable $since): array {

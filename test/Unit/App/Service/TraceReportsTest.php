@@ -42,6 +42,24 @@ final class TraceReportsTest extends AsyncTestCase {
         $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
     }
 
+    public function testTheListOfRunsNamesTheOtherModelsThatCostMoney(): void {
+        // spec: brief/operations.md#расход-что-знает-агент — the main model may be free while the search and the vision cost:
+        //       the line of a run names them, so its money is not put on the main model
+        $figures = new FakeTraceReports(runs: [[
+            'id' => 692, 'status' => 'done', 'reason' => 'answered', 'model' => 'openrouter:nvidia/free-model', 'turns' => 4, 'tokens' => 132554, 'active_ms' => 31000, 'cost' => 0.0227, 'started' => '2026-11-20 15:03',
+            'helpers' => [['model' => 'openrouter:openai/search-model', 'tokens' => 9122, 'cost' => 0.0223], ['model' => 'openrouter:anthropic/vision-model', 'tokens' => 2035, 'cost' => 0.0004]],
+        ]]);
+        $text = (new TraceReports($figures, new InMemoryTraceRepository()))->runs(10);
+
+        self::assertStringContainsString('openrouter:nvidia/free-model', $text);
+        self::assertStringContainsString('openrouter:openai/search-model', $text);
+        self::assertStringContainsString('9 122', $text);
+        self::assertStringContainsString('$0.0223', $text);
+        self::assertStringContainsString('openrouter:anthropic/vision-model', $text);
+
+        self::assertStringNotContainsString(\Mercurius\I18n\t('service.trace_reports.helper'), $this->stack->channel->texts('send') === [] ? '' : $this->lastText());
+    }
+
     private function lastText(): string {
         $texts = $this->stack->channel->texts('send');
         self::assertNotSame([], $texts);

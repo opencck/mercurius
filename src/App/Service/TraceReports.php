@@ -160,7 +160,7 @@ final class TraceReports {
         return $missing === [] ? $text : $text . "\n" . sprintf(t('service.trace_reports.runs_missing'), implode(', ', array_map(static fn(int $id): string => '#' . $id, $missing)));
     }
 
-    /** @param list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string}> $rows */
+    /** @param list<array{id: int, status: string, reason: ?string, model: string, turns: int, tokens: int, active_ms: int, cost: float, started: string, helpers?: list<array{model: string, tokens: int, cost: float}>}> $rows */
     private function runLines(array $rows, string $title, bool $hint = true): string {
         if ($rows === []) {
             return t('service.trace_reports.zapuskov_esche_ne_bylo');
@@ -179,6 +179,11 @@ final class TraceReports {
                 self::usd($row['cost']),
                 $row['model'],
             );
+            // spec: brief/operations.md#расход-что-знает-агент — the money of a run may be another model's (search, vision): they are named
+            $helpers = array_map(static fn(array $h): string => sprintf(t('service.trace_reports.helper'), $h['model'], self::n($h['tokens']), self::usd($h['cost'])), $row['helpers'] ?? []);
+            if ($helpers !== []) {
+                $lines[] = sprintf(t('service.trace_reports.helpers'), implode('; ', $helpers));
+            }
         }
         if ($hint) {
             $lines[] = '';
