@@ -235,6 +235,9 @@
 
 Код на сервер попадает только через git: каталог `/home/rekryt/docker/mercurius/` — клон `opencck/mercurius` (`master`).
 
+Одной командой шаги 2–4 и 6 делает `bin/update.sh` из каталога экземпляра (на сервере с таймаутом ssh-mcp — в фоне
+через `nohup`); ниже — те же шаги по отдельности.
+
 1. Закоммитить и отправить изменения (`composer check` зелёный, CI прошёл).
 2. На сервере: `cd /home/rekryt/docker/mercurius && git pull --ff-only && git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n mcp/mail services/browser services/telegram-bot-api services/media-video services/media-docs skills/skill-creator` (референсы на сервере не нужны). Модули включаются в `.env` профилем (`COMPOSE_PROFILES`) и токеном — [BRIEF.md → Модули](BRIEF.md#модули-сервисы-mcp-и-скиллы).
 3. Новые переменные окружения — дописать в серверный `.env` через `sftp-upload` (права `600`), не печатая значения.
