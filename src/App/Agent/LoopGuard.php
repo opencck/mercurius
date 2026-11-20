@@ -7,20 +7,28 @@ namespace OpenCCK\App\Agent;
 use OpenCCK\App\Agent\Tool\CanonicalJson;
 
 /**
- * Stops a run that repeats itself: the same call with the same result several times in a row, or the same
- * cycle of 2–4 calls. Warn from the 3rd repeat, halt at the 5th. Its history is kept on the run: a run resumed after an
- * approval or a restart goes on counting.
+ * Stops a run that repeats itself: the same call with the same result several times in a row, the same cycle of 2–4
+ * calls, or the same call with the same result again and again in any order (the model asks what it already knows, the
+ * calls shuffled each turn). Warn from the 3rd repeat, halt at the 5th. A tool that watches the outside world (a
+ * command, a page, a neighbour) may see no change many times while it waits: it is counted only in a row and in
+ * cycles. Its history is kept on the run: a run resumed after an approval or a restart goes on counting.
  *
  * spec: BRIEF.md#запуск-и-цикл — loop guard
  * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L37-L46, L125-L130 — thresholds 3 and 5, period up to 4
  * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L450-L536 (observe_call, _detect_identical_cycle) —
- *      streak and cycle laps; we skip the separate counters for different failing commands and the poller exemption
+ *      streak and cycle laps; we skip the separate counters for different failing commands
+ * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L380-L446 (after_call, _no_progress) — an unchanged
+ *      result of the same call counts even with other calls between; pollers are exempt (an unchanged poll is progress)
  */
 final class LoopGuard {
     public const WARN_AT = 3;
     public const HALT_AT = 5;
     public const MAX_PERIOD = 4;
     private const HISTORY = 64;
+    private const POLLS = [
+        'run_command', 'ssh_run', 'sql_query', 'git', 'http_request', 'tcp_probe', 'browser', 'web_read', 'web_search',
+        'peer_call', 'peer_delegate', 'peer_orchestrate', 'peer_links', 'checkpoint',
+    ];
 
     public const WARNING = 'agent.loop_guard.warning';
 
@@ -46,7 +54,13 @@ final class LoopGuard {
         return sha1($name . "\0" . CanonicalJson::encode($args) . "\0" . $result);
     }
 
-    public function observe(string $signature): GuardVerdict {
+    /** Tools that wait for the outside world: an unchanged answer is not a loop while it is not in a row. */
+    public static function isPoll(string $tool): bool {
+        return in_array($tool, self::POLLS, true) || str_starts_with($tool, 'mcp_');
+    }
+
+    /** @param bool $poll the call watches the outside world (isPoll): only streaks and cycles count */
+    public function observe(string $signature, bool $poll = false): GuardVerdict {
         if ($signature === $this->streakSignature) {
             $this->streak++;
         } else {
@@ -58,7 +72,7 @@ final class LoopGuard {
             array_shift($this->history);
         }
 
-        $count = max($this->streak, $this->cycleLaps());
+        $count = max($this->streak, $this->cycleLaps(), $poll ? 0 : count(array_keys($this->history, $signature, true)));
         return match (true) {
             $count >= self::HALT_AT => GuardVerdict::Halt,
             $count >= self::WARN_AT => GuardVerdict::Warn,

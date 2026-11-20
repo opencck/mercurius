@@ -14,6 +14,11 @@ final class LoopGuardTest extends TestCase {
         return array_map($guard->observe(...), array_values($signatures));
     }
 
+    /** @return list<GuardVerdict> calls of a tool that waits for the outside world */
+    private static function poll(LoopGuard $guard, string ...$signatures): array {
+        return array_map(static fn(string $s): GuardVerdict => $guard->observe($s, true), array_values($signatures));
+    }
+
     public function testThirdIdenticalCallWarns(): void {
         self::assertSame([GuardVerdict::Ok, GuardVerdict::Ok, GuardVerdict::Warn], self::feed(new LoopGuard(), 'a', 'a', 'a'));
     }
@@ -36,7 +41,7 @@ final class LoopGuardTest extends TestCase {
     }
 
     public function testDifferentCallResetsStreak(): void {
-        self::assertSame(GuardVerdict::Ok, self::feed(new LoopGuard(), 'a', 'a', 'b', 'a', 'a')[4]);
+        self::assertSame(GuardVerdict::Ok, self::poll(new LoopGuard(), 'a', 'a', 'b', 'a', 'a')[4], 'a poll counts only in a row');
     }
 
     public function testAlternatingPairIsDetected(): void {
@@ -51,10 +56,31 @@ final class LoopGuardTest extends TestCase {
         for ($i = 0; $i < 6; $i++) {
             array_push($sequence, 'a', 'b', 'c', 'd', 'e');
         }
-        $verdicts = self::feed(new LoopGuard(), ...$sequence);
+        $verdicts = self::poll(new LoopGuard(), ...$sequence);
 
         self::assertNotContains(GuardVerdict::Warn, $verdicts);
         self::assertNotContains(GuardVerdict::Halt, $verdicts);
+    }
+
+    public function testTheSameAnswerAgainInAnyOrderIsNoProgress(): void {
+        // the same few calls with the same results, shuffled each turn: no streak and no cycle, but nothing new
+        $verdicts = self::feed(new LoopGuard(), 'a', 'b', 'a', 'c', 'a', 'b', 'a', 'd', 'a');
+
+        self::assertSame(GuardVerdict::Warn, $verdicts[4], 'the third a');
+        self::assertSame(GuardVerdict::Halt, $verdicts[8], 'the fifth a');
+    }
+
+    public function testAPollThatSeesNoChangeIsNotStoppedOutOfOrder(): void {
+        $verdicts = self::poll(new LoopGuard(), 'a', 'b', 'a', 'c', 'a', 'b', 'a', 'c', 'a');
+
+        self::assertNotContains(GuardVerdict::Halt, $verdicts);
+    }
+
+    public function testPollersAreTheToolsThatWatchTheWorld(): void {
+        self::assertTrue(LoopGuard::isPoll('run_command'));
+        self::assertTrue(LoopGuard::isPoll('mcp_github_list'));
+        self::assertFalse(LoopGuard::isPoll('self_info'));
+        self::assertFalse(LoopGuard::isPoll('memory_search'));
     }
 
     public function testSignatureIgnoresKeyOrder(): void {

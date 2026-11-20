@@ -167,7 +167,7 @@ final class ToolRound {
                 if (!$result instanceof ToolResult) {
                     throw new \LogicException('A tool call produced no result');
                 }
-                $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content));
+                $verdict = $call->args === null ? GuardVerdict::Ok : $state->guard->observe(LoopGuard::signature($call->call->name, $call->args, $result->content), LoopGuard::isPoll($call->call->name));
                 $halted = $halted || $verdict === GuardVerdict::Halt;
                 $warn = $warn || $verdict === GuardVerdict::Warn;
                 // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the same long result again is a reference to the first
