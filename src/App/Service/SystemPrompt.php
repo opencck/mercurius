@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  *      them), here it is for every model: the prompt is fixed per conversation, and the rule costs a few lines
  */
 final class SystemPrompt {
-    public const VERSION = 7;
+    public const VERSION = 8;
 
     public static function text(): string {
         // spec: brief/operations.md#язык-агента — the prompt in the agent's language

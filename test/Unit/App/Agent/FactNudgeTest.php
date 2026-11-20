@@ -35,6 +35,26 @@ final class FactNudgeTest extends AsyncTestCase {
         self::assertSame([], FactNudge::facts('{broken'));
     }
 
+    public function testStandingInstructionsAreRulesNotFacts(): void {
+        // spec: brief/memory.md#одно-знание--в-одно-место — a rule goes to the «Правила» of MEMORY.md, not into a fact
+        $answer = json_encode(['facts' => [], 'rules' => ['Всегда отвечай коротко', 42, '', 'Код давай целиком', 'Третье правило']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        self::assertSame(['Всегда отвечай коротко', 'Код давай целиком'], FactNudge::rules($answer), 'at most two, strings only');
+        self::assertSame([], FactNudge::rules('{"facts": []}'));
+        self::assertStringContainsString('"rules"', \Mercurius\I18n\t('agent.fact_nudge.prompt'));
+    }
+
+    public function testARuleIsAddedToTheRulesOfTheFileOnce(): void {
+        $file = \OpenCCK\App\Agent\MemoryFile::parse("Дочь — Аня");
+
+        $next = $file->withRule('Всегда отвечай коротко');
+
+        self::assertNotNull($next);
+        self::assertSame("## Правила\n- Всегда отвечай коротко\n\n## Заметки\nДочь — Аня\n", $next->text());
+        self::assertNull($next->withRule('- всегда отвечай коротко'), 'the same rule is there already');
+        self::assertSame('- Всегда отвечай коротко', \OpenCCK\App\Agent\MemoryFile::parse($next->text())->rules, 'written back, read the same');
+    }
+
     public function testThePromptSaysEnvironmentFailuresAreNotFacts(): void {
         // spec: brief/memory.md#факты — a failure of the environment is not a fact
         self::assertStringContainsString('таймауты', \Mercurius\I18n\t('agent.fact_nudge.prompt'));

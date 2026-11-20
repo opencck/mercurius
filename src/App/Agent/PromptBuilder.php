@@ -29,8 +29,10 @@ final class PromptBuilder {
      *                         how a neighbour connects), the same for every conversation
      * @param string $notes rules the owner accepted from the agent's proposals (the active version of prompt notes):
      *                      they come right after the constant rules (spec: brief/self-improvement.md#самоулучшение)
+     * @param string $rules the section «Правила» of the MEMORY.md of this conversation, with its heading: instructions of
+     *                      the person (or of the place), not reference data (spec: brief/memory.md#правила-и-заметки-memorymd)
      */
-    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = ''): string {
+    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = '', string $rules = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
         // spec: brief/participants.md#свои-роли — a role is named by the title the owner gave it
         $role = $principal->role->title() !== '' ? $principal->role->title() : match ($principal->role->value) {
@@ -40,7 +42,8 @@ final class PromptBuilder {
             'visitor' => t('agent.prompt_builder.posetitel_tolko_razgovor_bez_instrumento'),
             default => $principal->role->value,
         };
-        return SystemPrompt::text() . (trim($notes) === '' ? '' : "\n\n" . t('agent.prompt_builder.notes') . "\n" . trim($notes)) . "\n\n" . sprintf(
+        return SystemPrompt::text() . (trim($notes) === '' ? '' : "\n\n" . t('agent.prompt_builder.notes') . "\n" . trim($notes))
+            . ($rules === '' ? '' : "\n\n" . $rules) . "\n\n" . sprintf(
             t('agent.prompt_builder.kontekst_sobesednik_dialog_nachat'),
             $who,
             $role,

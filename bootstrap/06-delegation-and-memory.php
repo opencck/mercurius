@@ -138,19 +138,27 @@ $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwne
 });
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
-// spec: brief/memory.md#всегда-в-контексте — the participant's MEMORY.md, whole, with a limit; no sandbox — no file
+// spec: brief/memory.md#файл-памяти-места — MEMORY.md at the root of the folder of the context: the participant's own in their
+// private chat, the project's or the place's for everyone there; no sandbox — no file
+$contextMemory = null;
 if ($sandbox !== null) {
-    $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Principal $principal) use ($sandbox, $policies): string {
-        $limits = $policies->forPrincipal($principal)->sandbox;
-        if ($limits === null) {
-            return '';
-        }
-        try {
-            return $sandbox->fetch($principal->id, $limits, 'MEMORY.md', 400_000, new \Amp\TimeoutCancellation(5));
-        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
-            return ''; // no file yet
-        }
+    $contextMemory = new \OpenCCK\App\Agent\ContextMemory(
+        $sandbox,
+        static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principals->find($principalId);
+            return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+        },
+        $projectRepository,
+        static fn(): ?int => $ownerDirectory->principal()?->id,
+    );
+    $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Principal $principal) use ($contextMemory): string {
+        $place = $contextMemory->personal($principal);
+        return $place === null ? '' : $contextMemory->read($place);
     }, $memorySettings->fileLimit);
+    $scheduler->usePlaceMemory(static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId, bool $private) use ($contextMemory): string {
+        $place = $contextMemory->shared($principal, $channel, $chatId, $threadId, $private);
+        return $place === null ? '' : $contextMemory->read($place);
+    });
 }
 if (!$memorySettings->hasSecret()) {
     $logger->warning('MEMORY_SECRET is not set: the key of forgotten texts comes from the bot token');
@@ -172,7 +180,7 @@ $memoryCards->useCorroboration(static function (int $principalId, string $text) 
 });
 // spec: brief/memory.md#факты — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
-$scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
+$factNudge = new \OpenCCK\App\Agent\FactNudge(
     $llm,
     static fn(): string => (string) $modelRoles->model(ModelRole::CHEAP),
     $transcript,
@@ -182,7 +190,12 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
     $audience,
     $logger,
     is_numeric($factNudgeTurns) ? max(0, min(1000, (int) $factNudgeTurns)) : \OpenCCK\App\Agent\FactNudge::EVERY,
-))->afterRun(...));
+);
+// spec: brief/memory.md#одно-знание--в-одно-место — a standing instruction goes to the rules of the file of its place, not into a fact
+if ($contextMemory !== null) {
+    $factNudge->useMemoryFiles($contextMemory);
+}
+$scheduler->useAfterRun($factNudge->afterRun(...));
 // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);

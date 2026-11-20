@@ -42,6 +42,7 @@ use function Amp\async;
 use function Amp\delay;
 
 use function Mercurius\I18n\t;
+use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 
 /**
  * At most one active run per conversation, each in its own fiber outside the chat queue: the message handler only
@@ -592,10 +593,11 @@ final class RunScheduler {
     }
 
     private function core(Principal $principal, int $conversationId): string {
+        $place = $this->placeMemory($principal, $conversationId)[1];
         if (!$this->audience()->isPrivate($conversationId)) {
-            return '';
+            return $place;
         }
-        return $this->coreOf($principal);
+        return implode("\n\n", array_filter([$this->coreOf($principal), $place], static fn(string $p): bool => $p !== ''));
     }
 
     /**
@@ -616,19 +618,61 @@ final class RunScheduler {
                 $this->logger->warning('Memory core is not available', ['error' => $e::class]);
             }
         }
-        $parts[] = $this->memoryFile($principal);
+        $parts[] = $this->memoryFile($principal)[1];
         return implode("\n\n", array_filter($parts, static fn(string $p): bool => $p !== ''));
+    }
+
+    /**
+     * The section «Правила» of the participant's MEMORY.md as a block of the system prompt, for their private chat.
+     *
+     * spec: brief/memory.md#правила-и-заметки-memorymd — the rules are instructions of the person, apart from the reference data
+     */
+    private function rules(Principal $principal, int $conversationId): string {
+        $own = $this->audience()->isPrivate($conversationId) ? $this->memoryFile($principal)[0] : '';
+        return implode("\n\n", array_filter([$own, $this->placeMemory($principal, $conversationId)[0]], static fn(string $p): bool => $p !== ''));
+    }
+
+    /** @var (Closure(Principal, string, string, string, bool): string)|null the MEMORY.md of the place of a conversation */
+    private ?Closure $placeFile = null;
+
+    /**
+     * The MEMORY.md of the place a conversation is in — a project's or a group's, channel's, topic's — for everyone who
+     * writes there: its rules as instructions of the place, its notes as reference data.
+     *
+     * spec: brief/memory.md#файл-памяти-места
+     *
+     * @param Closure(Principal, string, string, string, bool): string $read the person, channel, chat, topic and whether
+     *        the chat is private; the text of the file, '' — none
+     */
+    public function usePlaceMemory(Closure $read): void {
+        $this->placeFile = $read;
+    }
+
+    /** @return array{string, string} the rules block and the notes block of the place's file */
+    private function placeMemory(Principal $principal, int $conversationId): array {
+        $meta = $this->placeFile === null ? null : $this->conversations->meta($conversationId);
+        if ($this->placeFile === null || $meta === null) {
+            return ['', ''];
+        }
+        try {
+            $file = MemoryFile::parse(($this->placeFile)($principal, $meta->channel, $meta->chatId, $meta->threadId, $this->audience()->isPrivate($conversationId)));
+        } catch (Throwable $e) {
+            $this->logger->warning('MEMORY.md of the place is not available', ['error' => $e::class]);
+            return ['', ''];
+        }
+        return self::memoryBlocks($file, $this->memoryFileLimit, 'place');
     }
 
     /** @var (Closure(Principal): string)|null the participant's MEMORY.md; null — no such file */
     private ?Closure $memoryFile = null;
-    private int $memoryFileLimit = 8000;
+    private int $memoryFileLimit = 4000;
 
     /**
-     * The participant's MEMORY.md, whole in the prompt of their private chat next to layer 1; over its limit its head
-     * goes in with a word to the agent to compress it.
+     * The participant's MEMORY.md in the prompt of their private chat: the rules as a block of their own, the notes next
+     * to layer 1; within its limit the rules whole and the notes in what is left, with how full the file is and a word
+     * to compress it from 85 %.
      *
-     * spec: brief/memory.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
+     * spec: brief/memory.md#правила-и-заметки-memorymd — two sections, the limit, how full
      *
      * @param Closure(Principal): string $read the file, '' when there is none
      * @param positive-int $limit characters
@@ -638,25 +682,45 @@ final class RunScheduler {
         $this->memoryFileLimit = $limit;
     }
 
-    private function memoryFile(Principal $principal): string {
+    /** @return array{string, string} the block of the rules, the block of the notes; '' — none */
+    private function memoryFile(Principal $principal): array {
         if ($this->memoryFile === null) {
-            return '';
+            return ['', ''];
         }
         try {
-            $text = trim(($this->memoryFile)($principal));
+            $file = MemoryFile::parse(($this->memoryFile)($principal));
         } catch (Throwable $e) {
             $this->logger->warning('MEMORY.md is not available', ['error' => $e::class]);
-            return '';
+            return ['', ''];
         }
-        if ($text === '') {
-            return '';
+        return self::memoryBlocks($file, $this->memoryFileLimit, 'person');
+    }
+
+    /**
+     * The two blocks of a MEMORY.md within its limit: the rules as instructions (with secrets masked), the notes as
+     * reference data with how full the file is; a file past 85 % of the limit asks to be compressed, one past it says
+     * what was cut. No file, or an empty one, gives nothing.
+     *
+     * ref: references/hermes-agent/tools/memory_tool_store.py@e96221fa:L675-L682 (_render_block) — the head of the block
+     *      says how full it is («67% — 1,474/2,200 chars»); hermes refuses an entry past the limit
+     *      (L403-L418), here the file is the agent's to compress, as the owner decided
+     *
+     * @param 'person'|'place' $whose
+     * @return array{string, string}
+     */
+    public static function memoryBlocks(MemoryFile $file, int $limit, string $whose): array {
+        if ($file->empty()) {
+            return ['', ''];
         }
-        $length = mb_strlen($text);
-        $over = $length > $this->memoryFileLimit;
-        // ref: references/hermes-agent/tools/memory_tool_store.py@e96221fa:L403-L418 (add, _add_overflow) — hermes
-        //      refuses an entry past the limit; here the file is the agent's to compress, as the owner decided
-        return t('memory.file.head') . "\n" . ($over ? mb_substr($text, 0, $this->memoryFileLimit) : $text)
-            . ($over ? "\n\n" . sprintf(t('memory.file.over'), $length, $this->memoryFileLimit) : '');
+        $limit = max(1, $limit);
+        [$rules, $notes, $cut] = $file->within($limit);
+        $total = $file->length();
+        $fill = sprintf(t('memory.file.fill'), (int) round(100.0 * (float) $total / (float) $limit), $total, $limit);
+        $word = $cut ? sprintf(t('memory.file.over'), $total, $limit) : ($total >= (int) ((float) $limit * 0.85) ? t('memory.file.near') : '');
+        $rulesBlock = $rules === '' ? '' : t($whose === 'place' ? 'memory.file.rules_place' : 'memory.file.rules_person') . "\n" . SecretMasker::mask($rules);
+        $notesBlock = t($whose === 'place' ? 'memory.file.head_place' : 'memory.file.head') . ' ' . $fill
+            . ($notes === '' ? '' : "\n" . $notes) . ($word === '' ? '' : "\n\n" . $word);
+        return [$rulesBlock, $notesBlock];
     }
 
     /** The facts that answer the text go after it as reference data; memory failing never stops the run. */
@@ -733,7 +797,7 @@ final class RunScheduler {
                 }
             }
             $notes = $this->notes();
-            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills, $meta->channel, $notes, $this->instance), $model, SystemPrompt::VERSION);
+            $this->conversations->setMeta($conversationId, PromptBuilder::system($principal, new DateTimeImmutable(), $this->core($principal, $conversationId), $this->project($principal, $meta->channel, $meta->chatId, $meta->threadId), $skills, $meta->channel, $notes, $this->instance, $this->rules($principal, $conversationId)), $model, SystemPrompt::VERSION);
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policyIn($conversationId, $principal);

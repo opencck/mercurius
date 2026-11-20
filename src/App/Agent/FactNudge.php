@@ -40,6 +40,7 @@ use function Mercurius\I18n\t;
 final class FactNudge {
     public const EVERY = 10;
     public const MAX_FACTS = 3;
+    public const MAX_RULES = 2;
     private const TURNS_TEXT = 12_000;
     private const SKIPPED_CHANNELS = ['a2a', 'eval'];
 
@@ -62,6 +63,18 @@ final class FactNudge {
         private readonly int $every = self::EVERY,
         private readonly float $timeout = 60.0,
     ) {}
+
+    private ?ContextMemory $files = null;
+
+    /**
+     * Where a standing instruction about how to work goes: the «Правила» section of the MEMORY.md of the place it was
+     * said in (the project's or the group's), or of the person's own file in their private chat — not a fact.
+     *
+     * spec: brief/memory.md#одно-знание--в-одно-место
+     */
+    public function useMemoryFiles(ContextMemory $files): void {
+        $this->files = $files;
+    }
 
     public function afterRun(Run $run, Principal $principal): void {
         if ($this->every <= 0 || $run->stopReason !== StopReason::Answered || $principal->kind === PrincipalKind::Agent) {
@@ -113,6 +126,7 @@ final class FactNudge {
             800,
         ), new TimeoutCancellation($this->timeout));
         $sent = 0;
+        $this->writeRules($run, $principal, self::rules($response->text));
         foreach (self::facts($response->text) as $fact) {
             try {
                 $proposal = $this->proposals->propose('add', null, $fact['text'], t('agent.fact_nudge.reason') . $fact['reason'], $scopes, $principal->id, $run->id);
@@ -124,6 +138,66 @@ final class FactNudge {
             $sent++;
         }
         $this->logger->info('Background fact review', ['run' => $run->id, 'proposed' => $sent]);
+    }
+
+    /** @param list<string> $rules */
+    private function writeRules(Run $run, Principal $principal, array $rules): void {
+        if ($rules === [] || $this->files === null) {
+            return;
+        }
+        $meta = $this->conversations->meta($run->conversationId);
+        if ($meta === null) {
+            return;
+        }
+        $private = $this->audience->isPrivate($run->conversationId);
+        $place = $this->files->shared($principal, $meta->channel, $meta->chatId, $meta->threadId, $private) ?? ($private ? $this->files->personal($principal) : null);
+        if ($place === null) {
+            return;
+        }
+        $file = MemoryFile::parse($this->files->read($place));
+        $added = 0;
+        foreach ($rules as $rule) {
+            $next = SecretMasker::mask($rule) === $rule ? $file->withRule($rule) : null;
+            if ($next !== null) {
+                $file = $next;
+                $added++;
+            }
+        }
+        if ($added === 0) {
+            return;
+        }
+        try {
+            $this->files->write($place, $file->text(), new TimeoutCancellation(10));
+            $this->logger->info('Rules written to MEMORY.md', ['run' => $run->id, 'rules' => $added, 'kind' => $place->kind]);
+        } catch (Throwable $e) {
+            $this->logger->warning('Rules were not written to MEMORY.md', ['run' => $run->id, 'error' => $e::class]);
+        }
+    }
+
+    /** @return list<string> at most MAX_RULES standing instructions about how to work; nothing when the answer is not the JSON asked */
+    public static function rules(string $answer): array {
+        if (preg_match('~\{.*\}~s', trim($answer), $m) !== 1) {
+            return [];
+        }
+        try {
+            /** @var mixed $data */
+            $data = json_decode($m[0], true, 8, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+        /** @var array<array-key, mixed> $list */
+        $list = is_array($data) && isset($data['rules']) && is_array($data['rules']) ? $data['rules'] : [];
+        $rules = [];
+        /** @var mixed $item */
+        foreach ($list as $item) {
+            if (is_string($item) && trim($item) !== '' && mb_strlen($item) <= 300) {
+                $rules[] = trim($item);
+            }
+            if (count($rules) >= self::MAX_RULES) {
+                break;
+            }
+        }
+        return $rules;
     }
 
     /** @return list<array{text: string, reason: string}> at most MAX_FACTS; nothing when the answer is not the JSON asked */

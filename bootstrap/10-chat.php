@@ -56,6 +56,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Config\Config $config
  * @var Mercurius\Memory\App\Consolidation $consolidation
  * @var Mercurius\Memory\App\Aliases $memoryAliases
+ * @var OpenCCK\App\Agent\ContextMemory|null $contextMemory
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var non-falsy-string|null $digestTime
@@ -125,6 +126,10 @@ $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 // spec: brief/memory.md#словари — the agent fills the owner's table of words that mean one thing
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryAliasTool($memoryAliases));
+// spec: brief/memory.md#файл-памяти-места — the MEMORY.md of this place or the person's own
+if ($contextMemory !== null) {
+    $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFileTool($contextMemory, $conversations, $audience));
+}
 $tools->register(new MemoryProposeTool($proposals, $memoryCards, $audience));
 $tools->register(new HistorySearchTool(new PostgresEpisodeRepository($db), $audience));
 $tools->register(new ExperienceSearchTool($experience, $audience));

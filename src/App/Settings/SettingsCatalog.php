@@ -50,7 +50,7 @@ final class SettingsCatalog {
         'MEDIA_TEXT_LIMIT' => '20000',
         'MEDIA_INBOX_DAYS' => '30',
         'MEMORY_NUDGE_TURNS' => '10',
-        'MEMORY_FILE_LIMIT' => '8000',
+        'MEMORY_FILE_LIMIT' => '4000',
     ];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */

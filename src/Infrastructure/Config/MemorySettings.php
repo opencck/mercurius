@@ -22,7 +22,7 @@ final class MemorySettings {
         /** hour of the nightly check of memory, UTC */
         public readonly int $checkHour = 3,
         /** @var positive-int characters of MEMORY.md that go into the prompt; more — the agent compresses the file */
-        public readonly int $fileLimit = 8000,
+        public readonly int $fileLimit = 4000,
     ) {
         $this->secret = $secret;
     }
@@ -41,7 +41,7 @@ final class MemorySettings {
             throw new ConfigException('MEMORY_CHECK_HOUR must be an hour from 0 to 23');
         }
         // spec: brief/memory.md#всегда-в-контексте — not small by default (hermes keeps 2200); the owner changes it
-        $limit = Env::positiveInt($env, 'MEMORY_FILE_LIMIT', 8000, 100_000);
+        $limit = Env::positiveInt($env, 'MEMORY_FILE_LIMIT', 4000, 100_000);
         if ($limit < 500) {
             throw new ConfigException('MEMORY_FILE_LIMIT must be at least 500 characters');
         }
