@@ -102,6 +102,36 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         self::assertNull($this->projects->memberLevel($mine->id, $this->principalId));
     }
 
+    public function testAProjectPassesToANewOwnerAndTakesThePlaceOfAnEmptyOne(): void {
+        // spec: brief/participants.md#доступ-к-проектам-и-передача — a project is handed over with the consent of the one who takes it
+        $empty = $this->projects->create('Поиск', '');
+        $this->projects->activate('telegram', '-100', $empty->id, '4');
+        $theirs = $this->projects->create('Поиск', 'работа', $this->principalId);
+
+        self::assertTrue($this->projects->isEmpty($empty->id));
+        self::assertFalse($this->projects->isEmpty($theirs->id));
+
+        $first = $this->projects->offer($theirs->id, $this->principalId, null);
+        $offer = $this->projects->offer($theirs->id, $this->principalId, null);
+        self::assertSame('cancelled', $this->projects->transfer($first->id)?->status, 'a new offer replaces the one that waited');
+        self::assertSame([$offer->id], array_map(static fn($t): int => $t->id, $this->projects->offersTo(null)));
+        self::assertSame([], $this->projects->offersTo($this->principalId));
+
+        try {
+            $this->projects->setOwner($theirs->id, null);
+            self::fail('the new owner has a project of that name');
+        } catch (DomainException) {
+        }
+        $this->projects->absorb($theirs->id, $empty->id);
+        self::assertNull($this->projects->find($empty->id));
+        self::assertSame($theirs->id, $this->projects->active('telegram', '-100', '4')?->id, 'the topic of the empty project is now the topic of this one');
+
+        self::assertNull($this->projects->setOwner($theirs->id, null)?->ownerId);
+        self::assertTrue($this->projects->settle($offer->id, 'accepted'));
+        self::assertFalse($this->projects->settle($offer->id, 'declined'), 'settled once');
+        self::assertSame([], $this->projects->offersTo(null));
+    }
+
     public function testDeadlinesOfOpenTasksInActiveProjectsComeEarliestFirst(): void {
         $project = $this->projects->create('Дом', '');
         $paused = $this->projects->create('Архив', '');

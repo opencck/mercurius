@@ -73,6 +73,71 @@ final class PostgresProjectRepository implements ProjectRepository {
         return $found;
     }
 
+    public function setOwner(int $projectId, ?int $ownerId): ?Project {
+        $name = $this->find($projectId)?->name;
+        if ($name === null) {
+            return null;
+        }
+        $taken = $this->db->execute('SELECT 1 FROM projects WHERE id <> ? AND lower(name) = lower(?) AND coalesce(owner_id, 0) = ?', [$projectId, $name, $ownerId ?? 0])->fetchRow();
+        if ($taken !== null) {
+            throw new DomainException(sprintf(t('repository.postgres_project.proekt_uzhe_est'), $name));
+        }
+        $row = $this->db->execute('UPDATE projects SET owner_id = ?, updated_at = now() WHERE id = ? RETURNING ' . self::PROJECT, [$ownerId, $projectId])->fetchRow();
+        if ($ownerId !== null) {
+            $this->unshare($projectId, $ownerId);
+        }
+        return $row === null ? null : self::project($row);
+    }
+
+    public function isEmpty(int $projectId): bool {
+        $row = $this->db->execute(
+            "SELECT 1 FROM projects p WHERE p.id = ? AND p.goal = '' AND p.card = '' AND p.skill = '' AND NOT EXISTS (SELECT 1 FROM project_tasks t WHERE t.project_id = p.id)",
+            [$projectId],
+        )->fetchRow();
+        return $row !== null;
+    }
+
+    public function absorb(int $projectId, int $emptyId): void {
+        $this->db->execute('UPDATE chat_projects SET project_id = ?, updated_at = now() WHERE project_id = ?', [$projectId, $emptyId]);
+        $this->db->execute('DELETE FROM projects WHERE id = ?', [$emptyId]);
+    }
+
+    private const TRANSFER = 'id, project_id, from_id, to_id, status';
+
+    public function offer(int $projectId, ?int $fromId, ?int $toId): \OpenCCK\Domain\Project\ProjectTransfer {
+        $this->db->execute("UPDATE project_transfers SET status = 'cancelled', decided_at = now() WHERE project_id = ? AND status = 'pending'", [$projectId]);
+        $row = $this->db->execute('INSERT INTO project_transfers (project_id, from_id, to_id) VALUES (?, ?, ?) RETURNING ' . self::TRANSFER, [$projectId, $fromId, $toId])->fetchRow();
+        return self::transferOf($row ?? throw new UnexpectedValueException('The offer was not kept'));
+    }
+
+    public function transfer(int $id): ?\OpenCCK\Domain\Project\ProjectTransfer {
+        $row = $this->db->execute('SELECT ' . self::TRANSFER . ' FROM project_transfers WHERE id = ?', [$id])->fetchRow();
+        return $row === null ? null : self::transferOf($row);
+    }
+
+    public function offersTo(?int $toId): array {
+        $found = [];
+        foreach ($this->db->execute("SELECT " . self::TRANSFER . " FROM project_transfers WHERE status = 'pending' AND coalesce(to_id, 0) = ? ORDER BY id", [$toId ?? 0]) as $row) {
+            $found[] = self::transferOf($row);
+        }
+        return $found;
+    }
+
+    public function settle(int $transferId, string $status): bool {
+        return $this->db->execute("UPDATE project_transfers SET status = ?, decided_at = now() WHERE id = ? AND status = 'pending'", [$status, $transferId])->getRowCount() > 0;
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function transferOf(array $row): \OpenCCK\Domain\Project\ProjectTransfer {
+        return new \OpenCCK\Domain\Project\ProjectTransfer(
+            self::int($row, 'id'),
+            self::int($row, 'project_id'),
+            $row['from_id'] === null ? null : self::int($row, 'from_id'),
+            $row['to_id'] === null ? null : self::int($row, 'to_id'),
+            self::str($row, 'status'),
+        );
+    }
+
     public function share(int $projectId, int $principalId, string $access, ?int $by): void {
         $this->db->execute(
             'INSERT INTO project_members (project_id, principal_id, access, granted_by) VALUES (?, ?, ?, ?)'

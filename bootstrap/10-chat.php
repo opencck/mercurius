@@ -91,6 +91,7 @@ use Mercurius\Memory\App\Proposals;
  * @var array{host: string, port: int<1, 65535>, user: string, password: string, name: string} $postgresAccess
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
+ * @var OpenCCK\App\Service\ProjectTransfers $projectTransfers
  * @var OpenCCK\App\Improve\PromptNotes $promptNotes
  * @var Mercurius\Memory\App\Proposals $proposals
  * @var Mercurius\Memory\App\Recall $recall
@@ -333,7 +334,7 @@ $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($ru
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv']);
+$presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership, \OpenCCK\App\Service\ProjectTransfers::PREFIX => $projectTransfers], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv', \OpenCCK\App\Service\ProjectTransfers::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId, allowBots: true);

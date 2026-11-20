@@ -39,6 +39,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
+ * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\App\Skill\SkillLibrary $skillLibrary
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
@@ -104,7 +105,24 @@ $tools->register($traceReview);
 $tools->register(new ProjectTool($projectRepository, $conversations));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals));
+// spec: brief/participants.md#доступ-к-проектам-и-передача — a project passes to another participant with their consent: the
+//       taker is told in their private place, the folder of the project follows it into the taker's sandbox
+$participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
+$projectFolders = $sandbox === null ? null : new \OpenCCK\App\Service\ProjectFolders($sandbox, static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+    $principal = $principals->find($id);
+    return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+});
+$projectTransfers = new \OpenCCK\App\Service\ProjectTransfers(
+    $projectRepository,
+    $principals,
+    $projectFolders === null ? null : $projectFolders->move(...),
+    static function (Principal $to, string $text, array $buttons) use ($participantInbox): void {
+        $participantInbox->tell($to, $text, $buttons);
+    },
+    $channel,
+    $logger,
+);
+$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals, $projectTransfers));
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $ownerDirectory, $logger);

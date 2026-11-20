@@ -25,6 +25,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  * @var Monolog\Logger $logger
  * @var OpenCCK\App\Agent\AgentLoop $loop
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
+ * @var OpenCCK\App\Service\ParticipantInbox $participantInbox
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
@@ -88,6 +89,20 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $sandbox,
     static fn(int $principalId): ?\OpenCCK\Domain\Agent\SandboxLimits => ($p = $principals->find($principalId)) === null ? null : $policies->forPrincipal($p)->sandbox,
 );
+// spec: brief/participants.md#доступ-к-проектам-и-передача — what the code tells a participant reaches an agent over the
+//       network of agents, as it reaches a person in their private chat
+$participantInbox->useAgents(static function (Principal $agent, string $text) use ($peerNetwork, $ownerDirectory): bool {
+    $owner = $ownerDirectory->principal();
+    if ($owner === null || $agent->displayName === null || !in_array($agent->displayName, $peerNetwork->names(), true)) {
+        return false;
+    }
+    try {
+        $peerNetwork->delegate($owner, $agent->displayName, $text, TelegramChannel::NAME, $ownerDirectory->chatId(), 0, []);
+    } catch (\DomainException) {
+        return false;
+    }
+    return true;
+});
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
 // spec: brief/network.md#вызов-и-раздача-соседям — call one neighbour and wait, or give parts to several and merge
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($peerNetwork, $peerRepository, $conversations));

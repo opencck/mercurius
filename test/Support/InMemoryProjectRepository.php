@@ -31,6 +31,67 @@ final class InMemoryProjectRepository implements ProjectRepository {
         return $this->projects[$id] = new Project($id, $name, $goal, Project::ACTIVE, '', time(), $ownerId);
     }
 
+    /** @var array<int, \OpenCCK\Domain\Project\ProjectTransfer> */
+    private array $transfers = [];
+
+    public function setOwner(int $projectId, ?int $ownerId): ?Project {
+        $p = $this->projects[$projectId] ?? null;
+        if ($p === null) {
+            return null;
+        }
+        foreach ($this->projects as $other) {
+            if ($other->id !== $projectId && $other->ownerId === $ownerId && mb_strtolower($other->name) === mb_strtolower($p->name)) {
+                throw new DomainException(sprintf('Проект «%s» уже есть.', $p->name));
+            }
+        }
+        if ($ownerId !== null) {
+            unset($this->members[$projectId][$ownerId]);
+        }
+        return $this->projects[$projectId] = new Project($p->id, $p->name, $p->goal, $p->status, $p->card, time(), $ownerId, $p->skill);
+    }
+
+    public function isEmpty(int $projectId): bool {
+        $p = $this->projects[$projectId] ?? null;
+        $tasks = array_filter($this->tasks, static fn(ProjectTask $t): bool => $t->projectId === $projectId);
+        return $p !== null && $p->goal === '' && $p->card === '' && $p->skill === '' && $tasks === [];
+    }
+
+    public function absorb(int $projectId, int $emptyId): void {
+        foreach ($this->chats as $key => $id) {
+            if ($id === $emptyId) {
+                $this->chats[$key] = $projectId;
+            }
+        }
+        unset($this->projects[$emptyId], $this->members[$emptyId]);
+    }
+
+    public function offer(int $projectId, ?int $fromId, ?int $toId): \OpenCCK\Domain\Project\ProjectTransfer {
+        foreach ($this->transfers as $t) {
+            if ($t->projectId === $projectId && $t->status === \OpenCCK\Domain\Project\ProjectTransfer::PENDING) {
+                $this->settle($t->id, \OpenCCK\Domain\Project\ProjectTransfer::CANCELLED);
+            }
+        }
+        $id = count($this->transfers) + 1;
+        return $this->transfers[$id] = new \OpenCCK\Domain\Project\ProjectTransfer($id, $projectId, $fromId, $toId, \OpenCCK\Domain\Project\ProjectTransfer::PENDING);
+    }
+
+    public function transfer(int $id): ?\OpenCCK\Domain\Project\ProjectTransfer {
+        return $this->transfers[$id] ?? null;
+    }
+
+    public function offersTo(?int $toId): array {
+        return array_values(array_filter($this->transfers, static fn(\OpenCCK\Domain\Project\ProjectTransfer $t): bool => $t->status === \OpenCCK\Domain\Project\ProjectTransfer::PENDING && $t->toId === $toId));
+    }
+
+    public function settle(int $transferId, string $status): bool {
+        $t = $this->transfers[$transferId] ?? null;
+        if ($t === null || $t->status !== \OpenCCK\Domain\Project\ProjectTransfer::PENDING) {
+            return false;
+        }
+        $this->transfers[$transferId] = new \OpenCCK\Domain\Project\ProjectTransfer($t->id, $t->projectId, $t->fromId, $t->toId, $status);
+        return true;
+    }
+
     /** @var array<int, array<int, string>> project => participant => access */
     private array $members = [];
 

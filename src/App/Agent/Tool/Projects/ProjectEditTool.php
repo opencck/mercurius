@@ -32,13 +32,13 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
         'add_task' => ProjectLevel::Write, 'task_status' => ProjectLevel::Write, 'task_due' => ProjectLevel::Write,
         'relation' => ProjectLevel::Read, 'activate' => ProjectLevel::Read, 'members' => ProjectLevel::Read,
-        'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read,
+        'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read, 'transfer' => ProjectLevel::Owner,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -52,6 +52,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         private readonly ?\OpenCCK\App\Service\ForumTopics $forum = null,
         /** the participants a project is shared with; null — no sharing here */
         private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        /** handing a project over with the taker's consent; null — not here */
+        private readonly ?\OpenCCK\App\Service\ProjectTransfers $transfers = null,
     ) {}
 
     /**
@@ -80,7 +82,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . t('tool.project_edit.relation_otnoshenie_sobesednika_k_proekt')
             . t('tool.project_edit.proekt_proektom_etogo_chata_create')
             . ' ' . t('tool.project_edit.rename_about')
-            . ' ' . t('tool.project_edit.share_about'), [
+            . ' ' . t('tool.project_edit.share_about')
+            . ' ' . t('tool.project_edit.transfer_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -153,6 +156,9 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         if ($action === 'deactivate') {
             return $this->deactivate($context);
         }
+        if ($action === 'accept' || $action === 'decline') {
+            return $this->decide($context, trim(Args::string($args, 'project') ?? ''), $action === 'accept');
+        }
         $project = $this->project($args, $context);
         if ($project === null) {
             return ToolResult::error(t('tool.project_edit.proekt_ne_nayden_nazovi_ego'));
@@ -178,6 +184,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'share' => $this->share($project, $context, Args::string($args, 'participant') ?? '', Args::string($args, 'access') ?? ''),
             'unshare' => $this->unshare($project, $context, $level, Args::string($args, 'participant') ?? ''),
             'members' => $this->members($project),
+            'transfer' => $this->transfer($project, Args::string($args, 'participant') ?? ''),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -238,6 +245,44 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             return ToolResult::error(sprintf(t('tool.project_edit.not_member'), $this->nameOf($who->id), $project->name));
         }
         return ToolResult::ok(sprintf(t('tool.project_edit.unshared'), $this->nameOf($who->id), $project->name));
+    }
+
+    /** spec: brief/participants.md#доступ-к-проектам-и-передача — the project is offered; it passes only after the taker's yes */
+    private function transfer(Project $project, string $participant): ToolResult {
+        if ($this->transfers === null || $this->principals === null) {
+            return ToolResult::error(t('tool.project_edit.transfer_off'));
+        }
+        if (trim($participant) === '') {
+            return ToolResult::error(t('tool.project_edit.transfer_needs'));
+        }
+        $who = \OpenCCK\App\Agent\Tool\Messaging\Recipients::participant($this->principals, $participant);
+        if (is_string($who)) {
+            return ToolResult::error($who);
+        }
+        try {
+            $this->transfers->offer($project, $who);
+        } catch (DomainException $e) {
+            return ToolResult::error($e->getMessage());
+        }
+        return ToolResult::ok(sprintf(t('tool.project_edit.transfer_offered'), $project->name, $this->nameOf($who->id)));
+    }
+
+    /** The taker's own word on a project offered to them: the one of this name, or the only one that waits. */
+    private function decide(ToolContext $context, string $name, bool $accept): ToolResult {
+        if ($this->transfers === null) {
+            return ToolResult::error(t('tool.project_edit.transfer_off'));
+        }
+        $waiting = $this->transfers->waitingFor($context->principal);
+        $found = array_values(array_filter($waiting, static fn(array $w): bool => $name === '' || mb_strtolower($w[1]->name) === mb_strtolower($name)));
+        if (count($found) !== 1) {
+            $names = implode(', ', array_map(static fn(array $w): string => '«' . $w[1]->name . '»', $waiting));
+            return ToolResult::error(sprintf(t('tool.project_edit.transfer_none'), $name, $names === '' ? t('tool.project_edit.members_none') : $names));
+        }
+        try {
+            return ToolResult::ok($this->transfers->decide($found[0][0]->id, $context->principal, $accept));
+        } catch (DomainException $e) {
+            return ToolResult::error($e->getMessage());
+        }
     }
 
     private function members(Project $project): ToolResult {
