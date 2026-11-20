@@ -76,7 +76,7 @@ final class ExportCommands {
                 return;
             }
         }
-        $this->say($chatId, $threadId, sprintf(t('export.ready_path'), $where, round($size / 1048576, 1)));
+        $this->say($chatId, $threadId, sprintf(t('export.ready_path'), $where, round($size / 1048576, 1), $name));
     }
 
     private function say(string $chatId, ?string $threadId, string $text): void {

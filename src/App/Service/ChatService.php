@@ -112,6 +112,13 @@ final class ChatService implements MessageHandler {
         $this->export = $export;
     }
 
+    private ?\OpenCCK\App\Export\ImportCommands $import = null;
+
+    /** spec: BRIEF.md#экспорт-и-импорт-агента — /import: the agent replaced by an archive */
+    public function useImport(\OpenCCK\App\Export\ImportCommands $import): void {
+        $this->import = $import;
+    }
+
     /** /models — the roles and their latest changes; /models rollback <number> — a role back to that record. */
     private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Principal $who, string $argument): string {
         $parts = preg_split('/\s+/', trim($argument)) ?: [];
@@ -262,6 +269,22 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, $this->export->start($message->chatId, null, $argument));
             }
             if ($argument !== '' && !$this->channel->delete($message->chatId, $message->messageId)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
+            return;
+        }
+        if ($command === '/import' && $this->import !== null) {
+            // spec: BRIEF.md#экспорт-и-импорт-агента — the archive comes with its password, and the message leaves the chat
+            $argument = trim(substr($text, strlen($command)));
+            $file = $message->attachments[0] ?? $message->repliedAttachments[0] ?? null;
+            if (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } else {
+                $this->reply($message, $this->import->start($message->chatId, $argument, $file));
+            }
+            if (!in_array(strtolower($argument), ['', 'yes', 'no'], true) && !$this->channel->delete($message->chatId, $message->messageId)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;

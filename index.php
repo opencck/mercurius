@@ -184,6 +184,31 @@ EventLoop::setErrorHandler(static fn(Throwable $e) => $logger->error('Unhandled 
 $version = getenv('APP_VERSION');
 $version = is_string($version) && $version !== '' ? $version : 'dev';
 
+// spec: BRIEF.md#экспорт-и-импорт-агента — an import the owner confirmed is applied before the database is used
+$postgresAccess = ['host' => $config->postgres->host, 'port' => $config->postgres->port, 'user' => $config->postgres->user, 'password' => $config->postgres->password(), 'name' => $config->postgres->database];
+$agentImport = new \OpenCCK\App\Export\AgentImport(\OpenCCK\App\Export\ProcessRunner::closure(), $postgresAccess, PATH_ROOT . '/storage');
+$imported = null;
+$importFailed = false;
+try {
+    $imported = $agentImport->apply();
+    if ($imported !== null) {
+        $logger->notice('Import applied', ['commit' => $imported['commit']]);
+    }
+} catch (Throwable $e) {
+    $importFailed = true;
+    $logger->critical('Import not applied', ['error' => $e::class, 'message' => mb_substr($e->getMessage(), 0, 300)]);
+}
+// the vault key an import brought: the secrets of its dump are sealed by it
+$importedKey = \OpenCCK\App\Export\AgentImport::secretsKey(PATH_ROOT . '/storage');
+if ($importedKey !== null && $importedKey !== ($_ENV['SECRETS_KEY'] ?? null)) {
+    SecretMasker::remember($importedKey);
+    try {
+        $vaultSettings = VaultSettings::fromEnv(['SECRETS_KEY' => $importedKey] + $_ENV);
+        $logger->notice('The vault key of an imported archive is used instead of SECRETS_KEY');
+    } catch (ConfigException $e) {
+        $logger->error('The vault key of an imported archive is not valid', ['error' => $e->getMessage()]);
+    }
+}
 $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectory(PATH_ROOT . '/migrations'));
 $logger->info('Migrations checked', ['applied' => $applied]);
@@ -1118,12 +1143,11 @@ $chat->useImprovements($improvements);
 // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — /models: the roles, their history and a rollback
 $chat->useModelRoles($modelRoles);
 // spec: BRIEF.md#экспорт-и-импорт-агента — /export: the archive of the agent sealed by the owner's password
-$chat->useExport(new \OpenCCK\App\Export\ExportCommands(
-    static function (string $password, \Amp\Cancellation $cancellation) use ($config, $sandbox, $version): string {
+$exportAgent = static function (string $password, \Amp\Cancellation $cancellation) use ($postgresAccess, $sandbox, $version): string {
         $example = @file_get_contents(PATH_ROOT . '/.env.example');
         $export = new \OpenCCK\App\Export\AgentExport(
             \OpenCCK\App\Export\ProcessRunner::closure($cancellation),
-            ['host' => $config->postgres->host, 'port' => $config->postgres->port, 'user' => $config->postgres->user, 'password' => $config->postgres->password(), 'name' => $config->postgres->database],
+            $postgresAccess,
             PATH_ROOT . '/storage',
             \OpenCCK\App\Export\AgentExport::env($_ENV, is_string($example) ? $example : ''),
             $version,
@@ -1132,10 +1156,46 @@ $chat->useExport(new \OpenCCK\App\Export\ExportCommands(
             },
         );
         return $export->export($password, $cancellation);
-    },
+};
+$chat->useExport(new \OpenCCK\App\Export\ExportCommands($exportAgent, $channel, $logger));
+// spec: BRIEF.md#экспорт-и-импорт-агента — /import: the archive checked, the current state sealed, then a restart
+$chat->useImport(new \OpenCCK\App\Export\ImportCommands(
+    $agentImport,
+    $exportAgent,
+    static fn() => $restarter->request(),
     $channel,
     $logger,
+    PATH_ROOT . '/storage/import',
 ));
+// after an import: the working folders back through the executor, and the owner told how it went
+if ($imported !== null || $importFailed) {
+    \Amp\async(static function () use ($imported, $sandbox, $channel, $ownerDirectory, $logger): void {
+        \Amp\delay(5);
+        if ($imported === null) {
+            $channel->send(new OutgoingMessage($ownerDirectory->chatId(), \Mercurius\I18n\t('import.start_failed')));
+            return;
+        }
+        $workspace = $imported['dir'] . '/workspace.tar.gz';
+        $state = \Mercurius\I18n\t('import.workspace_none');
+        if (is_file($workspace) && filesize($workspace) > 0) {
+            $state = \Mercurius\I18n\t('import.workspace_failed');
+            for ($try = 0; $sandbox !== null && $try < 12; $try++) {
+                try {
+                    $sandbox->unarchive($workspace, new \Amp\TimeoutCancellation(3600));
+                    $state = \Mercurius\I18n\t('import.workspace_back');
+                    break;
+                } catch (\Throwable $e) {
+                    $logger->warning('Working folders not restored yet', ['error' => $e::class, 'try' => $try]);
+                    \Amp\delay(10);
+                }
+            }
+        }
+        if ($state !== \Mercurius\I18n\t('import.workspace_failed')) {
+            \OpenCCK\App\Export\AgentImport::remove($imported['dir']);
+        }
+        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), sprintf(\Mercurius\I18n\t('import.done'), $imported['commit'] === '' ? '?' : substr($imported['commit'], 0, 12), $state)));
+    })->ignore();
+}
 // spec: BRIEF.md#несколько-пользователей — the owner passes ownership on by /owner and a card
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);

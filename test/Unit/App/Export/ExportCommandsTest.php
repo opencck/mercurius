@@ -64,7 +64,7 @@ final class ExportCommandsTest extends AsyncTestCase {
 
         self::assertSame([], $channel->files);
         $texts = array_column($channel->log, 2);
-        self::assertStringContainsString('storage/app/exports/mercurius-1.mrcx', implode("\n", $texts));
+        self::assertStringContainsString('docker compose cp app:/app/storage/exports/mercurius-1.mrcx', implode("\n", $texts));
     }
 
     public function testAShortOrMissingPasswordStartsNothing(): void {
