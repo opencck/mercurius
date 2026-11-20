@@ -15,7 +15,7 @@ use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
  * for questions memory must not answer.
  *
  * spec: brief/memory.md#hrr-с-самого-начала — the share of HRR is measured, not assumed
- * spec: brief/memory.md#анализ-текста — precision is measured beside recall: extra facts per question and silence
+ * spec: brief/memory.md#замер-поиска-на-трёх-языках — precision is measured beside recall: extra facts per question and silence
  */
 final class RecallBench {
     public const LANGUAGES = ['ru', 'en', 'zh'];

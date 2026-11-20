@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * facts given beside the expected ones and silence on questions memory must not answer do not fall below the floors.
  * The numbers of every measure are in the table of brief/memory.md; `php bin/recall-bench.php` prints them.
  *
- * spec: brief/memory.md#анализ-текста — floors on recall, extra facts and silence, per language
+ * spec: brief/memory.md#замер-поиска-на-трёх-языках — floors on recall, extra facts and silence, per language
  */
 final class RecallBenchmarkTest extends TestCase {
     /** @var array<string, array{float, float, float}> recall@5 at least, extra facts per question at most, silence at least */

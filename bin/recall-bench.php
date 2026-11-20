@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  *   php bin/recall-bench.php [hrr weight ...]
  *
- * spec: brief/memory.md#анализ-текста — the numbers of the table of measures come from here
+ * spec: brief/memory.md#замер-поиска-на-трёх-языках — the numbers of the table of measures come from here
  */
 
 use OpenCCK\Test\Support\RecallBench;

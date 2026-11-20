@@ -115,7 +115,7 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
 }
-// spec: brief/memory.md#анализ-текста — facts written before a new rule of the analyzer get its keys; in the background
+// spec: brief/memory.md#ключи-и-однокоренные — facts written before a new rule of the analyzer get its keys; in the background
 \Amp\async(static function () use ($memoryStore, $textAnalyzer, $logger): void {
     try {
         $rekeyed = $memoryStore->rekey($textAnalyzer->keys(...));
