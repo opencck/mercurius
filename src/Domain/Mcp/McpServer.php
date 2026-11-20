@@ -9,7 +9,7 @@ namespace OpenCCK\Domain\Mcp;
  *
  * spec: BRIEF.md#скиллы-и-mcp
  */
-final class McpServer {
+final class McpServer implements \Mercurius\Mcp\McpEndpoint {
     public const PENDING = 'pending';
     public const ACTIVE = 'active';
     public const DISABLED = 'disabled';
@@ -57,5 +57,17 @@ final class McpServer {
             }
         }
         return false;
+    }
+
+    public function endpointName(): string {
+        return $this->name;
+    }
+
+    public function endpointUrl(): string {
+        return $this->url;
+    }
+
+    public function endpointHeaders(): array {
+        return $this->headers;
     }
 }

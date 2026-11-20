@@ -108,7 +108,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Llm\ProviderClients;
 use OpenCCK\Infrastructure\Llm\ProviderRouter;
 use OpenCCK\Infrastructure\Logger\LoggerFactory;
-use OpenCCK\Infrastructure\Mcp\HttpMcpClient;
+use Mercurius\Mcp\HttpMcpClient;
 use OpenCCK\Infrastructure\Module\AgentModule;
 use OpenCCK\Infrastructure\Module\MemoryConsolidationModule;
 use OpenCCK\Infrastructure\Module\ModelCatalogModule;
@@ -791,6 +791,8 @@ $skillImporter = new \OpenCCK\App\Skill\SkillImporter([new \OpenCCK\App\Skill\Gi
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillImportTool($skillImporter, $skillLibrary, $skillProjectOf, $sandbox));
 // spec: BRIEF.md#скиллы-и-mcp — external MCP servers over HTTP, and stdio ones in the sandbox, added and approved by the owner
 $mcpServers = new PostgresMcpServerRepository($db);
+// spec: BRIEF.md#скиллы-и-mcp — the MCP client of the package speaks in the agent's language
+$mcpTexts = \OpenCCK\App\Mcp\McpLanguage::texts();
 /** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
 $mcpManager = null;
 $stdioMcp = $sandbox === null ? null : new \OpenCCK\Infrastructure\Mcp\StdioMcpClient(
@@ -801,10 +803,11 @@ $stdioMcp = $sandbox === null ? null : new \OpenCCK\Infrastructure\Mcp\StdioMcpC
         $mcpManager?->toolsChanged($server);
     },
     $logger,
+    $mcpTexts,
 );
 $mcpManager = new McpManager(
     $mcpServers,
-    new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create()), $stdioMcp),
+    new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(HttpClients::create(), $mcpTexts), $stdioMcp),
     $vault,
     $tools,
     static fn(): ?Principal => $ownerDirectory->principal(),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Mcp;
 
+use Mercurius\Mcp\McpClient;
 use Amp\Cancellation;
 use Amp\NullCancellation;
 use Closure;

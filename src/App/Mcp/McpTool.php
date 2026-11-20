@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Mcp;
 
+use Mercurius\Mcp\McpClient;
 use Closure;
 use Mercurius\Llm\ToolDefinition;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;

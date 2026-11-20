@@ -13,8 +13,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `c4e007e` | 2026-11-20 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `6160633` | 2026-11-19 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `b2b13b6` | 2026-11-20 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `05225c3` | 2026-11-20 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 
-Репозитории `mercurius-command-policy`, `mercurius-memory`, `mercurius-mcp-client` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/Memory/`, `src/App/Mcp/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); первыми выносятся `memory` и `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
+Репозитории `mercurius-command-policy`, `mercurius-memory` и `mercurius-peer` заведены, код пока в основном репозитории (`src/CommandPolicy/`, `src/Memory/`, `src/App/Peer/`) — так и сказано в их README (2026-11-20); первыми выносятся `memory` и `peer`. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
 ## Модули: сервисы, MCP, скиллы
 
@@ -42,6 +43,10 @@ compose, по умолчанию выключен ([BRIEF.md → Модули](.
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-20 — mcp-client: вынос клиента MCP
+
+- `mercurius-mcp-client` `05225c3`: подключён сабмодулем `packages/mcp-client`. Из приложения ушли `McpClient`, `McpRpcClient`, `HttpMcpClient`; `McpServer` реализует `McpEndpoint` пакета, тексты — `App\Mcp\McpLanguage`. Транспорт stdio через песочницу, фильтры, предохранитель и проверка OSV остаются в приложении.
 
 ### 2026-11-20 — i18n: устаревшие настройки
 

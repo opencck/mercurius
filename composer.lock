@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ad521648b7e6de34894120e614117574",
+    "content-hash": "15980fe283cd54de91211f3d9862a160",
     "packages": [
         {
             "name": "amphp/amp",
@@ -3017,6 +3017,71 @@
                 "async",
                 "llm",
                 "openrouter"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "opencck/mercurius-mcp-client",
+            "version": "dev-master",
+            "dist": {
+                "type": "path",
+                "url": "packages/mcp-client",
+                "reference": "27bcca1ff89f6ef354a9e4fa30abf1b9b958598b"
+            },
+            "require": {
+                "amphp/amp": "^3",
+                "amphp/http-client": "^5",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "amphp/phpunit-util": "^3",
+                "phpstan/phpstan": "^2",
+                "phpunit/phpunit": "^9.6",
+                "psalm/plugin-phpunit": "^0.22.2",
+                "vimeo/psalm": "^6"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Mercurius\\Mcp\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Mercurius\\Mcp\\Test\\": "test/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "php -d zend.assertions=1 -d assert.exception=1 vendor/bin/phpunit"
+                ],
+                "phpstan": [
+                    "phpstan analyse --no-progress --memory-limit=1G"
+                ],
+                "psalm": [
+                    "psalm --no-progress --show-info=false"
+                ],
+                "check": [
+                    "@test",
+                    "@phpstan",
+                    "@psalm"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "An MCP client for AMPHP: JSON-RPC over Streamable HTTP, paginated tools and resources, files in tool results",
+            "keywords": [
+                "agent",
+                "amphp",
+                "json-rpc",
+                "mcp",
+                "model-context-protocol"
             ],
             "transport-options": {
                 "symlink": false,
@@ -7852,15 +7917,16 @@
         "opencck/mercurius-connectors": 20,
         "opencck/mercurius-i18n": 20,
         "opencck/mercurius-llm": 20,
+        "opencck/mercurius-mcp-client": 20,
         "opencck/mercurius-messenger": 20,
         "opencck/mercurius-search": 20
     },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.2",
         "ext-json": "*",
-        "ext-sodium": "*"
+        "ext-sodium": "*",
+        "php": ">=8.2"
     },
     "platform-dev": {},
     "platform-overrides": {

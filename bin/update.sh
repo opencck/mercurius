@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "update: нет .env — это каталог экземпляра?" >&2; exit 1; }
 
 # Сабмодули, нужные для работы; референсы (references/) на сервере не нужны.
-MODULES="packages/llm packages/connectors packages/messenger packages/search packages/i18n mcp/mail services/browser \
+MODULES="packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client mcp/mail services/browser \
 services/telegram-bot-api services/media-video services/media-docs skills/skill-creator"
 PROJECT="$(grep -E '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2-)"
 PROJECT="${PROJECT:-mercurius}"

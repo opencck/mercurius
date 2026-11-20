@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Mcp;
 
+use Mercurius\Mcp\McpEndpoint;
 use Amp\Cancellation;
 use Amp\NullCancellation;
 use DateTimeImmutable;
 use DateTimeZone;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\App\Mcp\McpClient;
+use Mercurius\Mcp\McpClient;
 use OpenCCK\App\Mcp\McpTool;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
@@ -41,19 +42,19 @@ final class McpFilesTest extends TestCase {
             /** @param array{0: string, 1: bool, 2?: list<array{name: string, type: string, bytes: string}>} $answer */
             public function __construct(private readonly McpFilesTest $test, private readonly array $answer) {}
 
-            public function tools(McpServer $server, ?string $token, Cancellation $cancellation): array {
+            public function tools(McpEndpoint $server, ?string $token, Cancellation $cancellation): array {
                 return [];
             }
 
-            public function resources(McpServer $server, ?string $token, Cancellation $cancellation): array {
+            public function resources(McpEndpoint $server, ?string $token, Cancellation $cancellation): array {
                 return [];
             }
 
-            public function readResource(McpServer $server, ?string $token, string $uri, Cancellation $cancellation): string {
+            public function readResource(McpEndpoint $server, ?string $token, string $uri, Cancellation $cancellation): string {
                 return '';
             }
 
-            public function call(McpServer $server, ?string $token, string $tool, array $arguments, Cancellation $cancellation): array {
+            public function call(McpEndpoint $server, ?string $token, string $tool, array $arguments, Cancellation $cancellation): array {
                 $this->test->sent[] = $arguments;
                 return $this->answer;
             }

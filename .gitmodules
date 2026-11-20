@@ -71,3 +71,7 @@
 	path = skills/skill-creator
 	url = https://github.com/opencck/mercurius-skill-creator.git
 	branch = master
+[submodule "packages/mcp-client"]
+	path = packages/mcp-client
+	url = https://github.com/opencck/mercurius-mcp-client.git
+	branch = master

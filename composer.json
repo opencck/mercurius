@@ -4,9 +4,9 @@
     "type": "project",
     "license": "MIT",
     "require": {
-        "php": ">=8.2",
         "ext-json": "*",
         "ext-sodium": "*",
+        "php": ">=8.2",
         "amphp/amp": "^3",
         "amphp/file": "3.2.0 as 4.0.0",
         "amphp/http-client": "^5",
@@ -19,6 +19,7 @@
         "opencck/mercurius-connectors": "dev-master",
         "opencck/mercurius-i18n": "dev-master",
         "opencck/mercurius-llm": "dev-master",
+        "opencck/mercurius-mcp-client": "dev-master",
         "opencck/mercurius-messenger": "dev-master",
         "opencck/mercurius-search": "dev-master",
         "opencck/server": "^1.1.1",
@@ -117,6 +118,16 @@
         {
             "type": "vcs",
             "url": "https://github.com/rekryt/amphp-ssh"
+        },
+        {
+            "type": "path",
+            "url": "packages/mcp-client",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "opencck/mercurius-mcp-client": "dev-master"
+                }
+            }
         }
     ],
     "minimum-stability": "stable"

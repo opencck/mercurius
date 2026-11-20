@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\Infrastructure\Mcp;
 
+use Mercurius\Mcp\McpEndpoint;
 use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
@@ -11,7 +12,7 @@ use Amp\TimeoutCancellation;
 use Closure;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use OpenCCK\App\Agent\Sandbox\SandboxStreams;
-use OpenCCK\App\Mcp\McpRpcClient;
+use Mercurius\Mcp\McpRpcClient;
 use OpenCCK\App\Mcp\McpSessions;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Mcp\McpServer;
@@ -51,7 +52,10 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         private readonly SandboxLimits $limits,
         private readonly ?Closure $onToolsChanged = null,
         private readonly LoggerInterface $logger = new NullLogger(),
-    ) {}
+        \Mercurius\Mcp\McpTexts $texts = new \Mercurius\Mcp\McpTexts(),
+    ) {
+        parent::__construct($texts);
+    }
 
     /** The variable the token goes into: the part after ':' in the secret's field, MCP_TOKEN otherwise. */
     public static function envName(?string $secret): string {
@@ -66,7 +70,11 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         $session?->close();
     }
 
-    protected function session(McpServer $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): StdioSession {
+    protected function session(McpEndpoint $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): StdioSession {
+        // a stdio server is one of this application: its number and secret name the user and the variable
+        if (!$server instanceof McpServer) {
+            throw new \RuntimeException('stdio needs a registered server');
+        }
         $session = $this->sessions[$server->name] ?? null;
         if ($session !== null && $session->alive()) {
             return $session;
@@ -88,7 +96,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         }
     }
 
-    protected function rpc(McpServer $server, #[SensitiveParameter] ?string $token, object|string|null $session, string $method, array $params, Cancellation $cancellation): array {
+    protected function rpc(McpEndpoint $server, #[SensitiveParameter] ?string $token, object|string|null $session, string $method, array $params, Cancellation $cancellation): array {
         if (!$session instanceof StdioSession) {
             throw new RuntimeException(t('mcp.stdio.closed'));
         }
@@ -108,7 +116,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         }
         $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->name, $this->onToolsChanged, $this->logger);
         try {
-            $session->request('initialize', self::initializeParams(), new NullCancellation(), self::START_SECONDS);
+            $session->request('initialize', $this->initializeParams(), new NullCancellation(), self::START_SECONDS);
             $session->notify('notifications/initialized');
         } catch (RuntimeException $e) {
             $session->close();
