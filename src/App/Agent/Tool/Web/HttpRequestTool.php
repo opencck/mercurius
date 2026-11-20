@@ -27,7 +27,10 @@ use function Mercurius\I18n\t;
  * spec: brief/agent-loop.md#инструменты — http_request; GET/HEAD read, internal addresses only with the owner's permission
  * ref: references/hermes-agent/website/docs/user-guide/security.md@e96221fa:L819-L833 — redirect chains re-checked at every hop
  */
-final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
+final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside, \OpenCCK\App\Agent\Tool\PreparesInConversation, \OpenCCK\App\Agent\Tool\DecidedByParticipant {
+    /** set by the code when a secret of the project is used: who gave it and to which project; a model cannot set them */
+    private const SECRET_OWNER = 'secret_owner';
+    private const SECRET_PROJECT = 'secret_project';
     public const NAME = 'http_request';
     private const MAX_REDIRECTS = 5;
     private const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -53,6 +56,9 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         ?\OpenCCK\Domain\Repository\HttpCookieRepository $cookies = null,
         /** @var (\Closure(ToolContext): string)|null whose cookies a call uses: a project, else the participant ("p<id>") */
         private readonly ?\Closure $cookieScope = null,
+        /** @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): ?int)|null the project of a conversation where the participant may change things; null — no secrets of projects */
+        private readonly ?\Closure $projectOf = null,
+        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
     ) {
         $this->cookies = $cookies ?? new \OpenCCK\Infrastructure\Repository\InMemoryHttpCookieRepository();
     }
@@ -72,6 +78,34 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
             'required' => ['url'],
             'additionalProperties' => false,
         ]);
+    }
+
+    /**
+     * A secret that is not the caller's own but was given to the project of this chat for this site: the call is
+     * marked with who gave it, so the card goes to that participant and the value is taken as the project's.
+     *
+     * spec: brief/participants.md#ресурсы-проекта
+     */
+    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Principal $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
+        unset($args[self::SECRET_OWNER], $args[self::SECRET_PROJECT]);
+        $vault = $this->vault;
+        $project = $this->projectOf === null || $vault === null ? null : ($this->projectOf)($conversationId, $principal);
+        $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
+        if ($vault === null || $project === null || !is_string($host) || $host === '') {
+            return $args;
+        }
+        foreach (self::secrets($args) as $name) {
+            $author = $vault->readable($name, $principal) ? null : $vault->sharedWith($name, $project, $host);
+            if ($author !== null) {
+                $args[self::SECRET_OWNER] = $author;
+                $args[self::SECRET_PROJECT] = $project;
+            }
+        }
+        return $args;
+    }
+
+    public function decider(array $args): ?\OpenCCK\Domain\Entity\Principal {
+        return isset($args[self::SECRET_OWNER]) && is_int($args[self::SECRET_OWNER]) ? $this->principals?->find($args[self::SECRET_OWNER]) : null;
     }
 
     public function danger(array $args): DangerClass {
@@ -185,6 +219,12 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside {
         $values = [];
         foreach (self::secrets($args) as $name) {
             $value = $this->vault?->reveal($name, $context->principal);
+            // spec: brief/participants.md#ресурсы-проекта — a secret of the project, for its site, while the caller still works there
+            $project = isset($args[self::SECRET_PROJECT]) && is_int($args[self::SECRET_PROJECT]) ? $args[self::SECRET_PROJECT] : null;
+            $host = parse_url($url, PHP_URL_HOST);
+            if ($value === null && $project !== null && is_string($host) && $this->projectOf !== null && ($this->projectOf)($context->conversationId, $context->principal) === $project) {
+                $value = $this->vault?->revealShared($name, $project, $host);
+            }
             if ($value === null) {
                 $names = $this->vault === null ? [] : array_column($this->vault->names($context->principal), 'name');
                 return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $name, $names === [] ? '—' : implode(', ', $names)));

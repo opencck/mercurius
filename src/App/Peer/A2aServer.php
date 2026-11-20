@@ -80,7 +80,46 @@ final class A2aServer implements JobRuns {
         'GetExtendedAgentCard' => ['extended', true], 'agent/getAuthenticatedExtendedCard' => ['extended', false],
         // spec: brief/internet.md#между-агентами — a file of an answer over a connection, when the neighbour has no address
         'GetFile' => ['file', true],
+        // spec: brief/network.md#проект-как-канал-для-агентов — the projects an agent may work with, as channels
+        'ListProjects' => ['projects', true],
+        'SubscribeProject' => ['subscribe', true],
+        'UnsubscribeProject' => ['unsubscribe', true],
     ];
+
+    private ?ProjectChannels $channels = null;
+
+    /** spec: brief/network.md#проект-как-канал-для-агентов */
+    public function useProjects(ProjectChannels $channels): void {
+        $this->channels = $channels;
+    }
+
+    /**
+     * The list of projects of an agent, subscribing and leaving: what joining and leaving a chat is for a person.
+     *
+     * @param array<array-key, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function projects(Principal $agent, mixed $id, string $handler, array $params): array {
+        if ($this->channels === null) {
+            return self::error($id, self::ERR_METHOD_NOT_FOUND, 'projects are not available');
+        }
+        if ($handler !== 'projects') {
+            /** @var mixed $named */
+            $named = $params['project'] ?? null;
+            $project = is_string($named) || is_int($named) ? $this->channels->find($agent, (string) $named) : null;
+            if ($project === null) {
+                return self::error($id, self::ERR_INVALID_PARAMS, 'no such project among the projects of this agent (ListProjects)');
+            }
+            if ($handler === 'unsubscribe') {
+                $this->channels->unsubscribe($agent, $project);
+            } elseif (($params['work'] ?? false) === true) {
+                $this->channels->enter($agent, $project);
+            } else {
+                $this->channels->subscribe($agent, $project);
+            }
+        }
+        return ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['projects' => $this->channels->available($agent)]];
+    }
 
     /** @var array<int, list<float>> request times by agent */
     private array $hits = [];
@@ -399,6 +438,7 @@ final class A2aServer implements JobRuns {
             'cancel' => [200, $this->cancel($agent, $id, $params)],
             'extended' => [200, ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->extendedCard($agent)]],
             'file' => [200, $this->file($agent, $id, $params)],
+            'projects', 'subscribe', 'unsubscribe' => [200, $this->projects($agent, $id, $handler, $params)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
         };
     }
@@ -472,14 +512,25 @@ final class A2aServer implements JobRuns {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, $refusal);
             $this->logger->notice('A2A task refused', ['agent' => $agent->id, 'reason' => $refusal]);
         } else {
-            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files), $via, $lead['tokens']);
+            /** @var mixed $metadata */
+            $metadata = $message['metadata'] ?? null;
+            /** @var mixed $named a task may name the project it belongs to; without it the working project of the agent is taken */
+            $named = is_array($metadata) ? ($metadata['project'] ?? null) : null;
+            $this->start($agent, $taskId, $contextId, $text . $this->keep($agent, $taskId, $files), $via, $lead['tokens'], is_string($named) || is_int($named) ? (string) $named : null);
         }
         $task = $this->peers->task($taskId);
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : self::result($id, $this->view($task), $v1);
     }
 
-    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null): void {
+    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null, ?string $project = null): void {
         $policy = $this->policies->forPrincipal($agent);
+        // spec: brief/network.md#проект-как-канал-для-агентов — a task of an agent runs in its working project (or in the one
+        //       it names): the chat of the task is put there before anything looks for the project of the chat
+        $misplaced = $this->channels?->place($agent, 'a2a-' . $agent->id . '-' . $contextId, $project);
+        if ($misplaced !== null) {
+            $this->peers->updateTask($taskId, A2aTask::REJECTED, null, $misplaced);
+            return;
+        }
         $conversation = $this->conversations->openConversation($agent->id, self::CHANNEL, 'a2a-' . $agent->id . '-' . $contextId);
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
         // spec: brief/network.md#вызов-и-раздача-соседям — the token cap the leader sent is taken as the smaller of the two budgets

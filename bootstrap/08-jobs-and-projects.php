@@ -38,6 +38,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
+ * @var OpenCCK\App\Vault\Vault $vault
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
  * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
@@ -125,7 +126,13 @@ $projectTransfers = new \OpenCCK\App\Service\ProjectTransfers(
     $channel,
     $logger,
 );
-$tools->register(new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals, $projectTransfers));
+$projectLinks = new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkRepository($db);
+// spec: brief/network.md#проект-как-канал-для-агентов — an agent of the network enters a project, listens to it, leaves it
+$projectChannels = new \OpenCCK\App\Peer\ProjectChannels($projectRepository, $projectLinks);
+$projectEditTool = new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals, $projectTransfers);
+$projectEditTool->useChannels($projectChannels);
+$projectEditTool->useSecrets($vault, $projectLinks);
+$tools->register($projectEditTool);
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $ownerDirectory, $logger);

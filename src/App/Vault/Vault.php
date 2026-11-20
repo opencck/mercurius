@@ -38,6 +38,54 @@ final class Vault {
         $this->key = $key;
     }
 
+    private ?\OpenCCK\Domain\Repository\ProjectLinkRepository $projectLinks = null;
+
+    /** spec: brief/participants.md#ресурсы-проекта — a secret given to a project is used by those who work in it */
+    public function useProjects(\OpenCCK\Domain\Repository\ProjectLinkRepository $links): void {
+        $this->projectLinks = $links;
+    }
+
+    /** Who stored the secret; null — no such secret, or its author is gone. */
+    public function authorOf(string $name): ?int {
+        return $this->secrets->find($name)['principal'] ?? null;
+    }
+
+    /** Whether the reader may use the secret as their own, without opening it. */
+    public function readable(string $name, Principal $reader): bool {
+        $secret = $this->secrets->find($name);
+        return $secret !== null && $this->mayRead($secret['principal'], $reader);
+    }
+
+    /** A host fits a secret given for a site: the site itself or a name under it. */
+    public static function hostFits(string $host, string $site): bool {
+        $host = strtolower(trim($host, '.'));
+        $site = strtolower(trim($site, '.'));
+        return $site !== '' && ($host === $site || str_ends_with($host, '.' . $site));
+    }
+
+    /**
+     * The author of a secret given to this project for this host; null — the secret is not the project's, or the
+     * request goes elsewhere. A secret of a project never leaves for another site.
+     *
+     * spec: brief/participants.md#ресурсы-проекта
+     */
+    public function sharedWith(string $name, int $projectId, string $host): ?int {
+        $secret = $this->secrets->find($name);
+        $binding = $secret === null ? null : $this->projectLinks?->secretBinding($secret['id']);
+        if ($secret === null || $binding === null || $binding['projectId'] !== $projectId || !self::hostFits($host, $binding['host'])) {
+            return null;
+        }
+        return $secret['principal'];
+    }
+
+    /** The value of a secret of the project, for a request to its site; the caller has checked the right to work in the project. */
+    public function revealShared(string $name, int $projectId, string $host): ?string {
+        if ($this->sharedWith($name, $projectId, $host) === null) {
+            return null;
+        }
+        return self::known($this->decrypt($this->secrets->find($name)));
+    }
+
     public function enabled(): bool {
         return $this->key !== null;
     }
@@ -111,7 +159,12 @@ final class Vault {
 
     /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null $secret */
     private function open(?array $secret, Principal $reader): ?string {
-        if ($secret === null || $this->key === null || !$this->mayRead($secret['principal'], $reader)) {
+        return $secret === null || !$this->mayRead($secret['principal'], $reader) ? null : $this->decrypt($secret);
+    }
+
+    /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null $secret */
+    private function decrypt(?array $secret): ?string {
+        if ($secret === null || $this->key === null) {
             return null;
         }
         // The name is bound as associated data: a ciphertext moved under another name does not open.

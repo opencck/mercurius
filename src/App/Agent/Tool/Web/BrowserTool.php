@@ -32,7 +32,9 @@ use function Mercurius\I18n\t;
  * spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — navigation, reading, clicks, input, screenshots; acting for the owner only with a
  *       card; profiles keep logins
  */
-final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService {
+final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService, \OpenCCK\App\Agent\Tool\PreparesInConversation, \OpenCCK\App\Agent\Tool\DecidedByParticipant {
+    /** set by the code when the call works in the profiles of another participant (a project of theirs); a model cannot set it */
+    private const HOLDER = 'holder';
     public const NAME = 'browser';
     public const ACTIONS = ['open', 'read', 'click', 'type', 'select', 'scroll', 'back', 'screenshot', 'close', 'script'];
     public const MODULE = 'browser';
@@ -64,7 +66,28 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
          *      participant: the owner of the project for those who work in it; null — the participant's own
          */
         private readonly ?\Closure $holderOf = null,
+        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
     ) {}
+
+    /**
+     * Marks a call that works in the profiles of someone else — the owner of the project of this chat. There a click and
+     * a sent form are that participant's to allow, whatever the confirmations of the installation are.
+     *
+     * spec: brief/participants.md#ресурсы-проекта — what is done under someone's login is confirmed by them
+     */
+    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Principal $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
+        unset($args[self::HOLDER]);
+        $project = $this->projectOf === null ? null : ($this->projectOf)($conversationId);
+        $holder = $project === null || $this->holderOf === null ? null : ($this->holderOf)($project, $principal);
+        if ($holder !== null && $holder !== $principal->id) {
+            $args[self::HOLDER] = $holder;
+        }
+        return $args;
+    }
+
+    public function decider(array $args): ?\OpenCCK\Domain\Entity\Principal {
+        return isset($args[self::HOLDER]) && is_int($args[self::HOLDER]) ? $this->principals?->find($args[self::HOLDER]) : null;
+    }
 
     /**
      * Where a profile lives: the participant's own set (`p<id>/<name>`), inside the active project of the conversation
@@ -114,8 +137,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
             'open' => $this->internalHost($args) === null ? DangerClass::Read : DangerClass::Irreversible,
             // spec: brief/decisions.md#принятые-владельцем-риски — clicks and sending forms go without a card unless the owner
             //       turned confirmations on (BROWSER_CONFIRM): an accepted risk of the owner
-            'click' => $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
-            'type' => ($args['submit'] ?? false) === true && $this->confirm ? DangerClass::Irreversible : DangerClass::Write,
+            'click' => $this->confirm || isset($args[self::HOLDER]) ? DangerClass::Irreversible : DangerClass::Write,
+            'type' => ($args['submit'] ?? false) === true && ($this->confirm || isset($args[self::HOLDER])) ? DangerClass::Irreversible : DangerClass::Write,
             // picking in a list fills a form, it sends nothing: a write like typing without submit
             'select' => DangerClass::Write,
             'close' => DangerClass::Write,

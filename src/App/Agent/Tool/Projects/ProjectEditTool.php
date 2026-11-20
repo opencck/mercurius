@@ -32,13 +32,14 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'add_task', 'task_status', 'task_due', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
         'add_task' => ProjectLevel::Write, 'task_status' => ProjectLevel::Write, 'task_due' => ProjectLevel::Write,
         'relation' => ProjectLevel::Read, 'activate' => ProjectLevel::Read, 'members' => ProjectLevel::Read,
         'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read, 'transfer' => ProjectLevel::Owner,
+        'share_secret' => ProjectLevel::Full, 'unshare_secret' => ProjectLevel::Full,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -73,6 +74,13 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         }
     }
 
+    private ?\OpenCCK\App\Peer\ProjectChannels $channels = null;
+
+    /** spec: brief/network.md#проект-как-канал-для-агентов — an agent that binds its chat to a project works there from then on */
+    public function useChannels(\OpenCCK\App\Peer\ProjectChannels $channels): void {
+        $this->channels = $channels;
+    }
+
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.project_edit.vedet_proekty_project_imya_proekta')
             . t('tool.project_edit.proekt_text_tsel_goal_novaya')
@@ -83,7 +91,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . t('tool.project_edit.proekt_proektom_etogo_chata_create')
             . ' ' . t('tool.project_edit.rename_about')
             . ' ' . t('tool.project_edit.share_about')
-            . ' ' . t('tool.project_edit.transfer_about'), [
+            . ' ' . t('tool.project_edit.transfer_about')
+            . ' ' . t('tool.project_edit.secret_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -97,6 +106,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'due' => ['type' => 'string', 'maxLength' => 40],
                 'participant' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'access' => ['type' => 'string', 'enum' => ProjectLevel::GIVEN],
+                'secret' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
+                'site' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 253],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -185,6 +196,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'unshare' => $this->unshare($project, $context, $level, Args::string($args, 'participant') ?? ''),
             'members' => $this->members($project),
             'transfer' => $this->transfer($project, Args::string($args, 'participant') ?? ''),
+            'share_secret' => $this->shareSecret($project, $context, trim(Args::string($args, 'secret') ?? ''), strtolower(trim(Args::string($args, 'site') ?? ''))),
+            'unshare_secret' => $this->unshareSecret($project, $context, trim(Args::string($args, 'secret') ?? '')),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -297,7 +310,46 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             return ToolResult::error(t('tool.project_edit.not_bound'));
         }
         $this->projects->activate($meta->channel, $meta->chatId, null, $meta->threadId);
+        if ($this->channels !== null && $meta->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL && $context->principal->isAgent()) {
+            $this->channels->leave($context->principal);
+        }
         return ToolResult::ok(t('tool.project_edit.unbound'));
+    }
+
+    private ?\OpenCCK\App\Vault\Vault $vault = null;
+    private ?\OpenCCK\Domain\Repository\ProjectLinkRepository $links = null;
+
+    /** spec: brief/participants.md#ресурсы-проекта — a secret is given to a project by its author, for one site */
+    public function useSecrets(\OpenCCK\App\Vault\Vault $vault, \OpenCCK\Domain\Repository\ProjectLinkRepository $links): void {
+        $this->vault = $vault;
+        $this->links = $links;
+    }
+
+    /**
+     * Gives a secret to the project: those who work in it use the secret in requests to this site and never see it.
+     *
+     * spec: brief/participants.md#ресурсы-проекта
+     */
+    private function shareSecret(Project $project, ToolContext $context, string $name, string $site): ToolResult {
+        $id = $this->vault?->id($name);
+        if ($this->vault === null || $this->links === null || $id === null || !$this->vault->readable($name, $context->principal)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.secret_not_yours'), $name));
+        }
+        if (preg_match(\OpenCCK\Domain\Mail\Mailbox::HOST_PATTERN, $site) !== 1) {
+            return ToolResult::error(t('tool.project_edit.secret_needs_site'));
+        }
+        $this->links->bindSecret($id, $project->id, $site);
+        return ToolResult::ok(sprintf(t('tool.project_edit.secret_shared'), $name, $project->name, $site));
+    }
+
+    private function unshareSecret(Project $project, ToolContext $context, string $name): ToolResult {
+        $id = $this->vault?->id($name);
+        $binding = $id === null ? null : $this->links?->secretBinding($id);
+        if ($this->vault === null || $this->links === null || $id === null || $binding === null || $binding['projectId'] !== $project->id || !$this->vault->readable($name, $context->principal)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.secret_not_shared'), $name, $project->name));
+        }
+        $this->links->unbindSecret($id);
+        return ToolResult::ok(sprintf(t('tool.project_edit.secret_unshared'), $name, $project->name));
     }
 
     /** spec: brief/channels.md#форум-темы--проекты — a new name for the project and its forum topics */
@@ -387,6 +439,11 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             return ToolResult::error(t('tool.project_edit.beseda_ne_naydena'));
         }
         $this->projects->activate($meta->channel, $meta->chatId, $project->id, $meta->threadId);
+        // spec: brief/network.md#проект-как-канал-для-агентов — an agent of the network enters the project for its next tasks too
+        if ($this->channels !== null && $meta->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL && $context->principal->isAgent()) {
+            $this->channels->enter($context->principal, $project);
+            return ToolResult::ok(sprintf(t('tool.project_edit.agent_entered'), $project->name));
+        }
         return ToolResult::ok(sprintf(t('tool.project_edit.proekt_etogo_chata_kartochka_pridet'), $project->name));
     }
 }

@@ -40,6 +40,8 @@ final class ProjectEvents {
         private readonly PrincipalRepository $principals,
         private readonly Closure $push,
         private readonly LoggerInterface $logger = new NullLogger(),
+        /** @var (Closure(int, int): bool)|null whether an agent listens to a project; null — every agent of the project does */
+        private readonly ?Closure $subscribed = null,
     ) {}
 
     /** A run ended: when its place belongs to a project, the agents of the project learn what was said. */
@@ -97,7 +99,8 @@ final class ProjectEvents {
         $found = [];
         foreach (array_unique($ids) as $id) {
             $who = $id === $author ? null : $this->principals->find($id);
-            if ($who !== null && $who->kind === PrincipalKind::Agent && $who->status === PrincipalStatus::Active) {
+            // spec: brief/network.md#проект-как-канал-для-агентов — an event goes to those who subscribed
+            if ($who !== null && $who->kind === PrincipalKind::Agent && $who->status === PrincipalStatus::Active && ($this->subscribed === null || ($this->subscribed)($projectId, $who->id))) {
                 $found[] = $who;
             }
         }

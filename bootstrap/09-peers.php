@@ -36,6 +36,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  * @var OpenCCK\App\Agent\Trace\Tracer $tracer
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  * @var OpenCCK\App\Vault\Vault $vault
+ * @var OpenCCK\App\Peer\ProjectChannels $projectChannels
  */
 
 // spec: brief/network.md#подключения-агентов — A2A v1.0: neighbours connect with their own tokens; the agent gives tasks to its own
@@ -126,6 +127,7 @@ $projectEvents = new \OpenCCK\App\Peer\ProjectEvents(
         return $sent;
     },
     $logger,
+    $projectChannels->subscribed(...),
 );
 $tracer->onRunFinished($projectEvents->finished(...));
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
@@ -180,6 +182,7 @@ if ($a2aServer !== null) {
     $scheduler->useJobRuns($a2aServer);
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
     // spec: brief/network.md#опознание-агентов-ключи-ecdsa — the extended card names the tools of the asking agent's own policy
+    $a2aServer->useProjects($projectChannels);
     $a2aServer->useSkills(static function (Principal $agent) use ($tools, $policies): array {
         $skills = [];
         foreach (array_slice($tools->definitions($policies->forPrincipal($agent)), 0, 30) as $definition) {

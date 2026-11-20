@@ -102,7 +102,19 @@ $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context
     $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
     return $project === null ? 'p' . $context->principal->id : 'project:' . $project->id;
 };
-$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope));
+$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope,
+    // spec: brief/participants.md#ресурсы-проекта — the project of a chat, for those who may change things in it: its secrets serve them
+    static function (int $conversationId, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $httpCookieProjects): ?int {
+        $meta = $conversations->meta($conversationId);
+        $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
+        if ($project === null) {
+            return null;
+        }
+        return $project->levelOf($who, $httpCookieProjects->memberLevel($project->id, $who->id))?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true ? $project->id : null;
+    },
+    $principals,
+));
+$vault->useProjects(new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkRepository($db));
 // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: brief/participants.md#решения-владельца-о-правах — search providers in the order of SEARCH_PROVIDERS
@@ -225,6 +237,7 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
             }
             return $project->ownerId ?? $principals->owner()?->id;
         },
+        $principals,
     ));
 }
 if ($sandbox !== null) {
