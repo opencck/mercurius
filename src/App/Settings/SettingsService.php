@@ -59,6 +59,16 @@ final class SettingsService {
         return $env;
     }
 
+    /**
+     * Stored keys the catalog no longer has: a release renamed or removed them; they are not applied.
+     *
+     * spec: BRIEF.md#настройки-агента
+     * @return list<string>
+     */
+    public function unknown(): array {
+        return array_values(array_filter(array_map('strval', array_keys($this->settings->all())), static fn(string $key): bool => !SettingsCatalog::has($key)));
+    }
+
     /** @return list<array{key: string, group: string, about: string, value: string, source: string}> secrets are never shown */
     public function list(): array {
         $stored = $this->settings->all();
@@ -95,6 +105,12 @@ final class SettingsService {
     public function set(Principal $who, string $key, #[SensitiveParameter] string $value): string {
         $key = strtoupper(trim($key));
         $value = trim($value);
+        // a stored key a release renamed or removed: an empty value takes it away
+        if ($value === '' && !SettingsCatalog::has($key) && in_array($key, $this->unknown(), true)) {
+            $this->settings->delete($key);
+            $this->vault->remove(self::VAULT_PREFIX . $key, $who);
+            return sprintf(t('settings.unknown_removed'), $key);
+        }
         $problem = SettingsCatalog::problem($key, $value);
         if ($problem !== null) {
             throw new DomainException($problem);

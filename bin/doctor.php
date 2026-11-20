@@ -29,6 +29,10 @@ try {
     $db = null;
 }
 $audit = $db === null ? null : new \OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository($db);
-$results = (new Doctor($env, $db, $root . '/migrations', $root . '/storage', HttpClients::create(), $audit))->run();
+$unknown = $db === null ? null : static fn(): array => array_values(array_filter(
+    array_map('strval', array_keys((new \OpenCCK\Infrastructure\Repository\PostgresSettingRepository($db))->all())),
+    static fn(string $key): bool => !\OpenCCK\App\Settings\SettingsCatalog::has($key),
+));
+$results = (new Doctor($env, $db, $root . '/migrations', $root . '/storage', HttpClients::create(), $audit, $unknown))->run();
 echo Doctor::render($results), "\n";
 exit(array_filter($results, static fn(array $r): bool => $r[0] === Doctor::FAIL) === [] ? 0 : 1);

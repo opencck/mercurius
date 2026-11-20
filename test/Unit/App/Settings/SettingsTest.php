@@ -142,4 +142,17 @@ final class SettingsTest extends AsyncTestCase {
         self::assertStringContainsString('QUIET_HOURS сохранена', $commands->set($this->owner, 'QUIET_HOURS 0-7'));
         self::assertStringContainsString('/set <ключ> <значение>', $commands->show('время'));
     }
+
+    public function testAStoredKeyNoLongerKnownIsNamedAndCanBeRemoved(): void {
+        // spec: BRIEF.md#настройки-агента — a key renamed or removed in a release is not applied and not hidden
+        $this->store->set('OLD_LIMIT', '5', false, null);
+        $this->settings->set($this->owner, 'QUIET_HOURS', '0-7');
+
+        self::assertSame(['OLD_LIMIT'], $this->settings->unknown());
+        self::assertArrayNotHasKey('OLD_LIMIT', $this->settings->overlay(), 'an unknown key is not applied');
+
+        self::assertSame(sprintf(\Mercurius\I18n\t('settings.unknown_removed'), 'OLD_LIMIT'), $this->settings->set($this->owner, 'old_limit', ''));
+        self::assertSame([], $this->settings->unknown());
+        self::assertArrayHasKey('QUIET_HOURS', $this->store->all(), 'the known ones stay');
+    }
 }

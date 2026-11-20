@@ -83,4 +83,11 @@ final class DoctorTest extends AsyncTestCase {
         $failed = Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', $missing))->run());
         self::assertStringContainsString('❌ ' . \Mercurius\I18n\t('service.doctor.storage') . ': ' . \Mercurius\I18n\t('service.doctor.storage_readonly'), $failed);
     }
+
+    public function testAnOutdatedStoredSettingIsNamed(): void {
+        // spec: BRIEF.md#настройки-агента — a stored key the release no longer has
+        $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), null, null, static fn(): array => ['OLD_LIMIT']);
+        self::assertStringContainsString('⚠️ ' . \Mercurius\I18n\t('service.doctor.settings_unknown') . ': OLD_LIMIT', Doctor::render($doctor->run()));
+        self::assertStringNotContainsString(\Mercurius\I18n\t('service.doctor.settings_unknown'), self::results([]), 'no outdated keys, no line');
+    }
 }

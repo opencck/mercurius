@@ -37,11 +37,13 @@ final class Doctor {
         private readonly string $storage,
         private readonly ?HttpClient $http = null,
         private readonly ?\OpenCCK\Domain\Repository\CommandAuditRepository $audit = null,
+        /** @var (\Closure(): list<string>)|null the stored settings the catalog no longer has */
+        private readonly ?\Closure $unknownSettings = null,
     ) {}
 
     /** @return list<array{string, string, string}> status, what, details */
     public function run(): array {
-        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->audit(), ...$this->services()];
+        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->outdated(), ...$this->audit(), ...$this->services()];
     }
 
     /**
@@ -138,6 +140,21 @@ final class Doctor {
         return $applied === $latest
             ? [self::OK, t('service.doctor.baza'), sprintf(t('service.doctor.migratsii_primeneny'), $applied)]
             : [self::FAIL, t('service.doctor.baza'), sprintf(t('service.doctor.primeneno_iz_migratsiy_perezapustite_pri'), $applied, $latest)];
+    }
+
+    /**
+     * Stored settings a release renamed or removed: they are not applied, the owner should know and may remove them.
+     *
+     * spec: BRIEF.md#настройки-агента
+     * @return list<array{string, string, string}>
+     */
+    private function outdated(): array {
+        try {
+            $keys = $this->unknownSettings === null ? [] : ($this->unknownSettings)();
+        } catch (Throwable) {
+            return [];
+        }
+        return $keys === [] ? [] : [[self::WARN, t('service.doctor.settings_unknown'), sprintf(t('service.doctor.settings_unknown_list'), implode(', ', $keys))]];
     }
 
     /**

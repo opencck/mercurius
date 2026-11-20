@@ -261,6 +261,10 @@ $settingsService = new \OpenCCK\App\Settings\SettingsService(
     static fn(): ?Principal => $ownerDirectory->principal(),
 );
 $overlay = $settingsService->overlay();
+// spec: BRIEF.md#настройки-агента — a stored key the release no longer has is not applied; it is named
+if (($outdated = $settingsService->unknown()) !== []) {
+    $logger->warning('Stored settings this version does not know', ['keys' => $outdated]);
+}
 $settingsProblem = $validateSettings($overlay);
 if ($settingsProblem === null) {
     $_ENV = $overlay;
@@ -1078,7 +1082,7 @@ $chat = new ChatService(
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
     // spec: BRIEF.md#решено-в-фазе-12 — /doctor checks the installation
-    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit),
+    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...)),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,
