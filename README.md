@@ -4,7 +4,7 @@
 
 Mercurius is an autonomous personal agent. You run it on your own server with Docker Compose and talk to it through a Telegram bot. It is meant to help with any kind of work: searching the web, working with servers over SSH, writing code and running software projects, planning, research and testing.
 
-**Status:** runs on the owner's server. Development phases 0–9 and 5a are done; phases 10 (scheduler, groups, channel, forum), 12 (delivery) and 13 (agent network) are in progress. The plan is in [`ROADMAP.md`](ROADMAP.md) (in Russian).
+**Status:** runs on the owner's server and on four test instances. The development phases of [`ROADMAP.md`](ROADMAP.md) are done; the finishing work after a review and a security audit is in [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md) (both in Russian): phases Д1–Д14 are done, some waiting for live checks by the owner; delivery, the code structure and the final specification are in progress.
 
 ## What works now
 
@@ -18,14 +18,16 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - **Skills and MCP:** a skill catalog with versions and the owner's approval; ordinary `SKILL.md` skills of other agents imported from GitHub or an archive with their files; MCP servers over HTTP with tool filters and a circuit breaker; built-in mail (IMAP/SMTP) as an MCP server.
 - **Scheduler and projects:** jobs by a schedule or a signed webhook, quiet hours, a daily digest; projects with tasks and deadlines.
 - **Groups:** work in groups the owner approves (on mention or freely); a forum where each topic is a project; posts in a channel through the owner's card.
-- **Delegation:** worker agents with a clean context, a model per part, a verifier for costly parts, background work.
-- **Agent network:** Mercurius instances give each other tasks over A2A, known by their keys.
+- **Delegation:** worker agents with a clean context and their own rights (read or write), a model per part, a verifier for costly parts, background work.
+- **Agent network:** Mercurius instances give each other tasks over A2A, known by their keys: a call that waits for the answer, parts given to several neighbours and merged, cancelling, deadlines, the spend carried along the chain.
 - **WebSocket API:** a second channel: `GET /api/ws` with `Authorization: Bearer <key>`; the owner issues keys to participants with `/apikey new <participant>`; JSON frames of messages, buttons and files.
-- **Operation:** settings in the dialog (`/settings`, `/set`, `/restart`), the agent's language (`AGENT_LANGUAGE`, Russian by default), traces and spend, Prometheus metrics, backup and restore (`bin/backup.sh`), an installation check (`doctor`), an evaluation set.
+- **Self-improvement:** the agent reviews its own traces, proposes notes to its prompt and changes of model roles; a change passes the evaluation set and the owner's card, and can be rolled back (`/prompt`, `/models`, `/proposals`).
+- **Export and import:** `/export <password>` packs the whole agent (database, data, working folders, settings) into an archive sealed by the password; `/import` replaces an agent with an archive, or takes only its memory or its skills.
+- **Operation:** settings in the dialog (`/settings`, `/set`, `/restart`), the agent's language (`AGENT_LANGUAGE`, Russian by default), traces and spend, Prometheus metrics, backup and restore (`bin/backup.sh`, `bin/restore.sh`), update with one command (`bin/update.sh`), an installation check (`/doctor`), an evaluation set.
 
 ## Planned
 
-Self-improvement from its own traces; MCP servers over stdio in the sandbox. Details are in [`ROADMAP.md`](ROADMAP.md).
+MCP servers over stdio in the sandbox; the memory and the agent network as packages of their own. Details are in [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md).
 
 ## Running it
 
@@ -42,7 +44,8 @@ API.
    Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
    (`openssl rand -hex 24`). Every variable is explained in the file; most settings can be changed later in the dialog.
    Without `APP_URL` the bot uses long polling and needs no public address; with it — a webhook behind your proxy.
-3. `docker compose up -d --build`. The app applies database migrations at start; `docker compose ps` shows `app`,
+3. `chmod 1777 storage/app storage/browser` — the containers write there as their own users. Then
+   `docker compose up -d --build`. The app applies database migrations at start; `docker compose ps` shows `app`,
    `postgres` and `sandbox` as `healthy`.
 4. Write to your bot. `/start` lists the commands; `/doctor` checks the installation (keys, migrations, sandbox,
    modules, webhook, disk) and says what to fix.
@@ -73,12 +76,45 @@ docker compose up -d --build
 ### Updating
 
 ```sh
+bin/update.sh    # a backup first (a failed one stops the update), git pull, the module submodules, build and start
+```
+
+The same by hand:
+
+```sh
 bin/backup.sh                       # the database, data and .env; the last 7 copies stay in backups/
 git pull --ff-only && git submodule update --init --depth 1 <the submodules you use>
 docker compose up -d --build        # new migrations apply at start; they only add to the schema
 ```
 
-New variables appear in `.env.example`; `/doctor` names the ones your `.env` lacks. `bin/restore.sh` brings a copy back.
+New variables appear in `.env.example`; `/doctor` names the ones your `.env` lacks and the settings stored in the
+dialog that this version no longer has. `bin/restore.sh backups/<time>` brings a copy back.
+
+### Several instances on one host
+
+Each instance is its own clone in its own folder with its own `.env`: `COMPOSE_PROJECT_NAME`, the bot token and keys,
+`WEB_ALIAS` (its name in the proxy network `web`) and `SANDBOX_SUBNET` (a free `/24` for its sandbox network, for
+example `172.31.252.0/24`). Images are shared: a build in any folder updates all of them.
+
+When Docker on the host runs out of address pools for new networks, give the `browser` network a subnet in a local
+file next to `docker-compose.yml` and add it to `COMPOSE_FILE`:
+
+```yaml
+# compose.local.yml — not in git
+networks:
+  browser:
+    ipam:
+      config:
+        - subnet: 172.31.248.0/24
+```
+
+```sh
+# .env
+COMPOSE_FILE=docker-compose.yml:compose.local.yml
+```
+
+The data folder `storage/app` is a mount the application writes to as its own user (uid 10001): give it mode `1777`,
+as `storage/browser`; `/doctor` checks it.
 
 ## Stack
 
@@ -96,19 +132,19 @@ Components useful outside Mercurius live in their own repositories and are inclu
 | [`mercurius-search`](https://github.com/opencck/mercurius-search) | Web search behind one interface: SearXNG, Brave, Tavily and a model with web search, with fallback and a cache. |
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | The texts of the agent in Russian and English: a translator, catalogs, plural forms and a parity check. |
 
-Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). Components that may move to their own packages later: command policy, memory, the MCP client, the agent network.
+Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). The repositories [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy), [`mercurius-memory`](https://github.com/opencck/mercurius-memory), [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) and [`mercurius-peer`](https://github.com/opencck/mercurius-peer) are reserved: their code still lives in this repository (`src/CommandPolicy/`, `src/Memory/`, `src/App/Mcp/`, `src/App/Peer/`); the memory and the agent network move out first.
 
 ## Repository layout
 
 | Path | Contents |
 |------|----------|
 | [`BRIEF.md`](BRIEF.md) | Specification: requirements, design, decisions (in Russian) |
-| [`ROADMAP.md`](ROADMAP.md) | Development phases and their status (in Russian) |
+| [`ROADMAP.md`](ROADMAP.md), [`ROADMAP_FINALIZATION.md`](ROADMAP_FINALIZATION.md) | Development phases and the finishing work, with their status (in Russian; temporary, removed at the end) |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `sandbox.php`, `src/Sandbox/` | The sandbox executor |
 | `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api; mail |
-| `bin/` | Backup, restore and the installation check |
+| `bin/` | Backup, restore, update and the installation check |
 | `docs/`, `notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |
 
