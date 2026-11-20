@@ -4,46 +4,66 @@
 
 Как компоненты Меркурия ложатся на `opencck/server` (DDD-слои Domain → App → Infrastructure, модули через
 `App::addHandler()`, сервисы-одиночки, события, задачи `amphp/parallel`). Составлено по скиллу `skill-opencck`
-2026-11-16 (фаза 0); уточняется в фазах 1–3. Код пакетов из `packages/` от opencck не зависит — основной репозиторий
+2026-11-16 (фаза 0); таблицы ниже сверены с кодом 2026-11-20. Код пакетов из `packages/` от opencck не зависит — основной репозиторий
 оборачивает их в сервисы и модули.
 
 ### Domain — сущности и правила
 
-| Что | Сущности | Примечание |
-|-----|----------|------------|
-| Пользователи | `User`, `Role`, `ChatBinding` | Владелец — `User` с ролью владельца, по `TELEGRAM_ADMIN_ID` |
-| Диалог | `Conversation` (сессия), `Message`, `Attachment` | Эпизоды памяти — это они же |
-| Исполнение | `Run` (запуск агента или воркера, вложенный), `Step`, `ToolCall`, `Approval` | `Approval` — приостановленный `ToolCall` с токеном возобновления |
-| Проекты | `Project`, `ProjectTask`, `OwnerProjectRelation` | Слои памяти 2–4, общие с планировщиком |
-| Память | `Fact`, `FactVersion`, `MemoryEntity`, `Tombstone`, `CoreMemory` (слой «всегда в контексте») | Схема и логика — в пакете `memory`, здесь — привязка к пользователям и проектам |
-| Модели | `ModelProfile`, `ModelRole`, `RoutingDecision` | Каталог OpenRouter и журнал решений о выборе модели |
-| Расширения | `Skill`, `McpServer`, `Peer`, `ScheduledJob` | |
-| Трассы | `Span`, `Usage` | Расход по вызовам и шагам |
+По фактическим классам `src/Domain/` (2026-11-20). Сущности неизменяемые (`readonly`), интерфейсы хранилищ — в
+`src/Domain/Repository/`, реализации — PostgreSQL в `src/Infrastructure/Repository/` и в памяти для тестов.
 
-Сущности неизменяемые (`readonly`, создание через фабрики), репозитории — асинхронный DBAL. **Стратегии** opencck
-(подписчики на события с алгоритмом) — для выбора модели, политики подтверждений и правил консолидации.
+| Что | Классы | Примечание |
+|-----|--------|------------|
+| Участники | `Entity\Principal` (человек или агент), `PrincipalKind`, `PrincipalStatus`, `Role`, `Power` | Свои роли с полномочиями; владелец — роль `owner`, первый — по `TELEGRAM_ADMIN_ID`, дальше `/owner` |
+| Запуск | `Agent\Run`, `RunStatus`, `RunLimits`, `StopReason`, `Approval`, `ApprovalStatus`, `Grant`, `DangerClass`, `Delivery` | Запуск переживает перезапуск; подтверждение — приостановленный вызов; `Grant` — сохранённое «разрешать всегда» |
+| Политики и лимиты | `ParticipantPolicy`, `SandboxLimits`, `HistoryScope` | Права участника не шире прав владельца |
+| Модели | `ModelRef`, `ModelRole`, `ProviderProfile`, `RoutingDecision`, `PromptCache` | Провайдер — данные; роль модели и решение о выборе — в базе |
+| Делегирование | `Delegation`, `DelegationTask` | Воркер — вложенный запуск |
+| Опыт и эпизоды | `Experience`, `EpisodeMessage`, `Compaction`, `ConversationMeta` | Память фактов — пакет `mercurius-memory` |
+| Проекты и задания | `Project\Project`, `ProjectTask`, `Job\Job`, `Schedule` | |
+| Группы и каналы | `Group\Group`, `PublicChannel`, `ChannelPost`, `Relay\MessageRelay` | |
+| Сеть агентов | `Peer\Peer`, `A2aTask`, `OutgoingTask`, `AgentRequest` | `Peer` реализует `PeerEndpoint` пакета `mercurius-peer` |
+| Серверы | `Server\Server`, `ServerChanges`, `AuditChain` | Журнал команд — цепочка хешей |
+| Расширения | `Skill\Skill`, `Mcp\McpServer`, `Media\MediaPref` | `McpServer` реализует `McpEndpoint` пакета `mercurius-mcp-client` |
+| Учёт | `Entity\LlmCallRecord`, `SpendQuery` | Расход по вызовам моделей |
 
 ### App — сценарии
 
-- **Сервисы** (одиночки): `AgentRuntime` (цикл и запуски), `ToolRegistry`, `ApprovalService`, `ModelRouter`, `ConversationService`, `MemoryService` (обёртка пакета `memory`), `TraceService`, `SchedulerService`, `PeerService`, `UserService`.
-- **События**: `MessageReceived`, `RunStarted`, `ToolCallRequested`, `ApprovalRequested`, `ApprovalResolved`, `RunFinished`, `MemoryWritten`, `RoutingDecided`. Трассировка и метрики подписываются на них, а не встраиваются в код цикла.
-- **Контроллеры**: вебхук Telegram (`POST`, проверка секрета, ответ сразу), `health`, `metrics` (Prometheus); WebSocket — сеть агентов (JSON-RPC-маппер opencck).
+Без отдельного контейнера зависимостей: сервисы собираются в `boot/01…11-*.php` (части запуска в одной области
+видимости) и передаются конструкторами.
+
+- **Агент** (`src/App/Agent/`): `AgentLoop` и `ToolRound` (цикл, раунд инструментов), `RunScheduler` (очередь запусков
+  по беседам), `ApprovalService` и `ApprovalGate` (карточки), `LoopGuard` и `SpendGuard`, `PromptBuilder`,
+  `ChannelRunObserver` (статус в канале), `Tool/` — инструменты по категориям и `ToolRegistry`, `Delegation/` — воркеры,
+  `Model/` — `ModelRouter`, `ModelRoles`, `Context/` — сжатие контекста, `Sandbox/`, `Media/`, `Trace/`.
+- **Канал и команды** (`src/App/Service/`): `ChatService` (сообщения и команды `/…`), `GroupGate`, `VisitorService`,
+  `PolicyService`, `OwnerDirectory`, `RoleCatalog`, `SettingsCommands`, `CodexCommands`, `TraceReports`, `Doctor`.
+- **Подсистемы**: `Job/` (`JobScheduler`, `HookReceiver`, `DailyDigest`), `Peer/` (`PeerNetwork`, `A2aServer`, `AgentKeys`,
+  `AgentRequests`, `A2aFiles`), `Mcp/` (`McpManager`, `McpTool`, `OsvCheck`), `Skill/` (`SkillLibrary`, `SkillImporter`),
+  `Server/` (`ServerConsole`), `Vault/`, `Settings/`, `Improve/` (предложения, заметки к промпту, набор задач), `Eval/`,
+  `Export/` (архив и импорт), `Api/` (WebSocket API), `Web/`.
+- **Событий opencck нет:** трассировка — наблюдатель запуска (`RunObserver`, `Trace/`), а не подписка на события.
 
 ### Infrastructure — модули и процессы
 
-| Модуль (`AppModuleInterface`) | Что делает |
-|-------------------------------|------------|
-| `HttpServerModule` | Один `SocketHttpServer`: HTTP и WebSocket за Nginx Proxy Manager (сеть `web`) |
-| `TelegramModule` | Регистрирует вебхук при заданном `APP_URL`, иначе — цикл long polling |
-| `AgentModule` | Очередь запусков; при старте поднимает незавершённые запуски и ожидающие подтверждения из БД |
-| `SchedulerModule` | Задания по расписанию (`EventLoop::repeat`) |
-| `ConsolidationModule` | Ночная консолидация памяти |
-| `ModelCatalogModule` | Обновление каталога моделей OpenRouter по расписанию |
-| `PeerModule` | Исходящие подключения к другим экземплярам |
+| Модуль (`src/Infrastructure/Module/`) | Что делает |
+|---------------------------------------|------------|
+| `API\Server` | Один `SocketHttpServer` за Nginx Proxy Manager (сеть `web`): маршруты из `boot/11-http.php` |
+| `TelegramModule` | Вебхук при заданном `APP_URL`, иначе long polling; модули останавливаются в обратном порядке |
+| `AgentModule` | Поднимает незавершённые запуски и ожидающие подтверждения, доставки и фоновые делегирования |
+| `SchedulerModule` | Задания по расписанию и ежедневная сводка |
+| `MemoryConsolidationModule` | Ночная проверка памяти |
+| `ModelCatalogModule` | Каталоги моделей провайдеров по расписанию |
+| `TraceRetentionModule` | Срок хранения трасс |
+| `PeerModule` | Соединения с соседями, которые держатся открытыми |
 
-- **Задачи `amphp/parallel`** — всё, что нагружает процессор: кодирование и сравнение HRR, анализ текста при массовой записи, миграции.
-- **Песочница исполнения** — отдельный сервис compose с небольшим API исполнения; её образ собирается из основного репозитория.
-- **Хранение состояния — только PostgreSQL.** `Storage` opencck с автосохранением из памяти процесса для долговечного состояния не используем: запуски, подтверждения и очереди должны переживать перезапуск.
+Обработчики HTTP (`src/Infrastructure/API/Handler/`): `TelegramWebhookHandler`, `A2aHandler`, `A2aSocketHandler`,
+`A2aFilesHandler`, `ApiSocketHandler`, `JobHookHandler`, `MetricsHandler`, `HealthHandler`.
+
+- **`amphp/parallel` не используется:** по замеру тяжёлых по процессору мест нет (решение в доработках цикла).
+- **Песочница исполнения** — сервис compose `sandbox` (`sandbox.php`, `src/Sandbox/`), образ из основного репозитория.
+- **Хранение состояния — только PostgreSQL.** `Storage` opencck не используется: запуски, подтверждения и очереди
+  переживают перезапуск.
 
 ### Решено в фазе 1
 
