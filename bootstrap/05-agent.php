@@ -194,6 +194,8 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     // the other providers (anthropic, bedrock, codex) look through the text models' clients
     $clients,
 );
+// spec: brief/operations.md#расход-что-знает-агент — a picture a run looked at counts in the tokens of that run
+$mediaModels->useRuns($runs);
 // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — the browser module (profile browser), offered while its service answers
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 $browserUrl = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000';

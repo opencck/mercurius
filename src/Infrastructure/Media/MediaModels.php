@@ -64,6 +64,17 @@ final class MediaModels {
         private readonly array $clients = [],
     ) {}
 
+    private ?\OpenCCK\Domain\Repository\RunRepository $runs = null;
+
+    /**
+     * The runs whose counters take the tokens of a media call made inside a run, as a search made by a run does.
+     *
+     * spec: brief/operations.md#расход-что-знает-агент — the tokens of a run are all the tokens its calls spent
+     */
+    public function useRuns(\OpenCCK\Domain\Repository\RunRepository $runs): void {
+        $this->runs = $runs;
+    }
+
     /**
      * Pictures drawn by an image model of OpenRouter; the cost OpenRouter reports is recorded like any call.
      *
@@ -306,6 +317,10 @@ final class MediaModels {
                 max(0, $durationMs),
                 $call->runId,
             ));
+            $spent = $int($usage['prompt_tokens'] ?? $usage['input_tokens'] ?? 0) + $int($usage['completion_tokens'] ?? $usage['output_tokens'] ?? 0);
+            if ($call->runId !== null && $spent > 0) {
+                $this->runs?->settleAuxiliary($call->runId, 0, $spent);
+            }
         } catch (Throwable $e) {
             $this->logger->warning('Media call was not recorded', ['error' => $e::class]);
         }

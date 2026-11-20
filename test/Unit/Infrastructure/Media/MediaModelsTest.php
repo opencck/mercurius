@@ -53,6 +53,21 @@ final class MediaModelsTest extends AsyncTestCase {
         self::assertSame(['media-vision', 'openrouter:z-ai/glm-5.3-flash', 1200, 60, 0.0001, 7, 70], [$record->purpose, $record->model, $record->inputTokens, $record->outputTokens, $record->costUsd, $record->conversationId, $record->runId]);
     }
 
+    public function testAPictureARunLookedAtCountsInTheTokensOfThatRun(): void {
+        // spec: brief/operations.md#расход-что-знает-агент — the tokens of a run are all the tokens its calls spent
+        $models = $this->models(['https://openrouter.ai/api/v1/chat/completions' => self::chat('На фото кот.')]);
+        $runs = new \OpenCCK\Test\Support\InMemoryRunRepository();
+        $models->useRuns($runs);
+        $run = $runs->start(7, 1, 'test/model', new \OpenCCK\Domain\Agent\RunLimits(30, 100_000, 900, 120)) ?? self::fail('no run');
+
+        $models->look('openrouter:z-ai/glm-5.3-flash', [['bytes' => 'JPEG', 'mime' => 'image/jpeg']], 'Опиши кратко.', new MediaCall(7, $run->id, new NullCancellation()));
+        self::assertSame(1260, $runs->find($run->id)?->tokensUsed);
+
+        // a picture that came before any run belongs to no run
+        $models->look('openrouter:z-ai/glm-5.3-flash', [['bytes' => 'JPEG', 'mime' => 'image/jpeg']], 'Опиши кратко.', new MediaCall(7, null, new NullCancellation()));
+        self::assertSame(1260, $runs->find($run->id)?->tokensUsed);
+    }
+
     public function testAPictureIsDrawnByAnOpenRouterImageModelAndItsCostRecorded(): void {
         // spec: brief/models.md#категории-моделей
         $models = $this->models(['https://openrouter.ai/api/v1/images' => [200, ['content-type' => 'application/json'], json_encode([
