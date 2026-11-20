@@ -9,7 +9,7 @@ use function Mercurius\I18n\t;
 /**
  * Why a run ended. Every stop has a named reason.
  *
- * spec: BRIEF.md#запуск-и-цикл — stop reasons
+ * spec: brief/agent-loop.md#права-участника — stop reasons
  */
 enum StopReason: string {
     case Answered = 'answered';

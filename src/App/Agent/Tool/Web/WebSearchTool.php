@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * order of SEARCH_PROVIDERS (a failed one hands over to the next); answers are cached for a while. The answer and the
  * pages are untrusted data; to check a fact, open the page with web_read.
  *
- * spec: BRIEF.md#решения-владельца-2026-11-17 — search through an interface with pluggable providers
+ * spec: brief/participants.md#решения-владельца-2026-11-17 — search through an interface with pluggable providers
  */
 final class WebSearchTool implements Tool, ReadsOutside {
     public const NAME = 'web_search';
@@ -43,7 +43,7 @@ final class WebSearchTool implements Tool, ReadsOutside {
      * A search that calls a model (OpenRouter with its web plugin) is a model call of the run: it goes to llm_calls with
      * the run and its tokens into the run's budget.
      *
-     * spec: BRIEF.md#интернет-и-браузер — the spend of web_search in llm_calls and the run budget
+     * spec: brief/internet.md#интернет-и-браузер — the spend of web_search in llm_calls and the run budget
      */
     public function useAccounting(\OpenCCK\Domain\Repository\LlmCallRepository $calls, \OpenCCK\Domain\Repository\RunRepository $runs): void {
         $this->calls = $calls;
@@ -76,7 +76,7 @@ final class WebSearchTool implements Tool, ReadsOutside {
         return DangerClass::Read;
     }
 
-    /** spec: BRIEF.md#подтверждения-и-запреты — search results are written by others */
+    /** spec: brief/agent-loop.md#контекст — search results are written by others */
     public function readsOutside(array $args): bool {
         return true;
     }

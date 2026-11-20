@@ -61,7 +61,7 @@ final class StreamsTest extends SandboxTestCase {
 
         $listing = $this->sh(903, 'ps -eo args')->stdout;
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — with hidepid another user does not see the process at all
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — with hidepid another user does not see the process at all
         self::assertStringNotContainsString('sleep 30', $listing);
         self::assertStringNotContainsString('do-not-show', $listing);
         $this->streams->close(902, $id);

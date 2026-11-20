@@ -12,7 +12,7 @@ use Closure;
  * the same words again in one exchange is not a new ask. Over everything, a chat with 20 bot messages in five minutes
  * is not answered to bots for ten minutes.
  *
- * spec: BRIEF.md#группа — bots in groups and the guard against loops
+ * spec: brief/channels.md#группа — bots in groups and the guard against loops
  * ref: references/hermes-agent/gateway/bot_loop_guard.py@e96221fa:L28-L35 (BotLoopGuardSettings) — 20 in 300 s, a 600 s
  *      cooldown, 4 hops; L136-L187 (admit, chain_admit) — the window, the chain reset by a person, a repeated ask
  *      counts once. hermes also refuses a bot answering this bot's own reply (reply_to_reply); here the four hops end

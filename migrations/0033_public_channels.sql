@@ -1,5 +1,5 @@
 -- Каналы, где бот — администратор: права из Telegram и история постов, чтобы агент видел, что уже опубликовано.
--- spec: BRIEF.md#канал-паблик
+-- spec: brief/channels.md#канал-паблик
 
 CREATE TABLE chat_channels (
     channel text NOT NULL,

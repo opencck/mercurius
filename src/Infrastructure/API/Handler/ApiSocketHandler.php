@@ -18,7 +18,7 @@ use Throwable;
  * GET /api/ws — the WebSocket API of participants. The key is checked before the upgrade (401 otherwise); then every
  * text frame is a message or a press of a button, and the agent's messages come back as frames.
  *
- * spec: BRIEF.md#второй-канал-websocket-api
+ * spec: brief/operations.md#второй-канал-websocket-api
  */
 final class ApiSocketHandler implements WebsocketAcceptor, WebsocketClientHandler {
     public function __construct(

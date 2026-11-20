@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * Snapshots of the working folder, taken before the first change of every run: the list, what changed since one, and
  * a restore of the folder or of one path (what is there now is kept first, so a restore can be undone).
  *
- * spec: BRIEF.md#планировщик-и-проекты — snapshots of the working folder with a rollback
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — snapshots of the working folder with a rollback
  */
 final class CheckpointTool extends SandboxTool {
     public const NAME = 'checkpoint';

@@ -1,5 +1,5 @@
 -- Bots and visitors a group's participants asked the agent not to hear in that group: a user id or a @name.
--- spec: BRIEF.md#группа
+-- spec: brief/channels.md#группа
 CREATE TABLE group_ignores (
     channel text NOT NULL,
     chat_id text NOT NULL,

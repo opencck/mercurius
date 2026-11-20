@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * /command@bot — or, in the free mode, decides itself and may stay silent ([SILENT]). Other messages are kept as the
  * recent talk of the group and given to the next run as data. Strangers are not answered; other bots are not seen.
  *
- * spec: BRIEF.md#telegram-группы-каналы-и-темы — approved by the owner 2026-11-17
+ * spec: brief/channels.md#telegram-группы-каналы-и-темы — approved by the owner 2026-11-17
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L5760-L5800 (_should_process_message) —
  *      mention, reply to the bot and a command addressed to it; L5183-L5187, L5550-L5570 — unmentioned talk observed
  *      without running the agent; gateway/response_filters.py@e96221fa:L242-L256 — silence allowed in a free chat.
@@ -52,12 +52,12 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     private ?BotLoopGuard $bots = null;
     private ?\OpenCCK\Domain\Repository\GroupIgnoreRepository $ignores = null;
 
-    /** spec: BRIEF.md#группа — messages of other bots come, and the guard keeps two bots from talking without end */
+    /** spec: brief/channels.md#группа — messages of other bots come, and the guard keeps two bots from talking without end */
     public function useBots(BotLoopGuard $bots): void {
         $this->bots = $bots;
     }
 
-    /** spec: BRIEF.md#группа — bots and visitors the participants of a group asked not to hear */
+    /** spec: brief/channels.md#группа — bots and visitors the participants of a group asked not to hear */
     public function useIgnores(\OpenCCK\Domain\Repository\GroupIgnoreRepository $ignores): void {
         $this->ignores = $ignores;
     }
@@ -91,7 +91,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
      * @return array{Principal, IncomingMessage, bool}|null the speaker, the message for the agent, whether it may stay silent
      */
     public function route(IncomingMessage $message): ?array {
-        // spec: BRIEF.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
+        // spec: brief/channels.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
         /** @var mixed $chat */
         $chat = $message->raw['chat'] ?? null;
         $forum = is_array($chat) && ($chat['is_forum'] ?? false) === true;
@@ -120,12 +120,12 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $this->topicOpened($message, $opened);
             return null;
         }
-        // spec: BRIEF.md#группа — a bot or a visitor the participants named is not heard, not even in the talk
+        // spec: brief/channels.md#группа — a bot or a visitor the participants named is not heard, not even in the talk
         if ($this->ignores?->ignored($message->channel, $message->chatId, $message->userId, $message->userName) === true) {
             return null;
         }
         $speaker = ($message->displayName ?? $message->userName ?? $message->userId);
-        // spec: BRIEF.md#группа — the talk of a topic is its own and survives a restart
+        // spec: brief/channels.md#группа — the talk of a topic is its own and survives a restart
         $thread = MessageMeta::topicKey($message);
         $context = $this->talk->recent($message->channel, $message->chatId, $thread, self::RECENT, self::RECENT_SECONDS);
         $this->remember($message->channel, $message->chatId, $thread, $message->userId, sprintf('#%s %s%s: %s', $message->messageId, $speaker, $message->threadId === null ? '' : t('service.group_gate.tema') . $message->threadId . ')', mb_substr(MessageMeta::content($message), 0, 500)));
@@ -133,7 +133,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         if ($this->visitors !== null && $this->principals->findByIdentity($message->channel, $message->userId) === null) {
-            // spec: BRIEF.md#группа — the owner can give a group member rights before they write to the bot
+            // spec: brief/channels.md#группа — the owner can give a group member rights before they write to the bot
             $this->visitors->admit($message, $group->title, $message->chatId);
             return null;
         }
@@ -153,7 +153,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             return null;
         }
         $principal = $this->principals->findByIdentity($message->channel, $message->userId);
-        // spec: BRIEF.md#группа — over its daily tokens a free group gets answers only when it asks; the owner pays for the
+        // spec: brief/channels.md#группа — over its daily tokens a free group gets answers only when it asks; the owner pays for the
         //      agent, so their words are answered past the limit
         if (!$addressed && $principal?->role !== \OpenCCK\Domain\Entity\Role::owner() && $this->overDailyTokens($message, $group)) {
             return null;
@@ -194,7 +194,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $message->threadId,
             $message->isEdited,
             $message->raw,
-            // spec: BRIEF.md#входящие-вложения — in a group files come when the message is addressed to the agent, and always in
+            // spec: brief/internet.md#входящие-вложения — in a group files come when the message is addressed to the agent, and always in
             //      the free mode, where the agent takes part in everything (only such messages reach this point)
             $message->attachments,
             $message->repliedAttachments,
@@ -308,7 +308,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     /**
      * Tells the owner once a day that the group reached its limit, with buttons to raise it or lift it for good.
      *
-     * spec: BRIEF.md#группа — the owner decides the limit of a group
+     * spec: brief/channels.md#группа — the owner decides the limit of a group
      */
     private function warnLimit(Group $group, int $spent, int $limit): void {
         $today = (new \DateTimeImmutable())->format('Y-m-d');
@@ -368,7 +368,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
      * Who wrote in the chat or forum topic in the last day, as the channel names them: their words are in the context
      * of a run there, so the run gets no more rights than the weakest of them.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
      * @return list<string>
      */
     public function speakers(string $channel, string $chatId, string $threadId): array {

@@ -94,7 +94,7 @@ final class ExecutorServerTest extends AsyncTestCase {
     }
 
     public function testTheWorkspacesGoOutAsAnArchiveAndComeBack(): void {
-        // spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive and come back from it
+        // spec: brief/operations.md#экспорт-и-импорт-агента — the working folders go into the archive and come back from it
         $from = sys_get_temp_dir() . '/ws-from-' . bin2hex(random_bytes(4));
         $to = sys_get_temp_dir() . '/ws-to-' . bin2hex(random_bytes(4));
         mkdir($from . '/p7/notes', 0777, true);

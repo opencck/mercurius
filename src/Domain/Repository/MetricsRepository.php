@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * Counters for Prometheus, read from the database on every scrape, so they survive restarts.
  *
- * spec: BRIEF.md#трассировка-и-метрики — Prometheus
+ * spec: brief/operations.md#настройки-агента — Prometheus
  */
 interface MetricsRepository {
     /** @return list<array{status: string, reason: string, count: int}> */
@@ -37,7 +37,7 @@ interface MetricsRepository {
      * How many worker runs each finished top-level run started, as a histogram: runs with at most each bound of
      * workers, the total of workers and the number of runs.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — workers per run
+     * spec: brief/operations.md#настройки-агента — workers per run
      *
      * @param list<int> $bounds
      * @return array{buckets: list<int>, sum: int, count: int}

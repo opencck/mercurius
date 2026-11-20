@@ -12,7 +12,7 @@ use Throwable;
 use UnexpectedValueException;
 
 /**
- * spec: BRIEF.md#часть-3--фоновое-делегирование
+ * spec: brief/orchestration.md#часть-3--фоновое-делегирование
  */
 final class PostgresDelegationRepository implements DelegationRepository {
     private const COLUMNS = 'id, conversation_id, run_id, principal_id, call_id, reserved, status, report, delivered_at IS NOT NULL AS delivered, '

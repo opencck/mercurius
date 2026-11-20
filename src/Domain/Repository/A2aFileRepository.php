@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * Files between agents: each is given only to the agent it is meant for.
  *
- * spec: BRIEF.md#между-агентами
+ * spec: brief/internet.md#между-агентами
  */
 interface A2aFileRepository {
     /** Keeps a file for the agent $ownerId (and, for an answer, the task it belongs to); returns its number. */

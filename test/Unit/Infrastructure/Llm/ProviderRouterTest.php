@@ -97,7 +97,7 @@ final class ProviderRouterTest extends AsyncTestCase {
     }
 
     public function testClaudeThroughTheAnthropicApiAsksForPromptCachingToo(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $anthropic = new ScriptedLlm([ScriptedLlm::text('a')]);
         $router = new ProviderRouter(['anthropic' => $anthropic]);
 
@@ -109,7 +109,7 @@ final class ProviderRouterTest extends AsyncTestCase {
     }
 
     public function testClaudeInBedrockAsksForPromptCachingToo(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $bedrock = new ScriptedLlm([ScriptedLlm::text('a')]);
         $router = new ProviderRouter(['bedrock' => $bedrock]);
 

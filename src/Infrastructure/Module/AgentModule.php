@@ -17,9 +17,9 @@ use Throwable;
  * so they resume next time. Runs waiting for the owner stay waiting; approvals that ran out while the server was down
  * are closed at start, the rest by a timer.
  *
- * spec: BRIEF.md#устойчивость
- * spec: BRIEF.md#часть-3--фоновое-делегирование — background workers go on after a restart
- * spec: BRIEF.md#подтверждения-и-запреты — silence past the timeout is a denial
+ * spec: brief/agent-loop.md#инструменты
+ * spec: brief/orchestration.md#часть-3--фоновое-делегирование — background workers go on after a restart
+ * spec: brief/agent-loop.md#контекст — silence past the timeout is a denial
  */
 final class AgentModule implements AppModuleInterface {
     private ?string $timer = null;
@@ -37,7 +37,7 @@ final class AgentModule implements AppModuleInterface {
     public function start(): void {
         // Runs first, so a delivered report joins a resumed run instead of racing it; background workers are left
         // to their delegations.
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — answers that did not reach their chat go out before new ones
+        // spec: brief/agent-loop.md#подходы — answers that did not reach their chat go out before new ones
         $this->deliveries?->recover();
         $this->scheduler->resumeAll();
         $this->background?->resumeAll();

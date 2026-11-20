@@ -10,7 +10,7 @@ use OpenCCK\Domain\Agent\DelegationTask;
 /**
  * Background delegations and their parts.
  *
- * spec: BRIEF.md#часть-3--фоновое-делегирование
+ * spec: brief/orchestration.md#часть-3--фоновое-делегирование
  */
 interface DelegationRepository {
     /**

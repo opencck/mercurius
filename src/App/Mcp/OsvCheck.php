@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * a known malware advisory (MAL-*) stops it. Ordinary vulnerabilities are not a reason to stop, and a failed lookup
  * lets the package go — the owner approves the server anyway, the check only catches a known bad one.
  *
- * spec: BRIEF.md#скиллы-и-mcp — the check of MCP packages
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the check of MCP packages
  * ref: references/hermes-agent/tools/osv_check.py@e96221fa:L19-L36, L166-L269 (check_package_for_malware,
  *      _parse_package_from_args, _query_osv) — the same endpoint, runners, parsing of npm and PyPI names, MAL-* only,
  *      a 10 s lookup, a verdict kept for an hour, a failure not kept. hermes also keeps the verdicts on disk across

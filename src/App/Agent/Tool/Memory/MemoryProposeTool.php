@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
 /**
  * Proposes a change to memory; the owner accepts or rejects it with a card. The run does not wait for the decision.
  *
- * spec: BRIEF.md#фаза-6-по-частям — the agent proposes, the owner decides
+ * spec: brief/memory.md#фаза-6-по-частям — the agent proposes, the owner decides
  */
 final class MemoryProposeTool implements Tool {
     public const NAME = 'memory_propose';
@@ -50,11 +50,11 @@ final class MemoryProposeTool implements Tool {
                 'text' => ['type' => 'string', 'maxLength' => Proposals::SUMMARY_MAX],
                 'reason' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 500],
                 'about_person' => ['type' => 'boolean', 'description' => t('tool.memory_propose.about_person')],
-                // spec: BRIEF.md#всегда-в-контексте — profile and summary are edited by entries
+                // spec: brief/memory.md#всегда-в-контексте — profile and summary are edited by entries
                 'edit' => ['type' => 'string', 'enum' => \Mercurius\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
                 'old_text' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.memory_propose.old_text')],
                 'project' => ['type' => 'boolean', 'description' => t('tool.memory_propose.project')],
-                // spec: BRIEF.md#факты — the real provenance and keywords from the agent
+                // spec: brief/memory.md#факты — the real provenance and keywords from the agent
                 'source' => ['type' => 'string', 'enum' => ['owner', 'inferred', 'tool'], 'description' => t('tool.memory_propose.source')],
                 'keywords' => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 40], 'maxItems' => 10, 'description' => t('tool.memory_propose.keywords')],
             ],

@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The owner keeps any list of roles: adds, changes, orders and removes them; a role someone has stays.
  *
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 final class RoleCatalogTest extends TestCase {
     private InMemoryRoleRepository $store;

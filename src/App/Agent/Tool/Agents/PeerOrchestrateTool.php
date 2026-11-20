@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * Gives parts of a task to several neighbouring agents at once and brings their answers together, in the order of the
  * parts; a part not answered within `wait` seconds is named, and its answer comes to the chat later.
  *
- * spec: BRIEF.md#сеть-агентов — peer_orchestrate next to peer_delegate (decision В9)
+ * spec: brief/network.md#сеть-агентов-1 — peer_orchestrate next to peer_delegate (decision В9)
  * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L254-L289 (a2a_orchestrate) — parallel calls, at
  *      most 6, answers joined in blocks; hermes sends the same message to every agent with a capability, here each
  *      part is its own task to its own agent, and the wait is one for all parts
@@ -68,7 +68,7 @@ final class PeerOrchestrateTool implements Tool, ReadsOutside, LongRunning {
         return DangerClass::Write;
     }
 
-    /** spec: BRIEF.md#подтверждения-и-запреты — answers of other agents are outside text */
+    /** spec: brief/agent-loop.md#контекст — answers of other agents are outside text */
     public function readsOutside(array $args): bool {
         return true;
     }

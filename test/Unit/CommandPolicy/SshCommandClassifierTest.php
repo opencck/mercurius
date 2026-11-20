@@ -50,7 +50,7 @@ final class SshCommandClassifierTest extends TestCase {
             ['nginx -t', Classification::READ],
             ['ss -tlnp', Classification::READ],
             ['find /var/log -name "*.log" -mtime -1', Classification::CHANGE],
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a reader is proven by its grammar: an unknown option is a change
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a reader is proven by its grammar: an unknown option is a change
             ['sort -uo /etc/hosts /etc/hostname', Classification::CHANGE],
             ['sort --out=/home/deploy/.bashrc access.log', Classification::CHANGE],
             ['sort -S 1k --compress-prog=sh access.log', Classification::CHANGE],
@@ -163,7 +163,7 @@ final class SshCommandClassifierTest extends TestCase {
     }
 
     public function testTheOwnerTakesOffARuleByItsName(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
         $strict = (new SshCommandClassifier())->classify('reboot');
         self::assertSame(Classification::NEVER, $strict->class);
         self::assertStringContainsString('[shutdown]', $strict->reason, 'the reason names the rule');

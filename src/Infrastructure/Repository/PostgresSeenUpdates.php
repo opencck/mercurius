@@ -9,7 +9,7 @@ use Amp\Postgres\PostgresLink;
 /**
  * Keys of the messenger's updates already taken, kept a day, so a redelivery after a restart is not run twice.
  *
- * spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты
+ * spec: brief/channels.md#канал-необязательные-возможности-и-разрезанные-тексты
  * ref: references/hermes-agent/plugins/platforms/telegram/update_admission.py@e96221fa:L1-L8, L35 (RECEIPT_TTL_SECONDS) —
  *      completed update ids survive a restart for 24 hours; hermes keeps them in a file per bot, here in the database
  */

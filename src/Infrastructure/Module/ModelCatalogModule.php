@@ -21,7 +21,7 @@ use function Amp\async;
  * Loading runs in the background, so the agent starts without waiting for the network; a failed load keeps the old
  * catalog.
  *
- * spec: BRIEF.md#модели — the catalog is loaded daily and at start when older than a day, per provider
+ * spec: brief/agent-loop.md#канал — the catalog is loaded daily and at start when older than a day, per provider
  */
 final class ModelCatalogModule implements AppModuleInterface {
     /** Seconds before a failed first load is tried again. */
@@ -95,7 +95,7 @@ final class ModelCatalogModule implements AppModuleInterface {
     /**
      * Which models call tools well; a failed or empty answer leaves it unknown, so no model is held back by it.
      *
-     * spec: BRIEF.md#выбор-моделей-под-задачу
+     * spec: brief/models.md#выбор-моделей-под-задачу
      */
     private function markToolReliable(string $provider): void {
         $fetch = $this->toolReliable[$provider] ?? null;

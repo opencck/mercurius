@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * fixed (20000 + id), so files on the workspace volume keep their owner. Parallel first operations of a participant
  * wait for one creation instead of racing.
  *
- * spec: BRIEF.md#песочница — a Unix user per participant, home 0700
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — a Unix user per participant, home 0700
  */
 final class Users {
     /** groupadd/useradd exit code: the group or user already exists. */

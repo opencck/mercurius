@@ -23,7 +23,7 @@ use OpenCCK\Domain\Repository\ModelCatalogRepository;
  * One model client for every provider: the provider is taken from the model ("anthropic:claude-x"), the request goes
  * to that provider's client with the bare id: OpenRouter and the OpenAI API, each only when it has a key.
  *
- * spec: BRIEF.md#модели — models are not only from OpenRouter
+ * spec: brief/agent-loop.md#канал — models are not only from OpenRouter
  */
 final class ProviderRouter implements LlmClient {
     /**
@@ -47,7 +47,7 @@ final class ProviderRouter implements LlmClient {
     }
 
     /**
-     * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — a model name keeps its provider; OpenRouter's stays bare,
+     * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — a model name keeps its provider; OpenRouter's stays bare,
      * as before
      */
     private function settled(ChatResponse $response, ModelRef $ref): ChatResponse {

@@ -17,7 +17,7 @@ use function Amp\ByteStream\buffer;
  * Runs pg_dump, pg_restore, psql and tar for the archive of the agent: the arguments as a list (no shell), the
  * environment of this process with the extra variables over it, a non-zero exit as an error with the start of stderr.
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента
+ * spec: brief/operations.md#экспорт-и-импорт-агента
  */
 final class ProcessRunner {
     private function __construct(private readonly Cancellation $cancellation) {}

@@ -48,8 +48,8 @@ use function Mercurius\I18n\t;
  * hands the message over and returns, so /stop and later messages are never stuck behind a run. A message that
  * arrives during a run goes into it as a steering note; messages that come within a short window are merged.
  *
- * spec: BRIEF.md#запуск-и-цикл — one active run per conversation, steering
- * spec: BRIEF.md#устойчивость — resume after restart without repeating side effects
+ * spec: brief/agent-loop.md#права-участника — one active run per conversation, steering
+ * spec: brief/agent-loop.md#инструменты — resume after restart without repeating side effects
  * ref: references/hermes-agent/gateway/platforms/base.py@e96221f:L3690-L3697 (_text_debounce_delay) — merge window
  *      0.35 s after the last message, at most 1 s after the first
  * ref: references/hermes-agent/gateway/run_busy.py@e96221f:L200-L215 — a steering note left after the turn becomes
@@ -136,7 +136,7 @@ final class RunScheduler {
      * Who spoke in a group chat or topic in the last day: a run there gets no more rights than the weakest of them,
      * and someone who joins during a run narrows it before the model reads their words.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
      * @param Closure(string, string, string): list<string> $speakers channel, chat, topic => user ids of the channel
      */
     public function useGroupSpeakers(Closure $speakers): void {
@@ -201,7 +201,7 @@ final class RunScheduler {
      * may be another participant's. The callback gets the run only after the text is saved in it; a restart before
      * that leaves the message undelivered, to be delivered again.
      *
-     * spec: BRIEF.md#часть-3--фоновое-делегирование — delivery
+     * spec: brief/orchestration.md#часть-3--фоновое-делегирование — delivery
      *
      * @param \Closure(int): void $onDelivered gets the run the text started
      */
@@ -209,7 +209,7 @@ final class RunScheduler {
      * Outside data came to a conversation outside a run (the answer of a neighbour): the run now going, or the next
      * one, is marked — no saved grant applies in it.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
      */
     public function taint(int $conversationId, string $source): void {
         $run = $this->runs->active($conversationId);
@@ -239,7 +239,7 @@ final class RunScheduler {
                         delay(self::DELIVERY_POLL);
                         continue;
                     }
-                    // spec: BRIEF.md#часть-3--фоновое-делегирование — /new is a clean start: a report that finished
+                    // spec: brief/orchestration.md#часть-3--фоновое-делегирование — /new is a clean start: a report that finished
                     //       before it does not bring the old conversation back
                     if (!$this->conversations->isOpen($conversationId)) {
                         $this->logger->info('Delivery dropped: the conversation was closed', ['conversation' => $conversationId]);
@@ -267,7 +267,7 @@ final class RunScheduler {
      *        run that takes it is marked; null — the message is the participant's own words
      */
     public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
-        // spec: BRIEF.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
+        // spec: brief/channels.md#telegram-группы-каналы-и-темы — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
         $this->silence[$conversationId] = isset($this->pending[$conversationId]) ? ($this->silence[$conversationId] ?? false) && $silenceAllowed : $silenceAllowed;
@@ -275,13 +275,13 @@ final class RunScheduler {
         $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
-        // spec: BRIEF.md#подтверждения-и-запреты — a text from the owner while the run waits is a denial with that reason
+        // spec: brief/agent-loop.md#контекст — a text from the owner while the run waits is a denial with that reason
         if ($run !== null && $run->status === RunStatus::WaitingApproval && $principal->isOwner() && $this->approvals?->denyPending($run->id, $text, t('agent.run_scheduler.otkazano_vladelets_otvetil_tekstom'), $principal->id) === true) {
             $this->resumeRun($run->id);
             return;
         }
         if ($run !== null) {
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — someone who joins a group's run narrows it before the
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — someone who joins a group's run narrows it before the
             //      model reads their words (the ceiling is read before the next model call, which delivers the text)
             if ($this->speakers !== null && $principal->id !== $run->principalId) {
                 $starter = $this->principals->find($run->principalId);
@@ -291,7 +291,7 @@ final class RunScheduler {
                 }
             }
             if ($outside !== null) {
-                // spec: BRIEF.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
+                // spec: brief/internet.md#входящие-вложения — files are data from outside: no saved grant in this run from now on
                 $this->runs->markOutside($run->id, $outside);
             }
             $this->transcript->inbox($run->id, $text, $message->messageId);
@@ -405,11 +405,11 @@ final class RunScheduler {
         foreach ($this->runs->unfinished() as $run) {
             try {
                 if ($run->parentRunId !== null && $this->background?->owns($run->id) === true) {
-                    // spec: BRIEF.md#часть-3--фоновое-делегирование — a background worker goes on with its delegation
+                    // spec: brief/orchestration.md#часть-3--фоновое-делегирование — a background worker goes on with its delegation
                     continue;
                 }
                 if ($run->parentRunId !== null) {
-                    // spec: BRIEF.md#часть-1--синхронное-делегирование — a worker belonged to a delegation call that the
+                    // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a worker belonged to a delegation call that the
                     // restart interrupted; its orchestrator learns that from the call, the worker does not go on alone.
                     $this->runs->finish($run->id, StopReason::InternalError->status(), StopReason::InternalError);
                     $this->events->runFinished($run->id, 'failed', 'interrupted by a restart', $run->activeMs);
@@ -494,8 +494,8 @@ final class RunScheduler {
     }
 
     /** The active project of a chat goes into the prompt of its new conversations. */
-    /** spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the active notes the owner accepted come into new prompts */
-    /** spec: BRIEF.md#сеть-агентов — the agent knows its own address and how a neighbour connects to it */
+    /** spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the active notes the owner accepted come into new prompts */
+    /** spec: brief/network.md#сеть-агентов-1 — the agent knows its own address and how a neighbour connects to it */
     public function useInstance(string $about): void {
         $this->instance = $about;
     }
@@ -513,7 +513,7 @@ final class RunScheduler {
      * own prompt has — the active project, and the participant's core memory only where the conversation is private.
      * Its report comes back into the same conversation, so it learns nothing the orchestrator could not tell it.
      *
-     * spec: BRIEF.md#права-воркера-задаёт-оркестратор
+     * spec: brief/orchestration.md#права-воркера-задаёт-оркестратор
      *
      * @param list<string> $of 'project', 'participant'
      */
@@ -580,7 +580,7 @@ final class RunScheduler {
         return $this->audience ??= new ConversationAudience($this->conversations);
     }
 
-    /** spec: BRIEF.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
+    /** spec: brief/decisions.md#контекст-по-месту-и-аудитории — layer 1 is the owner's, so only the owner's private chat gets it */
     /** The active notes the owner accepted ('' when none); the prompt text kept with the conversation records them. */
     private function notes(): string {
         try {
@@ -601,7 +601,7 @@ final class RunScheduler {
     /**
      * Layer 1 of a participant's memory and their MEMORY.md, for a place the caller found private.
      *
-     * spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
+     * spec: brief/participants.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
      */
     public function coreOf(Principal $principal): string {
         if ($this->memory === null && $this->memoryFile === null) {
@@ -610,7 +610,7 @@ final class RunScheduler {
         $parts = [];
         if ($this->memory !== null) {
             try {
-                // spec: BRIEF.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
+                // spec: brief/participants.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
                 $parts[] = $this->memory->core($principal->isOwner() ? \Mercurius\Memory\App\Audience::OWNER : \Mercurius\Memory\App\Audience::principal($principal->id));
             } catch (Throwable $e) {
                 $this->logger->warning('Memory core is not available', ['error' => $e::class]);
@@ -628,7 +628,7 @@ final class RunScheduler {
      * The participant's MEMORY.md, whole in the prompt of their private chat next to layer 1; over its limit its head
      * goes in with a word to the agent to compress it.
      *
-     * spec: BRIEF.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
+     * spec: brief/memory.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
      *
      * @param Closure(Principal): string $read the file, '' when there is none
      * @param positive-int $limit characters
@@ -661,7 +661,7 @@ final class RunScheduler {
 
     /** The facts that answer the text go after it as reference data; memory failing never stops the run. */
     /**
-     * spec: BRIEF.md#скиллы-и-mcp — a change of the catalog in the middle of a conversation is a one-off note on the
+     * spec: brief/skills-mcp.md#скиллы-и-mcp — a change of the catalog in the middle of a conversation is a one-off note on the
      *       next message, the prompt stays as it was
      */
     private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
@@ -688,7 +688,7 @@ final class RunScheduler {
         $memory = $this->memory;
         $scopes = $this->audience()->scopes($principal, $meta->id);
         try {
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a slow recall does not hold the answer: after the time
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a slow recall does not hold the answer: after the time
             //       the run starts without it
             /** @var string $facts */
             $facts = async(static fn(): string => $memory->facts($text, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
@@ -713,14 +713,14 @@ final class RunScheduler {
             return null;
         }
         $model = $meta->model ?? $this->model;
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — the conversation was opened with a provider whose key
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — the conversation was opened with a provider whose key
         // is gone: its runs go to the default model instead of failing every time
         if ($meta->systemPrompt !== null && $this->providers !== [] && !in_array(ModelRef::parse($model)->provider, $this->providers, true)) {
             $this->logger->warning('Conversation model has no provider key; the default one is used', ['conversation' => $conversationId, 'model' => $model]);
             $model = $this->model;
         }
         if ($meta->systemPrompt === null) {
-            // spec: BRIEF.md#модели — the model is chosen when the conversation opens and kept while the model of its role
+            // spec: brief/agent-loop.md#канал — the model is chosen when the conversation opens and kept while the model of its role
             //       stays; a change of the role moves the open conversation (RoleConversations), its next run reads it here
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
             $skills = '';
@@ -737,8 +737,8 @@ final class RunScheduler {
             $model = $this->conversations->meta($conversationId)->model ?? $model;
         }
         $policy = $this->policyIn($conversationId, $principal);
-        // spec: BRIEF.md#подтверждения-и-запреты — in a group other people's words are in the context: saved grants do not apply
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the mark is set at the start, before the model reads anything
+        // spec: brief/agent-loop.md#контекст — in a group other people's words are in the context: saved grants do not apply
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the mark is set at the start, before the model reads anything
         $sources = array_values(array_unique([...(str_starts_with($meta->chatId, '-') ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
         unset($this->tainted[$conversationId]);
         $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, $sources === [] ? null : implode(', ', $sources));

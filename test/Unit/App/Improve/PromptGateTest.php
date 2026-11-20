@@ -42,7 +42,7 @@ final class PromptGateTest extends AsyncTestCase {
     }
 
     public function testTheScoresOfBothVersionsAreKeptByCategory(): void {
-        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — scores by category for each version of the notes
+        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — scores by category for each version of the notes
         $tasks = EvalTask::load(dirname(__DIR__, 4) . '/resources/eval/tasks.json');
         $scores = new \OpenCCK\Test\Support\InMemoryEvalScoreRepository();
         $gate = new PromptGate($this->runner(), $tasks, 'agent/model', 3, true);

@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * A row of the model role table: which model plays the role, why, and who set it.
  *
- * spec: BRIEF.md#модели
+ * spec: brief/agent-loop.md#канал
  */
 final class ModelRole {
     public const CHEAP = 'cheap';

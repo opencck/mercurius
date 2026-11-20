@@ -11,7 +11,7 @@ use function Mercurius\I18n\t;
  * arguments its grammar knows and no shell syntax at all; anything else is a change and needs the owner. The "never"
  * list holds whatever the owner could not want from an agent; it reads operations, not one spelling.
  *
- * spec: BRIEF.md#фаза-7-по-частям — reads only by a proven list of commands and arguments, the rest asks, a list of never
+ * spec: brief/servers.md#фаза-7-по-частям — reads only by a proven list of commands and arguments, the rest asks, a list of never
  * ref: references/ssh-mcp/src/policy/classifier.ts@e04ebf2:L23 (shell metacharacters, even quoted, take a command out
  *      of the readers), L138-L544 (READERS), L1310-L1317 (elevation prefixes), L1333-L1343 (wrappers), L2243-L2272
  *      (FORBIDDEN_RULES), L1355-L1411 (disqualifying arguments) — the same idea, a smaller list; unlike ssh-mcp an
@@ -277,7 +277,7 @@ final class SshCommandClassifier {
      * What is never done without the owner, read as operations; null when nothing of it is there. A rule the owner took
      * off (by its name) does not hold. The reason ends with the name of the rule in brackets.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the rules of hermes are the start; the owner may take off any
      * ref: references/hermes-agent/tools/approval_detection.py@e96221fa:L184-L230 (HARDLINE_PATTERNS) — the same floor:
      *      root, home and system deletes, mkfs, dd and redirects to a disk, fork bomb, kill -1, shutdown, init and
      *      telinit 0/6, systemctl power; ours adds a script piped from the network, persistence and the firewall

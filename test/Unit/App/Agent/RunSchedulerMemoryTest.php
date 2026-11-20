@@ -46,7 +46,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testTheMemoryFileGoesWholeIntoThePromptOfAPrivateChat(): void {
-        // spec: BRIEF.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
+        // spec: brief/memory.md#всегда-в-контексте — MEMORY.md of the participant, whole, with a limit
         $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "Дочь — Аня\nПароль от Wi-Fi в заметках", 1000);
 
         $this->stack->say('привет');

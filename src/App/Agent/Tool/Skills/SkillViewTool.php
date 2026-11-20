@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * Loads a skill of this conversation by name: built-in, the participant's or the active project's (the nearest wins);
  * with file_path — one of its files.
  *
- * spec: BRIEF.md#скиллы-и-mcp — skills are loaded on demand, the index is in the prompt
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — skills are loaded on demand, the index is in the prompt
  * ref: references/hermes-agent/tools/skills_tool.py@e96221fa:L634 (skill_view) — name plus file_path reads a file of
  *      the skill
  */
@@ -61,7 +61,7 @@ final class SkillViewTool implements Tool {
         $name = Args::string($args, 'name') ?? '';
         $project = ($this->projectOf)($context->conversationId, Args::string($args, 'project'), $context->principal);
         if ($name === '') {
-            // spec: BRIEF.md#скиллы-и-mcp — in a private chat about a project the agent names it and gets its skills
+            // spec: brief/skills-mcp.md#скиллы-и-mcp — in a private chat about a project the agent names it and gets its skills
             $lines = [];
             foreach ($this->library->catalog($context->principal, $project, $context->cancellation) as $skill => $info) {
                 $lines[] = sprintf('- %s: %s [%s]', $skill, $info['description'], $info['where']);

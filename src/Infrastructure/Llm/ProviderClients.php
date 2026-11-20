@@ -26,7 +26,7 @@ use OpenCCK\Infrastructure\Config\LlmSettings;
  * One client and one catalog per provider with a key, built from its profile; the model's prefix picks the client.
  * The catalogs of the direct APIs that list ids only are described by the public OpenRouter catalog.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
  */
 final class ProviderClients {
     /**
@@ -68,7 +68,7 @@ final class ProviderClients {
             $clients[$name] = new RetryingClient($client, onRetry: $onRetry);
             $catalogs[$name] = $catalog;
             if ($name === ModelRef::OPENROUTER) {
-                // spec: BRIEF.md#выбор-моделей-под-задачу — a model must pass 90% of its tool calls by the catalog to get a part with tools
+                // spec: brief/models.md#выбор-моделей-под-задачу — a model must pass 90% of its tool calls by the catalog to get a part with tools
                 $toolReliable[$name] = static fn(): array => (new OpenRouterCatalog($http, $key))->toolReliable(0.9);
             }
         }

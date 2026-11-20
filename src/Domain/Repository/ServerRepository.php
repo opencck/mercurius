@@ -8,7 +8,7 @@ use DomainException;
 use OpenCCK\Domain\Server\Server;
 
 /**
- * spec: BRIEF.md#фаза-7-по-частям — the registry of servers
+ * spec: brief/servers.md#фаза-7-по-частям — the registry of servers
  */
 interface ServerRepository {
     /** @throws DomainException when a server with this name exists */
@@ -36,7 +36,7 @@ interface ServerRepository {
     /**
      * Changes a server; a new host or port, or forgetting the key, drops the trusted and the pending host key.
      *
-     * spec: BRIEF.md#фаза-7-по-частям — the registry is changed in the dialogue
+     * spec: brief/servers.md#фаза-7-по-частям — the registry is changed in the dialogue
      *
      * @throws \DomainException the new name is taken
      */

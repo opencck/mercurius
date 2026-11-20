@@ -1,5 +1,5 @@
 -- A participant's own time zone and quiet hours; NULL — the owner's from .env, '' quiet hours — none.
--- spec: BRIEF.md#несколько-пользователей
+-- spec: brief/participants.md#несколько-пользователей
 CREATE TABLE participant_prefs (
     principal_id bigint PRIMARY KEY REFERENCES principals (id) ON DELETE CASCADE,
     timezone text,

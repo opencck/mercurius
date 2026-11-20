@@ -1,5 +1,5 @@
 -- Keys of the WebSocket API: the owner issues one to a participant, it is shown once; only its SHA-256 is kept.
--- spec: BRIEF.md#второй-канал-websocket-api
+-- spec: brief/operations.md#второй-канал-websocket-api
 CREATE TABLE api_keys (
     id bigserial PRIMARY KEY,
     principal_id bigint NOT NULL REFERENCES principals (id) ON DELETE CASCADE,

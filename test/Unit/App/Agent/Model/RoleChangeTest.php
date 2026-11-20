@@ -27,7 +27,7 @@ use Psr\Log\NullLogger;
 /**
  * A change of the model of a role reaches the open conversations of that role from their next run.
  *
- * spec: BRIEF.md#модели
+ * spec: brief/agent-loop.md#канал
  */
 final class RoleChangeTest extends AsyncTestCase {
     private const A = 'openrouter:x/a';

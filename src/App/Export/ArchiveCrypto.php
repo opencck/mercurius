@@ -17,7 +17,7 @@ use function Amp\File\openFile;
  * XChaCha20-Poly1305 (sodium secretstream), the key derived by Argon2id from the password. A wrong password, a changed
  * or a cut file are refused, and nothing of a failed opening is left.
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента — the archive is sealed by the owner's password (decision В10)
+ * spec: brief/operations.md#экспорт-и-импорт-агента — the archive is sealed by the owner's password (decision В10)
  * ref: references/hermes-agent/hermes_cli/backup.py@e96221fa:L1-L40 — hermes zips its home without encryption; here the
  *      archive holds the secrets and their key, so it is sealed
  */

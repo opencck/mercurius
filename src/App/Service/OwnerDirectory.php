@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
  * Who the owner is now and where to reach them. The owner from the configuration is only the first one: ownership may
  * pass to another participant, so cards, notices and the check of who pressed a button ask here at that moment.
  *
- * spec: BRIEF.md#несколько-пользователей — the owner passes ownership on; the first owner comes from the configuration
+ * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on; the first owner comes from the configuration
  */
 final class OwnerDirectory {
     private ?Principal $owner = null;

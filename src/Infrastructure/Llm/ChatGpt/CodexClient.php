@@ -22,7 +22,7 @@ use Mercurius\Llm\StreamEnd;
  * the access token of CodexAccount and its account headers. The backend answers only as a stream and refuses
  * max_output_tokens and temperature, so they are left out and a whole answer is collected from the stream.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
  * ref: references/hermes-agent/agent/transports/codex.py@e96221fa:L421-L422 (sampling knobs dropped), L868-L880
  *      (no max_output_tokens on the Codex backend); agent/codex_headers.py@e96221fa:L36-L55 (identity headers) — the
  *      agent names itself mercurius, as hermes names itself

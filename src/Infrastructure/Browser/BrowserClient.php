@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * The agent's side of the browser module (services/browser): navigate, read, click, type, screenshot, each in a named profile
  * whose logins survive restarts.
  *
- * spec: BRIEF.md#интернет-и-браузер
+ * spec: brief/internet.md#интернет-и-браузер
  */
 final class BrowserClient {
     private readonly string $token;

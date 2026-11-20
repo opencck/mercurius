@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * How models have done as workers here: our own data next to the catalog's benchmarks.
  *
- * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — failure rates in the choice
+ * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — failure rates in the choice
  */
 interface ModelReliabilityRepository {
     /** Endings where the model let the worker down. */

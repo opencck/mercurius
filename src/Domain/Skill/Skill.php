@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Skill;
 /**
  * A skill of the agent: a name and a one-line description for the index, a body read on demand.
  *
- * spec: BRIEF.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#скиллы-и-mcp
  * ref: references/hermes-agent/tools/skill_manager_tool.py@e96221fa:L122-L127 — name pattern and limits
  */
 final class Skill {

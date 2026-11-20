@@ -21,8 +21,8 @@ use function Mercurius\I18n\t;
  * here stays with the conversation: when its model changes, the open conversation moves to the new one
  * (RoleConversations).
  *
- * spec: BRIEF.md#модели — class picks the role; the model stays while the model of the role stays; choices are logged
- * spec: BRIEF.md#начальная-таблица-ролей-моделей — short and typical requests go to the default model
+ * spec: brief/agent-loop.md#канал — class picks the role; the model stays while the model of the role stays; choices are logged
+ * spec: brief/models.md#начальная-таблица-ролей-моделей — short and typical requests go to the default model
  */
 final class ModelRouter {
     /** @param positive-int $defaultWindow LLM_CONTEXT_WINDOW, for models the catalog does not know */

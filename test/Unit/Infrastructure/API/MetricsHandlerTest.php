@@ -84,7 +84,7 @@ final class MetricsHandlerTest extends AsyncTestCase {
     }
 
     public function testWorkersPerRunIsAHistogram(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — how many workers a run starts
+        // spec: brief/operations.md#настройки-агента — how many workers a run starts
         $text = (new MetricsText(self::figures()))->render();
 
         self::assertStringContainsString("# TYPE mercurius_workers_per_run histogram\n", $text);
@@ -95,7 +95,7 @@ final class MetricsHandlerTest extends AsyncTestCase {
     }
 
     public function testTheAnswerIsKeptForThirtySeconds(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — every scrape does not hit the database
+        // spec: brief/operations.md#настройки-агента — every scrape does not hit the database
         $reads = new \ArrayObject();
         $figures = self::figures($reads);
         $now = 1000.0;

@@ -13,7 +13,7 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
  * and created on first contact. A stranger writing in a private chat becomes a pending visitor shown to the owner;
  * without the visitor service, or in a group, a stranger is refused.
  *
- * spec: BRIEF.md#участники-люди-и-агенты
+ * spec: brief/decisions.md#участники-люди-и-агенты
  */
 final class AccessService {
     public function __construct(

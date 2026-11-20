@@ -11,7 +11,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 /**
  * Every log line goes through the mask of secrets: its message and every string of its context, at any depth.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a log line does not carry a secret
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a log line does not carry a secret
  */
 final class SecretProcessor implements ProcessorInterface {
     public function __invoke(LogRecord $record): LogRecord {

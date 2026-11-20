@@ -77,7 +77,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testUsageAndDelegationAreSplitByThePromptVersion(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — /usage and /delegation by prompt_version
+        // spec: brief/operations.md#настройки-агента — /usage and /delegation by prompt_version
         $this->figures->usageVersions = [['version' => 3, 'runs' => 8, 'calls' => 30, 'cost' => 0.5], ['version' => null, 'runs' => 2, 'calls' => 4, 'cost' => 0.01]];
         $this->figures->delegationVersions = [['version' => 3, 'top' => 8, 'delegating' => 2, 'workers' => 5, 'cost' => 0.2]];
 
@@ -93,7 +93,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testUsageShowsToolsAndTheLongestStepsAndDelegationTheOrchestratorsShare(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — tools, the longest steps, the orchestrator's share of tokens
+        // spec: brief/operations.md#настройки-агента — tools, the longest steps, the orchestrator's share of tokens
         $this->figures->tools = [['name' => 'web_read', 'calls' => 12, 'errors' => 3, 'avg_ms' => 2400]];
         $this->figures->longest = [['run' => 7, 'kind' => 'tool', 'name' => 'browser', 'ms' => 95_000]];
         $this->figures->delegationTokens = ['orchestrator' => 30_000, 'workers' => 90_000];
@@ -110,7 +110,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testRunsTakeACountAndAStatus(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — /runs <count> <status>
+        // spec: brief/operations.md#настройки-агента — /runs <count> <status>
         $this->stack->say('/runs 3 failed');
         $this->lastText();
 
@@ -122,7 +122,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testAStepGivesItsPromptAndAnswerAsAFile(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — /trace <run> <step>: the payload of the step
+        // spec: brief/operations.md#настройки-агента — /trace <run> <step>: the payload of the step
         $run = $this->traces->openRun(42, 'openrouter:x/model');
         $this->traces->record(new TraceSpan(42, $run, TraceSpan::TOOL, 'web_read', new DateTimeImmutable(), 300, TraceSpan::OK));
         $model = $this->traces->record(new TraceSpan(42, $run, TraceSpan::MODEL, 'openrouter:x/model', new DateTimeImmutable(), 1200, TraceSpan::OK));
@@ -172,7 +172,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testTheStepsOfAWorkerGoUnderItsStep(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — nested traces
+        // spec: brief/operations.md#настройки-агента — nested traces
         $run = $this->traces->openRun(42, 'openrouter:x/top');
         $this->traces->record(new TraceSpan(42, $run, TraceSpan::WORKER, '#43', new DateTimeImmutable(), 2500, TraceSpan::OK, attrs: ['run' => 43, 'model' => 'openrouter:x/worker']));
         $this->traces->closeRun(42, TraceSpan::OK, 3000, null);
@@ -192,13 +192,13 @@ final class TraceReportsTest extends AsyncTestCase {
         $this->traces->closeRun(43, TraceSpan::OK, 100, null);
         $reports = new TraceReports($this->figures, $this->traces, hiddenRun: static fn(int $runId): bool => $runId === 43);
 
-        // spec: BRIEF.md#несколько-пользователей — the private chats of a former owner stay theirs
+        // spec: brief/participants.md#несколько-пользователей — the private chats of a former owner stay theirs
         self::assertNull($reports->trace(43));
         self::assertNotNull((new TraceReports($this->figures, $this->traces))->trace(43), 'shown without the rule');
     }
 
     public function testTheTraceOfATaskFromANeighbourNamesTheLeader(): void {
-        // spec: BRIEF.md#сеть-агентов — the leader's run and the task it works on, on the neighbour's side
+        // spec: brief/network.md#сеть-агентов-1 — the leader's run and the task it works on, on the neighbour's side
         $this->traces->openRun(44, 'openrouter:x/model');
         $this->traces->closeRun(44, TraceSpan::OK, 100, null);
         $peers = new \OpenCCK\Test\Support\InMemoryPeerRepository();
@@ -213,7 +213,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testTheTraceSaysWhyTheModelWasChosen(): void {
-        // spec: BRIEF.md#выбор-моделей-под-задачу — every decision about the model is shown in /trace
+        // spec: brief/models.md#выбор-моделей-под-задачу — every decision about the model is shown in /trace
         $this->traces->openRun(44, 'openrouter:x/model');
         $this->traces->closeRun(44, TraceSpan::OK, 100, null);
         $this->figures->decisions[44] = [['method' => 'profile', 'class' => 'profile', 'model' => 'openrouter:x/model', 'reason' => 'needs code, cheapest of three']];
@@ -258,7 +258,7 @@ final class TraceReportsTest extends AsyncTestCase {
     }
 
     public function testAHolderOfTheReportsPowerSeesReportsButNotTheTracesOfOthersPrivateChats(): void {
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
         Role::define('analyst', 'Аналитик', 15, [Power::Reports]);
         try {
             $this->stack->principals->put(new Principal(5, PrincipalKind::Human, Role::of('analyst'), 'Аналитик', PrincipalStatus::Active), 'telegram', '55');

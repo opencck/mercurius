@@ -9,7 +9,7 @@ use InvalidArgumentException;
 use OpenCCK\App\Export\ArchiveCrypto;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — the archive of an agent opens only with the owner's password
+ * spec: brief/operations.md#экспорт-и-импорт-агента — the archive of an agent opens only with the owner's password
  */
 final class ArchiveCryptoTest extends AsyncTestCase {
     private string $dir = '';

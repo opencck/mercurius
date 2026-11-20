@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Server;
 /**
  * The hash that links a record of the command journal to the one before it.
  *
- * spec: BRIEF.md#фаза-7-по-частям
+ * spec: brief/servers.md#фаза-7-по-частям
  */
 final class AuditChain {
     public const GENESIS = '0';

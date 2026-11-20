@@ -44,7 +44,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testARoleGivesItsTemplateAndThePersonalSettingsLieOnTop(): void {
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
         $trader = Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
         $mute = Role::define('mute', 'Без инструментов', 16, []);
         $service = new PolicyService($this->repository, new RunLimits(30, 400_000, 900, 120), template: static fn(Role $role): array => match ($role->value) {
@@ -66,7 +66,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testToolsOfAPowerStayOutOfARoleWithoutIt(): void {
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — publishing and managing participants are powers of a role
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — publishing and managing participants are powers of a role
         $this->repository->save(2, ['tools' => ['channel_post', 'participants', 'web_search']]);
 
         self::assertSame(['web_search'], $this->service->forPrincipal($this->principal(Role::user()))->tools);

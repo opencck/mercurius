@@ -28,7 +28,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Read, $tool->danger([]));
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['action' => 'decide']));
         $inGroup = new ParticipantsTool($principals, $policies, privateChat: static fn(int $conversation): bool => false);
         self::assertTrue($inGroup->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError, 'only in the private chat of the owner');
@@ -42,7 +42,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
     }
 
     public function testOwnRolesAreGivenAndAHolderOfThePowerGivesNoMoreThanTheirOwn(): void {
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
         Role::define('trader', 'Трейдер', 15, [Power::Tools]);
         Role::define('steward', 'Распорядитель', 16, [Power::Tools, Power::Participants]);
         try {

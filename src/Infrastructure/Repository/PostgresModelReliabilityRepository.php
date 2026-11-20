@@ -12,7 +12,7 @@ use OpenCCK\Domain\Repository\ModelReliabilityRepository;
 /**
  * Worker runs are runs with a parent; the model failed them when they ended with one of the model's failures.
  *
- * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс
+ * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс
  */
 final class PostgresModelReliabilityRepository implements ModelReliabilityRepository {
     public function __construct(private readonly PostgresLink $db) {}

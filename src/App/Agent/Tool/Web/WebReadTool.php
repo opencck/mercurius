@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * page reduced to its text with its links. The result is untrusted data. An internal address waits for the owner, who
  * allows that host for one call or for good (the key is shared with http_request).
  *
- * spec: BRIEF.md#интернет-и-браузер — reading pages; the SSRF check repeats after every redirect
+ * spec: brief/internet.md#интернет-и-браузер — reading pages; the SSRF check repeats after every redirect
  */
 final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
     public const NAME = 'web_read';
@@ -110,7 +110,7 @@ final class WebReadTool implements Tool, GrantKeyed, ReadsOutside {
         $url = Args::string($args, 'url') ?? '';
         $offset = max(0, Args::int($args, 'offset') ?? 0);
         $permitted = $context->approved ? $this->internalHost($args) : null;
-        // spec: BRIEF.md#интернет-и-браузер — a public page read lately is read on from memory; an internal one the owner
+        // spec: brief/internet.md#интернет-и-браузер — a public page read lately is read on from memory; an internal one the owner
         //       allowed is fetched again each time
         $cached = $permitted === null ? ($this->cache[$url] ?? null) : null;
         if ($cached !== null && $cached[0] > time()) {

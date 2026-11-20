@@ -12,7 +12,7 @@ use Stringable;
  * OpenRouter: direct APIs of other providers come later. An id without a provider prefix is an OpenRouter id, as
  * everything stored before providers were introduced.
  *
- * spec: BRIEF.md#модели — a model is a pair of provider and id
+ * spec: brief/agent-loop.md#канал — a model is a pair of provider and id
  */
 final class ModelRef implements Stringable {
     public const OPENROUTER = 'openrouter';

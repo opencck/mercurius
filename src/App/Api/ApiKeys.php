@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * SHA-256 is kept; a key brings the participant with the rights they have, a revoked key or a participant who is no
  * longer active does not get in.
  *
- * spec: BRIEF.md#второй-канал-websocket-api
+ * spec: brief/operations.md#второй-канал-websocket-api
  * ref: references/hermes-agent/gateway/platforms/api_server.py@e96221fa:L1413-L1433 (_check_auth) — a Bearer key,
  *      refused without it; hermes has one key of the owner, here a key per participant, kept only as a hash
  */
@@ -85,7 +85,7 @@ final class ApiKeys {
         if (!$this->keys->revoke($id)) {
             return false;
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
         foreach ($this->revoked as $revoked) {
             $revoked($id);
         }

@@ -61,7 +61,7 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertContains($run->id, array_column($reports->costliestRuns($since, 100), 'id'));
         $recent = array_column($reports->recentRuns(1000), null, 'id');
         self::assertEqualsWithDelta(0.0021, $recent[$run->id]['cost'], 0.0000001);
-        // spec: BRIEF.md#трассировка-и-метрики — runs by number, for the spend of a task
+        // spec: brief/operations.md#настройки-агента — runs by number, for the spend of a task
         $named = $reports->recentRuns(10, null, [$run->id]);
         self::assertSame([$run->id], array_column($named, 'id'));
         self::assertEqualsWithDelta(0.0021, $named[0]['cost'], 0.0000001);
@@ -153,7 +153,7 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertSame(5, $byModel[$model]['runs']);
         self::assertSame(4, $byModel[$model]['answered']);
         self::assertSame(1, $byModel[$model]['failed']);
-        // spec: BRIEF.md#трассировка-и-метрики — the orchestrator's prompt version splits the figures
+        // spec: brief/operations.md#настройки-агента — the orchestrator's prompt version splits the figures
         $conversations->setMeta($conversationId, 'промпт', 'openrouter:report/top', 9001);
         $byVersion = array_column($reports->delegationByPromptVersion($since), null, 'version');
         $version = $byVersion[9001] ?? null;
@@ -169,7 +169,7 @@ final class PostgresTraceReportTest extends AsyncTestCase {
         self::assertSame(1500, $latency[$model]['p95']);
     }
     public function testToolsTheLongestStepsAndTheOrchestratorsShare(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — /usage tools and longest steps, /delegation the orchestrator's share
+        // spec: brief/operations.md#настройки-агента — /usage tools and longest steps, /delegation the orchestrator's share
         [$principalId, $conversationId] = TestDatabase::conversation($this->db);
         $runs = new PostgresRunRepository($this->db);
         $traces = new \OpenCCK\Infrastructure\Repository\PostgresTraceRepository($this->db);

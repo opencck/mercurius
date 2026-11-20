@@ -50,7 +50,7 @@ final class RunSchedulerTest extends AsyncTestCase {
     }
 
     public function testADeliveryToAConversationClosedByNewIsDropped(): void {
-        // spec: BRIEF.md#часть-3--фоновое-делегирование — /new is a clean start: no old report runs in it
+        // spec: brief/orchestration.md#часть-3--фоновое-делегирование — /new is a clean start: no old report runs in it
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок'), ScriptedLlm::text('не должно')]));
         $stack->say('привет');
         $stack->scheduler->awaitIdle();

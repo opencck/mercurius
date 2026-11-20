@@ -25,7 +25,7 @@ use Psr\Log\NullLogger;
  * Each participant has their own time zone and quiet hours: their jobs run by their clock and their reports wait for
  * the end of their own night; without settings of their own, the owner's from .env apply.
  *
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class ParticipantClockTest extends AsyncTestCase {
     public function testAParticipantSetsTheirZoneAndQuietHours(): void {

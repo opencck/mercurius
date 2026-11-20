@@ -31,7 +31,7 @@ final class PostgresTraceReportRepository implements TraceReportRepository {
      * A call belongs to its run's participant and conversation (a call without a run — memory, catalogue — to its
      * conversation, if any); the conversation gives the chat and the topic, the topic or the chat its project.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods
+     * spec: brief/operations.md#настройки-агента — spend by topics, projects, participants and periods
      */
     public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query): array {
         $zone = $query->from->getTimezone()->getName();

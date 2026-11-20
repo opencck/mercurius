@@ -6,7 +6,7 @@
 #
 # Откат: git checkout <прошлый коммит> && docker compose up -d --build; база — bin/restore.sh backups/<время>.
 #
-# spec: BRIEF.md#поставка-и-обслуживание
+# spec: brief/operations.md#поставка-и-обслуживание
 set -eu
 
 cd "$(dirname "$0")/.."

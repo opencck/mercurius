@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * The agent's own spend: tokens of this run so far, a run by its number, recent runs, spend by day and model. The
  * owner asked how many tokens an answer took and the agent could only guess.
  *
- * spec: BRIEF.md#трассировка-и-метрики — the agent sees its own spend; a participant sees only the current run
+ * spec: brief/operations.md#настройки-агента — the agent sees its own spend; a participant sees only the current run
  */
 final class SpendingTool implements Tool {
     public const NAME = 'spending';
@@ -75,7 +75,7 @@ final class SpendingTool implements Tool {
      * Spend split by topic, chat, project, participant, model or day, for a period of the owner's days, here or
      * everywhere. A participant gets only their own figures, whoever they name.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods
+     * spec: brief/operations.md#настройки-агента — spend by topics, projects, participants and periods
      *
      * @param array<string, mixed> $args
      */

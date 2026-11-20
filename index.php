@@ -22,7 +22,7 @@ declare(strict_types=1);
  *   10  chat                   the digest, visitors and groups, chat commands, the evaluation gate, export and import
  *   11  http                   routes: the Telegram webhook, A2A, the WebSocket API, job hooks, metrics, health
  *
- * spec: BRIEF.md#устройство-приложения-на-opencck
+ * spec: brief/architecture.md#устройство-приложения-на-opencck
  */
 
 use Mercurius\Messenger\Telegram\LongPolling;

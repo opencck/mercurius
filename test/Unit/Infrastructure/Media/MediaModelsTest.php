@@ -54,7 +54,7 @@ final class MediaModelsTest extends AsyncTestCase {
     }
 
     public function testAPictureIsDrawnByAnOpenRouterImageModelAndItsCostRecorded(): void {
-        // spec: BRIEF.md#категории-моделей
+        // spec: brief/models.md#категории-моделей
         $models = $this->models(['https://openrouter.ai/api/v1/images' => [200, ['content-type' => 'application/json'], json_encode([
             'data' => [['b64_json' => base64_encode('PNG'), 'media_type' => 'image/png']],
             'usage' => ['prompt_tokens' => 0, 'completion_tokens' => 4175, 'cost' => 0.04],

@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use OpenCCK\Domain\Job\Job;
 
 /**
- * spec: BRIEF.md#планировщик-и-проекты
+ * spec: brief/scheduler.md#планировщик-и-проекты-1
  */
 interface JobRepository {
     /** @param string|null $origin the outside data the run that sets the job up had read */
@@ -17,10 +17,10 @@ interface JobRepository {
     /** The owner trusts the source of the job, or no longer does. */
     public function setTrusted(int $id, bool $trusted): bool;
 
-    /** spec: BRIEF.md#планировщик-и-проекты — the filter of webhook events of a job */
+    /** spec: brief/scheduler.md#планировщик-и-проекты-1 — the filter of webhook events of a job */
     public function setHookFilter(int $id, string $filter): bool;
 
-    /** spec: BRIEF.md#планировщик-и-проекты — the model role of a job's runs: '' or 'cheap' */
+    /** spec: brief/scheduler.md#планировщик-и-проекты-1 — the model role of a job's runs: '' or 'cheap' */
     public function setModelRole(int $id, string $role): bool;
 
     public function find(int $id): ?Job;
@@ -54,7 +54,7 @@ interface JobRepository {
     /**
      * A report that did not go out waits to be sent again.
      *
-     * spec: BRIEF.md#планировщик-и-проекты — a failed delivery is retried and names its reason
+     * spec: brief/scheduler.md#планировщик-и-проекты-1 — a failed delivery is retried and names its reason
      */
     public function holdReport(int $id, string $report): void;
 

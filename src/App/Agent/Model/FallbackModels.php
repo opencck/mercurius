@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * Where a run goes when its model fails: the same model at the other provider, else the main role, else the strong
  * one. One switch per run; the prompt cache is lost once, which is cheaper than a failed run.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — a failed model is switched once
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — a failed model is switched once
  * ref: references/hermes-agent/agent/turn_recovery.py@e96221fa:L1922-L1959 — switch models on provider failures
  * ref: references/hermes-agent/agent/chat_completion_helpers.py@e96221fa:L2034-L2090 (try_activate_fallback)
  */

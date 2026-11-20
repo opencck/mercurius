@@ -9,7 +9,7 @@ declare(strict_types=1);
  *
  *   php bin/spec-links.php        — prints every broken link; exit code 1 when there is one
  *
- * spec: BRIEF.md#соглашения — a spec reference leads to an existing heading, its path from the main repository
+ * spec: brief/architecture.md#соглашения — a spec reference leads to an existing heading, its path from the main repository
  */
 
 $root = dirname(__DIR__);

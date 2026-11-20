@@ -101,7 +101,7 @@ final class ConsolidationTest extends AsyncTestCase {
     }
 
     public function testANegationIsAConflictNotADuplicate(): void {
-        // spec: BRIEF.md#консолидация-dreaming — facts that differ by a negation contradict each other
+        // spec: brief/memory.md#консолидация-dreaming — facts that differ by a negation contradict each other
         $this->add('Владелец любит острую еду');
         $this->add('Владелец не любит острую еду', 0.5, provenance: Fact::AGENT);
 
@@ -112,7 +112,7 @@ final class ConsolidationTest extends AsyncTestCase {
     }
 
     public function testAReportThatWasNotDeliveredIsShownNextTime(): void {
-        // spec: BRIEF.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner
+        // spec: brief/memory.md#консолидация-dreaming — a finding counts as shown only once the report reached the owner
         $this->add('Встреча с командой проходит по понедельникам в 11:00');
         $this->add('Встреча с командой проходит по понедельникам в 12:00');
         $this->delivered = false;
@@ -125,7 +125,7 @@ final class ConsolidationTest extends AsyncTestCase {
     }
 
     public function testAMissedNightIsCaughtUpAtStart(): void {
-        // spec: BRIEF.md#консолидация-dreaming — a night missed while the app was down is checked at start
+        // spec: brief/memory.md#консолидация-dreaming — a night missed while the app was down is checked at start
         $midnight = 1_800_000_000 - 1_800_000_000 % 86400;
 
         self::assertTrue(MemoryConsolidationModule::missed(null, 3, $midnight + 10 * 3600), 'never checked');

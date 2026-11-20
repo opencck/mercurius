@@ -72,7 +72,7 @@ final class ForumTopicsTest extends AsyncTestCase {
     }
 
     public function testARenamedProjectRenamesItsTopics(): void {
-        // spec: BRIEF.md#форум-темы--проекты — a project renamed keeps its topics named after it
+        // spec: brief/channels.md#форум-темы--проекты — a project renamed keeps its topics named after it
         $project = $this->projects->create('Сайт', '');
         $this->topics->created($project, self::meta());
 

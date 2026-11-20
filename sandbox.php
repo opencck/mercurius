@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // Sandbox executor: runs inside the sandbox container as root with a minimal set of capabilities and does every
 // participant operation as that participant's Unix user. Listens on the sandbox network only (compose).
-// spec: BRIEF.md#песочница
+// spec: brief/agent-loop.md#подтверждения-и-запреты
 
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\SocketHttpServer;
@@ -38,7 +38,7 @@ $files = new Files($workspace, $users);
 $runner = new CommandRunner($workspace, $users, $files);
 $files->attach($runner);
 $streams = new Streams($runner, $users, $workspace);
-// spec: BRIEF.md#песочница — a long-lived process nobody touched for half an hour is killed
+// spec: brief/agent-loop.md#подтверждения-и-запреты — a long-lived process nobody touched for half an hour is killed
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($streams, $logger): void {
     $reaped = $streams->reap();
     if ($reaped > 0) {

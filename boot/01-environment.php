@@ -19,7 +19,7 @@ use OpenCCK\Infrastructure\Logger\LoggerFactory;
 use Revolt\EventLoop;
 
 Dotenv::createImmutable(PATH_ROOT)->safeLoad();
-// spec: BRIEF.md#язык-агента — the memory package takes its texts from the agent's catalogs
+// spec: brief/operations.md#решено-в-фазе-4 — the memory package takes its texts from the agent's catalogs
 \Mercurius\Memory\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 \Mercurius\Peer\Texts::translateWith(static fn(string $key): string => \Mercurius\I18n\t($key));
 
@@ -35,7 +35,7 @@ try {
 }
 
 date_default_timezone_set($config->timezone);
-// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the secrets of the settings are masked by their values everywhere
+// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the secrets of the settings are masked by their values everywhere
 foreach ($_ENV as $name => $value) {
     if (is_string($value) && preg_match('~(TOKEN|_KEY|SECRET|PASSWORD|_HASH|_URI)$~', $name) === 1) {
         SecretMasker::remember($value);

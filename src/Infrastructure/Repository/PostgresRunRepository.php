@@ -14,7 +14,7 @@ use OpenCCK\Domain\Repository\RunRepository;
 use UnexpectedValueException;
 
 /**
- * spec: BRIEF.md#лимиты — the budget is reserved by one conditional UPDATE, never checked afterwards
+ * spec: brief/agent-loop.md#устойчивость — the budget is reserved by one conditional UPDATE, never checked afterwards
  * ref: docs/backendbytes-multi-agent-orchestrator-backend.md:L324-L342 (fetched 2026-11-16) — reserve the worst case,
  *      reconcile with the actual spend; a compare-and-swap there, a conditional UPDATE here
  */

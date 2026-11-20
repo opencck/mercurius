@@ -7,7 +7,7 @@ namespace OpenCCK\App\Agent\Model;
 /**
  * What a part of a task needs from a model: scores 1–10 on fixed axes. A missing or non-numeric score is 1.
  *
- * spec: BRIEF.md#профиль-задачи
+ * spec: brief/models.md#профиль-задачи
  */
 final class TaskProfile {
     public const AXES = ['text', 'reasoning', 'math', 'academic', 'code', 'agency', 'images', 'audio', 'context', 'error_cost', 'urgency'];

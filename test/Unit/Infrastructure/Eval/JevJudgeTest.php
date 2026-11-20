@@ -13,7 +13,7 @@ use OpenCCK\Test\Support\FakeHttpClient;
 /**
  * Jev judges by one choice question; the grades are weighed by their probabilities.
  *
- * spec: BRIEF.md#границы-самоулучшения — the judge may be of any provider
+ * spec: brief/decisions.md#границы-самоулучшения — the judge may be of any provider
  */
 final class JevJudgeTest extends AsyncTestCase {
     private static function task(string $rubric = 'Агент вызвал send_message'): EvalTask {

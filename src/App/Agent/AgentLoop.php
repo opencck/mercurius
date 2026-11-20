@@ -59,7 +59,7 @@ use function Mercurius\I18n\t;
  * phases over one RunState; every stop has a named reason. State is saved after each step, so a run continues
  * after a restart.
  *
- * spec: BRIEF.md#запуск-и-цикл, BRIEF.md#лимиты, BRIEF.md#устойчивость
+ * spec: brief/agent-loop.md#права-участника, BRIEF.md#лимиты, BRIEF.md#устойчивость
  * ref: references/hermes-agent/agent/conversation_loop.py@e96221f:L1648-L1807 (_run_conversation_turn) — iteration as
  *      phases with a verdict; we add a token budget reserved before each call and resume interrupted runs
  * ref: references/hermes-agent/agent/turn_tool_round.py@e96221f:L49-L238 (run_tool_round) — validate, persist before
@@ -102,7 +102,7 @@ final class AgentLoop {
     private ToolUseGuidance $toolUse;
     private ?\OpenCCK\App\Agent\Tool\ToolSearch $toolSearch = null;
 
-    /** spec: BRIEF.md#скиллы-и-mcp — many MCP tools go to the model through the bridge tool_search */
+    /** spec: brief/skills-mcp.md#скиллы-и-mcp — many MCP tools go to the model through the bridge tool_search */
     public function useToolSearch(\OpenCCK\App\Agent\Tool\ToolSearch $search): void {
         $this->toolSearch = $search;
     }
@@ -179,7 +179,7 @@ final class AgentLoop {
             [],
             ($this->clock)(),
         );
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a resumed run goes on with the model it switched to
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a resumed run goes on with the model it switched to
         $state->model = $run->fallbackModel;
         $state->switched = $run->fallbackModel !== null;
         $this->loadContext($state);
@@ -205,7 +205,7 @@ final class AgentLoop {
         }
     }
 
-    /** spec: BRIEF.md#агентский-цикл-и-харнесс — AGENT_TOOL_USE_GUIDANCE */
+    /** spec: brief/agent-loop.md#подходы — AGENT_TOOL_USE_GUIDANCE */
     public function useToolUseGuidance(ToolUseGuidance $guidance): void {
         $this->toolUse = $guidance;
     }
@@ -241,7 +241,7 @@ final class AgentLoop {
 
     /** The ceiling of a group, steering messages, limits, spend and compaction before the call; null — go on. */
     private function prepareTurn(RunState $state): ?Step {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
         $ceiling = $this->cap === null ? null : ($this->cap)($state->run->id);
         if ($ceiling !== null) {
             $state->policy = $state->policy->narrowedBy($ceiling, keepApproval: $state->principal->isOwner());
@@ -287,15 +287,15 @@ final class AgentLoop {
                 $state->streamRetried = true;
                 return Step::next();
             }
-            // spec: BRIEF.md#контекст — the provider proved the context too long: compact once and ask again
+            // spec: brief/agent-loop.md#модели — the provider proved the context too long: compact once and ask again
             if ($state->lastError === ErrorKind::ContextLength && !$state->overflowRetried && $this->compactor !== null) {
                 $state->overflowRetried = true;
                 $this->compactor->ensure($state->run, $state->systemPrompt, $this->historyLimit, $this->estimate($state), force: true, cancellation: $state->cancellation);
                 $this->loadContext($state);
                 return Step::next();
             }
-            // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
+            // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — one switch per run to another model
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — not for a content filter: it judged the request, the
             //       model works; another model would only be asked to say the same
             if ($state->lastError !== ErrorKind::ContentFilter && $this->switchModel($state)) {
                 return Step::next();
@@ -325,7 +325,7 @@ final class AgentLoop {
         }
         $state->emptyStreak = [];
         $state->lessReasoning = false;
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — an action is done only by a tool call: an answer that reports one in
+        // spec: brief/agent-loop.md#подходы — an action is done only by a tool call: an answer that reports one in
         //      words (it copies the system note of earlier runs) is shown back once with a reminder
         // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
         //      completion without tool calls" in the prompt; here the loop also catches the copied note
@@ -338,7 +338,7 @@ final class AgentLoop {
             return Step::next();
         }
         $state->textAction = null;
-        // spec: BRIEF.md#telegram-группы-каналы-и-темы — [SILENT] is for a turn with nothing to say: a run that acted (a
+        // spec: brief/channels.md#telegram-группы-каналы-и-темы — [SILENT] is for a turn with nothing to say: a run that acted (a
         //      skill set up, a file written) tells what it did and what failed, once asked
         if (!$state->silenceRetried && str_starts_with(ltrim($text), '[SILENT]') && $this->actionsNote($state->run->id) !== '') {
             $state->silenceRetried = true;
@@ -348,7 +348,7 @@ final class AgentLoop {
             return Step::next();
         }
         $state->silenceAfterActions = false;
-        // spec: BRIEF.md#знания-агента-о-себе — "no such ability" about itself only after self_info: a weak model
+        // spec: brief/agent-loop.md#агентский-цикл-и-харнесс — "no such ability" about itself only after self_info: a weak model
         //      answered "I cannot pass ownership" without looking, while /owner exists
         if (!$state->selfCheckRetried && self::deniesAbility($text) && $this->registry->get(self::SELF_INFO) !== null && !$this->called($state->run->id, self::SELF_INFO)) {
             $state->selfCheckRetried = true;
@@ -449,7 +449,7 @@ final class AgentLoop {
     }
 
     /**
-     * spec: BRIEF.md#лимиты — the worst case is reserved before the call, then replaced with the actual spend
+     * spec: brief/agent-loop.md#устойчивость — the worst case is reserved before the call, then replaced with the actual spend
      *
      * @return int|null tokens reserved, null when the budget is exhausted
      */
@@ -517,7 +517,7 @@ final class AgentLoop {
     private function request(RunState $state, array $tools, int $maxTokens, ?string $closingPrompt = null, array $tail = []): ChatRequest {
         $summary = $state->summary === null ? [] : [Message::user($state->summary)];
         $model = $state->model ?? $state->run->model;
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — a model of a family that answers in prose is told to act through tools
+        // spec: brief/agent-loop.md#подходы — a model of a family that answers in prose is told to act through tools
         $system = $tools !== [] && $this->toolUse->applies($model) ? $state->systemPrompt . "\n\n" . \Mercurius\I18n\t('agent.tool_use_guidance') : $state->systemPrompt;
         $messages = [Message::system($system), ...$summary, ...$state->history, ...$this->contextMessages($state), ...$tail];
         $state->messagesAtCall = count($this->transcript->runMessages($state->run->id));
@@ -713,7 +713,7 @@ final class AgentLoop {
      * What the run did, kept with its answer. Later runs see earlier ones without their tool rounds, so without this note
      * the model doubts its own actions and repeats them (a message sent twice, a card shown twice). Reads are left out.
      *
-     * spec: BRIEF.md#контекст — history of earlier runs without tool rounds, with the actions they made
+     * spec: brief/agent-loop.md#модели — history of earlier runs without tool rounds, with the actions they made
      */
     private function actionsNote(int $runId): string {
         $calls = [];

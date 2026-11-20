@@ -27,7 +27,7 @@ use function Amp\async;
  * time and cost; full requests and answers of model calls go to payloads, masked. A failed write is logged and the
  * run goes on.
  *
- * spec: BRIEF.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  * ref: docs/backendbytes-multi-agent-orchestrator-backend.md:L528-L554 (fetched 2026-11-16) — a span per sub-agent
  *      call with tokens spent and the error; here a span per step, stored in PostgreSQL instead of OpenTelemetry
  * ref: references/hermes-agent/agent/usage_pricing.py@e96221fa:L739 (estimate_usage_cost) — cost with a status:
@@ -170,7 +170,7 @@ final class Tracer implements AgentEvents {
     private function cost(string $model, Usage $usage): array {
         $ref = ModelRef::parse($model);
         if ($usage->costUsd !== null) {
-            // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost; for the others the
+            // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost; for the others the
             // model router puts in an estimate from catalog prices
             return [$usage->costUsd, TraceSpan::costStatusOf($model, $usage->costUsd)];
         }

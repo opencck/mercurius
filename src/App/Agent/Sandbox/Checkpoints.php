@@ -15,7 +15,7 @@ use Throwable;
  * nothing leaks into the participant's repositories), taken as that participant before the first change of a run;
  * listed, compared and restored by the checkpoint tool. Incoming files, dependencies and caches are left out.
  *
- * spec: BRIEF.md#планировщик-и-проекты — snapshots of the working folder before changes, with a rollback
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — snapshots of the working folder before changes, with a rollback
  * ref: references/hermes-agent/tools/checkpoint_manager.py@e96221fa:L1-L48 — a shadow git store with GIT_DIR and
  *      GIT_WORK_TREE, a snapshot once per turn before file-mutating operations, rollback; here one store per participant
  *      inside its own folder (the sandbox keeps folders apart), without the size cap and pruning of hermes
@@ -114,7 +114,7 @@ final class Checkpoints {
      * git with no settings of the system or the participant, and none that start a program: the participant writes
      * the snapshot folder too, and a snapshot runs before a change without anyone being asked.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — snapshots start no program of the participant
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — snapshots start no program of the participant
      */
     public const GIT = 'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c diff.external= -c core.pager=cat --git-dir=' . self::DIR . ' --work-tree=.';
     /** the config of the snapshot store, written anew before every command: filters and the like set there are gone */

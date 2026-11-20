@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 final class ProviderProfileTest extends TestCase {
     public function testEveryProviderNamesItsKeyAndItsOwnModels(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — a provider is data: key, API, cache, models
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — a provider is data: key, API, cache, models
         $names = [];
         foreach (ProviderProfile::all() as $name => $profile) {
             $names[] = $name;

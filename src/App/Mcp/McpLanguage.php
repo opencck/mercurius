@@ -11,7 +11,7 @@ use function Mercurius\I18n\t;
 /**
  * The texts of the MCP client package in the agent's language: what a tool result and an error of a server say.
  *
- * spec: BRIEF.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#скиллы-и-mcp
  */
 final class McpLanguage {
     public static function texts(): McpTexts {

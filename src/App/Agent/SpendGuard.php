@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * Caps in money over everything the agent spends: a run, its workers, background work and compaction alike. A token
  * budget does not see price: the same tokens cost fifty times more on a strong model.
  *
- * spec: BRIEF.md#лимиты — daily and monthly caps in USD
+ * spec: brief/agent-loop.md#устойчивость — daily and monthly caps in USD
  * ref: references/claude-cookbooks/managed_agents/CMA_cap_session_spend.ipynb@ce8b262 — one cap in money across all
  *      threads, subagents included; here a run stops at the cap instead of pausing
  */
@@ -33,7 +33,7 @@ final class SpendGuard {
      *
      * @param float $participantCap USD a UTC day of this participant may cost (their policy); 0 — no cap of their own
      *
-     * spec: BRIEF.md#несколько-пользователей — each participant has their own spend and cap
+     * spec: brief/participants.md#несколько-пользователей — each participant has their own spend and cap
      */
     public function exceeded(?int $principalId = null, float $participantCap = 0.0): ?string {
         if ($this->dailyCap <= 0.0 && $this->monthlyCap <= 0.0 && ($participantCap <= 0.0 || $principalId === null)) {

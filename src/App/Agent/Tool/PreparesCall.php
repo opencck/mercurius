@@ -13,7 +13,7 @@ use OpenCCK\Domain\Entity\Principal;
  * the owner's card shows, what a saved grant is keyed by and what runs — even after a restart, and even if the file
  * changes after the card. The model's own arguments stay as they were in its history.
  *
- * spec: BRIEF.md#скрипты-браузера-решение-владельца-2026-11-17 — the approved script is the script that runs
+ * spec: brief/internet.md#скрипты-браузера-решение-владельца-2026-11-17 — the approved script is the script that runs
  */
 interface PreparesCall {
     /**

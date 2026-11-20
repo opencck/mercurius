@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * The owner's `/apikey`: keys of the WebSocket API. `new <participant> [name]` shows a key once, `list` names the keys
  * that work, `revoke <#>` takes one away.
  *
- * spec: BRIEF.md#второй-канал-websocket-api
+ * spec: brief/operations.md#второй-канал-websocket-api
  */
 final class ApiKeyCommands {
     public function __construct(

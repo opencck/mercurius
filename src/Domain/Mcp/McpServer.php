@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Mcp;
 /**
  * An external MCP server over HTTP, added and approved by the owner.
  *
- * spec: BRIEF.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#скиллы-и-mcp
  */
 final class McpServer implements \Mercurius\Mcp\McpEndpoint {
     public const PENDING = 'pending';

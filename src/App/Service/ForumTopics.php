@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * started in, when that one has no project yet); a finished project closes its topic and a return reopens it; a topic
  * someone opened becomes a draft project. Topic changes are writes: they go without a card and are logged.
  *
- * spec: BRIEF.md#форум-темы--проекты
+ * spec: brief/channels.md#форум-темы--проекты
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L2297-L2330 (_create_dm_topic) — a topic
  *      that cannot be created (not a forum, no rights) is logged and the work goes on without it; hermes maps topics to
  *      sessions by name in its config, we map them to projects in the base
@@ -37,7 +37,7 @@ final class ForumTopics {
 
     /** After a project was created in a conversation; a line for the agent, '' when the chat is not a forum. */
     public function created(Project $project, ConversationMeta $meta): string {
-        // spec: BRIEF.md#telegram-группы-каналы-и-темы — topics are an optional part of a channel
+        // spec: brief/channels.md#telegram-группы-каналы-и-темы — topics are an optional part of a channel
         if (!$this->channel instanceof ForumChannel || !$this->forum($meta->channel, $meta->chatId)) {
             return '';
         }
@@ -60,7 +60,7 @@ final class ForumTopics {
     /**
      * A project got a new name: its topics are renamed too. Best effort, as every topic call.
      *
-     * spec: BRIEF.md#форум-темы--проекты
+     * spec: brief/channels.md#форум-темы--проекты
      */
     public function renamed(int $projectId, string $name): void {
         if (!$this->channel instanceof ForumChannel) {

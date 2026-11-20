@@ -40,7 +40,7 @@ use function Mercurius\I18n\t;
  * the orchestrator's, within a budget reserved from the orchestrator's. A worker cannot ask the owner and cannot
  * delegate further. Read-only parts run side by side, the rest one by one.
  *
- * spec: BRIEF.md#часть-1--синхронное-делегирование
+ * spec: brief/orchestration.md#часть-1--синхронное-делегирование
  * ref: references/hermes-agent/tools/delegate_tool.py@e96221fa:L204-L395 (_build_child_agent) — empty history, a short
  *      prompt shared by all children, the task in the first message, tools a subset of the parent's, no clarify; here
  *      the budget is shared and reserved up front (hermes only sums the children's spend afterwards)
@@ -58,7 +58,7 @@ final class WorkerRunner {
      * Memory a worker gets only when the orchestrator gives it (`memory`): searching the participant's memory and
      * history, and with `write` proposing facts too.
      *
-     * spec: BRIEF.md#права-воркера-задаёт-оркестратор
+     * spec: brief/orchestration.md#права-воркера-задаёт-оркестратор
      */
     public const MEMORY_READ = ['memory_search', 'history_search', 'experience_search'];
     public const MEMORY_WRITE = ['memory_propose'];
@@ -124,7 +124,7 @@ final class WorkerRunner {
     /**
      * The white list of tools for workers; which of them a worker gets, the orchestrator decides.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list the owner may change
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list the owner may change
      * @param list<string> $names
      */
     public function allowOnly(array $names): void {
@@ -168,7 +168,7 @@ final class WorkerRunner {
     /**
      * Who hears that a worker ended: the trace writes it as a step of the orchestrator.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — nested traces
+     * spec: brief/operations.md#настройки-агента — nested traces
      */
     public function useEvents(\OpenCCK\App\Agent\Trace\AgentEvents $events): void {
         $this->events = $events;
@@ -187,7 +187,7 @@ final class WorkerRunner {
      * prompt it sent last, and of that the share one turn's tool results get (30%, as the results' budget); null when
      * the window is not known.
      *
-     * spec: BRIEF.md#часть-1--синхронное-делегирование — the report share follows the room left
+     * spec: brief/orchestration.md#часть-1--синхронное-делегирование — the report share follows the room left
      */
     public function reportRoom(ToolContext $parent): ?int {
         $run = $this->runs->find($parent->runId);
@@ -212,7 +212,7 @@ final class WorkerRunner {
      */
     public function reserve(ToolContext $parent, int $count): array {
         $orchestrator = $this->runs->find($parent->runId) ?? throw new DomainException(t('delegation.worker_runner.zapusk_orkestrator_ne_nayden'));
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — a cap on workers per run in code, not in the prompt
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a cap on workers per run in code, not in the prompt
         $started = $this->runs->childCount($orchestrator->id);
         if ($started + $count > $this->maxWorkersPerRun) {
             throw new DomainException(sprintf(t('delegation.worker_runner.potolok_vorkerov_na_zapusk_nachato'), $this->maxWorkersPerRun, $started));
@@ -301,12 +301,12 @@ final class WorkerRunner {
      * @return array<int, WorkerReport>
      */
     private function side(array $jobs): array {
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — a sliding window: a free slot takes the next part
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a sliding window: a free slot takes the next part
         return SlidingWindow::run($jobs, self::PARALLEL);
     }
 
     /**
-     * spec: BRIEF.md#память-слои — layer 7: a part's outcome with its profile and model. A failure to record is logged;
+     * spec: brief/memory.md#память-слои — layer 7: a part's outcome with its profile and model. A failure to record is logged;
      * the report goes on.
      */
     private function remember(ToolContext $parent, WorkerTask $task, WorkerReport $report, int $ms): void {
@@ -382,7 +382,7 @@ final class WorkerRunner {
             if (in_array($name, self::FORBIDDEN, true) || $tool === null) {
                 continue;
             }
-            // spec: BRIEF.md#права-воркера-задаёт-оркестратор — memory only as the orchestrator gave it
+            // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — memory only as the orchestrator gave it
             if ((in_array($name, self::MEMORY_READ, true) && $task->memory === 'none')
                 || (in_array($name, self::MEMORY_WRITE, true) && $task->memory !== 'write')) {
                 continue;
@@ -403,8 +403,8 @@ final class WorkerRunner {
      * One part of the task: the model from the profile or the role, then, if the model let the worker down, one more
      * try on a stronger model within what is left of the worker's share and time.
      *
-     * spec: BRIEF.md#часть-2--профиль-задачи-выбор-модели-каскад — cascade
-     * spec: BRIEF.md#часть-3--фоновое-делегирование — runs a restart interrupted go on
+     * spec: brief/orchestration.md#часть-2--профиль-задачи-выбор-модели-каскад — cascade
+     * spec: brief/orchestration.md#часть-3--фоновое-делегирование — runs a restart interrupted go on
      *
      * @param array{?int, ?int, ?int} $existing runs of the first try, the retry and the verifier, when a restart
      *        interrupted the part
@@ -428,7 +428,7 @@ final class WorkerRunner {
      * (its answer and the errors in front of it), on the same model, within what is left of its share and time. What
      * still does not hold goes to the orchestrator marked so.
      *
-     * spec: BRIEF.md#схема-ответа-воркера
+     * spec: brief/orchestration.md#схема-ответа-воркера
      *
      * @param array<array-key, mixed> $schema
      */
@@ -522,7 +522,7 @@ final class WorkerRunner {
      * read, a stronger model, what is left of the part's share and time. Its verdict goes into the report; redoing
      * the part is the orchestrator's call.
      *
-     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — verifier
+     * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — verifier
      *
      * @param (\Closure(int, int, int): void)|null $onRun
      */
@@ -639,7 +639,7 @@ final class WorkerRunner {
                 if (!$run->status->isActive()) {
                     return $this->report($index, $run);
                 }
-                // spec: BRIEF.md#устойчивость — writes that were running when the server stopped are not repeated
+                // spec: brief/agent-loop.md#инструменты — writes that were running when the server stopped are not repeated
                 foreach ($this->transcript->pendingCalls($run->id) as $call) {
                     if ($call->status === ToolCallStatus::Running && $call->danger !== DangerClass::Read) {
                         $this->transcript->appendToolResult($run->conversationId, $run->id, $call->callId, ToolCallStatus::Interrupted, \Mercurius\I18n\t(RunScheduler::INTERRUPTED));

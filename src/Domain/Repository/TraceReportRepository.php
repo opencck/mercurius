@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * Read-only figures for the owner's reports: spend by model and day, recent and costliest runs.
  *
- * spec: BRIEF.md#трассировка-и-метрики — /usage, /runs
+ * spec: brief/operations.md#настройки-агента — /usage, /runs
  */
 interface TraceReportRepository {
     /** @return list<array{model: string, calls: int, input: int, output: int, cost: float}> costliest first */
@@ -49,7 +49,7 @@ interface TraceReportRepository {
      * How the agent delegated: top-level runs and those that delegated, worker runs, cascade retries, verifiers and
      * their rejections, background delegations.
      *
-     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
+     * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — /delegation
      *
      * @return array{top: int, delegating: int, workers: int, cascades: int, verifiers: int, rejected: int, background: int}
      */
@@ -61,7 +61,7 @@ interface TraceReportRepository {
     /**
      * Tool calls by tool: how many, how many failed, the average time; from the trace steps.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /usage: tools
+     * spec: brief/operations.md#настройки-агента — /usage: tools
      *
      * @return list<array{name: string, calls: int, errors: int, avg_ms: int}> most called first
      */
@@ -77,7 +77,7 @@ interface TraceReportRepository {
     /**
      * Tokens of the runs that delegated, split into their own and their workers'.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /delegation: the orchestrator's share of tokens
+     * spec: brief/operations.md#настройки-агента — /delegation: the orchestrator's share of tokens
      *
      * @return array{orchestrator: int, workers: int}
      */
@@ -87,7 +87,7 @@ interface TraceReportRepository {
      * Spend by the version of the system prompt of the conversation a call was made in: runs, calls and cost; null —
      * a conversation opened before versions were kept, or a call without one.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /usage by prompt_version
+     * spec: brief/operations.md#настройки-агента — /usage by prompt_version
      *
      * @return list<array{version: ?int, runs: int, calls: int, cost: float}> newest version first
      */
@@ -97,7 +97,7 @@ interface TraceReportRepository {
      * Delegation by the version of the orchestrator's system prompt: its top-level runs, those that delegated, their
      * worker runs (retries and verifiers too) and what the workers cost.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /delegation by prompt_version
+     * spec: brief/operations.md#настройки-агента — /delegation by prompt_version
      *
      * @return list<array{version: ?int, top: int, delegating: int, workers: int, cost: float}> newest version first
      */

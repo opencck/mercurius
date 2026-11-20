@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * Sorts a request into short, normal or complex: heuristics first, the cheap model when they cannot tell.
  * A wrong or missing answer means normal — the default model, never a guess towards the expensive one.
  *
- * spec: BRIEF.md#модели — heuristics (length, commands), unclear — the cheap model
+ * spec: brief/agent-loop.md#канал — heuristics (length, commands), unclear — the cheap model
  */
 final class RequestClassifier {
     private const SHORT = 200;
@@ -95,7 +95,7 @@ final class RequestClassifier {
     /**
      * The call of the cheap model goes into the calls of models: its tokens and money are counted like any other.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — every call of a model is counted, the classifier's too
      */
     private function count(?int $conversationId, string $model, ?string $error, float $started, ?\Mercurius\Llm\ChatResponse $response): void {
         if ($this->calls === null) {

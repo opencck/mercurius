@@ -13,7 +13,7 @@ use OpenCCK\App\Agent\Tool\CanonicalJson;
  * command, a page, a neighbour) may see no change many times while it waits: it is counted only in a row and in
  * cycles. Its history is kept on the run: a run resumed after an approval or a restart goes on counting.
  *
- * spec: BRIEF.md#запуск-и-цикл — loop guard
+ * spec: brief/agent-loop.md#права-участника — loop guard
  * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L37-L46, L125-L130 — thresholds 3 and 5, period up to 4
  * ref: references/hermes-agent/agent/tool_guardrails.py@e96221f:L450-L536 (observe_call, _detect_identical_cycle) —
  *      streak and cycle laps; we skip the separate counters for different failing commands

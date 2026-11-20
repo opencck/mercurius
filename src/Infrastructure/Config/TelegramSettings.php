@@ -12,7 +12,7 @@ use SensitiveParameter;
  * models (TELEGRAM_PROXY=vless); the cloud Bot API or a local telegram-bot-api server (TELEGRAM_API_URL), which takes
  * files up to 2000 MB.
  *
- * spec: BRIEF.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+ * spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
  */
 final class TelegramSettings {
     /** The cloud Bot API gives a bot files up to 20 MB. */

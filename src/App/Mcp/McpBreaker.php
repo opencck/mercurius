@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * that tells the model to stop retrying; then one call probes the server, success closes the breaker and failure
  * opens it again. Without it a dead server makes the model call it turn after turn.
  *
- * spec: BRIEF.md#скиллы-и-mcp — a failing server does not eat the run
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — a failing server does not eat the run
  * ref: references/hermes-agent/tools/mcp_tool.py@e96221fa:L587-L640 (_bump_server_error, _reset_server_error) and
  *      tools/mcp_tool_handlers.py@e96221fa:L310-L330 (_check_circuit_breaker) — threshold 3, cooldown 60 s, half-open
  *      probe; a server that answered every time with an error is "rejected", not "unreachable"

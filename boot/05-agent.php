@@ -73,13 +73,13 @@ $runs = new PostgresRunRepository($db);
 $runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
 $deliveryRepository = new \OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
-// spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — the owner's list of roles: titles, order, powers, templates
+// spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — the owner's list of roles: titles, order, powers, templates
 $roleCatalog = new \OpenCCK\App\Service\RoleCatalog(new \OpenCCK\Infrastructure\Repository\PostgresRoleRepository($db));
 $roleCatalog->load();
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits(), $roleCatalog->template(...));
 $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
-// spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — module services from .env; a tool of a module only while its service is up,
+// spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — module services from .env; a tool of a module only while its service is up,
 // checked at start and once a minute
 $serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger);
 $serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
@@ -92,9 +92,9 @@ $tools->withServices($serviceModules->up(...));
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($serviceModules): void {
     $serviceModules->check();
 }));
-// spec: BRIEF.md#подтверждения-и-запреты — a host the owner allowed is dialled through a guard that lets it alone in
+// spec: brief/agent-loop.md#контекст — a host the owner allowed is dialled through a guard that lets it alone in
 $guardedClient = static fn(AddressGuard $guard): \Amp\Http\Client\HttpClient => HttpClients::guarded($guard);
-// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — cookies of http_request live with the project of the conversation,
+// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — cookies of http_request live with the project of the conversation,
 //       else with the participant, like browser profiles
 $httpCookieProjects = new PostgresProjectRepository($db);
 $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context) use ($conversations, $httpCookieProjects): string {
@@ -103,9 +103,9 @@ $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context
     return $project === null ? 'p' . $context->principal->id : 'project:' . $project->id;
 };
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope));
-// spec: BRIEF.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
+// spec: brief/internet.md#интернет-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
-// spec: BRIEF.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
+// spec: brief/participants.md#решения-владельца-2026-11-17 — search providers in the order of SEARCH_PROVIDERS
 [$webSearch, $searchSkipped, $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
 if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
@@ -115,16 +115,16 @@ if ($webSearch !== null) {
     $webSearchTool->useAccounting($llmCalls, $runs);
     $tools->register($webSearchTool);
 }
-// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — rights are given only in the owner's private chat: the owner's own
+// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — rights are given only in the owner's private chat: the owner's own
 //      chat in Telegram or over the WebSocket API, not a group, a channel, a job or a neighbour's task
 $ownerPrivateChat = static function (int $conversationId) use ($conversations): bool {
     $meta = $conversations->meta($conversationId);
     return $meta !== null && in_array($meta->channel, [TelegramChannel::NAME, \Mercurius\Messenger\Websocket\WebsocketChannel::NAME], true) && !str_starts_with($meta->chatId, '-');
 };
 $tools->register(new SetParticipantPolicyTool($principals, $policies, $ownerPrivateChat));
-// spec: BRIEF.md#участник-просит-инструмент-решение-владельца-2026-11-17 — a participant without a tool asks the owner for it
+// spec: brief/network.md#участник-просит-инструмент-решение-владельца-2026-11-17 — a participant without a tool asks the owner for it
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($tools, $policies));
-// spec: BRIEF.md#входящие-вложения — the owner's media models and principles, each participant's own way with files
+// spec: brief/internet.md#входящие-вложения — the owner's media models and principles, each participant's own way with files
 $mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
 $mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
 $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaPrefsTool($mediaPrefs));
@@ -147,15 +147,15 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\SearchFilesTool($sandbox));
     $tools->register(new WriteFileTool($sandbox));
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
-    // spec: BRIEF.md#планировщик-и-проекты — git with a token of the vault in the environment of one command
+    // spec: brief/scheduler.md#планировщик-и-проекты-1 — git with a token of the vault in the environment of one command
     $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
-    // spec: BRIEF.md#песочница — a file the agent made goes to the chat it was asked in
-    // spec: BRIEF.md#между-агентами — in a task of another agent a file goes with the answer
+    // spec: brief/agent-loop.md#подтверждения-и-запреты — a file the agent made goes to the chat it was asked in
+    // spec: brief/internet.md#между-агентами — in a task of another agent a file goes with the answer
     $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
         return $a2aServer instanceof \OpenCCK\App\Peer\A2aServer && $a2aServer->answerFile($runId, $name, $bytes);
     }));
 }
-// spec: BRIEF.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
+// spec: brief/channels.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME)));
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.
@@ -164,7 +164,7 @@ $tracer = new Tracer($traces, $modelCatalog, $logger);
 // Approvals: cards in the owner's private chat (in Telegram its id is the owner's user id).
 $approvalStore = new PostgresApprovalRepository($db);
 $approvals = new ApprovalService($approvalStore, $principals, $channel, $ownerDirectory, $agentSettings->approvalTimeout, $logger, $tracer);
-// spec: BRIEF.md#входящие-вложения — vision, speech and video models through the models' HTTP client (VLESS when set);
+// spec: brief/internet.md#входящие-вложения — vision, speech and video models through the models' HTTP client (VLESS when set);
 // an own endpoint's key is the vault secret media-endpoint-<name>
 $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $modelHttp,
@@ -180,12 +180,12 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     // the other providers (anthropic, bedrock, codex) look through the text models' clients
     $clients,
 );
-// spec: BRIEF.md#интернет-и-браузер — the browser module (profile browser), offered while its service answers
+// spec: brief/internet.md#интернет-и-браузер — the browser module (profile browser), offered while its service answers
 $browserToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_TOKEN');
 $browserUrl = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_URL') ?? 'http://browser:3000';
 if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $browserToken !== null) {
     $browserClient = new BrowserClient(HttpClients::create(), $browserUrl, $browserToken);
-    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — profiles of the old flat layout go into the owner's set, logins stay
+    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — profiles of the old flat layout go into the owner's set, logins stay
     $browserOwner = $principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null);
     \Amp\async(static function () use ($browserClient, $browserOwner, $logger): void {
         try {
@@ -206,22 +206,22 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
         // and the agent looks at it with a vision model of the owner's settings or the participant's choice
         $mediaModels,
         $mediaPrefs,
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — each participant has profiles of their own and of their project
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — each participant has profiles of their own and of their project
         static function (int $conversationId) use ($conversations, $httpCookieProjects): ?int {
             $meta = $conversations->meta($conversationId);
             return $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId)?->id;
         },
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — browser confirmations are off unless the owner turns them on
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — browser confirmations are off unless the owner turns them on
         \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_CONFIRM') === '1',
     ));
 }
 if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
-    // spec: BRIEF.md#категории-моделей — the image category: offered only while it has a model
+    // spec: brief/models.md#категории-моделей — the image category: offered only while it has a model
     if ($mediaSettings->models('image') !== []) {
         $tools->register(new \OpenCCK\App\Agent\Tool\Files\ImageGenerateTool($sandbox, $mediaModels, $mediaSettings));
     }
-    // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
+    // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\DocumentsTool($sandbox, $docsService));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go
     $inboxCleaner = new \OpenCCK\App\Agent\Media\InboxCleaner($principals, $policies, $sandbox, $mediaSettings, $logger);
@@ -239,7 +239,7 @@ $loop = new AgentLoop(
     $conversations,
     $llmCalls,
     $tools,
-    // spec: BRIEF.md#планировщик-и-проекты — a snapshot of the working folder before the first change of each run
+    // spec: brief/scheduler.md#планировщик-и-проекты-1 — a snapshot of the working folder before the first change of each run
     new ToolExecutor(logger: $logger, sandbox: $sandbox, checkpoints: $checkpoints),
     $llmSettings->maxTokens,
     $llmSettings->reasoningEffort === 'none' ? null : $llmSettings->reasoningEffort,
@@ -247,7 +247,7 @@ $loop = new AgentLoop(
     $logger,
     approvals: $approvalStore,
     gate: $approvals,
-    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — tool results are bounded by the window of the model
+    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — tool results are bounded by the window of the model
     budget: \OpenCCK\App\Agent\Tool\ResultBudget::forWindow($llmSettings->contextWindow),
     // Context compaction: the window and the cheap model come from the settings until the model catalog.
     compactor: new ContextCompactor(
@@ -267,9 +267,9 @@ $loop = new AgentLoop(
     fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),
     spend: new SpendGuard($llmCalls, $agentSettings->dailySpendCap, $agentSettings->monthlySpendCap, $logger),
 );
-// spec: BRIEF.md#агентский-цикл-и-харнесс — models that answer in prose are told to act through tools
+// spec: brief/agent-loop.md#подходы — models that answer in prose are told to act through tools
 $loop->useToolUseGuidance(new \OpenCCK\App\Agent\ToolUseGuidance(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_TOOL_USE_GUIDANCE') ?? 'auto'));
-// spec: BRIEF.md#скиллы-и-mcp — over 5% of the window the tools of MCP servers go behind tool_search
+// spec: brief/skills-mcp.md#скиллы-и-mcp — over 5% of the window the tools of MCP servers go behind tool_search
 $tools->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::SEARCH, $tools));
 $tools->register(new \OpenCCK\App\Agent\Tool\ToolSearchTool(\OpenCCK\App\Agent\Tool\ToolSearchTool::DESCRIBE, $tools));
 $loop->useToolSearch(new \OpenCCK\App\Agent\Tool\ToolSearch($modelRouter->window(...)));

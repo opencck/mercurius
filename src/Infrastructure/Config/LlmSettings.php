@@ -13,7 +13,7 @@ use SensitiveParameter;
 /**
  * Model provider settings: the key of each provider of {@see ProviderProfile}, the route, the default models. The route is VLESS when VLESS_URI is set, direct otherwise.
  *
- * spec: BRIEF.md#решения — route to the model through VLESS_URI
+ * spec: brief/decisions.md#решения — route to the model through VLESS_URI
  */
 final class LlmSettings {
     private const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -55,7 +55,7 @@ final class LlmSettings {
      * @throws ConfigException
      */
     public static function fromEnv(array $env): self {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — any key is enough, one of them is needed
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — any key is enough, one of them is needed
         $keys = [];
         foreach (ProviderProfile::all() as $name => $profile) {
             $key = Env::raw($env, $profile->keyEnv);

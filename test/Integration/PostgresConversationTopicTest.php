@@ -39,7 +39,7 @@ final class PostgresConversationTopicTest extends AsyncTestCase {
         self::assertSame('12', $conversations->meta($topic)?->threadId);
         self::assertSame('', $conversations->meta($chat)?->threadId);
 
-        // spec: BRIEF.md#контекст-по-месту-и-аудитории — the kind of a chat is kept
+        // spec: brief/decisions.md#контекст-по-месту-и-аудитории — the kind of a chat is kept
         self::assertNull($conversations->privateChat($chat));
         $conversations->setPrivateChat($chat, false);
         self::assertFalse($conversations->privateChat($chat));

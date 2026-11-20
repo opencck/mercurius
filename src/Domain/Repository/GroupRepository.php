@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 use OpenCCK\Domain\Group\Group;
 
 /**
- * spec: BRIEF.md#telegram-группы-каналы-и-темы
+ * spec: brief/channels.md#telegram-группы-каналы-и-темы
  */
 interface GroupRepository {
     public function find(string $channel, string $chatId): ?Group;

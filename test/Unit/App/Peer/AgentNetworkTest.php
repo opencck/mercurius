@@ -169,7 +169,7 @@ final class AgentNetworkTest extends AsyncTestCase {
     }
 
     public function testTheNumberOfATaskANeighbourGivesIsANumberNotAPath(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
         self::assertSame('task-8cb1b5099f171751', A2aClient::taskId(['id' => 'task-8cb1b5099f171751']));
         foreach (['../scripts', 'a/b', '..', '', str_repeat('x', 101), "a\nb"] as $id) {
             self::assertNull(A2aClient::taskId(['id' => $id]), $id);
@@ -182,7 +182,7 @@ final class AgentNetworkTest extends AsyncTestCase {
     public function testARequestSignedForAnotherInstanceIsRefused(): void {
         $this->follower(new ScriptedLlm([]));
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a signed request names the instance it is for
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a signed request names the instance it is for
         [$agent, $status] = $this->authenticate(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'GetTask', 'params' => []], audience: 'https://other.example');
         self::assertNull($agent);
         self::assertSame(401, $status);
@@ -306,7 +306,7 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('Париж', $sent);
         self::assertSame(A2aTask::COMPLETED, $leaderPeers->outgoing[1]->state ?? null);
         self::assertCount(1, $ended, 'the server of the leader learns the task ended');
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour marks the next run of the conversation
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour marks the next run of the conversation
         self::assertSame([[$conversation, 'agent:follower']], $tainted);
         self::assertSame(1, $ended[0]->leaderRun);
         $first = array_key_first($this->followerPeers->tasks);

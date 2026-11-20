@@ -23,7 +23,7 @@ interface PrincipalRepository {
      * Ownership passes to an active person: the owner becomes an admin. What the agent has goes with it (its key, its
      * own jobs); what the former owner kept as owner stays theirs (memory about them, their projects).
      *
-     * spec: BRIEF.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
+     * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
      */
     public function transferOwnership(int $from, int $to): bool;
 
@@ -45,7 +45,7 @@ interface PrincipalRepository {
     /**
      * A connecting agent of the network under its name (channel "a2a"); an existing one keeps its id and gets the role.
      *
-     * spec: BRIEF.md#сеть-агентов — a connected agent is a participant of kind agent
+     * spec: brief/network.md#сеть-агентов-1 — a connected agent is a participant of kind agent
      */
     public function createAgent(string $name, Role $role): Principal;
 

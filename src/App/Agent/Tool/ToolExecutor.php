@@ -24,8 +24,8 @@ use function Mercurius\I18n\t;
  * Runs one validated call. A tool error, an exception or a timeout is always a result for the model;
  * only cancellation of the run itself (/stop, shutdown) propagates.
  *
- * spec: BRIEF.md#инструменты — an error is a result, not an exception
- * spec: BRIEF.md#лимиты — timeout per tool call
+ * spec: brief/agent-loop.md#песочница — an error is a result, not an exception
+ * spec: brief/agent-loop.md#устойчивость — timeout per tool call
  */
 final class ToolExecutor {
     /**
@@ -52,7 +52,7 @@ final class ToolExecutor {
         $tool = $call->tool;
         $name = $call->call->name;
         $timeout = new TimeoutCancellation($timeoutSeconds);
-        // spec: BRIEF.md#планировщик-и-проекты — a snapshot before the first change a run makes in the working folder
+        // spec: brief/scheduler.md#планировщик-и-проекты-1 — a snapshot before the first change a run makes in the working folder
         $limits = $context->policy?->sandbox;
         if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
             $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
@@ -86,7 +86,7 @@ final class ToolExecutor {
      * A long result goes into the participant's sandbox home; the context gets its beginning and the path.
      * Null when it is short or there is nowhere to put it (no sandbox, write failed).
      *
-     * spec: BRIEF.md#инструменты — a large result is saved to a file, a preview and the path stay in the context
+     * spec: brief/agent-loop.md#песочница — a large result is saved to a file, a preview and the path stay in the context
      * ref: references/hermes-agent/tools/tool_result_storage.py@e96221f:L278-L300, L424 (generate_preview,
      *      maybe_persist_tool_result) — persist instead of cutting, preview with the path; the threshold is fixed here
      *      until the model catalogue gives the window size
@@ -95,7 +95,7 @@ final class ToolExecutor {
      * Makes a result small for the budget of the turn: its file and a preview, or a cut to the preview when there is
      * no sandbox.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the results of a turn fit 30% of the window
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the results of a turn fit 30% of the window
      */
     public function shrink(string $content, ToolContext $context): string {
         return $this->spill($content, $context, $this->previewChars) ?? $this->truncate($content, $this->previewChars);

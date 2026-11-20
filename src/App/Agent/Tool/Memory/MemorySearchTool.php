@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
 /**
  * Searches memory within the conversation's audience: the same facts the run could be given, on the model's request.
  *
- * spec: BRIEF.md#память-слои
+ * spec: brief/memory.md#память-слои
  */
 final class MemorySearchTool implements Tool {
     public const NAME = 'memory_search';
@@ -36,7 +36,7 @@ final class MemorySearchTool implements Tool {
             'properties' => [
                 'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 500],
                 'related' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 100],
-                // spec: BRIEF.md#память-слои — the weekly review shows facts that fell under the threshold
+                // spec: brief/memory.md#память-слои — the weekly review shows facts that fell under the threshold
                 'faded' => ['type' => 'boolean', 'description' => t('tool.memory_search.faded')],
             ],
             'additionalProperties' => false,

@@ -21,7 +21,7 @@ use function Amp\Future\await;
  * of a module is offered only while its service is up; the check runs at start and once a minute, so a module started
  * or stopped later comes and goes without a restart.
  *
- * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — a tool only while the service runs
+ * spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — a tool only while the service runs
  * ref: references/hermes-agent/tools/registry.py@e96221fa:L260-L270 — hermes asks check_fn of each tool and keeps the
  *      verdict ~30 s; here one check per service for all its tools, in the background, so a run never waits on it
  */

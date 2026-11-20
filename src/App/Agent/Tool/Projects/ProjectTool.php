@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
 /**
  * Projects of the owner: the list, or one project with its card, open tasks and the caller's relation to it.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the other projects on request
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the other projects on request
  */
 final class ProjectTool implements Tool {
     public const NAME = 'project';

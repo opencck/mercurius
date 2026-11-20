@@ -17,7 +17,7 @@ use OpenCCK\Infrastructure\Peer\WebsocketA2aChannel;
  * GET /a2a/ws — neighbouring agents by WebSocket. The entrance token is checked before the upgrade (401 otherwise);
  * on the connection the agent proves its key and then sends JSON-RPC of A2A.
  *
- * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+ * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
  */
 final class A2aSocketHandler implements WebsocketAcceptor, WebsocketClientHandler {
     public function __construct(

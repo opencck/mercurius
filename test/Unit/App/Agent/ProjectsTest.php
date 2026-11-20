@@ -174,7 +174,7 @@ final class ProjectsTest extends AsyncTestCase {
     }
 
     public function testAWorkerAskingForTheProjectGetsTheBlockOfTheOrchestratorsChat(): void {
-        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — the same block the orchestrator's prompt has
+        // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — the same block the orchestrator's prompt has
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]));
         $project = $this->projects->create('Меркурий', 'Агент на сервере');
         $this->projects->activate('telegram', '42', $project->id);

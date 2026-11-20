@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * background and comes as a file, or, above the channel's file size, stays in storage/app/exports/ with its path said.
  * One export at a time.
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента — the archive by the owner's command, sealed by the owner's password
+ * spec: brief/operations.md#экспорт-и-импорт-агента — the archive by the owner's command, sealed by the owner's password
  */
 final class ExportCommands {
     /** Telegram's cloud Bot API takes files up to 50 MB; a margin for the form around the file */

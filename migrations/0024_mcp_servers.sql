@@ -1,5 +1,5 @@
 -- Внешние MCP-серверы (HTTP): подключает и одобряет владелец; инструменты попадают в реестр агента.
--- spec: BRIEF.md#скиллы-и-mcp
+-- spec: brief/skills-mcp.md#скиллы-и-mcp
 
 CREATE TABLE mcp_servers (
     id bigserial PRIMARY KEY,

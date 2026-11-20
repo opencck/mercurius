@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * Adds a server to the registry; it waits for the owner's card. The login secret is named, never given: the owner
  * stores it with /secret.
  *
- * spec: BRIEF.md#фаза-7-по-частям — the registry of servers and credentials, secrets encrypted
+ * spec: brief/servers.md#фаза-7-по-частям — the registry of servers and credentials, secrets encrypted
  */
 final class ServerAddTool implements Tool, GrantKeyed {
     public const NAME = 'server_add';
@@ -57,7 +57,7 @@ final class ServerAddTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

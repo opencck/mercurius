@@ -9,7 +9,7 @@ use OpenCCK\App\Agent\Model\TaskProfile;
 /**
  * A part of a task for a worker, as the orchestrator wrote it: what to do and with which rights.
  *
- * spec: BRIEF.md#права-воркера-задаёт-оркестратор
+ * spec: brief/orchestration.md#права-воркера-задаёт-оркестратор
  */
 final class WorkerTask {
     public const MODES = ['read', 'write'];

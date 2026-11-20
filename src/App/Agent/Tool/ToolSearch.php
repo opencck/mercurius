@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * the description of `tool_search`, and three bridge tools — find, read the schema, call. The core tools stay as
  * they are.
  *
- * spec: BRIEF.md#скиллы-и-mcp — the search of MCP tools
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the search of MCP tools
  * ref: references/hermes-agent/tools/tool_search.py@e96221fa:L197-L224 (estimate_tokens_from_schemas,
  *      listing_token_budget) — chars / 4, a listing of at most min(4000, 5% of the window) tokens; hermes turns the
  *      bridge on whenever a deferrable tool exists, here only when the schemas of MCP tools are over 5% of the window,

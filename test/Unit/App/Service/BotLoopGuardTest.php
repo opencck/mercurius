@@ -8,7 +8,7 @@ use OpenCCK\App\Service\BotLoopGuard;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: BRIEF.md#группа — two bots in one group stop answering each other
+ * spec: brief/channels.md#группа — two bots in one group stop answering each other
  */
 final class BotLoopGuardTest extends TestCase {
     private float $now = 1000.0;

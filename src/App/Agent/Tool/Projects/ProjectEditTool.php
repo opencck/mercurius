@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * Keeps projects: the agent writes the card and the tasks itself; a new project, its goal or status, and a
  * participant's relation to it wait for the owner — those calls are irreversible, so the owner gets a card.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the agent keeps the card, the goal and the status
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the agent keeps the card, the goal and the status
  *       change with the owner's confirmation; a relation goes through the owner too and only from the participant's
  *       own words
  */
@@ -47,7 +47,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     /**
      * A deadline in the owner's zone: a date alone means the end of that day.
      *
-     * spec: BRIEF.md#планировщик-и-проекты — deadlines for the daily summary
+     * spec: brief/scheduler.md#планировщик-и-проекты-1 — deadlines for the daily summary
      */
     public static function due(string $text, \DateTimeZone $zone): ?\DateTimeImmutable {
         $text = trim($text);
@@ -92,7 +92,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {
@@ -133,7 +133,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 return ToolResult::error($e->getMessage());
             }
             $meta = $this->conversations->meta($context->conversationId);
-            // spec: BRIEF.md#форум-темы--проекты — a new project in a forum gets its own topic
+            // spec: brief/channels.md#форум-темы--проекты — a new project in a forum gets its own topic
             $topic = $meta === null ? '' : ($this->forum?->created($project, $meta) ?? '');
             return ToolResult::ok(trim(sprintf(t('tool.project_edit.proekt_zaveden'), $project->name, $topic)));
         }
@@ -165,11 +165,11 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         }
         $meta = $this->conversations->meta($context->conversationId);
         $active = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
-        // spec: BRIEF.md#несколько-пользователей — a participant works only with their own projects
+        // spec: brief/participants.md#несколько-пользователей — a participant works only with their own projects
         return $active !== null && $active->visibleTo($context->principal) ? $active : null;
     }
 
-    /** spec: BRIEF.md#форум-темы--проекты — a new name for the project and its forum topics */
+    /** spec: brief/channels.md#форум-темы--проекты — a new name for the project and its forum topics */
     private function rename(Project $project, string $name): ToolResult {
         if ($name === '' || mb_strlen($name) > Project::NAME_MAX) {
             return ToolResult::error(sprintf(t('tool.project_edit.rename_needs_name'), Project::NAME_MAX));

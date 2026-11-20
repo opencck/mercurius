@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * The participant's own time zone and quiet hours: their jobs run by their clock, reports wait for the end of their
  * night. Without arguments — what is set now. Each participant changes only their own.
  *
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class MyPreferencesTool implements Tool {
     public const NAME = 'my_preferences';

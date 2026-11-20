@@ -11,7 +11,7 @@ use OpenCCK\Test\Support\TestDatabase;
 use PHPUnit\Framework\Assert;
 
 /**
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the review of traces leaves out the gate's eval runs
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the review of traces leaves out the gate's eval runs
  *
  * @group integration
  */

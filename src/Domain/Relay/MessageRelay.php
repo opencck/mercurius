@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Relay;
  * A personal message the agent sent on someone's request, waiting for its answer: the recipient's next message in
  * their private chat goes back to the conversation that asked.
  *
- * spec: BRIEF.md#личные-сообщения-участникам
+ * spec: brief/channels.md#личные-сообщения-участникам
  */
 final class MessageRelay {
     public function __construct(

@@ -102,7 +102,7 @@ final class ServiceSettingsTest extends TestCase {
     }
 
     public function testAnAnthropicKeyAloneIsEnough(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $anthropic = LlmSettings::fromEnv(['ANTHROPIC_API_KEY' => 'sk-ant-secret']);
         $all = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'OPENAI_API_KEY' => 'sk-proj', 'ANTHROPIC_API_KEY' => 'sk-ant', 'LLM_MODEL' => 'anthropic:claude-opus-5-5']);
 
@@ -116,7 +116,7 @@ final class ServiceSettingsTest extends TestCase {
     }
 
     public function testABedrockKeyAloneIsEnough(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $bedrock = LlmSettings::fromEnv(['AWS_BEARER_TOKEN_BEDROCK' => 'bedrock-secret']);
         $eu = LlmSettings::fromEnv(['AWS_BEARER_TOKEN_BEDROCK' => 'b', 'BEDROCK_REGION' => 'eu-central-1']);
 
@@ -148,7 +148,7 @@ final class ServiceSettingsTest extends TestCase {
     }
 
     public function testACodexModelGoesWithTheOpenAiKey(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $settings = LlmSettings::fromEnv(['OPENAI_API_KEY' => 'sk-proj', 'LLM_MODEL' => 'codex:gpt-6.1-codex']);
 
         self::assertSame('codex:gpt-6.1-codex', $settings->model);

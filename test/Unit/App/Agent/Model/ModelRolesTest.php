@@ -45,7 +45,7 @@ final class ModelRolesTest extends AsyncTestCase {
     }
 
     public function testEveryChangeOfARoleIsKeptAndOneIsRolledBack(): void {
-        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the history of model roles with a rollback (decision В8)
+        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the history of model roles with a rollback (decision В8)
         $this->roles->set('cheap', 'openrouter:x/tools', 'дешевле и с инструментами', $this->user, false);
         $this->roles->set('cheap', 'openrouter:x/other', 'проверяем другую модель', $this->owner, false);
 
@@ -82,7 +82,7 @@ final class ModelRolesTest extends AsyncTestCase {
     }
 
     public function testOnlyClaudeGetsClaudeRolesOfItsProvider(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — default roles by provider
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — default roles by provider
         foreach (['anthropic' => 'anthropic:claude-sonnet-5-5', 'bedrock' => 'bedrock:anthropic.claude-sonnet-5-5'] as $provider => $main) {
             $stores = new \OpenCCK\Test\Support\InMemoryModelStores();
             $roles = new ModelRoles($stores, $stores, [$provider]);

@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * The agent's proposals of improvements and the versions of the notes to its system prompt.
  *
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
  */
 interface ImprovementRepository {
     public function propose(string $kind, string $title, string $body, string $reason, ?string $settingKey): int;

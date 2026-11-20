@@ -10,7 +10,7 @@ use OpenCCK\App\Agent\FactNudge;
 /**
  * The background collector of facts: what it takes from the cheap model's answer.
  *
- * spec: BRIEF.md#память-слои — the background proposal of facts
+ * spec: brief/memory.md#память-слои — the background proposal of facts
  */
 final class FactNudgeTest extends AsyncTestCase {
     public function testTheAnswerGivesAtMostThreeFactsWithTheirReasons(): void {
@@ -36,7 +36,7 @@ final class FactNudgeTest extends AsyncTestCase {
     }
 
     public function testThePromptSaysEnvironmentFailuresAreNotFacts(): void {
-        // spec: BRIEF.md#память-слои — a failure of the environment is not a fact
+        // spec: brief/memory.md#память-слои — a failure of the environment is not a fact
         self::assertStringContainsString('таймауты', \Mercurius\I18n\t('agent.fact_nudge.prompt'));
     }
 }

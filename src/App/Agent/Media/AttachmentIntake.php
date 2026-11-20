@@ -31,7 +31,7 @@ use function Mercurius\I18n\t;
  * with how to set it. A document is read in the sandbox as the participant, a plain text file here; every content is
  * data from outside, in the frame of untrusted data and with secrets masked.
  *
- * spec: BRIEF.md#входящие-вложения — reception, what happens with each kind by default, limits, no sandbox
+ * spec: brief/internet.md#входящие-вложения — reception, what happens with each kind by default, limits, no sandbox
  * ref: references/hermes-agent/gateway/run_inbound_transcription.py@e96221fa:L1-L40 — hermes handles a voice clip when
  *      it comes in; here every kind is taken in, and the models come in the next part (until then — a note)
  */
@@ -227,7 +227,7 @@ final class AttachmentIntake {
     }
 
     /**
-     * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — an office document or PDF is read by the media-docs module, in a child
+     * spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — an office document or PDF is read by the media-docs module, in a child
      * process with limits there; without the module the file is only kept
      */
     private function extract(string $name, string $bytes, ?string $path, Cancellation $cancellation): string {

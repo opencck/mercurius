@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * A memory proposal is a card in the owner's chat: accept or reject, decided once. The run that proposed does not
  * wait; the change applies when the owner presses.
  *
- * spec: BRIEF.md#фаза-6-по-частям — the owner approves what goes into memory
+ * spec: brief/memory.md#фаза-6-по-частям — the owner approves what goes into memory
  */
 final class MemoryCards implements CallbackHandler {
     public const PREFIX = 'mp';
@@ -47,7 +47,7 @@ final class MemoryCards implements CallbackHandler {
     ) {}
 
     /**
-     * spec: BRIEF.md#консолидация-dreaming — the card says on how many days the person said it: code tells what holds
+     * spec: brief/memory.md#консолидация-dreaming — the card says on how many days the person said it: code tells what holds
      *       from what was said once
      *
      * @param \Closure(int, string): int $days the person and the text => the number of days
@@ -57,7 +57,7 @@ final class MemoryCards implements CallbackHandler {
     }
 
     /**
-     * spec: BRIEF.md#несколько-пользователей — a fact of a participant's own memory is theirs to approve: the card goes
+     * spec: brief/participants.md#несколько-пользователей — a fact of a participant's own memory is theirs to approve: the card goes
      * to their private chat; everything else goes to the owner
      */
     public function show(Proposal $proposal): bool {
@@ -66,7 +66,7 @@ final class MemoryCards implements CallbackHandler {
         if ($who !== null) {
             $chatId = $this->principals->externalId($who, $this->channel->name()) ?? OwnerDirectory::chat($this->ownerChatId);
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a fact the agent wrote itself comes as a notice the owner
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a fact the agent wrote itself comes as a notice the owner
         //       may undo with one press; anything else waits for the owner's decision
         $written = $proposal->kind === Proposal::ADD && $proposal->status === Proposal::APPROVED && $proposal->factId !== null;
         $result = $this->channel->send(new OutgoingMessage($chatId, $written ? t('agent.memory_cards.written') . "\n" . $this->card($proposal) : $this->card($proposal, true), buttons: [$written ? [
@@ -195,7 +195,7 @@ final class MemoryCards implements CallbackHandler {
     /** Where the fact came from and on how many days the person said it — for a new or a changed fact. */
     private function origin(Proposal $proposal): string {
         $lines = '';
-        // spec: BRIEF.md#память-слои — how an existing fact served in answers, before it is changed or forgotten
+        // spec: brief/memory.md#память-слои — how an existing fact served in answers, before it is changed or forgotten
         if ($proposal->factId !== null && in_array($proposal->kind, [Proposal::CHANGE, Proposal::END, Proposal::FORGET], true)) {
             $usage = $this->store->usage($proposal->factId);
             $lines .= "\n" . sprintf(t('agent.memory_cards.usage'), $usage['recalled'], $usage['helpful'], $usage['unhelpful']);

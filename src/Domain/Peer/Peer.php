@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Peer;
  * A neighbouring agent this agent connects to: the token of its entrance is a vault secret by name, its public key is
  * pinned when it is added and checks its answers.
  *
- * spec: BRIEF.md#сеть-агентов
+ * spec: brief/network.md#сеть-агентов-1
  */
 final class Peer implements \Mercurius\Peer\PeerEndpoint {
     /** @param array<array-key, mixed>|null $card */

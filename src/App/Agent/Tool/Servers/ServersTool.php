@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
 /**
  * The registry of servers: names, addresses, logins and whether the host key is trusted; never a secret.
  *
- * spec: BRIEF.md#фаза-7-по-частям
+ * spec: brief/servers.md#фаза-7-по-частям
  */
 final class ServersTool implements Tool {
     public const NAME = 'servers';

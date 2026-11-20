@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * of choosing come with the tool; the first model of the list draws when none is named, the next one when it fails.
  * Offered only while the list has a model.
  *
- * spec: BRIEF.md#категории-моделей — image generation
+ * spec: brief/models.md#категории-моделей — image generation
  * ref: references/hermes-agent/tools/image_generation_tool.py@e96221fa:L329-L345 (_postprocess_image_generate_result),
  *      L584-L592 (check_image_generation_requirements) — the picture is a file the agent can see and the platform can
  *      send, and the tool is offered only while a backend is there; hermes draws through FAL, here through the image

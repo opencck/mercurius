@@ -12,7 +12,7 @@ use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 /**
  * recall@5 of memory search on a set of facts and questions (test/Fixtures/memory-recall-ru.json).
  *
- * spec: BRIEF.md#hrr-с-самого-начала — the share of HRR is measured on Russian questions, not assumed
+ * spec: brief/memory.md#hrr-с-самого-начала — the share of HRR is measured on Russian questions, not assumed
  */
 final class RecallBench {
     /** @return array{float, float, int} recall@5, mean reciprocal rank of the first expected fact, the number of questions */

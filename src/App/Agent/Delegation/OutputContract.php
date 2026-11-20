@@ -12,7 +12,7 @@ use function Mercurius\I18n\t;
  * The answer schema of a part (`output_schema`): the worker gets it as a contract with its task, its final answer is
  * checked against it, and a wrong one gets exactly one correction turn with the errors.
  *
- * spec: BRIEF.md#схема-ответа-воркера
+ * spec: brief/orchestration.md#схема-ответа-воркера
  * ref: references/hermes-agent/tools/delegation_output_schema.py@e96221fa:L45-L116 (append_output_contract,
  *      extract_json_candidate, validate_output, build_retry_message) — the contract block, the JSON taken out of a
  *      fence or prose, ten errors at most, one retry with the errors verbatim and the contract again; the schema is

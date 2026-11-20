@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * A new docx, xlsx or pptx by a description: the media-docs module makes the file, it lands in the sandbox and can be
  * sent on with send_file. The libraries are not in the sandbox.
  *
- * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — media-docs builds documents on the agent's request
+ * spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — media-docs builds documents on the agent's request
  */
 final class DocumentsTool extends SandboxTool implements NeedsService {
     public const NAME = 'documents';

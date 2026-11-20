@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * Its class comes from the server's annotations: read-only — a read, not destructive — a write, nothing said — an
  * irreversible call. The result is untrusted data, cleaned of invisible characters.
  *
- * spec: BRIEF.md#скиллы-и-mcp — a tool with no declared danger is irreversible; MCP results are untrusted
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — a tool with no declared danger is irreversible; MCP results are untrusted
  */
 final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \OpenCCK\App\Agent\Tool\GrantKeyed {
     /**
@@ -53,7 +53,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
     /**
      * The sandbox of the participants: a file the server returns is kept in inbox/, a path in files goes as content.
      *
-     * spec: BRIEF.md#интернет-и-браузер — an attachment of a letter in the sandbox, files of a letter from it
+     * spec: brief/internet.md#интернет-и-браузер — an attachment of a letter in the sandbox, files of a letter from it
      *
      * @param (Closure(): \DateTimeImmutable)|null $now
      */
@@ -197,13 +197,13 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
         };
     }
 
-    /** spec: BRIEF.md#подтверждения-и-запреты — mail and other services bring text written by others */
+    /** spec: brief/agent-loop.md#контекст — mail and other services bring text written by others */
     public function readsOutside(array $args): bool {
         return true;
     }
 
     /**
-     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     /** @return non-empty-string */

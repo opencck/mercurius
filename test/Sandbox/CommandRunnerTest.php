@@ -23,7 +23,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testAddressSpaceIsLimitedOnlyWhenSet(): void {
-        // spec: BRIEF.md#песочница — no address-space limit by default: WebAssembly in Node reserves ~10 GB of addresses
+        // spec: brief/agent-loop.md#подтверждения-и-запреты — no address-space limit by default: WebAssembly in Node reserves ~10 GB of addresses
         $none = new \OpenCCK\Domain\Agent\SandboxLimits(1024 ** 3, 64, 60, 0, 2);
         self::assertSame("unlimited
 ", $this->sh(7, 'ulimit -v', limits: $none)->stdout);
@@ -60,7 +60,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testTheTextOfACommandIsNotInTheArgumentsOtherUsersSee(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin, not as an argument
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the command goes to the shell on stdin, not as an argument
         $result = $this->sh(7, 'echo marker-of-the-command; tr "\0" " " < /proc/$$/cmdline');
         self::assertSame(0, $result->exitCode, $result->stderr);
         [$said, $cmdline] = explode("\n", $result->stdout, 2) + [1 => ''];
@@ -74,7 +74,7 @@ final class CommandRunnerTest extends SandboxTestCase {
     }
 
     public function testAParticipantDoesNotSeeTheProcessesOfOthers(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc with hidepid: the executor and other participants are hidden
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc with hidepid: the executor and other participants are hidden
         $result = $this->sh(7, '[ -d /proc/1 ] && echo SEES || echo HIDDEN');
         self::assertSame("HIDDEN\n", $result->stdout);
     }

@@ -17,7 +17,7 @@ use Throwable;
  * past it); GET /a2a/files/<number> — a file of an answer. Both are signed by the agent's key as POST /a2a, and so are
  * the answers. There is an entrance for files with either A2A transport.
  *
- * spec: BRIEF.md#между-агентами
+ * spec: brief/internet.md#между-агентами
  */
 final class A2aFilesHandler implements RequestHandler {
     public function __construct(private readonly A2aServer $server) {}

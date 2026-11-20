@@ -17,7 +17,7 @@ use Psr\Log\NullLogger;
  * `projects/<n>/skills/` to `projects/<n>/.mercurius/skills/`. The old folder is kept in `.mercurius/backup/`; where the
  * new place already exists nothing is touched, so a second start does nothing.
  *
- * spec: BRIEF.md#скиллы-и-mcp — the layout of skills, existing folders moved automatically (owner's decision В14)
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the layout of skills, existing folders moved automatically (owner's decision В14)
  */
 final class SkillFolders {
     /**

@@ -10,7 +10,7 @@ use SensitiveParameter;
  * The master key of the vault: SECRETS_KEY, 32 bytes in base64 (empty — the vault and SSH are off); groups of servers
  * where every command waits for the owner: SSH_CONFIRM_GROUPS, comma-separated.
  *
- * spec: BRIEF.md#фаза-7-по-частям — the master key in .env, a policy by groups of servers
+ * spec: brief/servers.md#фаза-7-по-частям — the master key in .env, a policy by groups of servers
  */
 final class VaultSettings {
     private readonly ?string $key;

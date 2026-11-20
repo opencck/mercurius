@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * One step of a run: the run itself, a model call, a tool, an approval, a compaction, a classification.
  *
- * spec: BRIEF.md#трассировка-и-метрики
+ * spec: brief/operations.md#настройки-агента
  * ref: notes/hermes-agent.md#учёт-токенов-и-стоимости — four token buckets and reasoning, cost with how sure it is
  */
 final class TraceSpan {
@@ -55,7 +55,7 @@ final class TraceSpan {
     /**
      * How sure a cost of a call is: OpenRouter reports it, for other providers it is an estimate by catalog prices.
      *
-     * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost
+     * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost
      */
     public static function costStatusOf(string $model, ?float $costUsd): string {
         return match (true) {

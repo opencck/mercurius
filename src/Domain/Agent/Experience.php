@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * How one part of a delegated task went: what was asked, which model did it, how it ended and what it cost.
  *
- * spec: BRIEF.md#память-слои — layer 7, outcomes of tasks with their profiles and models
+ * spec: brief/memory.md#память-слои — layer 7, outcomes of tasks with their profiles and models
  */
 final class Experience {
     /** @param array<string, int> $profile notable scores by axis */

@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * The executor's HTTP API. POST /v1/<operation> with a JSON body and a bearer token; GET /health without one.
  * Refusals keep their text for the model; anything unexpected becomes a generic error, the class goes to the log.
  *
- * spec: BRIEF.md#песочница — executor behind a token, only the sandbox network
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — executor behind a token, only the sandbox network
  */
 final class ExecutorServer implements RequestHandler {
     /** folders the archive of the working folders leaves out, by name at any depth */
@@ -84,7 +84,7 @@ final class ExecutorServer implements RequestHandler {
      * ref: references/hermes-agent/hermes_cli/backup.py@e96221fa:L79-L97 (_EXCLUDED_DIRS) — the same dependency and cache
      *      folders; .git is kept here, a participant's repository may hold work not pushed anywhere
      *
-     * spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
+     * spec: brief/operations.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
      */
     private function archive(): Response {
         $excluded = array_map(static fn(string $name): string => '--exclude=' . $name, self::ARCHIVE_SKIPPED);
@@ -99,7 +99,7 @@ final class ExecutorServer implements RequestHandler {
     /**
      * The working folders back from a tar.gz of archive(): unpacked over /workspace with their owners.
      *
-     * spec: BRIEF.md#экспорт-и-импорт-агента — a full import brings the working folders back
+     * spec: brief/operations.md#экспорт-и-импорт-агента — a full import brings the working folders back
      */
     private function unarchive(HttpRequest $request): Response {
         $request->getBody()->increaseSizeLimit(8 * 1024 * 1024 * 1024);
@@ -135,7 +135,7 @@ final class ExecutorServer implements RequestHandler {
             'usage' => ['bytes' => $this->files->usage($id)],
             'fetch' => ['content' => base64_encode($this->files->fetch($id, $limits, $request->string('path'), $request->int('max_bytes', 5_000_000, 1, 25_000_000)))],
             'cancel' => ['cancelled' => $this->cancel($request->callId)],
-            // spec: BRIEF.md#песочница — the streaming API: a process lives between the calls
+            // spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API: a process lives between the calls
             'spawn' => ['session' => $this->streams()->spawn($id, $limits, $request->string('command'), $this->workspace->resolve($id, $request->string('cwd', '.')), $request->env())],
             'send' => $this->send($request),
             'receive' => $this->streams()->receive($id, $request->string('session'), max(1, $request->int('max_bytes', Streams::RECEIVE_MAX, 1, Streams::RECEIVE_MAX)), (float) $request->int('wait', 20, 0, Streams::WAIT_MAX)),

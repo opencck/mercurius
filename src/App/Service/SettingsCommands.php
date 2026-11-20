@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * The owner's commands for settings, without a model: /settings, /set <key> <value>, /restart. They work even when
  * the models are not set up yet.
  *
- * spec: BRIEF.md#настройки-агента
+ * spec: brief/operations.md#трассировка-и-метрики
  */
 final class SettingsCommands {
     public function __construct(

@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
 /**
  * Files to attach, read whole from the participant's sandbox before anything is sent: a missing one stops the message.
  *
- * spec: BRIEF.md#между-агентами — up to 10 files and 20 MB a message
+ * spec: brief/internet.md#между-агентами — up to 10 files and 20 MB a message
  */
 final class SandboxFiles {
     public const COUNT_MAX = 10;

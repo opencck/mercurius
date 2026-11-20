@@ -22,7 +22,7 @@ use function Amp\delay;
  * a code there; the agent never sees a password), its tokens kept in the vault, the access token refreshed before it
  * ends.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
  * ref: references/hermes-agent/hermes_cli/auth_codex.py@e96221fa:L1019-L1150 (device code, polling, exchange) and
  *      L503-L535 (refresh_codex_oauth_pure); hermes_cli/auth_constants.py@e96221fa:L74, L90-L92 — the same endpoints and
  *      client id; the tokens live in the vault instead of a file

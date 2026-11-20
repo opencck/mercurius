@@ -35,7 +35,7 @@ use function Mercurius\I18n\t;
  * (their key pinned from the card), tasks it gives them and the polling of their state; a result comes to the chat and
  * into the conversation as untrusted data.
  *
- * spec: BRIEF.md#сеть-агентов — remote delegation is always in the background; the reply of a neighbour is data
+ * spec: brief/network.md#сеть-агентов-1 — remote delegation is always in the background; the reply of a neighbour is data
  */
 final class PeerNetwork {
     public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_-]{0,39}$~';
@@ -84,7 +84,7 @@ final class PeerNetwork {
      * A neighbour told over a connection that a task changed: the task is read now, not at the next poll. The notice
      * only starts the reading — what the task is comes from the neighbour it was given to, as by polling.
      *
-     * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
+     * spec: brief/network.md#сеть-агентов-1 — the end of a task is pushed over a live connection
      * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L658-L671 (_record_outcome) — hermes fires a push callback
      *      when a task ends; here the push goes over the connection both sides already proved, no callback URL
      * @param array<array-key, mixed> $params
@@ -107,7 +107,7 @@ final class PeerNetwork {
     }
 
     /**
-     * spec: BRIEF.md#сеть-агентов — results go up the chain: a task of a neighbour that waited for this one goes on
+     * spec: brief/network.md#сеть-агентов-1 — results go up the chain: a task of a neighbour that waited for this one goes on
      * @param Closure(OutgoingTask): void $finished
      */
     public function onFinished(Closure $finished): void {
@@ -115,7 +115,7 @@ final class PeerNetwork {
     }
 
     /**
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour is outside data in the conversation:
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the answer of a neighbour is outside data in the conversation:
      *       the run that reads it uses no saved grant
      * @param Closure(int, string): void $answered the conversation and the source of the answer
      */
@@ -126,7 +126,7 @@ final class PeerNetwork {
     /**
      * Opens a connection to the neighbour now (or finds a live one): tasks then go over it both ways.
      *
-     * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
+     * spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17
      */
     public function open(string $peerName): string {
         $peer = $this->peers->peer($peerName) ?? throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
@@ -140,7 +140,7 @@ final class PeerNetwork {
         } catch (\RuntimeException $e) {
             throw new DomainException($e->getMessage());
         }
-        // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept until it is closed
+        // spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17 — an opened connection is kept until it is closed
         $this->peers->setKeep($peerName, true);
         unset($this->retries[$peerName]);
         return sprintf(t('peer.peer_network.link_open'), $peerName);
@@ -162,7 +162,7 @@ final class PeerNetwork {
      * deployed). A failed try waits 30 s, then twice as long, up to 5 minutes. A live connection is kept alive by
      * WebSocket pings on both sides.
      *
-     * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17
+     * spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17
      */
     public function keepAlive(): void {
         if ($this->links === null) {
@@ -220,7 +220,7 @@ final class PeerNetwork {
         if (preg_match('~^SHA256:[0-9a-f]{64}$~', $fingerprint) !== 1) {
             throw new DomainException(t('peer.peer_network.otpechatok_sha256_64_hex_ego'));
         }
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — an agent takes a role of the list that may have tools
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — an agent takes a role of the list that may have tools
         if (!in_array($role, Role::assignable(), true) || !$role->may(\OpenCCK\Domain\Entity\Power::Tools)) {
             throw new DomainException(t('peer.peer_network.rol_agenta_user_ili_admin'));
         }
@@ -233,7 +233,7 @@ final class PeerNetwork {
      * The key this agent presents to the neighbour from now on ('' — the main one); a new key is made. The neighbour's
      * owner lets the new fingerprint in with /peer allow.
      *
-     * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+     * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
      */
     public function useKey(string $peer, string $key): string {
         $mine = $this->myKey($key);
@@ -266,7 +266,7 @@ final class PeerNetwork {
         if (!$this->peers->revokeKey($name)) {
             return false;
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key does not stay on a connection already open
         foreach ($fingerprints as $fingerprint) {
             $this->links?->closeKey($fingerprint);
         }
@@ -314,7 +314,7 @@ final class PeerNetwork {
      * Waits up to $seconds for the end of a task given with $wait: its state and answer, or null when it did not end
      * in time; then the answer comes to the chat as for any task. Asks the neighbour every few seconds meanwhile.
      *
-     * spec: BRIEF.md#сеть-агентов — peer_call and peer_orchestrate wait for the answer
+     * spec: brief/network.md#сеть-агентов-1 — peer_call and peer_orchestrate wait for the answer
      * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L95-L128, L172-L196 (a2a_call) — one call
      *      waited for with a time limit; hermes holds one HTTP request, here the task stays asynchronous and is read
      *      until it ends or the limit passes
@@ -355,7 +355,7 @@ final class PeerNetwork {
      * @param list<array{name: string, bytes: string}> $files
      */
     public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null, ?int $tokens = null, ?string $parentTask = null): OutgoingTask {
-        // spec: BRIEF.md#сеть-агентов — the token cap, the leader's run and the task it works on go with the task
+        // spec: brief/network.md#сеть-агентов-1 — the token cap, the leader's run and the task it works on go with the task
         $lead = [];
         if ($tokens !== null) {
             $lead['tokens'] = $tokens;
@@ -367,7 +367,7 @@ final class PeerNetwork {
             $lead['parentTask'] = $parentTask;
         }
         $peer = $this->peers->peer($peerName);
-        // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
+        // spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17 — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
         if (!$who->isOwner() && $who->kind !== PrincipalKind::Agent) {
             throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
@@ -415,7 +415,7 @@ final class PeerNetwork {
      * One pass over open outgoing tasks: those past the deadline end as failed, the longest unread are read, all at
      * once, so a neighbour that does not answer holds nobody else.
      *
-     * spec: BRIEF.md#сеть-агентов — the deadline of a task and the reading by when it was read last
+     * spec: brief/network.md#сеть-агентов-1 — the deadline of a task and the reading by when it was read last
      * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L66-L71, L379-L396 — a reply deadline and a
      *      watchdog that fails orphaned tasks; hermes does it on the side that does the work, here the leader closes
      *      what it waits for in vain
@@ -442,7 +442,7 @@ final class PeerNetwork {
      * The leader stops a task it gave: CancelTask to the neighbour, the task ends as canceled here. Null when done,
      * else why not.
      *
-     * spec: BRIEF.md#сеть-агентов — the leader cancels a task (CancelTask)
+     * spec: brief/network.md#сеть-агентов-1 — the leader cancels a task (CancelTask)
      */
     public function cancel(Principal $who, int $id): ?string {
         $out = $this->peers->findOutgoing($id);
@@ -525,7 +525,7 @@ final class PeerNetwork {
      * What the neighbour said it spent on the task (`metadata.mercurius` of the task: its run, tokens, USD): kept with
      * the task, so the leader's trace shows it in the same unit. A neighbour that says nothing spent unknown.
      *
-     * spec: BRIEF.md#сеть-агентов — the spend of the follower in the leader's trace
+     * spec: brief/network.md#сеть-агентов-1 — the spend of the follower in the leader's trace
      * @param array<array-key, mixed> $task
      */
     private function spend(OutgoingTask $out, array $task): void {
@@ -542,7 +542,7 @@ final class PeerNetwork {
      * The files of the neighbour's answer: taken from it over the connection (GetFile) or by GET /a2a/files, or as bytes
      * in the answer. A file that does not come is skipped and logged.
      *
-     * spec: BRIEF.md#между-агентами — the answer of a neighbour with files
+     * spec: brief/internet.md#между-агентами — the answer of a neighbour with files
      *
      * @param array<array-key, mixed> $task
      * @return list<array{name: string, bytes: string}>
@@ -617,7 +617,7 @@ final class PeerNetwork {
         if ($out->channel !== A2aServer::CHANNEL) {
             // A task given from a task of a neighbour has no chat: its result stays in that conversation.
             $this->channel->send(new OutgoingMessage($out->chatId, SecretMasker::mask(mb_substr($text, 0, 3800))));
-            // spec: BRIEF.md#между-агентами — the files of the answer come to the chat as files of their kind
+            // spec: brief/internet.md#между-агентами — the files of the answer come to the chat as files of their kind
             foreach ($files as $file) {
                 $this->channel->sendMedia($out->chatId, \OpenCCK\App\Agent\Tool\Messaging\SendFileTool::kind($file['name'], null), $file['name'], $file['bytes']);
             }
@@ -688,7 +688,7 @@ final class PeerNetwork {
      * The folder for the files of an answer: inbox/<neighbour>-<our number of the task>. Our own number, not the one
      * the neighbour gave: what the neighbour says is never made a path here.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — files of an answer stay in the inbox of their task
      */
     public static function inboxOf(OutgoingTask $out): string {
         return 'inbox/' . $out->peer . '-' . $out->id;

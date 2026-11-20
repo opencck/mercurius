@@ -14,7 +14,7 @@ use function Amp\async;
 /**
  * Every log line of a run carries its number: the fiber of the run and the fiber of each of its tool calls set it.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
  */
 final class RunContextTest extends AsyncTestCase {
     public function testALineWrittenInTheFiberOfARunNamesTheRun(): void {

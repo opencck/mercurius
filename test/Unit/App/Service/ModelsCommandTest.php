@@ -12,7 +12,7 @@ use OpenCCK\Test\Support\InMemoryModelStores;
 use OpenCCK\Test\Support\ScriptedLlm;
 
 /**
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — /models shows the roles and their history, rollback brings one back
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — /models shows the roles and their history, rollback brings one back
  */
 final class ModelsCommandTest extends AsyncTestCase {
     public function testTheOwnerSeesTheHistoryAndRollsARoleBack(): void {

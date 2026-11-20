@@ -31,7 +31,7 @@ final class PostgresConsolidationJournalTest extends AsyncTestCase {
     public function testAForgottenFactLeavesTheReports(): void {
         $this->journal->save(ConsolidationJournal::DONE, 2, 50, 10, ['дубль: у Пети аллергия на "орехи"', 'другое']);
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in the reports
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in the reports
         self::assertSame(1, $this->journal->redact('у Пети аллергия на "орехи"', '(забыто)'));
         $report = $this->db->query('SELECT report::text AS r FROM memory_consolidations ORDER BY id DESC LIMIT 1')->fetchRow()['r'] ?? '';
         self::assertIsString($report);

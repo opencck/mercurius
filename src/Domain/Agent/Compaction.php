@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * Compaction state of a conversation: the summary of its early part, where that part ends, failed attempts.
  *
- * spec: BRIEF.md#контекст
+ * spec: brief/agent-loop.md#модели
  */
 final class Compaction {
     public function __construct(

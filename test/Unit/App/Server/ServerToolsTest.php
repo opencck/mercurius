@@ -140,7 +140,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $tool = new SqlQueryTool($this->console, $this->vault);
         $read = ['server' => 'db', 'engine' => 'postgres', 'database' => 'shop', 'user' => 'app', 'secret' => 'pg', 'query' => 'select 1'];
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a secret goes only where the owner allowed it
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a secret goes only where the owner allowed it
         self::assertSame(DangerClass::Irreversible, $tool->danger($read));
         self::assertSame('sql-read:db:postgres:127.0.0.1:5432:app:pg', $tool->grantKey($read));
         self::assertSame('sql-read:db:postgres:attacker.example:5432:app:pg', $tool->grantKey(['host' => 'attacker.example'] + $read), 'another host is another grant');
@@ -198,7 +198,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $args = ['server' => 'db', 'path' => '/root/.ssh/authorized_keys', 'content' => 'k', 'append' => true];
 
         self::assertStringStartsWith('file-write-never:db:', (string) $tool->grantKey($args));
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a grant for good is for this content at this place
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a grant for good is for this content at this place
         $write = ['server' => 'DB', 'path' => '/etc/app.conf', 'content' => 'a=1'];
         self::assertSame('file-write:db:/etc/app.conf:write:' . substr(hash('sha256', 'a=1'), 0, 16), $tool->grantKey($write));
         self::assertNotSame($tool->grantKey($write), $tool->grantKey(['content' => 'a=2'] + $write), 'other content is another grant');

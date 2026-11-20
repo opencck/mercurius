@@ -1,6 +1,6 @@
 -- Scores of the evaluation set by category for a version of the notes to the system prompt: the gate records both the
 -- current notes and the candidate, /prompt scores compares versions.
--- spec: BRIEF.md#самоулучшение-решено-2026-11-18
+-- spec: brief/decisions.md#самоулучшение-решено-2026-11-18
 CREATE TABLE eval_scores (
     id bigserial PRIMARY KEY,
     version text NOT NULL,

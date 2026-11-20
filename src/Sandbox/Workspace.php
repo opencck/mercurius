@@ -11,7 +11,7 @@ use function Mercurius\I18n\t;
  * resolve() is the first line of defence (lexical); the second is the kernel, because every operation runs as
  * the participant's user and homes are 0700.
  *
- * spec: BRIEF.md#песочница — a home and a Unix user per participant
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — a home and a Unix user per participant
  */
 final class Workspace {
     public const UID_BASE = 20000;

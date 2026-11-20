@@ -46,19 +46,19 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  */
 
-// spec: BRIEF.md#планировщик-и-проекты — jobs by a schedule, run without the owner, reported by the scheduler
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — jobs by a schedule, run without the owner, reported by the scheduler
 $ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');
 $quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23-8';
 $quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
 $jobRepository = new PostgresJobRepository($db);
 $jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JOB_TOKEN_BUDGET') ?? '100000'));
-// spec: BRIEF.md#планировщик-и-проекты — a watched address is read through the guard of internal addresses, as text
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — a watched address is read through the guard of internal addresses, as text
 $jobWatchHttp = HttpClients::guarded($addressGuard);
 $jobWatchText = new TextExtractor();
-// spec: BRIEF.md#планировщик-и-проекты — initiative messages: a daily cap of reports the owner did not ask for now
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — initiative messages: a daily cap of reports the owner did not ask for now
 $proactivePerDay = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_PER_DAY');
 $proactiveBudget = new \OpenCCK\App\Job\ProactiveBudget($proactivePerDay !== null && ctype_digit($proactivePerDay) ? (int) $proactivePerDay : 6, $ownerZone);
-// spec: BRIEF.md#несколько-пользователей — a participant's own time zone and quiet hours for their jobs
+// spec: brief/participants.md#несколько-пользователей — a participant's own time zone and quiet hours for their jobs
 $participantPrefs = new \OpenCCK\Infrastructure\Repository\PostgresParticipantPrefRepository($db);
 $participantClock = new \OpenCCK\App\Job\ParticipantClock($participantPrefs, $ownerZone, $quietHours);
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool($participantPrefs, $participantClock));
@@ -74,9 +74,9 @@ $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $con
     return $jobWatchText->extract($body, $response->getHeader('content-type') ?? '', $url)[1];
 });
 $jobScheduler->useSkills($skillLibrary);
-// spec: BRIEF.md#планировщик-и-проекты — a job marked cheap runs on the model of the cheap role
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — a job marked cheap runs on the model of the cheap role
 $jobScheduler->useModels(static fn(string $role): string => (string) $modelRoles->model($role));
-// spec: BRIEF.md#контекст-по-месту-и-аудитории — the memory core only for a job that reports to its owner's private chat
+// spec: brief/decisions.md#контекст-по-месту-и-аудитории — the memory core only for a job that reports to its owner's private chat
 $jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job $job) use ($scheduler, $principals): string {
     $private = $job->threadId === '' && $principals->externalId($who->id, $job->channel) === $job->chatId;
     return $private ? $scheduler->coreOf($who) : '';
@@ -85,20 +85,20 @@ $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs));
 $tools->register(new JobManageTool($jobRepository, $jobScheduler));
-// spec: BRIEF.md#планировщик-и-проекты — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
 
-// spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
+// spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту
 $scheduler->useProjects(new ProjectContext($projectRepository));
-// spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
+// spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the agent proposes, the owner accepts; notes come into new prompts
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
 $evalScores = new \OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository($db);
 $promptNotes = new \OpenCCK\App\Improve\PromptNotes($improvementRepository);
 $scheduler->useNotes($promptNotes);
 $traceReview = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Infrastructure\Repository\PostgresTraceReviewRepository($db));
-// spec: BRIEF.md#скиллы-и-mcp — the review names the skills nobody opened for a month
+// spec: brief/skills-mcp.md#скиллы-и-mcp — the review names the skills nobody opened for a month
 $traceReview->useSkills($skillLibrary);
 $tools->register($traceReview);
 $tools->register(new ProjectTool($projectRepository, $conversations));

@@ -14,7 +14,7 @@ use OpenCCK\Domain\Repository\ApprovalRepository;
 use UnexpectedValueException;
 
 /**
- * spec: BRIEF.md#подтверждения-и-запреты — the decision is fixed atomically before the card is edited
+ * spec: brief/agent-loop.md#контекст — the decision is fixed atomically before the card is edited
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L4347-L4389 (_handle_exec_approval_callback)
  *      — "resolve, then draw"; hermes pops in-memory state, we decide by a conditional UPDATE
  */
@@ -77,7 +77,7 @@ final class PostgresApprovalRepository implements ApprovalRepository {
     public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int {
         $denied = 0;
         foreach ($this->db->execute(
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — only a person's refusal counts: one the agent made itself
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — only a person's refusal counts: one the agent made itself
             //       (the card did not reach the owner, already refused in a row) neither counts nor breaks the streak
             "SELECT status FROM approvals WHERE principal_id = ? AND summary = ? AND created_at >= ?
                AND (status = 'approved' OR (status = 'denied' AND decided_by IS NOT NULL))

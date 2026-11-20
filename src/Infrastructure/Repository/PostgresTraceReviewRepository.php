@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use OpenCCK\Domain\Repository\TraceReviewRepository;
 
 /**
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the review reads real work only: runs of the eval channel (the gate's
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the review reads real work only: runs of the eval channel (the gate's
  *       test runs) are left out, so a run of the gate does not change what the review says
  */
 final class PostgresTraceReviewRepository implements TraceReviewRepository {

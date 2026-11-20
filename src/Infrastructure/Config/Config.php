@@ -7,7 +7,7 @@ namespace OpenCCK\Infrastructure\Config;
 /**
  * Application configuration built once from environment variables.
  *
- * spec: BRIEF.md#устройство-приложения-на-opencck — configuration comes from .env
+ * spec: brief/architecture.md#устройство-приложения-на-opencck — configuration comes from .env
  */
 final class Config {
     /**

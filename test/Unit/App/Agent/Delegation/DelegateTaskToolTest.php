@@ -94,7 +94,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack->scheduler->awaitIdle();
 
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
-        // spec: BRIEF.md#трассировка-и-метрики — the worker is a step of its orchestrator's trace
+        // spec: brief/operations.md#настройки-агента — the worker is a step of its orchestrator's trace
         self::assertContains('worker:1:2:done', $events->events);
         $worker = $stack->runs->find(2);
         self::assertNotNull($worker);
@@ -126,7 +126,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     }
 
     public function testTheOrchestratorSetsAReadOnlyModeAndTheBriefShowsTheRights(): void {
-        // spec: BRIEF.md#права-воркера-задаёт-оркестратор
+        // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'прочитай', 'tools' => ['read', 'note'], 'mode' => 'read']]),
             ScriptedLlm::text('готово'),
@@ -144,7 +144,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     }
 
     public function testMemoryIsGivenOnlyWhenTheOrchestratorSaysSo(): void {
-        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — memory is the orchestrator's decision
+        // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — memory is the orchestrator's decision
         $llm = new ScriptedLlm([
             self::delegate([
                 ['goal' => 'без памяти', 'tools' => ['read', 'memory_search']],
@@ -177,7 +177,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     }
 
     public function testTheContextOfTheConversationIsGivenOnlyOnRequest(): void {
-        // spec: BRIEF.md#права-воркера-задаёт-оркестратор — isolation unless the orchestrator asks for context
+        // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — isolation unless the orchestrator asks for context
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'изолирован'], ['goal' => 'с проектом', 'context_of' => ['project']]]),
             ScriptedLlm::text('1'), ScriptedLlm::text('2'),
@@ -202,7 +202,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     }
 
     public function testAnAnswerNotByTheSchemaGetsOneCorrectionTurn(): void {
-        // spec: BRIEF.md#схема-ответа-воркера
+        // spec: brief/orchestration.md#схема-ответа-воркера
         $schema = ['type' => 'object', 'properties' => ['n' => ['type' => 'integer']], 'required' => ['n'], 'additionalProperties' => false];
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'посчитай 6 × 7', 'output_schema' => $schema]]),
@@ -267,7 +267,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     }
 
     public function testAReportGetsTheRoomLeftInTheOrchestratorsWindow(): void {
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — the report share follows the room left
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — the report share follows the room left
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'длинный ответ']]),
             ScriptedLlm::text(str_repeat('x', 5000)),
@@ -289,7 +289,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
             ScriptedLlm::text('итог'),
         ]);
         $stack = $this->stack($llm);
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list, a new one is closed
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list, a new one is closed
         $this->runner->allowOnly(['read', 'mcp__*']);
         self::assertSame(['read', 'mcp__mail__send'], $this->runner->onTheList(['read', 'push', 'mcp__mail__send']));
 

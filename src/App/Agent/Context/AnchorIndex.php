@@ -8,7 +8,7 @@ namespace OpenCCK\App\Agent\Context;
  * Exact identifiers of the part of a conversation that is compacted — commits, numbers, files, errors, addresses —
  * collected by expressions, without a model. A summary retells; the index keeps them word for word.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the anchors of a compacted part are kept by expressions
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the anchors of a compacted part are kept by expressions
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L1029-L1078 (_build_anchor_index) — the same
  *      categories with caps, the most frequent first, a budget of characters; paths here take php and sql too
  */

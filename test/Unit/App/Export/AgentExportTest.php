@@ -11,7 +11,7 @@ use OpenCCK\App\Export\AgentExport;
 use OpenCCK\App\Export\ArchiveCrypto;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — the archive holds the files of bin/backup.sh, sealed by the password
+ * spec: brief/operations.md#экспорт-и-импорт-агента — the archive holds the files of bin/backup.sh, sealed by the password
  */
 final class AgentExportTest extends AsyncTestCase {
     /** @var list<list<string>> */

@@ -9,8 +9,8 @@ namespace OpenCCK\Domain\Repository;
  * whether the owner pinned it or turned it off. A place is where a skill lies (`builtin`, or the owner and the folder
  * of the skills); rows written before places existed have the place '' until their skill is written again.
  *
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the use of skills for the review and for cleaning the index
- * spec: BRIEF.md#скиллы-и-mcp — the key of the use is the place and the name
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the use of skills for the review and for cleaning the index
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the key of the use is the place and the name
  */
 interface SkillUsageRepository {
     /** One more opening of the skill now. */

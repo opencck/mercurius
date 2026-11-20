@@ -12,7 +12,7 @@ use OpenCCK\App\Export\ArchiveCrypto;
 use RuntimeException;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — a full import: opened by the password, applied at the next start
+ * spec: brief/operations.md#экспорт-и-импорт-агента — a full import: opened by the password, applied at the next start
  */
 final class AgentImportTest extends AsyncTestCase {
     private const DB = ['host' => 'postgres', 'port' => 5432, 'user' => 'mercurius', 'password' => 'секрет базы', 'name' => 'mercurius'];

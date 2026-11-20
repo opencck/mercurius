@@ -26,7 +26,7 @@ use PHPUnit\Framework\TestCase;
  * Files between the agent's sandbox and an MCP server: a file the server returns lands in inbox/, a path the agent
  * names goes to the server as its content.
  *
- * spec: BRIEF.md#интернет-и-браузер — an attachment of a letter in the sandbox and files of a letter from it
+ * spec: brief/internet.md#интернет-и-браузер — an attachment of a letter in the sandbox and files of a letter from it
  */
 final class McpFilesTest extends TestCase {
     /** @var list<array<string, mixed>> */

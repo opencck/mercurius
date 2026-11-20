@@ -94,7 +94,7 @@ final class JobsTest extends AsyncTestCase {
         $this->jobs->setWatch($watched->id, 'https://shop.example/item');
         $this->pages['https://shop.example/item'] = '<b>990 ₽</b>';
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a run started by outside data uses no saved grant
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a run started by outside data uses no saved grant
         $scheduler->tick(true);
         self::assertSame('watch:https://shop.example/item', $this->stack->runs->find(1)?->outside);
 
@@ -162,7 +162,7 @@ final class JobsTest extends AsyncTestCase {
     }
 
     public function testAJobRunKnowsTheMemoryCoreWhereItMay(): void {
-        // spec: BRIEF.md#контекст-по-месту-и-аудитории — the core goes to a job only where its report may carry it
+        // spec: brief/decisions.md#контекст-по-месту-и-аудитории — the core goes to a job only where its report may carry it
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok'), ScriptedLlm::text('ok')]));
         $scheduler->useCore(static fn(Principal $who, \OpenCCK\Domain\Job\Job $job): string => $job->chatId === '42' ? 'Владелец любит краткие отчёты.' : '');
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Лично', 'Проверь', 'every:60', $this->now->modify('-5 minutes'));
@@ -175,7 +175,7 @@ final class JobsTest extends AsyncTestCase {
     }
 
     public function testAJobRunKnowsTheSkillsOfItsOwner(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — the index of skills goes to the runs of jobs too
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
         $sandbox = new \OpenCCK\Test\Support\FakeSandbox();
         $sandbox->files[$this->owner->id]['.mercurius/skills/disk-report/SKILL.md'] = "---
@@ -204,7 +204,7 @@ description: Отчёт о диске таблицей
 
         $scheduler->tick(true);
 
-        // spec: BRIEF.md#telegram-группы-каналы-и-темы — a topic is a place of its own: the report goes back into it
+        // spec: brief/channels.md#telegram-группы-каналы-и-темы — a topic is a place of its own: the report goes back into it
         self::assertSame('577', $this->jobs->find(1)?->threadId);
         self::assertContains('577', $this->stack->channel->threads);
         self::assertStringContainsString('BTC = 63 427 $.', implode("\n", $this->stack->channel->texts('send')));
@@ -228,7 +228,7 @@ description: Отчёт о диске таблицей
     }
 
     public function testAReportThatDidNotGoOutIsSentAgainWithTheReason(): void {
-        // spec: BRIEF.md#планировщик-и-проекты — a report that did not go out waits in pending_report and names why
+        // spec: brief/scheduler.md#планировщик-и-проекты-1 — a report that did not go out waits in pending_report and names why
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово: три письма.')]));
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Почта', 'Проверь почту', 'every:600', $this->now);
         $this->stack->channel->sendResults[] = \Mercurius\Messenger\SendResult::failed(\Mercurius\Messenger\SendErrorKind::Transient, 'Bad Gateway');
@@ -366,7 +366,7 @@ description: Отчёт о диске таблицей
     }
 
     public function testAJobGetsAnEventFilterAndTheCheapModel(): void {
-        // spec: BRIEF.md#планировщик-и-проекты — the filter of events and the model role of a job
+        // spec: brief/scheduler.md#планировщик-и-проекты-1 — the filter of events and the model role of a job
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
         $scheduler->useModels(static fn(string $role): ?string => $role === 'cheap' ? 'test/cheap' : null);
         $this->stack->say('привет');
@@ -386,7 +386,7 @@ description: Отчёт о диске таблицей
     }
 
     public function testTheSelfReviewJobGetsOnlyTheToolsOfAReview(): void {
-        // spec: BRIEF.md#самоулучшение-решено-2026-11-18 — the self-review reads and proposes, nothing else
+        // spec: brief/decisions.md#самоулучшение-решено-2026-11-18 — the self-review reads and proposes, nothing else
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));
         foreach (['trace_review', 'spending', 'improvement_propose', 'shell', 'send_message'] as $name) {
             $this->stack->registry->register(new FakeTool($name));

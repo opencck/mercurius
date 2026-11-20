@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Repository;
 /**
  * The owner's list of roles of participants.
  *
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 interface RoleRepository {
     /** @return list<array{name: string, title: string, position: int, powers: list<string>, policy: array<string, mixed>}> in their order */

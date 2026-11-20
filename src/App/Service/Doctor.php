@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * Checks of an installation: settings, the database and its migrations, the disk, the sandbox and the browser. Each
  * check says what is wrong and what to do; values of secrets are never shown.
  *
- * spec: BRIEF.md#решено-в-фазе-12 — doctor finds typical mistakes of an installation
+ * spec: brief/operations.md#решено-в-фазе-12 — doctor finds typical mistakes of an installation
  * ref: references/hermes-agent/hermes_cli/doctor.py@e96221fa:L114-L134 (DOCTOR_CHECKS) — an ordered list of checks;
  *      here the ones that matter for a Docker install: .env, database and migrations, disk, services
  */
@@ -47,7 +47,7 @@ final class Doctor {
     }
 
     /**
-     * spec: BRIEF.md#фаза-7-по-частям — the chain of hashes of the command journal holds
+     * spec: brief/servers.md#фаза-7-по-частям — the chain of hashes of the command journal holds
      *
      * @return list<array{string, string, string}>
      */
@@ -145,7 +145,7 @@ final class Doctor {
     /**
      * Stored settings a release renamed or removed: they are not applied, the owner should know and may remove them.
      *
-     * spec: BRIEF.md#настройки-агента
+     * spec: brief/operations.md#трассировка-и-метрики
      * @return list<array{string, string, string}>
      */
     private function outdated(): array {
@@ -187,7 +187,7 @@ final class Doctor {
     /** @return list<array{string, string, string}> */
     private function services(): array {
         $out = [];
-        // spec: BRIEF.md#интернет-и-браузер — which receiving server the sender check of mail trusts
+        // spec: brief/internet.md#интернет-и-браузер — which receiving server the sender check of mail trusts
         $mailHost = Env::raw($this->env, 'MAIL_HOST');
         if ($mailHost !== null) {
             $out[] = [self::OK, t('service.doctor.mail'), sprintf(t('service.doctor.mail_authserv'), strtolower(Env::raw($this->env, 'MAIL_AUTHSERV_ID') ?? $mailHost))];
@@ -195,7 +195,7 @@ final class Doctor {
         foreach ([
             t('service.doctor.sandbox') => ['SANDBOX_TOKEN', Env::raw($this->env, 'SANDBOX_URL') ?? 'http://sandbox:9000'],
             t('service.doctor.browser') => ['BROWSER_TOKEN', Env::raw($this->env, 'BROWSER_URL') ?? 'http://browser:3000'],
-            // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — modules in their compose profiles
+            // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — modules in their compose profiles
             'media-video' => ['MEDIA_VIDEO_TOKEN', Env::raw($this->env, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091'],
             'media-docs' => ['MEDIA_DOCS_TOKEN', Env::raw($this->env, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092'],
             'mail-mcp' => ['MAIL_MCP_TOKEN', preg_replace('~/mcp$~', '', Env::raw($this->env, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090') ?? 'http://mail-mcp:8090'],

@@ -60,7 +60,7 @@ final class EvalTest extends AsyncTestCase {
     }
 
     public function testAJudgeOfAnyKindTakesThePlaceOfTheModel(): void {
-        // spec: BRIEF.md#границы-самоулучшения — the judge may be of any provider
+        // spec: brief/decisions.md#границы-самоулучшения — the judge may be of any provider
         $agent = new ScriptedLlm([
             ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"add_task","project":"Дом","text":"оплатить интернет","due":"2026-11-25"}')),
             ScriptedLlm::text('Задача #7 добавлена в «Дом», срок 25 ноября.'),

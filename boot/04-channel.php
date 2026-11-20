@@ -21,7 +21,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  */
 
 // Channel: Telegram — directly, through a proxy or VLESS (TELEGRAM_PROXY); the cloud Bot API or a local server.
-// spec: BRIEF.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+// spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
 $telegramHttp = HttpClients::create($telegram->route(), $logger);
 $telegramFiles = rtrim($telegram->filesRoot, '/') . '/';
 // a local server keeps files on its disk; they are read only inside its folder, up to the limit
@@ -51,6 +51,6 @@ if ($telegram->apiUrl !== null && !is_file($cloudLoggedOut)) {
     @unlink($cloudLoggedOut);
 }
 $logger->info('Telegram route', ['proxy' => $telegram->route() === null ? 'direct' : (str_starts_with($telegram->route(), 'vless') ? 'vless' : 'proxy'), 'api' => $telegram->apiUrl ?? 'cloud']);
-// spec: BRIEF.md#второй-канал-websocket-api — chats ws:… go to the WebSocket API, the rest to Telegram
+// spec: brief/operations.md#второй-канал-websocket-api — chats ws:… go to the WebSocket API, the rest to Telegram
 $wsChannel = new \Mercurius\Messenger\Websocket\WebsocketChannel();
 $channel = new \Mercurius\Messenger\RoutingChannel(new TelegramChannel($telegramApi, logger: $logger), [\Mercurius\Messenger\Websocket\WebsocketChannel::PREFIX => $wsChannel]);

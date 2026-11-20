@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Project;
 /**
  * A project of the owner: its goal, status and card. Memory keeps no second copy: layer 2 is this entity.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту
  */
 final class Project {
     public const ACTIVE = 'active';

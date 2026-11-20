@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * What the agent knows about a message besides its text: its number, the forum topic, and the message it answers
  * (author and a piece of its text). The owner asked "which message am I replying to?" and the agent could not tell.
  *
- * spec: BRIEF.md#telegram-группы-каналы-и-темы — the agent sees where and to what a message answers
+ * spec: brief/channels.md#telegram-группы-каналы-и-темы — the agent sees where and to what a message answers
  * ref: references/hermes-agent/gateway/inbound_reply_context.py@e96221fa:L60-L81 (reply_pointer) — the whole replied-to
  * text, not a preview, and "your previous message" for a reply to the agent; it goes into the turn's message, never the
  * system prompt. We add the message and topic numbers: the agent is asked about them in groups.

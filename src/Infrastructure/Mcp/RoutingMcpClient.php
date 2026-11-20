@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
 /**
  * The client of a server by its address: `stdio:` — a process in the sandbox, otherwise HTTP.
  *
- * spec: BRIEF.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#скиллы-и-mcp
  */
 final class RoutingMcpClient implements McpClient, McpSessions {
     public function __construct(

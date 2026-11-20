@@ -33,7 +33,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
     }
 
     public function testAHolderOfThePowerChangesOthersWithinTheirOwnTools(): void {
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
         $steward = Role::define('steward', 'Распорядитель', 16, [\OpenCCK\Domain\Entity\Power::Tools, \OpenCCK\Domain\Entity\Power::Participants]);
         try {
             $own = new \OpenCCK\Domain\Agent\ParticipantPolicy(['web_search', 'set_participant_policy'], new RunLimits(30, 400_000, 900, 120), null, false);
@@ -52,7 +52,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
     public function testRightsAreGivenOnlyWithACardAndOnlyInTheOwnersPrivateChat(): void {
         $principals = new InMemoryPrincipalRepository();
         $principals->put(new Principal(7, PrincipalKind::Human, Role::user(), 'Гость'), 'telegram', '7');
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — granting rights is always a card, in the owner's private chat
         $tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)), static fn(int $conversation): bool => $conversation === 1);
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['principal_id' => 7]));

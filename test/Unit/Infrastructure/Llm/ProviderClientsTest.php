@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 
 final class ProviderClientsTest extends TestCase {
     public function testEveryProviderWithAKeyGetsAClientAndACatalog(): void {
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
         $http = HttpClientBuilder::buildDefault();
         $all = ProviderClients::build(LlmSettings::fromEnv([
             'OPENROUTER_API_KEY' => 'or', 'OPENAI_API_KEY' => 'oa', 'ANTHROPIC_API_KEY' => 'an', 'AWS_BEARER_TOKEN_BEDROCK' => 'br',

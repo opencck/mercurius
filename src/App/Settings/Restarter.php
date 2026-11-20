@@ -12,7 +12,7 @@ use Revolt\EventLoop;
  * Asks the application to stop as on SIGTERM: runs pause and resume after the start; Docker starts the container again
  * (restart: unless-stopped), and new settings take effect.
  *
- * spec: BRIEF.md#настройки-агента
+ * spec: brief/operations.md#трассировка-и-метрики
  */
 final class Restarter {
     /** @var DeferredFuture<null> */

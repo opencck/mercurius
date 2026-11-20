@@ -1,5 +1,5 @@
 -- Self-improvement under the owner: the agent's proposals and the versions of the notes to the system prompt.
--- spec: BRIEF.md#самоулучшение-решено-2026-11-18
+-- spec: brief/decisions.md#самоулучшение-решено-2026-11-18
 CREATE TABLE improvements (
     id bigserial PRIMARY KEY,
     kind text NOT NULL CHECK (kind IN ('prompt', 'setting', 'idea')),

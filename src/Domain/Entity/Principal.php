@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Entity;
  * Whoever writes to the agent: a person or another agent. Both get the same treatment — a role decides
  * what they may do, and the agent keeps memory about them.
  *
- * spec: BRIEF.md#участники-люди-и-агенты
+ * spec: brief/decisions.md#участники-люди-и-агенты
  */
 final class Principal {
     /** @param positive-int $id */

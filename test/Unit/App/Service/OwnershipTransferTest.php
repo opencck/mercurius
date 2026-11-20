@@ -17,7 +17,7 @@ use Psr\Log\NullLogger;
 /**
  * /owner <number> shows a card; the press passes ownership on, the card can be cancelled and goes stale.
  *
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class OwnershipTransferTest extends AsyncTestCase {
     private InMemoryPrincipalRepository $principals;

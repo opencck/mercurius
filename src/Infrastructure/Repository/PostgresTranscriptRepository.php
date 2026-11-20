@@ -16,7 +16,7 @@ use Throwable;
 use UnexpectedValueException;
 
 /**
- * spec: BRIEF.md#запуск-и-цикл — the answer with its calls is saved in one transaction before any tool runs
+ * spec: brief/agent-loop.md#права-участника — the answer with its calls is saved in one transaction before any tool runs
  * ref: references/hermes-agent/agent/turn_tool_round.py@e96221f:L130-L153 — persist the assistant message before side effects
  */
 final class PostgresTranscriptRepository implements TranscriptRepository {

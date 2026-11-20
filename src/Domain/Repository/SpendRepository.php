@@ -9,7 +9,7 @@ use DateTimeImmutable;
 /**
  * What model calls cost: the base of the spend caps.
  *
- * spec: BRIEF.md#лимиты — caps in money over all runs
+ * spec: brief/agent-loop.md#устойчивость — caps in money over all runs
  */
 interface SpendRepository {
     /** USD of all model calls since the moment: runs, workers, background work, compaction. */

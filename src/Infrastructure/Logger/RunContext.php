@@ -12,7 +12,7 @@ use Revolt\EventLoop\FiberLocal;
  * The number of the run a log line was written in, as `extra.run`. The fiber of a run and the fiber of each of its tool
  * calls set it (a fiber-local value is not passed to the fibers it starts).
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — every log line of a run carries its number
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — every log line of a run carries its number
  */
 final class RunContext implements ProcessorInterface {
     /** @var FiberLocal<int>|null 0 — no run */

@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * while the bot may post there. The owner is told when a channel becomes available or stops being so. Posts of the
  * channel are kept, so the agent sees what is already published.
  *
- * spec: BRIEF.md#канал-паблик
+ * spec: brief/channels.md#канал-паблик
  * ref: references/hermes-agent/plugins/platforms/telegram/telegram_intake.py@e96221fa:L6-L18 (effective_update_message) — hermes takes channel posts
  *      in like messages; here they are the channel's history, not questions to the agent
  */

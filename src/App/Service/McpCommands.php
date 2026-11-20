@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
 /**
  * The owner connects MCP servers from the chat: the list, adding, approving (turning on), turning off, removing.
  *
- * spec: BRIEF.md#скиллы-и-mcp — managed from the channel, the owner only
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — managed from the channel, the owner only
  */
 final class McpCommands {
     public function __construct(

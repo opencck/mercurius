@@ -8,7 +8,7 @@ use OpenCCK\Domain\Agent\Experience;
 use OpenCCK\Domain\Agent\HistoryScope;
 
 /**
- * spec: BRIEF.md#память-слои — layer 7, outcomes of delegated parts
+ * spec: brief/memory.md#память-слои — layer 7, outcomes of delegated parts
  */
 interface ExperienceRepository {
     /** @return int the record's id */

@@ -92,7 +92,7 @@ final class ApprovalServiceTest extends AsyncTestCase {
 
         self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status, 'no 30-minute wait for a card nobody sees');
         self::assertSame(0, $this->push->runs);
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the model hears not to try again: a new card would not arrive either
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the model hears not to try again: a new card would not arrive either
         $said = implode("
 ", array_map(static fn($m): string => $m->content, array_filter($this->stack->llm->requests[1]->messages ?? [], static fn($m): bool => $m->role === \Mercurius\Llm\Role::Tool)));
         self::assertStringContainsString('Не повторяй', $said);
@@ -172,7 +172,7 @@ final class ApprovalServiceTest extends AsyncTestCase {
         $this->stack->press('ap:1:a');
         $this->stack->scheduler->awaitIdle();
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — «waiting for the owner» does not stay after the decision
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — «waiting for the owner» does not stay after the decision
         $after = array_slice($this->stack->channel->texts('edit'), $edits);
         self::assertContains('Решение владельца получено — продолжаю.', $after);
     }
@@ -271,7 +271,7 @@ final class ApprovalServiceTest extends AsyncTestCase {
     }
 
     public function testTheApprovalStepLastsFromTheCardToTheDecision(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — the approval step of a trace is the owner's wait
+        // spec: brief/operations.md#настройки-агента — the approval step of a trace is the owner's wait
         $events = new RecordingEvents();
         $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'push', '{"remote":"origin"}')), ScriptedLlm::text('готово')]), events: $events);
         $this->stack->registry->register(new FakeKeyedTool('push', 'git-push:origin'));

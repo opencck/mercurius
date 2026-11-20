@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Repository;
  * Bots and visitors the agent does not hear in a group, named by its participants: a user id or a name without @, in
  * lower case.
  *
- * spec: BRIEF.md#группа
+ * spec: brief/channels.md#группа
  */
 interface GroupIgnoreRepository {
     public function add(string $channel, string $chatId, string $who, ?int $by): void;

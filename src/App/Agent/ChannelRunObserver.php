@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * Shows a run in the chat with one status message: a placeholder, then the current step, then the streamed answer;
  * the final text replaces it, long text goes on in new messages. Edits are throttled as in the plain chat.
  *
- * spec: BRIEF.md#канал — one status message edited as the run goes
+ * spec: brief/agent-loop.md#три-отказа-подряд-2026-11-17 — one status message edited as the run goes
  */
 final class ChannelRunObserver implements RunObserver {
     public const PLACEHOLDER = '…';
@@ -72,7 +72,7 @@ final class ChannelRunObserver implements RunObserver {
         $this->started = true;
         $this->startedAt = ($this->clock)();
         $this->channel->typing($this->chatId);
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — a channel that cannot edit gets no status message, only what is final
+        // spec: brief/agent-loop.md#подходы — a channel that cannot edit gets no status message, only what is final
         if (!$this->channel->capabilities()->canEdit) {
             if ($notice !== null) {
                 $this->channel->send(new OutgoingMessage($this->chatId, $notice, $this->replyTo, threadId: $this->threadId));
@@ -133,7 +133,7 @@ final class ChannelRunObserver implements RunObserver {
     /**
      * The status message a waiting run left says the decision came: «waiting for the owner» does not stay forever.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
      */
     public function settled(string $text): void {
         if ($this->messageId !== null) {
@@ -147,7 +147,7 @@ final class ChannelRunObserver implements RunObserver {
     }
 
     public function finished(Run $run, string $finalText, ?StopReason $reason): void {
-        // spec: BRIEF.md#telegram-группы-каналы-и-темы — in a free group the agent may stay silent
+        // spec: brief/channels.md#telegram-группы-каналы-и-темы — in a free group the agent may stay silent
         // ref: references/hermes-agent/gateway/response_filters.py@e96221fa:L241-L256 (silence_allowed) — only a turn nobody
         //      waits for may vanish; someone who asked gets a visible answer
         if ($reason === StopReason::Answered && str_starts_with(ltrim($finalText), '[SILENT]') && !$this->silenceAllowed) {
@@ -167,7 +167,7 @@ final class ChannelRunObserver implements RunObserver {
         $mode = $reason === StopReason::Answered ? ParseMode::Markdown : ParseMode::Plain;
         $splitter = new TextSplitter($this->channel->capabilities()->maxMessageLength);
         $parts = $splitter->split($finalText);
-        // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — more than 8 parts go as a file: a flood
+        // spec: brief/channels.md#канал-необязательные-возможности-и-разрезанные-тексты — more than 8 parts go as a file: a flood
         //       of messages is hard to read and hits the messenger's limits; the references have no such rule
         if (count($parts) > self::MAX_PARTS) {
             $file = $this->channel->sendFile($this->chatId, sprintf('answer-%d.md', $run->id), $finalText, null, $this->threadId);
@@ -179,7 +179,7 @@ final class ChannelRunObserver implements RunObserver {
             }
         }
         $first = array_shift($parts) ?? $finalText;
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — the answer is an obligation before it is sent
+        // spec: brief/agent-loop.md#подходы — the answer is an obligation before it is sent
         $obligation = $this->obligation($run, $finalText, $mode);
         $messageId = $this->messageId;
         // ref: references/hermes-agent/gateway/stream_consumer_transport.py@e96221fa:L247-L255 (_should_send_fresh_final)

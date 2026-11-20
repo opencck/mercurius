@@ -10,7 +10,7 @@ use InvalidArgumentException;
  * What a participant may do: tools, run limits, sandbox limits, whether their runs may ask for approval.
  * No value may exceed the owner's.
  *
- * spec: BRIEF.md#права-участника
+ * spec: brief/agent-loop.md#лимиты
  */
 final class ParticipantPolicy {
     private const RUN_KEYS = ['max_turns' => true, 'token_budget' => true, 'run_timeout' => true, 'tool_timeout' => true];
@@ -28,7 +28,7 @@ final class ParticipantPolicy {
         public readonly bool $readOnly = false,
         /** irreversible calls may run (by approval or a saved grant); a worker never has this right */
         public readonly bool $irreversible = true,
-        /** USD a UTC day of this participant may cost; 0 — no cap of their own (spec: BRIEF.md#несколько-пользователей) */
+        /** USD a UTC day of this participant may cost; 0 — no cap of their own (spec: brief/participants.md#несколько-пользователей) */
         public readonly float $dailySpendUsd = 0.0,
     ) {}
 
@@ -80,7 +80,7 @@ final class ParticipantPolicy {
      * Narrowed by another participant of a group: tools and limits as capTo. The right to ask for a card may be kept
      * when the run is the owner's: the card shows the owner the exact call, and nothing runs without the owner's press.
      *
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — in a group the rights of the weakest active participant
      */
     public function narrowedBy(self $other, bool $keepApproval = false): self {
         $narrowed = $this->capTo($other);

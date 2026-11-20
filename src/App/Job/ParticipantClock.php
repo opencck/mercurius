@@ -12,7 +12,7 @@ use Throwable;
  * Whose clock a job keeps: the participant's own time zone and quiet hours when they set them, the owner's from .env
  * otherwise.
  *
- * spec: BRIEF.md#несколько-пользователей — each participant has their own time zone and quiet hours
+ * spec: brief/participants.md#несколько-пользователей — each participant has their own time zone and quiet hours
  */
 final class ParticipantClock {
     /** @param array{int, int}|null $ownerQuiet */

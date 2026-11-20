@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * The forum topic the conversation goes on in: rename, close, reopen, delete. Projects open and close their topics
  * themselves (ForumTopics); this is for the rest. Deleting erases every message of the topic, so it waits for the owner.
  *
- * spec: BRIEF.md#форум-темы--проекты — topic changes are writes, deletion is irreversible
+ * spec: brief/channels.md#форум-темы--проекты — topic changes are writes, deletion is irreversible
  */
 final class ForumTopicTool implements Tool, GrantKeyed {
     public const NAME = 'forum_topic';
@@ -51,7 +51,7 @@ final class ForumTopicTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

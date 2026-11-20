@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * Whether a port answers, and how fast: a TCP connection and nothing sent. Only public addresses — the agent's own
  * network is not mapped from here; inside a network of the owner, probe from a server with ssh_run.
  *
- * spec: BRIEF.md#фаза-7-по-частям — ping as a TCP probe (no ICMP: it would need NET_RAW)
+ * spec: brief/servers.md#фаза-7-по-частям — ping as a TCP probe (no ICMP: it would need NET_RAW)
  */
 final class TcpProbeTool implements Tool {
     public const NAME = 'tcp_probe';

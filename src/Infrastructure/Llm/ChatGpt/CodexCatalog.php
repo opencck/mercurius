@@ -13,7 +13,7 @@ use Throwable;
  * The models the owner's subscription offers, from the Codex catalog of the account: visible ones, by their priority.
  * They cost nothing per token (the subscription pays). Not signed in, or the catalog down — no models.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
  * ref: references/hermes-agent/agent/model_metadata.py@e96221fa:L1759-L1810 (catalog URLs, client_version 99.0.0 then
  *      0.0.0) and hermes_cli/codex_models.py@e96221fa:L136-L160 (_ranked_slugs: hidden ones out, by priority)
  */

@@ -46,7 +46,7 @@ use function Mercurius\I18n\t;
  * the answer leaves without secrets and signed by this agent's key. Checks in order: token, signature, time, replay,
  * known key, rate, method, a repeated message, a loop in the chain, the cap of turns in one context.
  *
- * spec: BRIEF.md#сеть-агентов — the protocol, trust and safety
+ * spec: brief/network.md#сеть-агентов-1 — the protocol, trust and safety
  * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L229-L270 (do_POST) — ordered checks, first
  *      failure wins; L577-L588 — idempotency by message; L379-L396 (_watchdog_loop) — stale tasks fail
  * ref: references/hermes-agent/plugins/platforms/a2a/protocol.py@e96221fa:L23-L53 — states, roles, error codes, the
@@ -79,7 +79,7 @@ final class A2aServer implements JobRuns {
         'GetTask' => ['get', true], 'tasks/get' => ['get', false],
         'CancelTask' => ['cancel', true], 'tasks/cancel' => ['cancel', false],
         'GetExtendedAgentCard' => ['extended', true], 'agent/getAuthenticatedExtendedCard' => ['extended', false],
-        // spec: BRIEF.md#между-агентами — a file of an answer over a connection, when the neighbour has no address
+        // spec: brief/internet.md#между-агентами — a file of an answer over a connection, when the neighbour has no address
         'GetFile' => ['file', true],
     ];
 
@@ -131,7 +131,7 @@ final class A2aServer implements JobRuns {
      * agent of that key, if this agent's owner let it in; otherwise the neighbour knocks (the owner gets a card) and is
      * refused — once the owner lets it in, the same connection carries its tasks, no reconnecting.
      *
-     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — a neighbour on my connection knocks too
+     * spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — a neighbour on my connection knocks too
      * ref: references/hermes-agent/plugins/platforms/a2a/security.py@e96221fa:L121-L129 — hermes keeps whom it calls and
      *      whom it serves apart (trusted_peers); here too, and the owner adds to the second list with a card
      *
@@ -198,7 +198,7 @@ final class A2aServer implements JobRuns {
      * whose key it is, then each frame is a JSON-RPC request answered on the same connection. A connection that does
      * not prove a known key in $timeout seconds is closed.
      *
-     * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+     * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
      */
     public function serveSocket(A2aChannel $channel, float $timeout = 10.0): void {
         try {
@@ -207,8 +207,8 @@ final class A2aServer implements JobRuns {
                 return;
             }
             [$agent, $fingerprint] = $known;
-            // spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — the connection goes both ways and is listed
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the key is checked on every request, not only at the
+            // spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17 — the connection goes both ways and is listed
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the key is checked on every request, not only at the
             //       handshake: a key revoked while the connection is open stops working on it at once
             $socket = A2aSocket::accepted($channel, function (array $request) use ($agent, $fingerprint, $channel): array {
                 if ($this->peers->principalByFingerprint($fingerprint) !== $agent->id) {
@@ -273,7 +273,7 @@ final class A2aServer implements JobRuns {
     /**
      * Why an agent whose key nobody let in is turned away; it knocks at the owner, who decides with a card.
      *
-     * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+     * spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
      */
     private function unknown(string $fingerprint, string $name, string $url, string $transport): string {
         return $this->requests?->knock($fingerprint, mb_substr($name, 0, 100), mb_substr($url, 0, 300), $transport)
@@ -323,7 +323,7 @@ final class A2aServer implements JobRuns {
     /**
      * The skills an agent that proved its key sees in the extended card: what its policy here lets it ask for.
      *
-     * spec: BRIEF.md#сеть-агентов — the extended card after the key
+     * spec: brief/network.md#сеть-агентов-1 — the extended card after the key
      * ref: references/hermes-agent/plugins/platforms/a2a/protocol.py@e96221fa:L60-L90 (build_agent_card) — hermes lists
      *      skills by its tool sets and has no extended card (extendedAgentCard: false); here the public card keeps one
      *      general skill and the extended one names the tools of the agent's own policy
@@ -371,7 +371,7 @@ final class A2aServer implements JobRuns {
             'security' => [['bearer' => []]],
             // Requests and answers are signed by ECDSA P-256 keys; the leader pins this key when it adds the agent.
             'mercurius' => ['publicKey' => $this->identity->publicKey, 'fingerprint' => $this->identity->fingerprint(), 'signing' => 'x-a2a-signature'] + $proof
-                // spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — the transport this agent takes
+                // spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17 — the transport this agent takes
                 + ($this->transport === 'ws' ? ['transport' => 'ws', 'ws' => $this->socketUrl()] : ['transport' => 'http']),
         ];
     }
@@ -483,14 +483,14 @@ final class A2aServer implements JobRuns {
         $policy = $this->policies->forPrincipal($agent);
         $conversation = $this->conversations->openConversation($agent->id, self::CHANNEL, 'a2a-' . $agent->id . '-' . $contextId);
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
-        // spec: BRIEF.md#сеть-агентов — the token cap the leader sent is taken as the smaller of the two budgets
+        // spec: brief/network.md#сеть-агентов-1 — the token cap the leader sent is taken as the smaller of the two budgets
         $limits = $tokens === null ? $policy->run : new \OpenCCK\Domain\Agent\RunLimits($policy->run->maxTurns, max(1, min($policy->run->tokenBudget, $tokens)), $policy->run->runTimeout, $policy->run->toolTimeout);
         $run = $this->runs->start($conversation, $agent->id, $this->model, $limits);
         if ($run === null) {
             $this->peers->updateTask($taskId, A2aTask::REJECTED, null, t('peer.a2a_server.v_etom_kontekste_uzhe_idet'));
             return;
         }
-        // spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — who gave the task and how it came: the agent
+        // spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17 — who gave the task and how it came: the agent
         //      must not take the neighbour for someone it should connect to
         $this->transcript->appendUser($conversation, $run->id, sprintf(
             t('peer.a2a_server.zadacha_ot_agenta_po_seti'),
@@ -527,7 +527,7 @@ final class A2aServer implements JobRuns {
             if ($current !== null && $current->terminal()) {
                 return;
             }
-            // spec: BRIEF.md#сеть-агентов — a task given further down the chain: the leader gets the sum, not «I asked»
+            // spec: brief/network.md#сеть-агентов-1 — a task given further down the chain: the leader gets the sum, not «I asked»
             if ($this->waiting($final->id)) {
                 return;
             }
@@ -548,7 +548,7 @@ final class A2aServer implements JobRuns {
      * in the same conversation reads the answers (they are already there as data) and its answer completes the task of
      * the leader. While the run still works, it sums up when it ends.
      *
-     * spec: BRIEF.md#сеть-агентов — results go up the chain A→B→C
+     * spec: brief/network.md#сеть-агентов-1 — results go up the chain A→B→C
      * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L379-L396 (_watchdog_loop) — hermes has no
      *      chains; a task left waiting is failed by the same sweep of stale tasks here
      */
@@ -576,7 +576,7 @@ final class A2aServer implements JobRuns {
     /**
      * The agent that gave the task learns at once that it ended, over a live connection with it; without one it polls.
      *
-     * spec: BRIEF.md#сеть-агентов — the end of a task is pushed over a live connection
+     * spec: brief/network.md#сеть-агентов-1 — the end of a task is pushed over a live connection
      * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L658-L671 (_record_outcome) — the push when
      *      a task ends; hermes posts to a callback URL, here a notice goes over the connection both sides proved
      */
@@ -669,13 +669,13 @@ final class A2aServer implements JobRuns {
         $status = ['state' => $task->state, 'timestamp' => ($this->now)()->format('Y-m-d\TH:i:s.v\Z')];
         $view = ['id' => $task->id, 'contextId' => $task->contextId, 'status' => $status];
         if ($task->result !== null && $task->terminal()) {
-            // spec: BRIEF.md#между-агентами — the files the agent sent into the task come with the answer, as references
+            // spec: brief/internet.md#между-агентами — the files the agent sent into the task come with the answer, as references
             $parts = [['text' => $task->result, 'mediaType' => 'text/plain'], ...($this->files?->parts($task->id) ?? [])];
             $view['status']['message'] = ['role' => 'ROLE_AGENT', 'messageId' => $task->id . '-result', 'parts' => $parts];
             if ($task->state === A2aTask::COMPLETED) {
                 $view['artifacts'] = [['artifactId' => $task->id . '-answer', 'parts' => $parts]];
             }
-            // spec: BRIEF.md#сеть-агентов — the leader learns the run and what it cost, in tokens and USD
+            // spec: brief/network.md#сеть-агентов-1 — the leader learns the run and what it cost, in tokens and USD
             if ($task->runId !== null) {
                 $run = $this->runs->find($task->runId);
                 $view['metadata'] = ['mercurius' => ['run' => $task->runId, 'tokens' => $run === null ? 0 : $run->tokensUsed, 'usd' => $this->costOf === null ? null : ($this->costOf)($task->runId)]];
@@ -703,7 +703,7 @@ final class A2aServer implements JobRuns {
      * Files the agent sends with send_file into the conversation of a task go with its answer to the neighbour who
      * gave the task.
      *
-     * spec: BRIEF.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
+     * spec: brief/internet.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
      */
     public function answerFile(int $runId, string $name, string $bytes): bool {
         $task = $this->peers->taskByRun($runId);
@@ -755,7 +755,7 @@ final class A2aServer implements JobRuns {
      * Keeps the files of a task in the sandbox home of the agent that sent them (inbox/<task>/) and says where; without
      * a sandbox it says what came and that it was not kept.
      *
-     * spec: BRIEF.md#личные-сообщения-участникам — not only text: files from other agents
+     * spec: brief/channels.md#личные-сообщения-участникам — not only text: files from other agents
      *
      * @param list<array{name: string, bytes: string, mediaType?: string}> $files
      */

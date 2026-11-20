@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * Every N turns of a person a cheap model reads the last turns and proposes facts worth keeping; each goes to the
  * owner's card, nothing is remembered without it. A turn where the agent proposed a fact itself starts the count again.
  *
- * spec: BRIEF.md#память-слои — the background proposal of facts
+ * spec: brief/memory.md#память-слои — the background proposal of facts
  * ref: references/hermes-agent/agent/turn_context.py@e96221fa:L820-L829 (_tick_memory_nudge) — every
  *      memory.nudge_interval (10) user turns, reset when the model used the memory tool itself
  * ref: references/hermes-agent/agent/background_review.py@e96221fa:L446-L472 (_MEMORY_ROUTING_BLOCK,

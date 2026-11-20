@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * The owner passes ownership on: /owner <number> in the private chat shows a card, the owner's press passes it. The
  * former owner becomes an admin and keeps what is theirs; the new owner gets the agent.
  *
- * spec: BRIEF.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
+ * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
  */
 final class OwnershipTransfer implements CallbackHandler {
     public const PREFIX = 'ow';

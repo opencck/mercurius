@@ -17,7 +17,7 @@ use RuntimeException;
  * owner's scope, new texts only) or the owner's skills (the folders of .mercurius/skills, written into the current
  * owner's sandbox folder; a skill of the same name here is kept).
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента — a partial import: only memory or only skills
+ * spec: brief/operations.md#экспорт-и-импорт-агента — a partial import: only memory or only skills
  */
 final class PartialImport {
     /** a skill file larger than this stays out: skills are text */

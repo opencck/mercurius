@@ -87,7 +87,7 @@ final class A2aSocketTest extends AsyncTestCase {
     }
 
     public function testAnAgentThatProvedItsKeyGetsTheExtendedCard(): void {
-        // spec: BRIEF.md#сеть-агентов — the extended card lists the skills of the agent's policy, after the key
+        // spec: brief/network.md#сеть-агентов-1 — the extended card lists the skills of the agent's policy, after the key
         $this->server->useSkills(static fn(\OpenCCK\Domain\Entity\Principal $agent): array => [['id' => 'web_search', 'name' => 'web_search', 'description' => 'Ищет в сети']]);
         $capabilities = $this->server->card()['capabilities'] ?? [];
         self::assertTrue(is_array($capabilities) && ($capabilities['extendedAgentCard'] ?? false) === true, 'the public card says there is more');
@@ -132,7 +132,7 @@ final class A2aSocketTest extends AsyncTestCase {
         async(static fn() => $pump($relayFromLeader, $relayToFollower))->ignore();
         async(static fn() => $pump($relayToFollower, $relayFromLeader))->ignore();
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the handshake names the address the leader dialed
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the handshake names the address the leader dialed
         try {
             A2aSocket::open($leaderEnd, $this->leaderKey, $this->followerKey->publicKey, audience: 'https://m.example');
             self::fail('a relayed handshake opened a connection');
@@ -220,7 +220,7 @@ final class A2aSocketTest extends AsyncTestCase {
         [$end, $follower] = $this->connection();
         $end->send((string) json_encode(['type' => 'hello', 'key' => $this->leaderKey->publicKey, 'nonce' => str_repeat('a', 32)]));
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the handshake changed; an agent of an older version is told so
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the handshake changed; an agent of an older version is told so
         /** @var mixed $denied */
         $denied = self::decoded($end->receive());
         self::assertSame('denied', self::field($denied, 'type'));

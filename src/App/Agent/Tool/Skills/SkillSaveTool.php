@@ -28,7 +28,7 @@ use function Mercurius\I18n\t;
  * the name of a built-in one is the participant's or the project's own copy and wins over it. The text and the files
  * are checked like a skill from outside; the snapshots of the working folder keep the earlier versions.
  *
- * spec: BRIEF.md#скиллы-и-mcp — skills are files in the sandbox, built-in ones plus the participant's and the project's
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — skills are files in the sandbox, built-in ones plus the participant's and the project's
  * ref: references/hermes-agent/tools/skill_manager_tool.py@e96221fa:L1-L7 — the agent creates and edits its skills as
  *      SKILL.md directories; here in the folder of whoever the skill is for
  */

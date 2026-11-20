@@ -15,7 +15,7 @@ use Psr\Log\NullLogger;
  * Before an npx or uvx MCP server is approved its package is looked up in OSV: a known malware advisory stops it,
  * anything else — including a failed lookup — lets it go.
  *
- * spec: BRIEF.md#скиллы-и-mcp — the check of MCP packages
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the check of MCP packages
  */
 final class OsvCheckTest extends TestCase {
     private const URL = 'https://api.osv.dev/v1/query';

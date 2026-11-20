@@ -56,7 +56,7 @@ final class MemoryCommandsTest extends AsyncTestCase {
     }
 
     public function testFactsGoByPagesAndByWords(): void {
-        // spec: BRIEF.md#память-слои — /memory <words> and pages; every fact shows where it came from
+        // spec: brief/memory.md#память-слои — /memory <words> and pages; every fact shows where it came from
         for ($i = 1; $i <= 25; $i++) {
             $this->store->addFact('owner', Fact::KNOWLEDGE, 'Заметка номер ' . $i, ['заметк', 'н' . $i], 0.6, Fact::AGENT, null);
         }

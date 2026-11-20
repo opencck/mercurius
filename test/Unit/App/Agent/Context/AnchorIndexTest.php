@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The exact identifiers of the compacted part stay word for word: a summary may retell, the index may not.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
  */
 final class AnchorIndexTest extends TestCase {
     public function testIdentifiersOfTheTextAreCollectedOnceWithTheirCount(): void {

@@ -9,7 +9,7 @@ use function Mercurius\I18n\t;
 /**
  * The text the orchestrator reads: per part — status, model, spend, run and a summary cut to a share of the room.
  *
- * spec: BRIEF.md#часть-1--синхронное-делегирование — report
+ * spec: brief/orchestration.md#часть-1--синхронное-делегирование — report
  * ref: references/hermes-agent/tools/delegate_tool_results.py@e96221fa:L254-L309 (_apply_summary_budget) — a cap on
  *      each summary so the reports do not crowd out the orchestrator's context
  */
@@ -22,7 +22,7 @@ final class WorkerReports {
      * @param int|null $room characters the orchestrator's window has left for these reports; null — not known
      */
     public static function text(array $reports, ?int $room = null): string {
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — min(4000, free room ÷ number of parts), at least 500
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — min(4000, free room ÷ number of parts), at least 500
         $cap = min(4000, max(500, intdiv(max(0, $room ?? self::ROOM_UNKNOWN), max(1, count($reports)))));
         $lines = [sprintf(t('delegation.worker_reports.otchet_vorkerov'), count($reports))];
         foreach ($reports as $report) {
@@ -43,7 +43,7 @@ final class WorkerReports {
                 $report->reason !== null && $report->status !== 'done' ? ' (' . $report->reason . ')' : '',
             );
             $lines[] = sprintf(t('delegation.worker_reports.model_hodov_tokenov'), $report->model, $report->turns, $report->tokens, $report->runId === null ? '' : t('delegation.worker_reports.zapusk') . $report->runId);
-            // spec: BRIEF.md#схема-ответа-воркера — handed over either way, but marked
+            // spec: brief/orchestration.md#схема-ответа-воркера — handed over either way, but marked
             if ($report->schemaErrors !== null) {
                 $lines[] = $report->schemaErrors === []
                     ? t('delegation.worker_reports.schema_ok')

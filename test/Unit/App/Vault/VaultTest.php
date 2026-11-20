@@ -37,7 +37,7 @@ final class VaultTest extends TestCase {
     }
 
     public function testTheOwnerDoesNotReadTheSecretsOfAFormerOwner(): void {
-        // spec: BRIEF.md#несколько-пользователей — the personal stays with the former owner
+        // spec: brief/participants.md#несколько-пользователей — the personal stays with the former owner
         $vault = new Vault($this->store, random_bytes(32), hidden: static fn(?int $author): bool => $author === 2);
         $vault->put('panel', 'password', 'former-owner-pass', $this->user);
 

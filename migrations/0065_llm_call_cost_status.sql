@@ -1,6 +1,6 @@
 -- How sure the cost of a call is: reported by OpenRouter (actual), estimated by catalog prices for other providers
 -- (estimated), or not known.
--- spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost
+-- spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — only OpenRouter reports a cost
 ALTER TABLE llm_calls ADD COLUMN cost_status text NOT NULL DEFAULT 'unknown' CHECK (cost_status IN ('actual', 'estimated', 'unknown'));
 
 -- calls before: a model of another provider is "provider:id" with no slash before the colon

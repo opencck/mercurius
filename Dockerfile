@@ -12,7 +12,7 @@ RUN apt-get update \
 
 # pg_dump and pg_restore of the server's version (17) for the archive of the agent: bookworm ships 15, which cannot
 # dump a 17 server, so the client comes from the PostgreSQL project's own repository.
-# spec: BRIEF.md#экспорт-и-импорт-агента
+# spec: brief/operations.md#экспорт-и-импорт-агента
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && install -d /usr/share/postgresql-common/pgdg \
@@ -73,7 +73,7 @@ CMD ["composer", "test-integration"]
 # Sandbox: where the agent runs commands and keeps files. Runtimes the agent can build tools on (owner decision):
 # PHP 8.2 with Composer, Python 3, Node.js with npm, Go. Documents and video are modules (media-docs, media-video), not here. The executor runs as root with a minimal capability set
 # (compose) and does every participant operation as that participant's Unix user.
-# spec: BRIEF.md#песочница
+# spec: brief/agent-loop.md#подтверждения-и-запреты
 FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

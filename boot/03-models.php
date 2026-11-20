@@ -36,7 +36,7 @@ use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
  */
 
 // Models: one client per provider with a key (its profile says which), chosen by the model's prefix; all go through VLESS when VLESS_URI is set.
-// spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+// spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
 $modelHttp = HttpClients::create($llmSettings->routeUri(), $logger);
 $onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logger->warning(
     'Retrying model call',
@@ -46,7 +46,7 @@ $providerClients = ProviderClients::build($llmSettings, $modelHttp, $config->app
 $clients = $providerClients->clients;
 $catalogSources = $providerClients->catalogs;
 $toolReliableSources = $providerClients->toolReliable;
-// spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — the owner's ChatGPT subscription: chatgpt:<model>, signed in
+// spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — the owner's ChatGPT subscription: chatgpt:<model>, signed in
 // by /codex login; its tokens live in the vault, so without the vault it is not offered
 $codexAccount = null;
 $modelProviders = $llmSettings->providers();
@@ -62,7 +62,7 @@ $openAiKey = $llmSettings->openAiKey();
 $modelCatalog = new PostgresModelCatalogRepository($db);
 $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
-// spec: BRIEF.md#модели — a change of the model of a role reaches the open conversations of that role
+// spec: brief/agent-loop.md#канал — a change of the model of a role reaches the open conversations of that role
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger));
 $modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);

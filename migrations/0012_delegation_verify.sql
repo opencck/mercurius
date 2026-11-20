@@ -1,5 +1,5 @@
 -- Проверяющий воркер фоновой части: его запуск продолжается после перезапуска, как попытки воркера.
--- spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс
+-- spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс
 
 ALTER TABLE delegation_tasks
     ADD COLUMN verify_run_id bigint REFERENCES runs (id) ON DELETE SET NULL;

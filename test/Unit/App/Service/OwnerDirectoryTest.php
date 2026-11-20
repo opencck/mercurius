@@ -18,7 +18,7 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
  * The owner from the configuration is only the first one: after ownership passed on, cards go to the new owner and
  * only the new owner presses.
  *
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class OwnerDirectoryTest extends AsyncTestCase {
     public function testAfterATransferTheOwnerIsReachedAndHeardInTheirOwnChat(): void {

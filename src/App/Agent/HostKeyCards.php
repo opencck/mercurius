@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * The first connection to a server shows its key to the owner: trust it or not. A changed key is only a warning — the
  * owner removes and adds the server again if the change is expected.
  *
- * spec: BRIEF.md#фаза-7-по-частям — the host key fingerprint goes to the owner at the first connection
+ * spec: brief/servers.md#фаза-7-по-частям — the host key fingerprint goes to the owner at the first connection
  */
 final class HostKeyCards implements CallbackHandler {
     public const PREFIX = 'hk';
@@ -64,7 +64,7 @@ final class HostKeyCards implements CallbackHandler {
             return;
         }
         $trust = $match[2] === 'a';
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the press decides the key the card showed: a key that came
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the press decides the key the card showed: a key that came
         //       in its place while the card waited has a card of its own
         $pending = $this->servers->find((int) $match[1])?->pendingHostKey;
         $server = $pending !== null && hash_equals(self::tag($pending), $match[3]) ? $this->servers->decideHostKey((int) $match[1], $trust, $pending) : null;

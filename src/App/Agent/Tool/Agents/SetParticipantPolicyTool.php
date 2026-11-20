@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * Changes another participant's tools and limits. Works only in the owner's runs: the owner asks in words,
  * the agent calls the tool. Values above the owner's are cut down to them.
  *
- * spec: BRIEF.md#права-участника — who changes policies
+ * spec: brief/agent-loop.md#лимиты — who changes policies
  */
 final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     public const NAME = 'set_participant_policy';
@@ -58,7 +58,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     }
 
     /**
-     * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — granting rights is always a card and only in the owner's private
+     * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — granting rights is always a card and only in the owner's private
      *       chat: it is what turns one steered call into lasting access
      */
     public function danger(array $args): DangerClass {
@@ -77,7 +77,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
      * The owner changes anyone's settings; a participant whose role has the power over participants changes others',
      * never the owner's or their own, and gives no tool they lack.
      *
-     * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+     * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
      *
      * @param array<string, mixed> $args
      */

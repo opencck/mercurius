@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * Tiers by how often they change: constant rules → context of the participant and the date → volatile (empty for now).
  * Anything new in the middle of a conversation goes into a user message or a tool result instead.
  *
- * spec: BRIEF.md#контекст — three tiers, unchanged during the conversation
+ * spec: brief/agent-loop.md#модели — three tiers, unchanged during the conversation
  */
 final class PromptBuilder {
     /**
@@ -28,11 +28,11 @@ final class PromptBuilder {
      * @param string $instance what the agent knows about its own installation (the network of agents: its address and
      *                         how a neighbour connects), the same for every conversation
      * @param string $notes rules the owner accepted from the agent's proposals (the active version of prompt notes):
-     *                      they come right after the constant rules (spec: BRIEF.md#самоулучшение-решено-2026-11-18)
+     *                      they come right after the constant rules (spec: brief/decisions.md#самоулучшение-решено-2026-11-18)
      */
     public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = ''): string {
         $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — a role is named by the title the owner gave it
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — a role is named by the title the owner gave it
         $role = $principal->role->title() !== '' ? $principal->role->title() : match ($principal->role->value) {
             Role::OWNER => t('agent.prompt_builder.vladelets'),
             'admin' => t('agent.prompt_builder.administrator'),
@@ -49,7 +49,7 @@ final class PromptBuilder {
             . ($instance === '' ? '' : "\n\n" . $instance)
             . ($core === '' ? '' : "\n\n" . UntrustedWrapper::wrap('memory', t('agent.prompt_builder.pamyat_sloy_1_spravochnye_dannye') . $core))
             . ($project === '' ? '' : "\n\n" . UntrustedWrapper::wrap('project', t('agent.prompt_builder.proekt_etogo_chata_spravochnye_dannye') . $project))
-            // spec: BRIEF.md#скиллы-и-mcp — the index of the owner's accepted skills, the bodies on demand
+            // spec: brief/skills-mcp.md#скиллы-и-mcp — the index of the owner's accepted skills, the bodies on demand
             . ($skills === '' ? '' : "\n\n" . $skills);
     }
 }

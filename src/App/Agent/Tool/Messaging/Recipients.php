@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * by "owner", an #id or a name. To this chat or to the owner it is an answer; to anyone else it waits for the owner's
  * card and can be granted per person.
  *
- * spec: BRIEF.md#личные-сообщения-участникам
+ * spec: brief/channels.md#личные-сообщения-участникам
  */
 final class Recipients {
     public function __construct(

@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * One that was never sent goes as it is; one whose send was under way or refused may already be there, so it says it
  * may be a duplicate. After three refused attempts or a day an answer is given up.
  *
- * spec: BRIEF.md#агентский-цикл-и-харнесс
+ * spec: brief/agent-loop.md#подходы
  * ref: references/hermes-agent/gateway/delivery_ledger.py@e96221fa:L1-L11, L33-L40 — pending, attempting, delivered,
  *      failed, abandoned; a redelivery after a crash mid-send carries a visible "may be a duplicate" marker; three
  *      attempts, a day of life; here the parts already delivered are not sent again

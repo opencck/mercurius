@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * The owner's list of roles: read at start and after every change, it gives the roles their titles, order and powers,
  * and the policy service the template of each role.
  *
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 final class RoleCatalog {
     /** @var array<string, array<string, mixed>> role => policy template */

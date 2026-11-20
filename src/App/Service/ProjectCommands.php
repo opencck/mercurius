@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
 /**
  * The owner's commands for projects: the list, the project of this chat, binding a chat to a project.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the active project is set by the conversation or by
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the active project is set by the conversation or by
  *       the owner's command; a change takes effect from the next conversation
  */
 final class ProjectCommands {

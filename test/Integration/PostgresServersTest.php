@@ -57,7 +57,7 @@ final class PostgresServersTest extends AsyncTestCase {
         self::assertNull($servers->decideHostKey($server->id, true), 'decided once');
         $servers->setPendingHostKey($server->id, 'SHA256:other');
         self::assertNull($servers->find($server->id)?->pendingHostKey, 'a trusted key is not replaced by a pending one');
-        // spec: BRIEF.md#фаза-7-по-частям — a changed field keeps the key, a new address forgets it
+        // spec: brief/servers.md#фаза-7-по-частям — a changed field keeps the key, a new address forgets it
         $changed = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(group: 'test', route: 'vless'));
         self::assertSame(['test', 'vless', 'SHA256:first'], [$changed?->group, $changed?->route, $changed?->hostKey]);
         $moved = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(host: '2001:db8::6', route: ''));
@@ -76,7 +76,7 @@ final class PostgresServersTest extends AsyncTestCase {
 
         self::assertNull($audit->verify());
         self::assertSame(['df -h', 'uptime', 'uptime'], array_column($audit->recent(10), 'command'));
-        // spec: BRIEF.md#фаза-7-по-частям — the participant in /audit
+        // spec: brief/servers.md#фаза-7-по-частям — the participant in /audit
         self::assertNotNull($audit->recent(1)[0]['who'] ?? null);
         $this->db->execute('UPDATE command_audit SET command = ? WHERE id = ?', ['rm -rf /tmp/x', $third]);
         self::assertSame($third, $audit->verify());

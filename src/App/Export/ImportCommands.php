@@ -22,7 +22,7 @@ use function Mercurius\I18n\t;
  * archive is opened and checked, and the owner is asked once more. /import yes seals the current state into exports/ by
  * the same password, marks the archive and restarts the agent, which restores it at the start; /import no drops it.
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента — a full import replaces the agent, its state saved before
+ * spec: brief/operations.md#экспорт-и-импорт-агента — a full import replaces the agent, its state saved before
  */
 final class ImportCommands {
     /** what the bot downloads from the chat; a larger archive is put into storage/app/import/ by hand */

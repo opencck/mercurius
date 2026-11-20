@@ -35,14 +35,14 @@ final class DoctorTest extends AsyncTestCase {
     }
 
     public function testMailNamesTheAuthservIdItTrusts(): void {
-        // spec: BRIEF.md#интернет-и-браузер — doctor names the authserv-id the sender check trusts
+        // spec: brief/internet.md#интернет-и-браузер — doctor names the authserv-id the sender check trusts
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mail.kwinta.net'), self::results(['MAIL_HOST' => 'Mail.Kwinta.net']));
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mail_authserv'), 'mx.example.ru'), self::results(['MAIL_HOST' => 'mail.kwinta.net', 'MAIL_AUTHSERV_ID' => 'mx.example.ru']));
         self::assertStringNotContainsString('authserv', self::results([]), 'no mail, no line');
     }
 
     public function testABrokenCommandJournalFails(): void {
-        // spec: BRIEF.md#фаза-7-по-частям — doctor checks the chain of the command journal
+        // spec: brief/servers.md#фаза-7-по-частям — doctor checks the chain of the command journal
         $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
         $audit->append(['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null]);
         $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), null, $audit);
@@ -75,7 +75,7 @@ final class DoctorTest extends AsyncTestCase {
     }
 
     public function testTheDataFolderMustBeWritable(): void {
-        // spec: BRIEF.md#экспорт-и-импорт-агента — archives and marks of the application go into storage/app
+        // spec: brief/operations.md#экспорт-и-импорт-агента — archives and marks of the application go into storage/app
         $ok = Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir()))->run());
         self::assertStringContainsString('✅ ' . \Mercurius\I18n\t('service.doctor.storage'), $ok);
 
@@ -85,7 +85,7 @@ final class DoctorTest extends AsyncTestCase {
     }
 
     public function testAnOutdatedStoredSettingIsNamed(): void {
-        // spec: BRIEF.md#настройки-агента — a stored key the release no longer has
+        // spec: brief/operations.md#трассировка-и-метрики — a stored key the release no longer has
         $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), null, null, static fn(): array => ['OLD_LIMIT']);
         self::assertStringContainsString('⚠️ ' . \Mercurius\I18n\t('service.doctor.settings_unknown') . ': OLD_LIMIT', Doctor::render($doctor->run()));
         self::assertStringNotContainsString(\Mercurius\I18n\t('service.doctor.settings_unknown'), self::results([]), 'no outdated keys, no line');

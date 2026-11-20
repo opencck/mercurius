@@ -14,7 +14,7 @@ use OpenCCK\Test\Support\TestDatabase;
 /**
  * Recall before a run must not hold the answer up: the Russian set against PostgreSQL, words and HRR, p95 of the time.
  *
- * spec: BRIEF.md#фаза-6-по-частям — recall within a budget of time (p95)
+ * spec: brief/memory.md#фаза-6-по-частям — recall within a budget of time (p95)
  *
  * @group integration
  */

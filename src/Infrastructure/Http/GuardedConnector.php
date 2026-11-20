@@ -18,7 +18,7 @@ use OpenCCK\App\Agent\Tool\Guard\AddressRefused;
  * between the check and the connection (DNS rebinding) still cannot reach an internal address. TLS keeps the host
  * name as the peer name, which the HTTP client sets.
  *
- * spec: BRIEF.md#подтверждения-и-запреты — internal addresses are never reachable
+ * spec: brief/agent-loop.md#контекст — internal addresses are never reachable
  */
 final class GuardedConnector implements SocketConnector {
     public function __construct(

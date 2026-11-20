@@ -11,7 +11,7 @@ use OpenCCK\Domain\Agent\DangerClass;
  * a write or an invalid call is a segment of its own. Order is kept, so results and side effects match
  * fully sequential execution.
  *
- * spec: BRIEF.md#запуск-и-цикл — reads in parallel, a write is a barrier
+ * spec: brief/agent-loop.md#права-участника — reads in parallel, a write is a barrier
  * ref: references/hermes-agent/agent/tool_dispatch_helpers.py@e96221f:L213-L259 (_plan_tool_batch_segments) — ordered
  *      segments with barriers; we split by danger class instead of a whitelist and path overlap (no file tools yet)
  * ref: references/hermes-agent/run_agent.py@e96221f:L143 (_MAX_TOOL_WORKERS) — at most 8 at once

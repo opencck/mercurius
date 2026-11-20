@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
 /**
  * Hands parts of a task to workers and returns their short reports. A write: it spends the run's budget.
  *
- * spec: BRIEF.md#часть-1--синхронное-делегирование
+ * spec: brief/orchestration.md#часть-1--синхронное-делегирование
  * ref: references/hermes-agent/tools/delegate_tool.py@e96221fa:L843-L922 — tasks with goal and context ("each child
  *      sees only its own context"); here also the expected output, the tools and the model role
  * ref: references/hermes-agent/tools/delegate_tool_results.py@e96221fa:L254-L309 (_apply_summary_budget) — a cap on
@@ -61,11 +61,11 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                                 'additionalProperties' => false,
                             ],
                             'verify' => ['type' => 'boolean', 'description' => t('delegation.delegate_task_tool.proverit_otvet_otdelnym_proveryayuschim')],
-                            // spec: BRIEF.md#права-воркера-задаёт-оркестратор
+                            // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор
                             'mode' => ['type' => 'string', 'enum' => WorkerTask::MODES, 'description' => t('delegation.delegate_task_tool.mode')],
                             'memory' => ['type' => 'string', 'enum' => WorkerTask::MEMORY, 'description' => t('delegation.delegate_task_tool.memory')],
                             'context_of' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => WorkerTask::CONTEXT_OF], 'description' => t('delegation.delegate_task_tool.context_of')],
-                            // spec: BRIEF.md#схема-ответа-воркера
+                            // spec: brief/orchestration.md#схема-ответа-воркера
                             'output_schema' => ['type' => 'object', 'description' => t('delegation.delegate_task_tool.output_schema')],
                         ],
                         'required' => ['goal'],
@@ -84,7 +84,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
     }
 
     /** Workers read pages and files: their reports carry what they read, so they are data, not instructions. */
-    /** spec: BRIEF.md#подтверждения-и-запреты — a worker may have read pages: its report carries their text */
+    /** spec: brief/agent-loop.md#контекст — a worker may have read pages: its report carries their text */
     public function readsOutside(array $args): bool {
         return true;
     }

@@ -13,7 +13,7 @@ namespace OpenCCK\Domain\Agent;
  *      variables and endpoint per provider; hermes also keeps auth handlers and vision flags there, which here stay in
  *      the clients and the catalog.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — a provider is data
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — a provider is data
  */
 final class ProviderProfile {
     public const API_CHAT_COMPLETIONS = 'chat_completions';
@@ -65,7 +65,7 @@ final class ProviderProfile {
         $all = [];
         foreach ([
             new self(ModelRef::OPENROUTER, 'OpenRouter', self::API_CHAT_COMPLETIONS, 'OPENROUTER_API_KEY', PromptCache::Provider, 'openrouter:z-ai/glm-5.3-flash', 'openrouter:openai/gpt-5.6-luna', [
-                // spec: BRIEF.md#начальная-таблица-ролей-моделей
+                // spec: brief/models.md#начальная-таблица-ролей-моделей
                 ModelRole::CHEAP => 'openrouter:openai/gpt-5.6-luna',
                 ModelRole::MAIN => 'openrouter:z-ai/glm-5.3-flash',
                 ModelRole::STRONG => 'openrouter:anthropic/claude-opus-5',

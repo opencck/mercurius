@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
 /**
  * The owner's view of memory: what is remembered, what waits for a decision, and forgetting by number.
  *
- * spec: BRIEF.md#память-слои — the owner sees and edits memory; forgetting removes the text for good
+ * spec: brief/memory.md#память-слои — the owner sees and edits memory; forgetting removes the text for good
  */
 final class MemoryCommands {
     public const RECENT = 20;
@@ -41,7 +41,7 @@ final class MemoryCommands {
      * /memory: the overview; /memory <number> — that page of facts, newest first; /memory <words> — the facts recall
      * finds by them.
      *
-     * spec: BRIEF.md#память-слои — /memory <words> and pages
+     * spec: brief/memory.md#память-слои — /memory <words> and pages
      */
     public function show(string $argument, string $channel, string $chatId): string {
         $argument = trim($argument);

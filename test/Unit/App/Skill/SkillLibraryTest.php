@@ -35,7 +35,7 @@ use OpenCCK\Test\Support\InMemorySkillUsageRepository;
  * (projects/<number>/.mercurius/skills/ in the sandbox of the project's owner). In a conversation about a project its skills come
  * on top of the participant's and the built-in ones; otherwise only the participant's and the built-in ones.
  *
- * spec: BRIEF.md#скиллы-и-mcp
+ * spec: brief/skills-mcp.md#скиллы-и-mcp
  */
 final class SkillLibraryTest extends AsyncTestCase {
     private FakeSandbox $sandbox;
@@ -103,7 +103,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         $this->sandbox->files[1]['.mercurius/skills/tool/notes.md'] = 'обычные заметки';
         $library = $this->library();
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a description and each file of a skill pass the check when read
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a description and each file of a skill pass the check when read
         self::assertArrayNotHasKey('evil', $library->catalog($this->owner, null), 'a dangerous description is not in the index');
         self::assertStringNotContainsString('Ignore all previous', $library->index($this->owner, null));
         self::assertNull($library->view($this->owner, null, 'tool', 'run.sh', new \Amp\NullCancellation()), 'a dangerous file is not given');
@@ -170,7 +170,7 @@ final class SkillLibraryTest extends AsyncTestCase {
     }
 
     public function testTheUseOfASkillIsCountedByPlaceAndName(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — the key of the use is the place and the name; a row from when a skill is made
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — the key of the use is the place and the name; a row from when a skill is made
         $usage = new InMemorySkillUsageRepository();
         $usage->rows['']['notes'] = ['views' => 7, 'last' => time() - 86400, 'created' => time() - 90 * 86400, 'pinned' => true, 'off' => false];
         $library = $this->library();
@@ -205,7 +205,7 @@ final class SkillLibraryTest extends AsyncTestCase {
     }
 
     public function testASkillIsTurnedOffAndRemovedAfterASnapshot(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — /skill <name> off hides it from the index, remove takes a snapshot first
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — /skill <name> off hides it from the index, remove takes a snapshot first
         $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
         $usage = new InMemorySkillUsageRepository();
         $library = $this->library();
@@ -229,7 +229,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertLessThan($removal, $snapshot, 'the snapshot first');
     }
     public function testEveryEditOfASkillIsJournalledAndOneIsRolledBack(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — a journal of skill edits; one edit is rolled back, and the rollback is an edit too
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — a journal of skill edits; one edit is rolled back, and the rollback is an edit too
         $edits = new \OpenCCK\Test\Support\InMemorySkillEditRepository();
         $library = $this->library();
         $library->useEdits($edits);
@@ -252,7 +252,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertNotNull($library->rollback($this->owner, null, 'notes', 999, new NullCancellation()), 'an unknown edit');
     }
     public function testAnImportedSkillKnowsItsSourceAndIsUpdatedFromIt(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — the source and revision of an import are in SKILL.md; /skill update takes it again
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — the source and revision of an import are in SKILL.md; /skill update takes it again
         $revision = 'r1';
         $source = new class($revision) implements \OpenCCK\App\Skill\SkillSource {
             public function __construct(public string $revision) {}

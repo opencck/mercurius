@@ -8,7 +8,7 @@ use Amp\Postgres\PostgresLink;
 use OpenCCK\Domain\Repository\RoleRepository;
 
 /**
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 final class PostgresRoleRepository implements RoleRepository {
     public function __construct(private readonly PostgresLink $db) {}

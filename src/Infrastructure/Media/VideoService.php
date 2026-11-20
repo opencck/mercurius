@@ -14,7 +14,7 @@ use Throwable;
 /**
  * The media-video module (services/media-video): the frames and the sound of a video, by ffmpeg in its own container.
  *
- * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — media-video
+ * spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — media-video
  */
 final class VideoService {
     public const MODULE = 'media-video';

@@ -189,7 +189,7 @@ abstract class RunStoreContract extends AsyncTestCase {
         $args = ['text' => $fact, 'scope' => 'owner'];
         $this->transcript->appendAssistant($this->conversationId, $id, '', [new StoredToolCall('m1', 0, 'memory_propose', $args, json_encode($args, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), DangerClass::Write, ToolCallStatus::Done)]);
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in tool arguments
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — forgetting cleans the copies of the fact in tool arguments
         self::assertGreaterThan(0, $this->transcript->redactCalls($fact, '(забыто)'));
         $calls = array_merge(...array_map(static fn(\Mercurius\Llm\Message $m): array => $m->toolCalls, $this->transcript->runMessages($id)));
         self::assertNotSame([], $calls);
@@ -327,7 +327,7 @@ abstract class RunStoreContract extends AsyncTestCase {
     }
 
     public function testSpokenLinesAreWhatThePersonSentThemselves(): void {
-        // spec: BRIEF.md#консолидация-dreaming — only a person's own messages count as said on a day
+        // spec: brief/memory.md#консолидация-dreaming — only a person's own messages count as said on a day
         $this->transcript->appendUser($this->conversationId, null, 'бэкапы базы делаются ночью', '501');
         $this->transcript->appendUser($this->conversationId, null, 'итог задания по расписанию');
         $this->transcript->appendUser($this->conversationId, null, 'проверь бэкапы', '502');

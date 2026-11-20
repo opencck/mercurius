@@ -14,7 +14,7 @@ use Throwable;
  * application), workspace.tar.gz (the working folders, from the sandbox executor), env (the settings) and commit — in a
  * tar, sealed by the owner's password into exports/.
  *
- * spec: BRIEF.md#экспорт-и-импорт-агента — one format with bin/backup.sh, sealed by the owner's password
+ * spec: brief/operations.md#экспорт-и-импорт-агента — one format with bin/backup.sh, sealed by the owner's password
  * ref: references/hermes-agent/hermes_cli/backup.py@e96221fa:L100-L110, L475 — hermes leaves out browser profiles and
  *      takes a consistent snapshot of its database rather than its files; here the same: pg_dump, no browser profiles
  */

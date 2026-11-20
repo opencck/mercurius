@@ -1,7 +1,7 @@
 -- The use of skills by place and name: the same name in two places (a person's skills, a project's) is two skills.
 -- skill_usage stays for a rollback of the code; its rows move here with an empty place and are claimed by the first
 -- write of their skill.
--- spec: BRIEF.md#скиллы-и-mcp
+-- spec: brief/skills-mcp.md#скиллы-и-mcp
 CREATE TABLE skill_stats (
     place text NOT NULL,
     name text NOT NULL,

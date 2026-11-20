@@ -13,7 +13,7 @@ use function Mercurius\I18n\t;
  * close. A session belongs to the participant who spawned it; there are at most a few per participant; one nobody
  * touched for half an hour is killed, and so is one that ended and was read.
  *
- * spec: BRIEF.md#песочница — the streaming API of the executor (stdio MCP servers run on it)
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API of the executor (stdio MCP servers run on it)
  */
 final class Streams {
     public const PER_PRINCIPAL = 4;

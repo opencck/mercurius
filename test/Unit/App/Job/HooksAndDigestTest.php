@@ -104,7 +104,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     }
 
     public function testAnEventTheFilterDoesNotWantWakesNoModel(): void {
-        // spec: BRIEF.md#планировщик-и-проекты — the filter of webhook events: the wrong event costs no tokens
+        // spec: brief/scheduler.md#планировщик-и-проекты-1 — the filter of webhook events: the wrong event costs no tokens
         $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Собрано.')]));
         $job = $this->hookJob();
         self::assertTrue($this->jobs->setHookFilter($job->id, 'events=push; ref=refs/heads/master'));
@@ -121,7 +121,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     }
 
     public function testABurstOfEventsRunsTheJobOnceOnTheLastOne(): void {
-        // spec: BRIEF.md#планировщик-и-проекты — events within the merge window run the job once
+        // spec: brief/scheduler.md#планировщик-и-проекты-1 — events within the merge window run the job once
         $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Три пуша разобраны.')]));
         $job = $this->hookJob();
         $this->jobs->setHookFilter($job->id, 'merge=1');
@@ -222,7 +222,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     }
 
     public function testTheSummarySaysHowLongMemoryProposalsWait(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — the queue of memory proposals waiting for the owner
+        // spec: brief/operations.md#настройки-агента — the queue of memory proposals waiting for the owner
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
         $memory = new \Mercurius\Memory\Infrastructure\InMemoryMemoryStore();
         $memory->propose('add', null, 'owner', 'кот — Барсик', 'сказал', null, null);
@@ -237,7 +237,7 @@ final class HooksAndDigestTest extends AsyncTestCase {
     }
 
     public function testTheSummarySaysWhenTheCommandJournalWasChanged(): void {
-        // spec: BRIEF.md#фаза-7-по-частям — the chain of the command journal is checked every day
+        // spec: brief/servers.md#фаза-7-по-частям — the chain of the command journal is checked every day
         $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
         $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
         $record = ['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null];

@@ -18,7 +18,7 @@ use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 
 /**
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class MultiUserTest extends AsyncTestCase {
     public function testAUserWorksWithTheirOwnProjectsOnly(): void {

@@ -48,7 +48,7 @@ services:
   # Optional: a local Telegram Bot API server (COMPOSE_PROFILES=telegram-api, TELEGRAM_API_URL=http://telegram-api:8081).
   # By default the bot works with the cloud Bot API. Files up to 2000 MB; TELEGRAM_API_ID and TELEGRAM_API_HASH from
   # my.telegram.org. An HTTP proxy in TELEGRAM_PROXY carries its webhook requests.
-  # spec: BRIEF.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
+  # spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api-решение-владельца-2026-11-17
   telegram-api:
     profiles: ["telegram-api"]
     build:
@@ -71,7 +71,7 @@ services:
 
   # The built-in mail server (MCP, module mercurius-mail-mcp in mcp/mail, COMPOSE_PROFILES=mail, MAIL_MCP_TOKEN): IMAP and
   # SMTP of the mailbox in the agent's settings. It keeps no credentials: the app sends the mailbox in headers.
-  # spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
+  # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
   mail-mcp:
     profiles: ["mail"]
     build:
@@ -94,7 +94,7 @@ services:
 
   # Optional module media-video (COMPOSE_PROFILES=media-video, MEDIA_VIDEO_TOKEN): ffmpeg behind a small API, the frames
   # and the sound of a video for the media tool when no video model is set. Its own repository, a submodule.
-  # spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
+  # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
   media-video:
     profiles: ["media-video"]
     build:
@@ -120,7 +120,7 @@ services:
 
   # Optional module media-docs (COMPOSE_PROFILES=media-docs, MEDIA_DOCS_TOKEN): the text of office documents and PDF,
   # and new docx, xlsx, pptx; each file is parsed in a child process with limits. Its own repository, a submodule.
-  # spec: BRIEF.md#модули-сервисы-mcp-и-скиллы
+  # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
   media-docs:
     profiles: ["media-docs"]
     build:
@@ -197,7 +197,7 @@ services:
 
   # Sandbox: commands and files of the agent, one Unix user per participant. No core secrets, no database,
   # no web network; root with a minimal capability set, every operation runs as the participant.
-  # spec: BRIEF.md#песочница
+  # spec: brief/agent-loop.md#подтверждения-и-запреты
   sandbox:
     build:
       context: .
@@ -220,7 +220,7 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
-      # spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
       # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
       - SYS_ADMIN
     security_opt:
@@ -289,7 +289,7 @@ services:
       - DAC_OVERRIDE
       - FOWNER
       - KILL
-      # spec: BRIEF.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
+      # spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — /proc is remounted with hidepid at start: participants do not
       # see each other's processes; commands run without capabilities (setpriv, no-new-privileges)
       - SYS_ADMIN
     security_opt:
@@ -305,7 +305,7 @@ networks:
   # The app and the browser only.
   browser:
   # A fixed subnet. The sandbox may reach the host and the LAN (owner's decision): no firewall rule is set for it.
-  # spec: BRIEF.md#песочница
+  # spec: brief/agent-loop.md#подтверждения-и-запреты
   sandbox:
     ipam:
       config:

@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * What the messenger carries besides text and files: a location, a contact, a poll, an article (a title and formatted
  * text). To this chat and topic, or to a participant (then with the owner's card, granted per person).
  *
- * spec: BRIEF.md#личные-сообщения-участникам — not only text: everything the messenger carries
+ * spec: brief/channels.md#личные-сообщения-участникам — not only text: everything the messenger carries
  */
 final class SendContentTool implements Tool, GrantKeyed {
     public const NAME = 'send_content';

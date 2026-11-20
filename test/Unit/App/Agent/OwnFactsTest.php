@@ -22,7 +22,7 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
  * A participant approves the facts of their own memory: the card goes to their private chat and their press decides
  * it; another participant cannot, the owner still can. Facts of the owner's memory stay with the owner.
  *
- * spec: BRIEF.md#несколько-пользователей — a participant approves their own facts
+ * spec: brief/participants.md#несколько-пользователей — a participant approves their own facts
  */
 final class OwnFactsTest extends AsyncTestCase {
     public function testAParticipantDecidesAProposalOfTheirOwnMemory(): void {

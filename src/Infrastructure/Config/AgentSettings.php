@@ -9,7 +9,7 @@ use OpenCCK\Domain\Agent\RunLimits;
 /**
  * Limits of one agent run. They are the owner's limits and the ceiling for every other participant.
  *
- * spec: BRIEF.md#лимиты — defaults and what each limit bounds
+ * spec: brief/agent-loop.md#устойчивость — defaults and what each limit bounds
  */
 final class AgentSettings {
     /**
@@ -43,7 +43,7 @@ final class AgentSettings {
      */
     public static function fromEnv(array $env): self {
         return new self(
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — 750 turns, 1 million tokens, 8 hours; a worker 375 turns
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — 750 turns, 1 million tokens, 8 hours; a worker 375 turns
             maxTurns: Env::positiveInt($env, 'AGENT_MAX_TURNS', 750, 10_000),
             tokenBudget: Env::positiveInt($env, 'AGENT_TOKEN_BUDGET', 1_000_000, 50_000_000),
             runTimeout: Env::positiveInt($env, 'AGENT_RUN_TIMEOUT', 28_800, 86_400),

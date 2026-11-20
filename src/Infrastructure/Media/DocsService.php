@@ -15,7 +15,7 @@ use Throwable;
  * The media-docs module (services/media-docs): the text of office documents and PDF, and new docx, xlsx, pptx. An
  * untrusted file is parsed there, in a child process with limits, not in the app or the sandbox.
  *
- * spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — media-docs
+ * spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — media-docs
  */
 final class DocsService {
     public const MODULE = 'media-docs';

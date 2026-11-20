@@ -11,7 +11,7 @@ use InvalidArgumentException;
  * power; the others are the owner's list — admin, user and visitor are only the starting set. People and other agents
  * take the same roles; only a person can be the owner.
  *
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 final class Role {
     public const OWNER = 'owner';

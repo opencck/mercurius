@@ -14,7 +14,7 @@ use OpenCCK\Test\Support\InMemoryServerRepository;
  * The owner trusts the host key they saw on the card, and no other: a key that changed while the card waited is not
  * pinned by a press on the old card.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
  */
 final class HostKeyCardsTest extends AsyncTestCase {
     public function testAPressPinsOnlyTheKeyTheCardShowed(): void {

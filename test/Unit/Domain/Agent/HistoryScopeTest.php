@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The owner searches every past conversation but those of former owners: their private chats stay theirs.
  *
- * spec: BRIEF.md#несколько-пользователей
+ * spec: brief/participants.md#несколько-пользователей
  */
 final class HistoryScopeTest extends TestCase {
     public function testAllConversationsLeaveOutThoseOfFormerOwners(): void {

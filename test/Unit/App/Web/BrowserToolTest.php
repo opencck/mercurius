@@ -50,7 +50,7 @@ final class BrowserToolTest extends AsyncTestCase {
         $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
         $user = new Principal(5, PrincipalKind::Human, Role::user(), null);
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the profile comes from the participant, the model names only
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the profile comes from the participant, the model names only
         //       a profile within their own set: a participant does not open the owner's "main"
         $tool->execute(['action' => 'open', 'url' => 'https://example.com/'], new ToolContext(1, 1, $owner, new NullCancellation()));
         $tool->execute(['action' => 'open', 'url' => 'https://example.com/', 'profile' => 'main'], new ToolContext(2, 2, $user, new NullCancellation()));
@@ -72,7 +72,7 @@ final class BrowserToolTest extends AsyncTestCase {
     public function testActingWaitsForTheOwnerOnlyWhenTheOwnerAskedForIt(): void {
         $tool = $this->tool(new FakeHttpClient());
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — browser confirmations are off by default (BROWSER_CONFIRM)
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — browser confirmations are off by default (BROWSER_CONFIRM)
         self::assertSame(DangerClass::Read, $tool->danger(['action' => 'open', 'url' => 'https://example.com']));
         self::assertSame(DangerClass::Read, $tool->danger(['action' => 'read']));
         self::assertSame(DangerClass::Write, $tool->danger(['action' => 'type', 'ref' => 1, 'text' => 'x']));
@@ -98,7 +98,7 @@ final class BrowserToolTest extends AsyncTestCase {
     }
 
     public function testAListIsPickedThePageScrollsAndGoesBackAndDialogsAreTold(): void {
-        // spec: BRIEF.md#интернет-и-браузер — select, scroll, back; a dialog of the page is dismissed and told
+        // spec: brief/internet.md#интернет-и-браузер — select, scroll, back; a dialog of the page is dismissed and told
         $page = json_encode(['url' => 'https://example.com/form', 'title' => 'Form', 'text' => 'ok', 'elements' => ['[1] select Город {msk=Москва | *spb=Санкт-Петербург}'], 'dialogs' => ['alert: Сессия истекла']], JSON_THROW_ON_ERROR);
         $answer = [200, ['content-type' => 'application/json'], $page];
         $http = new FakeHttpClient(['http://browser:3000/select' => $answer, 'http://browser:3000/scroll' => $answer, 'http://browser:3000/back' => $answer]);

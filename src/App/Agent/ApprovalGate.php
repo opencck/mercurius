@@ -12,7 +12,7 @@ use OpenCCK\Domain\Entity\Principal;
  * Asks the owner about an irreversible call: records the pending approval and shows the card. The loop pauses
  * the run afterwards; the owner's decision resumes it.
  *
- * spec: BRIEF.md#подтверждения-и-запреты — a paused tool call, the owner answers through the channel
+ * spec: brief/agent-loop.md#контекст — a paused tool call, the owner answers through the channel
  */
 interface ApprovalGate {
     public function request(Run $run, ValidatedCall $call, Principal $principal): void;

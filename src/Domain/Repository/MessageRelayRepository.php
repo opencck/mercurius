@@ -10,7 +10,7 @@ use OpenCCK\Domain\Relay\MessageRelay;
 /**
  * Personal messages waiting for an answer.
  *
- * spec: BRIEF.md#личные-сообщения-участникам
+ * spec: brief/channels.md#личные-сообщения-участникам
  */
 interface MessageRelayRepository {
     /** A new question; an open one to the same person from the same conversation is replaced by it. */

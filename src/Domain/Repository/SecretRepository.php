@@ -9,7 +9,7 @@ use DomainException;
 /**
  * Encrypted secrets: the store never sees a value, only its nonce and ciphertext.
  *
- * spec: BRIEF.md#фаза-7-по-частям
+ * spec: brief/servers.md#фаза-7-по-частям
  */
 interface SecretRepository {
     /** @throws DomainException when a secret with this name exists */

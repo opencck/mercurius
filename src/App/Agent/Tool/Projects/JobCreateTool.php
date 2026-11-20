@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
 /**
  * The agent sets itself a reminder or a check: a job by a schedule, its report comes to this chat.
  *
- * spec: BRIEF.md#планировщик-и-проекты — the agent sets reminders and checks itself; the text of a job is checked
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — the agent sets reminders and checks itself; the text of a job is checked
  *       for injections
  */
 final class JobCreateTool implements Tool {
@@ -93,11 +93,11 @@ final class JobCreateTool implements Tool {
         if ($watch !== '' && ($byEvent || preg_match('~^https?://[^\s/]+~i', $watch) !== 1)) {
             return ToolResult::error(t('tool.job_create.watch_bad'));
         }
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a job set up after outside data carries the mark to its runs
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a job set up after outside data carries the mark to its runs
         $origin = $this->runs?->find($context->runId)?->outside;
         $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first, $origin, $meta->threadId);
         if ($watch !== '') {
-            // spec: BRIEF.md#планировщик-и-проекты — the job watches the address: the model only when it changed
+            // spec: brief/scheduler.md#планировщик-и-проекты-1 — the job watches the address: the model only when it changed
             $this->jobs->setWatch($job->id, $watch);
         }
         if ($first === null) {

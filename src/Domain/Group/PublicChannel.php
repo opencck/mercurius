@@ -10,7 +10,7 @@ use function Mercurius\I18n\t;
  * A channel where the bot is (or was) an admin. The rights come from Telegram; a channel where the bot is no longer an
  * admin is unavailable.
  *
- * spec: BRIEF.md#канал-паблик
+ * spec: brief/channels.md#канал-паблик
  */
 final class PublicChannel {
     public function __construct(

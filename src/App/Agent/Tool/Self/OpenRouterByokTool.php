@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * Registers a provider's key in the owner's OpenRouter account (bring your own key), for example a key someone sent.
  * The key and the management key come from the vault; the call changes the account, so it waits for the owner.
  *
- * spec: BRIEF.md#продукт-и-архитектура — a provider key through OpenRouter as an agent tool with the owner's confirmation
+ * spec: brief/decisions.md#продукт-и-архитектура — a provider key through OpenRouter as an agent tool with the owner's confirmation
  */
 final class OpenRouterByokTool implements Tool, GrantKeyed {
     public const NAME = 'openrouter_byok';
@@ -56,7 +56,7 @@ final class OpenRouterByokTool implements Tool, GrantKeyed {
     }
 
     /**
-     * spec: BRIEF.md#подтверждения-и-запреты — every irreversible action can be allowed for good; the key names the
+     * spec: brief/agent-loop.md#контекст — every irreversible action can be allowed for good; the key names the
      * action and its target (owner's decision 2026-11-17)
      */
     public function grantKey(array $args): ?string {

@@ -10,7 +10,7 @@ use DateTimeImmutable;
  * What the traces of a period say, for the agent's review of itself: where runs stopped, which tools failed or were
  * refused, calls repeated after a refusal, the costliest runs, the spend by purpose.
  *
- * spec: BRIEF.md#самоулучшение-решено-2026-11-18
+ * spec: brief/decisions.md#самоулучшение-решено-2026-11-18
  */
 interface TraceReviewRepository {
     /**

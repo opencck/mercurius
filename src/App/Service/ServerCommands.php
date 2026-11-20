@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * Commands for secrets, servers and the journal. A secret comes only by command, never through the model; the message
  * that carried it is deleted by the caller.
  *
- * spec: BRIEF.md#фаза-7-по-частям — a secret that appeared in Telegram is deleted from the chat and kept in the vault
+ * spec: brief/servers.md#фаза-7-по-частям — a secret that appeared in Telegram is deleted from the chat and kept in the vault
  */
 final class ServerCommands {
     private const AUDIT = 15;
@@ -75,7 +75,7 @@ final class ServerCommands {
     /**
      * "/server - <name>" removes a server from the registry; the owner typed it, so no card.
      *
-     * spec: BRIEF.md#фаза-7-по-частям — the registry is changed in the dialogue
+     * spec: brief/servers.md#фаза-7-по-частям — the registry is changed in the dialogue
      */
     public function server(string $argument): string {
         $argument = trim($argument);

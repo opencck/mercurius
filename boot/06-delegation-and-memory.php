@@ -68,7 +68,7 @@ use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
 
 // Delegation: workers run through the same loop, so the tool is registered once the loop exists.
 $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $modelRoles, $agentSettings->workerMaxTurns, $agentSettings->workerTokenBudget, $logger, new ModelSelector($modelCatalog, $modelRoles, $routingDecisions, $logger, new PostgresModelReliabilityRepository($db)), $agentSettings->maxWorkersPerRun);
-// spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list
+// spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker gets only tools of the white list
 $workers->allowOnly(explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_WORKER_TOOLS') ?? implode(',', WorkerRunner::ALLOWED)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
 $tools->register(new DelegateTaskTool($workers, $background));
@@ -103,7 +103,7 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory vectors were not encoded', ['error' => $e::class]);
 }
-// spec: BRIEF.md#анализ-текста — facts written before a new rule of the analyzer get its keys; in the background
+// spec: brief/memory.md#анализ-текста — facts written before a new rule of the analyzer get its keys; in the background
 \Amp\async(static function () use ($memoryStore, $textAnalyzer, $logger): void {
     try {
         $rekeyed = $memoryStore->rekey($textAnalyzer->keys(...));
@@ -115,7 +115,7 @@ try {
     }
 })->ignore();
 $projectRepository = new PostgresProjectRepository($db);
-// spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
+// spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
 // those who may see the project
 $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...), static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId) use ($projectRepository): ?int {
     if (!$principal->role->may(\OpenCCK\Domain\Entity\Power::Projects)) {
@@ -126,7 +126,7 @@ $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwne
 });
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
-// spec: BRIEF.md#всегда-в-контексте — the participant's MEMORY.md, whole, with a limit; no sandbox — no file
+// spec: brief/memory.md#всегда-в-контексте — the participant's MEMORY.md, whole, with a limit; no sandbox — no file
 if ($sandbox !== null) {
     $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Principal $principal) use ($sandbox, $policies): string {
         $limits = $policies->forPrincipal($principal)->sandbox;
@@ -151,14 +151,14 @@ $proposals = new Proposals(
 );
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $ownerDirectory, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));
-// spec: BRIEF.md#консолидация-dreaming — the card says on how many days the person said it, by their own messages
+// spec: brief/memory.md#консолидация-dreaming — the card says on how many days the person said it, by their own messages
 $corroboration = new \Mercurius\Memory\App\Corroboration($textAnalyzer);
 $memoryCards->useCorroboration(static function (int $principalId, string $text) use ($corroboration, $transcript): int {
     $zone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00');
     $since = time() - \Mercurius\Memory\App\Corroboration::WINDOW_DAYS * 86400;
     return $corroboration->days($text, $transcript->spokenBy($principalId, $since, \Mercurius\Memory\App\Corroboration::LINES), $zone);
 });
-// spec: BRIEF.md#память-слои — every N turns a cheap model proposes facts through the owner's card
+// spec: brief/memory.md#память-слои — every N turns a cheap model proposes facts through the owner's card
 $factNudgeTurns = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEMORY_NUDGE_TURNS');
 $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
     $llm,
@@ -171,14 +171,14 @@ $scheduler->useAfterRun((new \OpenCCK\App\Agent\FactNudge(
     $logger,
     is_numeric($factNudgeTurns) ? max(0, min(1000, (int) $factNudgeTurns)) : \OpenCCK\App\Agent\FactNudge::EVERY,
 ))->afterRun(...));
-// spec: BRIEF.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
+// spec: brief/memory.md#память-слои — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
-// spec: BRIEF.md#трассировка-и-метрики — a worker is a step of its orchestrator's trace
+// spec: brief/operations.md#настройки-агента — a worker is a step of its orchestrator's trace
 $workers->useEvents($tracer);
-// spec: BRIEF.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
+// spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — the conversation's context only when the orchestrator asks
 $workers->useContext($scheduler->workerContext(...));
-// spec: BRIEF.md#часть-1--синхронное-делегирование — reports share what is left of the orchestrator's window
+// spec: brief/orchestration.md#часть-1--синхронное-делегирование — reports share what is left of the orchestrator's window
 $workers->useWindow(static function (string $model) use ($modelCatalog, $llmSettings): int {
     try {
         return $modelCatalog->find(ModelRef::parse($model))->contextLength ?? $llmSettings->contextWindow;
@@ -192,11 +192,11 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience,
     $transcript->redact($line, sprintf('[#%d] %s', $fact->id, \Mercurius\I18n\t('memory.forgotten')));
     $traces->redactPayloads($line, sprintf('[#%d] %s', $fact->id, \Mercurius\I18n\t('memory.forgotten')));
     $experience->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
-    // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — and the copies of it: arguments of calls and nightly reports
+    // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — and the copies of it: arguments of calls and nightly reports
     $transcript->redactCalls($fact->text, \Mercurius\I18n\t('memory.forgotten'));
     $consolidationJournal->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
 });
-// spec: BRIEF.md#консолидация-dreaming — the nightly check: code only, the owner decides
+// spec: brief/memory.md#консолидация-dreaming — the nightly check: code only, the owner decides
 $consolidation = new Consolidation(
     $memoryStore,
     $proposals,

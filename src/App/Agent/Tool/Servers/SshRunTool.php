@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * A command on a server of the registry. Its class decides: a proven read runs at once, a change or a raised privilege
  * waits for the owner's card, a "never" command is refused.
  *
- * spec: BRIEF.md#фаза-7-по-частям — a read runs at once, a change after confirmation
+ * spec: brief/servers.md#фаза-7-по-частям — a read runs at once, a change after confirmation
  */
 final class SshRunTool implements Tool, GrantKeyed {
     public const NAME = 'ssh_run';
@@ -56,7 +56,7 @@ final class SshRunTool implements Tool, GrantKeyed {
      * A change can be granted for good — this exact command on this server, under this version of the policy; raising
      * privileges is asked every time.
      *
-     * spec: BRIEF.md#фаза-7-по-частям — one-off grants as the base of learned preferences; a change of the policy drops
+     * spec: brief/servers.md#фаза-7-по-частям — one-off grants as the base of learned preferences; a change of the policy drops
      *       the grants
      */
     public function grantKey(array $args): ?string {
@@ -65,12 +65,12 @@ final class SshRunTool implements Tool, GrantKeyed {
         if ($command === '' || $server === '') {
             return null;
         }
-        // spec: BRIEF.md#подтверждения-и-запреты — the owner may allow even a command of the "never" list for good; its
+        // spec: brief/agent-loop.md#контекст — the owner may allow even a command of the "never" list for good; its
         //      key is apart, so the list of grants shows it
         $prefix = match ($this->console->classify($command, $server)->class) {
             Classification::CHANGE => 'ssh',
             Classification::NEVER => 'ssh-never',
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — everything the owner is asked may be allowed for good
             Classification::PRIVILEGED => 'ssh-sudo',
             default => null,
         };

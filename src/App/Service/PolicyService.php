@@ -16,7 +16,7 @@ use OpenCCK\Domain\Repository\PolicyRepository;
 /**
  * Policy of a participant: defaults of the role, then the participant's overrides, capped by the owner.
  *
- * spec: BRIEF.md#права-участника
+ * spec: brief/agent-loop.md#лимиты
  */
 final class PolicyService {
     public function __construct(
@@ -49,12 +49,12 @@ final class PolicyService {
             return $owner;
         }
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — without the power of tools a role talks, nothing more
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — without the power of tools a role talks, nothing more
         if (!$principal->role->may(Power::Tools)) {
             return $base->capTo($owner);
         }
         $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
-        // spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19 — a tool of a power stays out of a role without it
+        // spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19 — a tool of a power stays out of a role without it
         return $policy->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Power $p): bool => !$principal->role->may($p))));
     }
 

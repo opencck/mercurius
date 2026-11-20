@@ -54,7 +54,7 @@ if ($webhookSecret !== null) {
 
 if ($a2aServer !== null) {
     $routes[] = ['GET', '/.well-known/agent-card.json', new \OpenCCK\Infrastructure\API\Handler\A2aHandler($a2aServer)];
-    // spec: BRIEF.md#между-агентами — the entrance for files is there with either transport
+    // spec: brief/internet.md#между-агентами — the entrance for files is there with either transport
     $routes[] = ['POST', '/a2a/files', new \OpenCCK\Infrastructure\API\Handler\A2aFilesHandler($a2aServer)];
     $routes[] = ['GET', '/a2a/files/{id:f-[0-9a-f]{24}}', new \OpenCCK\Infrastructure\API\Handler\A2aFilesHandler($a2aServer)];
     if ($a2aServer->transport === 'http') {
@@ -72,7 +72,7 @@ if ($a2aServer !== null) {
     }
 }
 
-// spec: BRIEF.md#знания-агента-о-себе — the prompt holds one line, the details come from self_info by topic
+// spec: brief/agent-loop.md#агентский-цикл-и-харнесс — the prompt holds one line, the details come from self_info by topic
 if ($a2aServer !== null) {
     $selfBase = rtrim($a2aServer->self, '/');
     $selfHost = parse_url($selfBase, PHP_URL_HOST);
@@ -112,7 +112,7 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
 ]));
 
-// spec: BRIEF.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
+// spec: brief/operations.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
 $apiSocket = new \OpenCCK\Infrastructure\API\Handler\ApiSocketHandler(new \OpenCCK\App\Api\ApiGateway($wsChannel, $apiKeys, static fn(\Mercurius\Messenger\IncomingMessage $m): bool => $dispatcher->dispatch($m), static function (\Mercurius\Messenger\IncomingCallback $c) use ($dispatcher): void {
     $dispatcher->dispatchCallback($c);
 }));
@@ -125,7 +125,7 @@ $routes[] = ['GET', '/api/ws', static fn(\Amp\Http\Server\HttpServer $http): \Am
     clientFactory: new \Amp\Websocket\Server\Rfc6455ClientFactory(heartbeatQueue: new \Amp\Websocket\PeriodicHeartbeatQueue(heartbeatPeriod: 10, queuedPingLimit: 3), parserFactory: $apiParser),
 )];
 
-// spec: BRIEF.md#планировщик-и-проекты — a signed event starts a job by event
+// spec: brief/scheduler.md#планировщик-и-проекты-1 — a signed event starts a job by event
 $routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
 
 // Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.

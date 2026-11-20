@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * A name that does not resolve is refused too. Only the owner lifts the ban, for one host and one call or by a grant:
  * the tool then works through permitting(), a copy of the guard that lets that host alone through.
  *
- * spec: BRIEF.md#подтверждения-и-запреты — internal addresses only with the owner's permission (owner's decision 2026-11-17)
+ * spec: brief/agent-loop.md#контекст — internal addresses only with the owner's permission (owner's decision 2026-11-17)
  * ref: references/hermes-agent/tools/url_safety.py@e96221f:L87-L116, L291-L326 (_embedded_ipv4, _is_blocked_ip) —
  *      blocked classes, wrapped IPv4 seen through, DNS failure means refusal; we have no allow_private_urls switch
  */

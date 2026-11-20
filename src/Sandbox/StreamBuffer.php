@@ -12,7 +12,7 @@ use Revolt\EventLoop;
  * gives; the client takes it with a wait (long polling). When nobody takes and the buffer is full, append() waits:
  * the pipe is not read, the process blocks on its own write — memory stays bounded and nothing is dropped.
  *
- * spec: BRIEF.md#песочница — the streaming API of the executor
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API of the executor
  * ref: .claude/skills/skill-amphp/docs/common-mistakes.md (18. receive buffer deadlock) — a stream must always be
  *      drained by someone; here the pause is deliberate and bounded by the client's polling
  */

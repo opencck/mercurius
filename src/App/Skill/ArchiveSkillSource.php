@@ -20,7 +20,7 @@ use function Mercurius\I18n\t;
  * is the skill; everything outside it is left out. The archive is read from memory or a temporary file and never
  * unpacked onto the disk, so a path inside it cannot reach anything.
  *
- * spec: BRIEF.md#скиллы-и-mcp — a skill from git or an archive
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — a skill from git or an archive
  */
 final class ArchiveSkillSource implements SkillSource {
     /** @param int $maxFiles the owner's cap on the files of a skill (SKILL_MAX_FILES); 0 — none */

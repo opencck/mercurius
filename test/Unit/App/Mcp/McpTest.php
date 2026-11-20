@@ -269,7 +269,7 @@ final class McpTest extends AsyncTestCase {
     }
 
     public function testAPackageWithMalwareIsNotApproved(): void {
-        // spec: BRIEF.md#скиллы-и-mcp — the check of MCP packages before /mcp on
+        // spec: brief/skills-mcp.md#скиллы-и-mcp — the check of MCP packages before /mcp on
         $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();
         $client = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(new HttpClient(new FakeHttpClient(), [])), new \OpenCCK\Infrastructure\Mcp\StdioMcpClient($streams, new \OpenCCK\Domain\Agent\SandboxLimits(1, 1, 1, 1, 1)));
         $manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(): Principal => $this->owner, static function (string $t): void {}, new NullLogger(), stdio: true);

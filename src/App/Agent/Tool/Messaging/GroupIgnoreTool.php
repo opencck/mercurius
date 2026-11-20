@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * A participant of a group names a bot or a visitor the agent should not hear there, or hears again; the list of the
  * group. Only in the conversation of a group: the private chat has no one to ignore.
  *
- * spec: BRIEF.md#группа — participants name bots and visitors the agent ignores
+ * spec: brief/channels.md#группа — participants name bots and visitors the agent ignores
  * ref: references/hermes-agent/gateway/bot_loop_guard.py@e96221fa:L80-L90 (configured_bot_user) — hermes keeps a list of
  *      peer bots in its config; here participants keep the list of a group in the conversation, by id or @name
  */

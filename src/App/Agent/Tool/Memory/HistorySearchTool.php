@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * Searches past conversations and reads around a found message, within what this conversation's audience may see.
  * The messages come back as they were, without a model in between.
  *
- * spec: BRIEF.md#память-слои — layer 6, only by a search tool, never automatically
+ * spec: brief/memory.md#память-слои — layer 6, only by a search tool, never automatically
  * ref: references/hermes-agent/tools/session_search_tool.py@e96221fa:L816-L832 (SESSION_SEARCH_SCHEMA) — search and
  *      scroll shapes, "search before asking the user to repeat"; no browse and no whole-session read: the window is enough
  */

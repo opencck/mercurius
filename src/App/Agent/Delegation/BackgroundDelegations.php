@@ -28,7 +28,7 @@ use function Mercurius\I18n\t;
  * Delegations that run in the background: the tool answers at once, the workers go on after the orchestrator's run
  * and after a restart, and their report comes to the orchestrator's conversation as a new run.
  *
- * spec: BRIEF.md#часть-3--фоновое-делегирование
+ * spec: brief/orchestration.md#часть-3--фоновое-делегирование
  * ref: references/hermes-agent/tools/async_delegation.py@e96221fa:L985-L1002 — a cap on background delegations,
  *      refused rather than queued; here per participant, not per process
  * ref: references/hermes-agent/tools/async_delegation.py@e96221fa:L1199-L1277 — the result comes to the parent as a
@@ -283,7 +283,7 @@ final class BackgroundDelegations {
             $delegation->runId,
             UntrustedWrapper::wrap(DelegateTaskTool::NAME, $delegation->report),
         );
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a worker's report quotes what it read: its run is marked
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a worker's report quotes what it read: its run is marked
         $this->scheduler->deliver($principal, $delegation->conversationId, $text, function (int $runId) use ($delegation): void {
             $this->delegations->markDelivered($delegation->id, $runId);
             unset($this->delivering[$delegation->id]);

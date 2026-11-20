@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * The full answer of a worker whose report was cut: only of the current run's workers, or of a delegation of the same
  * conversation (a background report comes as a new run).
  *
- * spec: BRIEF.md#часть-1--синхронное-делегирование — report
+ * spec: brief/orchestration.md#часть-1--синхронное-делегирование — report
  * ref: references/hermes-agent/tools/delegate_tool_results.py@e96221fa:L254-L309 (_apply_summary_budget) — an
  *      over-cap summary keeps its head and tail and points to the full text the parent can read; here a tool instead
  *      of a file, so it works without a sandbox

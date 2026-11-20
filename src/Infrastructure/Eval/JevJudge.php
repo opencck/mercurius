@@ -15,7 +15,7 @@ use Throwable;
  * The judge of Jev (jev-ai.pro): a service made for judging, asked one choice question over the task, its criteria,
  * the agent's actions and answer. The grades are weighed by their probabilities into a score 0..1.
  *
- * spec: BRIEF.md#границы-самоулучшения — the judge may be of any provider
+ * spec: brief/decisions.md#границы-самоулучшения — the judge may be of any provider
  * Not in the references: hermes judges by a chat model only; the API is by its documentation (jev-ai.pro/docs,
  * read 2026-11-19): POST /api/v1/systemone, a choice question of options with descriptions, an answer with the choice,
  * the probabilities of the options and the confidence.

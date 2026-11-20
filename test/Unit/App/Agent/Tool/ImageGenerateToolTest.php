@@ -44,7 +44,7 @@ final class ImageGenerateToolTest extends AsyncTestCase {
     }
 
     public function testThePictureLandsInTheSandboxUnderItsName(): void {
-        // spec: BRIEF.md#категории-моделей — image generation
+        // spec: brief/models.md#категории-моделей — image generation
         $tool = $this->tool(['https://openrouter.ai/api/v1/images' => [200, [], json_encode(['data' => [['b64_json' => base64_encode('PNG'), 'media_type' => 'image/png']]], JSON_THROW_ON_ERROR)]]);
 
         $result = $tool->execute(['prompt' => 'кот в шляпе', 'name' => 'кот в шляпе!', 'aspect_ratio' => '1:1'], self::context());

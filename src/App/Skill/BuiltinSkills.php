@@ -15,7 +15,7 @@ use Psr\Log\NullLogger;
  * a changed copy lives in a folder of the participant or the project and wins over the built-in one by its name.
  * The repository's README, licence and CI are not part of the skill.
  *
- * spec: BRIEF.md#скиллы-и-mcp — built-in skills plus the folders of the participant and the project
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — built-in skills plus the folders of the participant and the project
  * ref: references/hermes-agent/optional-skills/software-development/hermes-agent-skill-authoring/SKILL.md@e96221fa:L16-L22
  *      — hermes ships skills in its repository tree; here each in a repository of its own, a submodule
  */

@@ -15,7 +15,7 @@ use function Mercurius\I18n\t;
  * Routes button presses by the prefix of their data ("ap:…" approvals, "pv:…" visitors, "pg:…" grants). Only the
  * owner may press: anyone else gets a notice and the card keeps waiting. Every press is answered.
  *
- * spec: BRIEF.md#подтверждения-и-запреты — only the owner presses; the press is always answered
+ * spec: brief/agent-loop.md#контекст — only the owner presses; the press is always answered
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221f:L4302-L4336 (_handle_callback_query) —
  *      routing by callback data prefix, answering even unknown presses so the client stops spinning
  */

@@ -59,7 +59,7 @@ final class SecretMaskerTest extends TestCase {
         self::assertStringContainsString('page=2', $masked);
     }
     public function testAKnownSecretIsMaskedByItsValueWhateverItLooksLike(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a password like any word is caught by its value
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a password like any word is caught by its value
         SecretMasker::remember('correct horse battery');
         SecretMasker::remember('short');
         $masked = SecretMasker::mask('the phrase was correct horse battery, and short stays');
@@ -80,7 +80,7 @@ final class SecretMaskerTest extends TestCase {
     }
 
     public function testTheLogHidesSecretsInItsMessageAndContext(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a log line does not carry a secret
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a log line does not carry a secret
         SecretMasker::remember('log-secret-value-123');
         $record = new \Monolog\LogRecord(new \DateTimeImmutable(), 'mercurius', \Monolog\Level::Info, 'failed with log-secret-value-123', ['error' => 'token=abcdef123456 here', 'nested' => ['x' => 'log-secret-value-123'], 'n' => 5]);
         $clean = (new \OpenCCK\Infrastructure\Logger\SecretProcessor())($record);
@@ -91,7 +91,7 @@ final class SecretMaskerTest extends TestCase {
         self::assertSame(5, $clean->context['n']);
     }
     public function testAMessageWithAHashOfACommitDoesNotCarryASecret(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a message is deleted for a secret, not for a hash
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a message is deleted for a secret, not for a hash
         self::assertFalse(SecretMasker::carriesSecret('посмотри коммит 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e'));
         self::assertFalse(SecretMasker::carriesSecret('картинка aGVsbG8gd29ybGQgdGhpcyBpcyBqdXN0IGJhc2U2NCBkYXRhIG5vdCBhIGtleQ=='));
         self::assertTrue(SecretMasker::carriesSecret('токен: 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a'));
@@ -99,7 +99,7 @@ final class SecretMaskerTest extends TestCase {
         self::assertNotSame('коммит 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e', SecretMasker::mask('коммит 3802092a1f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e'), 'output is still masked as before');
     }
     public function testTextForAnotherAgentHidesEmailsAndPhones(): void {
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — what goes to another agent carries no addresses and phones
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — what goes to another agent carries no addresses and phones
         // ref: references/hermes-agent/agent/redact.py@e96221fa:L757-L759 — the E.164 shape of a phone
         $masked = SecretMasker::forAgents('Напиши ivan.petrov+work@mail.example или позвони +79991234567, 8 (999) 123-45-67, +7 999 123 45 67. Версия 3.14.7+20260901, дата 2026-11-18, заказ 12345678.');
 

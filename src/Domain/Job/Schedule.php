@@ -14,7 +14,7 @@ use function Mercurius\I18n\t;
  * When a job runs: once at a moment, every N minutes, or every day at a local time. The next run is computed from now,
  * never from the missed ones: a downtime catches up with one run, not with every one missed.
  *
- * spec: BRIEF.md#планировщик-и-проекты — the next run is moved before the run; missed runs catch up by a rule, at most
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — the next run is moved before the run; missed runs catch up by a rule, at most
  *       once; an explicit time zone
  */
 final class Schedule {

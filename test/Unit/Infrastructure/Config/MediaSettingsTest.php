@@ -44,7 +44,7 @@ final class MediaSettingsTest extends TestCase {
     }
 
     public function testEveryProviderOfAProfileServesTheKindsAndOpenRouterDraws(): void {
-        // spec: BRIEF.md#категории-моделей — a category is a list of models of any provider, or none
+        // spec: brief/models.md#категории-моделей — a category is a list of models of any provider, or none
         $media = MediaSettings::fromEnv([
             'MEDIA_VISION_MODELS' => 'anthropic:claude-haiku-5-5, bedrock:anthropic.claude-haiku-5-5, codex:gpt-6-luna',
             'MEDIA_IMAGE_MODELS' => 'openrouter:bytedance-seed/seedream-4.5, google/gemini-3.8-image',

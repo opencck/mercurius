@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * client polls, its stderr into a window kept for the end. stdout and stderr are read at the same time, each in its
  * own fiber: a process that fills one pipe while we wait on the other would hang.
  *
- * spec: BRIEF.md#песочница — the streaming API of the executor
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API of the executor
  * ref: .claude/skills/skill-amphp/references/class-examples.md (amphp/process) — getStdin/getStdout/getStderr streams,
  *      join(); here they are read concurrently and the stdin is never ended while the session lives
  */

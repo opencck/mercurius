@@ -20,7 +20,7 @@ use OpenCCK\Test\Support\InMemoryRunRepository;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: BRIEF.md#интернет-и-браузер — a search that calls a model is a model call of the run: in llm_calls and the budget
+ * spec: brief/internet.md#интернет-и-браузер — a search that calls a model is a model call of the run: in llm_calls and the budget
  */
 final class WebSearchToolTest extends TestCase {
     private static function provider(?SearchUsage $usage): SearchProvider {

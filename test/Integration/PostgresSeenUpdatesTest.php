@@ -10,7 +10,7 @@ use OpenCCK\Infrastructure\Repository\PostgresSeenUpdates;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
- * spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — an update redelivered after a restart is not
+ * spec: brief/channels.md#канал-необязательные-возможности-и-разрезанные-тексты — an update redelivered after a restart is not
  * taken twice
  *
  * @group integration

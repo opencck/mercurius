@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * A role is one object per name: roles compare with ===, the catalog gives them titles, order and powers.
  *
- * spec: BRIEF.md#свои-роли-решение-владельца-2026-11-19
+ * spec: brief/participants.md#свои-роли-решение-владельца-2026-11-19
  */
 final class RoleTest extends TestCase {
     protected function tearDown(): void {

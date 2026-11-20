@@ -15,7 +15,7 @@ use RuntimeException;
 use function Amp\delay;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — /export: the archive comes as a file, a large one stays in exports/
+ * spec: brief/operations.md#экспорт-и-импорт-агента — /export: the archive comes as a file, a large one stays in exports/
  */
 final class ExportCommandsTest extends AsyncTestCase {
     private string $dir = '';

@@ -10,7 +10,7 @@ use DateTimeImmutable;
  * A scheduled job: what to do, when, for whom and where to report. A job by event runs on a signed webhook; the vault
  * secret that signs it is named in $hookSecret.
  *
- * spec: BRIEF.md#планировщик-и-проекты
+ * spec: brief/scheduler.md#планировщик-и-проекты-1
  */
 final class Job {
     public const ACTIVE = 'active';

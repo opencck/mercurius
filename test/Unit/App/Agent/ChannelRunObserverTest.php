@@ -32,7 +32,7 @@ final class ChannelRunObserverTest extends AsyncTestCase {
     }
 
     public function testAnAnswerOfMoreThanEightPartsGoesAsAFile(): void {
-        // spec: BRIEF.md#канал-необязательные-возможности-и-разрезанные-тексты — a long answer is a file, not a flood
+        // spec: brief/channels.md#канал-необязательные-возможности-и-разрезанные-тексты — a long answer is a file, not a flood
         $channel = new FakeChannel(maxLength: 100);
         $observer = $this->observer($channel);
         $observer->start();
@@ -47,7 +47,7 @@ final class ChannelRunObserverTest extends AsyncTestCase {
     }
 
     public function testAChannelWithoutEditsGetsOnlyWhatIsFinal(): void {
-        // spec: BRIEF.md#агентский-цикл-и-харнесс — the core reads what a channel can do: no edits, no status message
+        // spec: brief/agent-loop.md#подходы — the core reads what a channel can do: no edits, no status message
         $channel = new FakeChannel(canEdit: false);
         $observer = $this->observer($channel);
         $observer->start();

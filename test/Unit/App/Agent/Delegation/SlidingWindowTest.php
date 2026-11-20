@@ -11,7 +11,7 @@ use function Amp\delay;
 
 final class SlidingWindowTest extends AsyncTestCase {
     public function testAFreeSlotTakesTheNextJobAtOnce(): void {
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — a sliding window of three, not batches of three
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a sliding window of three, not batches of three
         $jobs = [];
         foreach ([1 => 0.6, 2 => 0.2, 3 => 0.2, 4 => 0.2] as $key => $seconds) {
             $jobs[$key] = static function () use ($key, $seconds): string {

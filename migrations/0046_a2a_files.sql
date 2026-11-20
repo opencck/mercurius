@@ -1,6 +1,6 @@
 -- Files between agents (A2A): sent ahead of a message by POST /a2a/files, or put into the answer of a task. A file is
 -- given only to the agent it is meant for (owner_id). Unused ones go after an hour, used ones after a day.
--- spec: BRIEF.md#между-агентами
+-- spec: brief/internet.md#между-агентами
 
 CREATE TABLE a2a_files (
     id text PRIMARY KEY,

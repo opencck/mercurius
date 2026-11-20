@@ -23,7 +23,7 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
     }
 
     public function testARunTakesTheRecallsMadeForItWithTheVersions(): void {
-        // spec: BRIEF.md#трассировка-и-метрики — a receipt of recall: which run got which version of which fact
+        // spec: brief/operations.md#настройки-агента — a receipt of recall: which run got which version of which fact
         $fact = $this->store->addFact('owner', \Mercurius\Memory\Domain\Fact::KNOWLEDGE, 'квитанция', ['квитанция'], 0.5, \Mercurius\Memory\Domain\Fact::AGENT, null);
         $this->store->markRecalled($this->conversationId, [$fact->id], [$fact->id => $fact->version]);
         $row = $this->db->execute('SELECT principal_id FROM conversations WHERE id = ?', [$this->conversationId])->fetchRow() ?? [];
@@ -34,7 +34,7 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
         self::assertNotNull($run);
         self::assertSame([['fact' => $fact->id, 'version' => $fact->version, 'helpful' => null]], $this->store->receipt($run->id));
 
-        // spec: BRIEF.md#память-слои — whether the answer was helped is marked on the recall, once
+        // spec: brief/memory.md#память-слои — whether the answer was helped is marked on the recall, once
         self::assertTrue($this->store->markHelpful($run->id, $fact->id, true));
         self::assertFalse($this->store->markHelpful($run->id, $fact->id, false), 'once');
         self::assertFalse($this->store->markHelpful($run->id, $fact->id + 1000, true), 'a fact the run was not given');

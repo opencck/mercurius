@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * One SSH connection per server for a series of commands, closed after it idles.
  *
- * spec: BRIEF.md#фаза-7-по-частям — a pool of SSH connections
+ * spec: brief/servers.md#фаза-7-по-частям — a pool of SSH connections
  */
 final class ConnectionPoolTest extends TestCase {
     private int $now = 1_000;

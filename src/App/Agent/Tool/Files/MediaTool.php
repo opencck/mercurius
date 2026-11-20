@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  * a document from an offset, the models and the principles. The model is chosen by the principles of the owner and the
  * participant; only the owner's models are called. What comes back is data from outside.
  *
- * spec: BRIEF.md#входящие-вложения — the media tool
+ * spec: brief/internet.md#входящие-вложения — the media tool
  * ref: references/hermes-agent/tools/vision_tools.py@e96221fa:L1-L7 — hermes has vision_analyze and video_analyze; here
  *      one tool for every kind, over the owner's list of models
  */
@@ -123,7 +123,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
         if ($vision === [] && $speech === []) {
             return self::notSet('video');
         }
-        // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — frames and sound come from the media-video module, not the sandbox
+        // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — frames and sound come from the media-video module, not the sandbox
         if ($this->video === null || !$this->video->up()) {
             return ToolResult::error(t('tool.media.no_video_module'));
         }
@@ -152,7 +152,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
         $limit = $this->prefs->settings->textLimit;
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (in_array($extension, DocsService::KINDS, true)) {
-            // spec: BRIEF.md#модули-сервисы-mcp-и-скиллы — office documents and PDF are read by the media-docs module
+            // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — office documents and PDF are read by the media-docs module
             if ($this->docs === null || !$this->docs->up()) {
                 return ToolResult::error(t('media.intake.no_docs_module'));
             }

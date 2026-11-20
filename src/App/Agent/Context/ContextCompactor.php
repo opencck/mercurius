@@ -34,7 +34,7 @@ use function Mercurius\I18n\t;
  * outside the protected tail are cut to 200 characters. If that is not enough, the middle is summarised by the cheap
  * model. Nothing is deleted: shortened texts and the summary live next to the originals.
  *
- * spec: BRIEF.md#контекст
+ * spec: brief/agent-loop.md#модели
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L3277 (_prune_old_tool_results) — prune long tool
  *      results outside the tail first, without a model; hermes drops the text, we keep 200 characters and the path
  *      of a spilled result
@@ -187,7 +187,7 @@ final class ContextCompactor {
             if ($summary === '') {
                 return null;
             }
-            // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the identifiers of the compacted part stay word for word
+            // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the identifiers of the compacted part stay word for word
             $anchors = AnchorIndex::build($text);
             return $anchors === '' ? $summary : $summary . "\n\n" . $anchors;
         } catch (CancelledException $e) {

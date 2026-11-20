@@ -20,7 +20,7 @@ use function Amp\delay;
 use function Mercurius\I18n\t;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — /import: checked, asked once more, the current state saved, then a restart
+ * spec: brief/operations.md#экспорт-и-импорт-агента — /import: checked, asked once more, the current state saved, then a restart
  */
 final class ImportCommandsTest extends AsyncTestCase {
     private const PASSWORD = 'пароль владельца 1';

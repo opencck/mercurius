@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Peer;
 /**
  * A task this agent gave a neighbour: polled until it ends, the result goes to the chat it came from.
  *
- * spec: BRIEF.md#сеть-агентов
+ * spec: brief/network.md#сеть-агентов-1
  */
 final class OutgoingTask {
     public function __construct(

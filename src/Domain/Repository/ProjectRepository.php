@@ -10,7 +10,7 @@ use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectTask;
 
 /**
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — projects, their tasks, each participant's relation
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — projects, their tasks, each participant's relation
  *       to a project, and the project a chat works on
  */
 interface ProjectRepository {
@@ -37,7 +37,7 @@ interface ProjectRepository {
     /**
      * A new name of a project; null when there is no such project.
      *
-     * spec: BRIEF.md#форум-темы--проекты — a project is renamed together with its forum topics
+     * spec: brief/channels.md#форум-темы--проекты — a project is renamed together with its forum topics
      * @throws \DomainException another project of the same owner has that name
      */
     public function rename(int $id, string $name): ?Project;

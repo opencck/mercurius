@@ -1,5 +1,5 @@
 -- Сроки задач проектов, задания по событию (webhook) и ежедневная сводка владельцу.
--- spec: BRIEF.md#планировщик-и-проекты
+-- spec: brief/scheduler.md#планировщик-и-проекты-1
 
 ALTER TABLE project_tasks ADD COLUMN due_at timestamptz;
 

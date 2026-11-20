@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
 /**
  * Stops a task this agent gave a neighbour: the neighbour gets CancelTask, the task ends as canceled here.
  *
- * spec: BRIEF.md#сеть-агентов — the leader cancels a task
+ * spec: brief/network.md#сеть-агентов-1 — the leader cancels a task
  * ref: references/hermes-agent/plugins/platforms/a2a/adapter.py@e96221fa:L802-L812 (CancelTask) — the side that does the
  *      work marks the task canceled; hermes has no tool to send it, here the leader does
  */

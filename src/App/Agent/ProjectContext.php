@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * open tasks — within a budget of its own. The chat was bound to the project by the owner, so its audience may see the
  * card; a visitor gets nothing.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the active project's card, relation and open tasks
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the active project's card, relation and open tasks
  *       in context, a change of the active project is a boundary of the snapshot
  */
 final class ProjectContext {

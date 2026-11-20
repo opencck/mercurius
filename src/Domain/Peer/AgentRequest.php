@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Peer;
  * An agent that proved its key at the entrance but is not let in yet: what it called itself, its address, how it came;
  * the owner decides once.
  *
- * spec: BRIEF.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
+ * spec: brief/network.md#незнакомый-агент-стучится-решение-владельца-2026-11-17
  */
 final class AgentRequest {
     public const PENDING = 'pending';

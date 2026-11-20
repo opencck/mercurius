@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * publishing, editing and deleting are irreversible: each waits for the owner's card with the whole post, and the owner
  * may allow an action in a channel for good ("publish in X" without asking, deletion still asked).
  *
- * spec: BRIEF.md#канал-паблик
+ * spec: brief/channels.md#канал-паблик
  */
 final class ChannelPostTool implements Tool, GrantKeyed {
     public const NAME = 'channel_post';

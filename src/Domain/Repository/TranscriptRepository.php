@@ -12,7 +12,7 @@ use OpenCCK\Domain\Agent\ToolCallStatus;
 /**
  * Messages of conversations and runs, tool calls and steering messages.
  *
- * spec: BRIEF.md#запуск-и-цикл — save before execution, history of earlier runs
+ * spec: brief/agent-loop.md#права-участника — save before execution, history of earlier runs
  */
 interface TranscriptRepository {
     public function appendUser(int $conversationId, ?int $runId, string $content, ?string $externalId = null): void;
@@ -39,7 +39,7 @@ interface TranscriptRepository {
      * What a person sent themselves through a channel since a moment, newest first: lines that came with a message id
      * of the channel, in their conversations outside groups. Lines of jobs, workers and neighbours have none.
      *
-     * spec: BRIEF.md#консолидация-dreaming — machine text is no confirmation
+     * spec: brief/memory.md#консолидация-dreaming — machine text is no confirmation
      *
      * @param positive-int $limit
      * @return list<array{string, int}> the stored text and unix seconds

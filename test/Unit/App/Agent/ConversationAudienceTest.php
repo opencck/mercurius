@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 final class ConversationAudienceTest extends TestCase {
     public function testTheKindOfAChatOutlivesARestart(): void {
-        // spec: BRIEF.md#контекст-по-месту-и-аудитории — a run after a restart keeps the memory of a private chat
+        // spec: brief/decisions.md#контекст-по-месту-и-аудитории — a run after a restart keeps the memory of a private chat
         $conversations = new InMemoryConversationRepository();
         $private = $conversations->openConversation(1, 'telegram', '42');
         $group = $conversations->openConversation(1, 'telegram', '-100');

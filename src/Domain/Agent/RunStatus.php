@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Agent;
 
 /**
- * spec: BRIEF.md#запуск-и-цикл — run statuses
+ * spec: brief/agent-loop.md#права-участника — run statuses
  */
 enum RunStatus: string {
     case Running = 'running';

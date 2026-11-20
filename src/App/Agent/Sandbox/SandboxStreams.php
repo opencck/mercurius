@@ -12,7 +12,7 @@ use SensitiveParameter;
  * Long-lived processes in the sandbox: spawn one, write to its stdin, take its stdout by long polling, close it.
  * stdio MCP servers run on this.
  *
- * spec: BRIEF.md#песочница — the streaming API of the executor
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — the streaming API of the executor
  */
 interface SandboxStreams {
     /**

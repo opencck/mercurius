@@ -13,7 +13,7 @@ use Throwable;
  * A WebSocket connection as a channel of text frames, on either side (amphp's server client and client connection
  * share the interface). A frame bigger than the limit closes the connection: an agent does not need it.
  *
- * spec: BRIEF.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
+ * spec: brief/network.md#вход-по-websocket-и-несколько-ключей-решение-владельца-2026-11-17
  */
 final class WebsocketA2aChannel implements A2aChannel {
     public const FRAME_MAX = 262_144;
@@ -37,7 +37,7 @@ final class WebsocketA2aChannel implements A2aChannel {
     public function receive(?Cancellation $cancellation = null): ?string {
         try {
             $message = $this->socket->receive($cancellation);
-            // spec: BRIEF.md#между-агентами — a large frame only after the keys are proved
+            // spec: brief/internet.md#между-агентами — a large frame only after the keys are proved
             $limit = $this->received++ < self::HANDSHAKE_FRAMES ? self::FRAME_MAX : $this->after;
             return $message?->buffer($cancellation, $limit);
         } catch (\Amp\CancelledException $e) {

@@ -13,7 +13,7 @@ use Mercurius\Memory\App\Audience;
  * Who hears a conversation, for memory: the kind of chat comes from its messages and is kept here; a conversation
  * whose kind is not known (after a restart, before its next message) counts as a group, the narrowest audience.
  *
- * spec: BRIEF.md#контекст-по-месту-и-аудитории
+ * spec: brief/decisions.md#контекст-по-месту-и-аудитории
  */
 final class ConversationAudience {
     /** @var array<int, bool> conversation => private chat */
@@ -32,7 +32,7 @@ final class ConversationAudience {
 
     public function remember(int $conversationId, bool $privateChat): void {
         if (($this->private[$conversationId] ?? null) !== $privateChat) {
-            // spec: BRIEF.md#контекст-по-месту-и-аудитории — kept, so a run after a restart knows the kind too
+            // spec: brief/decisions.md#контекст-по-месту-и-аудитории — kept, so a run after a restart knows the kind too
             $this->conversations->setPrivateChat($conversationId, $privateChat);
         }
         $this->private[$conversationId] = $privateChat;
@@ -48,7 +48,7 @@ final class ConversationAudience {
         if ($meta === null) {
             return [];
         }
-        // spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the chat's active project
+        // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the chat's active project
         $project = $this->project === null ? null : ($this->project)($principal, $meta->channel, $meta->chatId, $meta->threadId);
         return Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->isPrivate($conversationId), $project);
     }

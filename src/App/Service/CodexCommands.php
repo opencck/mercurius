@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
  * (the agent waits up to 15 minutes and says how it went), /codex — whether it is signed in, /codex logout — the tokens
  * leave the vault. The models then go by chatgpt:<model>, for example in /models or the roles.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
  */
 final class CodexCommands {
     private bool $waiting = false;

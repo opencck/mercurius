@@ -14,8 +14,8 @@ use function Mercurius\I18n\t;
 /**
  * Texts of the owner's reports: spend for a period, the latest runs, the chain of steps of one run.
  *
- * spec: BRIEF.md#трассировка-и-метрики — /usage, /runs, /trace
- * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
+ * spec: brief/operations.md#настройки-агента — /usage, /runs, /trace
+ * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — /delegation
  */
 final class TraceReports {
     public const NO_RUN = 'service.trace_reports.no_run';
@@ -51,7 +51,7 @@ final class TraceReports {
                 $lines[] = sprintf(t('service.trace_reports.tokenov'), $row['id'], self::usd($row['cost']), self::n($row['tokens']));
             }
         }
-        // spec: BRIEF.md#трассировка-и-метрики — which tools are used, which fail, which are slow
+        // spec: brief/operations.md#настройки-агента — which tools are used, which fail, which are slow
         $tools = $this->figures->toolsUsage($since);
         if ($tools !== []) {
             $lines[] = '';
@@ -68,7 +68,7 @@ final class TraceReports {
                 $lines[] = sprintf(t('service.trace_reports.longest_row'), $row['kind'], $row['name'], self::seconds($row['ms']), $row['run']);
             }
         }
-        // spec: BRIEF.md#трассировка-и-метрики — did a new prompt make the agent dearer
+        // spec: brief/operations.md#настройки-агента — did a new prompt make the agent dearer
         $versions = $this->figures->usageByPromptVersion($since);
         if ($versions !== []) {
             $lines[] = '';
@@ -89,7 +89,7 @@ final class TraceReports {
     /**
      * Spend split by topic, chat, project, participant, model or day for a period, with the total.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — spend by topics, projects, participants and periods
+     * spec: brief/operations.md#настройки-агента — spend by topics, projects, participants and periods
      */
     public function breakdown(\OpenCCK\Domain\Agent\SpendQuery $query, string $scope): string {
         $rows = $this->figures->breakdown($query);
@@ -135,7 +135,7 @@ final class TraceReports {
     /**
      * The latest top-level runs, of a status if one is named.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /runs <count> <status>
+     * spec: brief/operations.md#настройки-агента — /runs <count> <status>
      */
     public function runs(int $limit = 10, ?string $status = null): string {
         return $this->runLines($this->figures->recentRuns(max(1, min(50, $limit)), $status !== null && in_array($status, self::RUN_STATUSES, true) ? $status : null), t('service.trace_reports.poslednie_zapuski'));
@@ -144,7 +144,7 @@ final class TraceReports {
     /**
      * Named runs with their money and the total: the spend of a task is the sum of its runs, workers included.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — the spend of a task is counted, never estimated
+     * spec: brief/operations.md#настройки-агента — the spend of a task is counted, never estimated
      *
      * @param list<int> $ids
      */
@@ -190,7 +190,7 @@ final class TraceReports {
     /**
      * Whether delegation pays: how often the agent split tasks, how workers ended by model, what they cost.
      *
-     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — /delegation
+     * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — /delegation
      */
     public function delegation(int $days): string {
         $days = max(1, min(90, $days));
@@ -203,7 +203,7 @@ final class TraceReports {
             sprintf(t('service.trace_reports.vorkerov_povtorov_kaskada_fonovyh_delegi'), $f['workers'], $f['cascades'], $f['background']),
             sprintf(t('service.trace_reports.proveryayuschih_otklonili_otvet'), $f['verifiers'], $f['rejected']),
         ];
-        // spec: BRIEF.md#трассировка-и-метрики — how much of a delegating run the orchestrator itself spends
+        // spec: brief/operations.md#настройки-агента — how much of a delegating run the orchestrator itself spends
         $tokens = $this->figures->delegationTokens($since);
         if ($tokens['orchestrator'] + $tokens['workers'] > 0) {
             $lines[] = sprintf(t('service.trace_reports.orchestrator_share'), self::share($tokens['orchestrator'], $tokens['orchestrator'] + $tokens['workers']), self::n($tokens['orchestrator']), self::n($tokens['workers']));
@@ -225,7 +225,7 @@ final class TraceReports {
                 );
             }
         }
-        // spec: BRIEF.md#трассировка-и-метрики — did a new prompt change how the agent delegates
+        // spec: brief/operations.md#настройки-агента — did a new prompt change how the agent delegates
         $versions = $this->figures->delegationByPromptVersion($since);
         if ($versions !== []) {
             $lines[] = '';
@@ -239,7 +239,7 @@ final class TraceReports {
 
     /** The steps of a run in order; null when the run has no trace. */
     public function trace(int $runId): ?string {
-        // spec: BRIEF.md#несколько-пользователей — the private chats of a former owner stay theirs
+        // spec: brief/participants.md#несколько-пользователей — the private chats of a former owner stay theirs
         if ($this->hiddenRun !== null && ($this->hiddenRun)($runId)) {
             return null;
         }
@@ -253,10 +253,10 @@ final class TraceReports {
         foreach ($spans as $span) {
             $cost += $span->costUsd ?? 0.0;
             if ($span->kind !== TraceSpan::RUN) {
-                // spec: BRIEF.md#трассировка-и-метрики — numbered, so /trace <run> <step> can name one
+                // spec: brief/operations.md#настройки-агента — numbered, so /trace <run> <step> can name one
                 $number++;
             }
-            // spec: BRIEF.md#трассировка-и-метрики — nested traces: a worker's steps under its step, its spend in the sum
+            // spec: brief/operations.md#настройки-агента — nested traces: a worker's steps under its step, its spend in the sum
             if ($span->kind === TraceSpan::WORKER) {
                 $lines[] = $number . '. ' . sprintf('%s %s — %s, %s', $span->kind, $span->name, $span->status, self::seconds($span->durationMs ?? 0))
                     . (isset($span->attrs['model']) && is_string($span->attrs['model']) ? ', ' . $span->attrs['model'] : '');
@@ -271,19 +271,19 @@ final class TraceReports {
                 continue;
             }
             if ($span->kind === TraceSpan::RUN) {
-                // spec: BRIEF.md#выбор-моделей-под-задачу — why this model: every decision taken for the run
+                // spec: brief/models.md#выбор-моделей-под-задачу — why this model: every decision taken for the run
                 $why = array_map(static fn(array $d): string => sprintf(t('service.trace_reports.model_chosen'), $d['model'], $d['method'], $d['reason']), $this->figures->decisions($runId));
                 array_unshift($lines, sprintf(t('service.trace_reports.zapusk'), $runId, $span->name, $span->status, $span->durationMs === null ? t('service.trace_reports.idet') : self::seconds($span->durationMs)), ...$why, ...['']);
                 continue;
             }
             $lines[] = $number . '. ' . self::step($span);
         }
-        // spec: BRIEF.md#сеть-агентов — the spend of the neighbours in the same unit as the own steps
+        // spec: brief/network.md#сеть-агентов-1 — the spend of the neighbours in the same unit as the own steps
         foreach ($this->peers?->outgoingOfRun($runId) ?? [] as $remote) {
             $cost += $remote['usd'] ?? 0.0;
             $lines[] = sprintf(t('service.trace_reports.remote'), $remote['peer'], $remote['remote'], $remote['run'] === null ? '?' : '#' . $remote['run'], $remote['state'], $remote['tokens'], $remote['usd'] === null ? '?' : self::usd($remote['usd']));
         }
-        // spec: BRIEF.md#сеть-агентов — a task from a neighbour names the leader's run and the task it works on
+        // spec: brief/network.md#сеть-агентов-1 — a task from a neighbour names the leader's run and the task it works on
         $given = $this->peers?->taskByRun($runId);
         if ($given !== null && ($given->leaderRun !== null || $given->parentTask !== null)) {
             $lines[] = sprintf(t('service.trace_reports.from_leader'), $given->id, $given->leaderRun === null ? '?' : '#' . $given->leaderRun, $given->parentTask ?? '—');
@@ -297,7 +297,7 @@ final class TraceReports {
      * The full prompt and answer of a numbered step of a run, as JSON; null — there is no such step. A step without
      * them (a tool, or a payload past its keeping time) says so.
      *
-     * spec: BRIEF.md#трассировка-и-метрики — /trace <run> <step>
+     * spec: brief/operations.md#настройки-агента — /trace <run> <step>
      *
      * @return array{json: ?string, note: ?string}|null
      */

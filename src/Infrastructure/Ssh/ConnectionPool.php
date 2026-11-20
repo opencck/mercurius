@@ -10,7 +10,7 @@ use Closure;
  * Connections kept open between commands, one per key (a server with its login and route): a series of commands goes
  * through one connection, its channels shared up to a limit; one that idled past the limit, died or broke is closed.
  *
- * spec: BRIEF.md#фаза-7-по-частям — a pool of SSH connections
+ * spec: brief/servers.md#фаза-7-по-частям — a pool of SSH connections
  * ref: references/hermes-agent/tools/environments/ssh.py@e96221fa:L174-L180 (_build_ssh_command) — ControlMaster=auto
  *      with ControlPersist=300: commands share one connection that lives on a while after the last; here 90 seconds,
  *      within the pool of the process instead of a control socket

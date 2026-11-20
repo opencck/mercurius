@@ -29,7 +29,7 @@ use function Amp\delay;
 use function Mercurius\I18n\t;
 
 /**
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — Codex through the owner's ChatGPT subscription
  */
 final class CodexTest extends AsyncTestCase {
     private Vault $vault;

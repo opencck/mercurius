@@ -23,8 +23,8 @@ use function Mercurius\I18n\t;
  * Hard needs (tools, images, audio, window, a price not above the strong role's) filter first; thresholds are taken
  * among the models left. Nothing fits, or the catalog has no index for a demanding score — the strong role.
  *
- * spec: BRIEF.md#часть-2--профиль-задачи-выбор-модели-каскад
- * spec: BRIEF.md#выбор — hard needs, then the cheapest capable model with a margin growing with the cost of error
+ * spec: brief/orchestration.md#часть-2--профиль-задачи-выбор-модели-каскад
+ * spec: brief/models.md#выбор — hard needs, then the cheapest capable model with a margin growing with the cost of error
  */
 final class ModelSelector {
     /** Axis => catalog index that measures it. */
@@ -72,14 +72,14 @@ final class ModelSelector {
         $window = $profile->score('context') > 1 ? 2 ** ($profile->score('context') + 12) : 0;
         $ceiling = $this->ceiling();
         $unreliable = $this->unreliable();
-        // spec: BRIEF.md#выбор-моделей-под-задачу — a part with tools does not get a model whose tool calls the catalog
+        // spec: brief/models.md#выбор-моделей-под-задачу — a part with tools does not get a model whose tool calls the catalog
         //       saw fail their schemas too often; a model named outright is not chosen here
         $toolsBad = $needsTools ? array_flip($this->catalog->toolUnreliable()) : [];
-        // spec: BRIEF.md#выбор — urgency: the catalog has no latency, our own calls do
+        // spec: brief/models.md#выбор — urgency: the catalog has no latency, our own calls do
         $slow = $profile->score('urgency') >= self::URGENT ? $this->slow() : [];
         // Thresholds come from the models that could be chosen at all, so a top score is reachable. Models that often
         // failed here stay in that set: dropping them would lower the bar for the rest.
-        // spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai — every provider with a key; refs keep the provider
+        // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — every provider with a key; refs keep the provider
         $eligible = [];
         $providerOf = [];
         foreach ($this->roles->providers() as $provider) {
@@ -154,7 +154,7 @@ final class ModelSelector {
      * Models that failed workers here too often: the catalog's benchmarks do not show a provider that keeps
      * dropping requests.
      *
-     * spec: BRIEF.md#часть-4--проверяющий-и-данные-трасс — failure rates in the choice
+     * spec: brief/orchestration.md#часть-4--проверяющий-и-данные-трасс — failure rates in the choice
      *
      * @return array<string, true> model refs
      */

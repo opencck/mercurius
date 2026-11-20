@@ -8,7 +8,7 @@ use OpenCCK\App\Job\HookFilter;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: BRIEF.md#планировщик-и-проекты — a webhook of a job is filtered by its event and fields before the model runs
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — a webhook of a job is filtered by its event and fields before the model runs
  */
 final class HookFilterTest extends TestCase {
     private const PUSH = ['ref' => 'refs/heads/master', 'repository' => ['full_name' => 'opencck/mercurius'], 'action' => 'opened'];

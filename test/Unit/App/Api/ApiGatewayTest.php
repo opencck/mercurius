@@ -23,7 +23,7 @@ use OpenCCK\Test\Support\RecordingConnection;
  * The second channel: a participant connects to the WebSocket API with a key the owner issued and talks to the agent
  * in a chat of their own, with the rights they have in Telegram.
  *
- * spec: BRIEF.md#второй-канал-websocket-api
+ * spec: brief/operations.md#второй-канал-websocket-api
  */
 final class ApiGatewayTest extends AsyncTestCase {
     private InMemoryPrincipalRepository $principals;
@@ -89,7 +89,7 @@ final class ApiGatewayTest extends AsyncTestCase {
         $gateway->frame($laptop, '{"type":"message","text":"раз"}');
         self::assertCount(1, $this->messages);
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a revoked key stops working on a connection already open
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a revoked key stops working on a connection already open
         self::assertTrue($this->keys->revoke($first[1]));
         self::assertSame(['laptop'], $closed->getArrayCopy(), 'the connections of that key close, the others stay');
         $gateway->frame($laptop, '{"type":"message","text":"два"}');

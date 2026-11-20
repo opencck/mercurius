@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * How a provider caches the prefix of a conversation.
  *
- * spec: BRIEF.md#провайдеры-моделей-openrouter-и-openai
+ * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai
  */
 enum PromptCache: string {
     /** Claude: only when asked — a mark on the system prompt and a top-level `cache_control` that follows the tail. */

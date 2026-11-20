@@ -78,7 +78,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         ]);
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a secret goes over http too: the owner's card names the host
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a secret goes over http too: the owner's card names the host
         $plain = $tool->execute(['url' => 'http://example.com/plain', 'secret' => 'key'], self::context());
         self::assertStringContainsString('plain ok', $plain->content);
 
@@ -107,7 +107,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
             'body' => 'username={{secret:panel-user}}&password={{secret:panel-pass}}',
         ];
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a login form: several secrets in the body, one card for them all
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a login form: several secrets in the body, one card for them all
         self::assertSame(DangerClass::Irreversible, $tool->danger($form));
         self::assertSame('http-secret:panel-pass,panel-user example.com', $tool->grantKey($form), 'the grant names every secret and the host');
         self::assertStringContainsString('panel-user', $tool->describe($form));
@@ -140,7 +140,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         ]);
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']));
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — the session a server gives stays with the code, not the model
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — the session a server gives stays with the code, not the model
         $login = $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST', 'body' => 'a=b'], self::context());
         self::assertStringNotContainsString('SESSIONVALUE', $login->content);
         $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], self::context());
@@ -163,7 +163,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         ]);
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']));
 
-        // spec: BRIEF.md#решения-по-доработкам-2026-11-18 — a model shortens long strings when it copies them, so the
+        // spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — a model shortens long strings when it copies them, so the
         //       token of a page is not left to it: the code sends it with the next change to that host
         $tool->execute(['url' => 'https://example.com/panel/'], self::context());
         $tool->execute(['url' => 'https://example.com/panel/login', 'method' => 'POST', 'body' => '{}'], self::context());

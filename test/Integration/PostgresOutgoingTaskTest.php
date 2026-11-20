@@ -10,7 +10,7 @@ use OpenCCK\Test\Support\TestDatabase;
 use PHPUnit\Framework\Assert;
 
 /**
- * spec: BRIEF.md#подключения-агентов-решение-владельца-2026-11-17 — a task goes to an agent that connected here too,
+ * spec: brief/network.md#подключения-агентов-решение-владельца-2026-11-17 — a task goes to an agent that connected here too,
  * though it is not a neighbour in peers
  *
  * @group integration

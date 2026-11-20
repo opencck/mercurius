@@ -9,8 +9,8 @@ use SensitiveParameter;
 /**
  * Memory: the key of the fingerprints a forgotten text leaves behind, and the share of HRR in recall.
  *
- * spec: BRIEF.md#память-слои — forgetting removes the text; a keyed fingerprint keeps it from being stored again
- * spec: BRIEF.md#hrr-с-самого-начала — the weight of HRR is a setting, not a constant
+ * spec: brief/memory.md#память-слои — forgetting removes the text; a keyed fingerprint keeps it from being stored again
+ * spec: brief/memory.md#hrr-с-самого-начала — the weight of HRR is a setting, not a constant
  */
 final class MemorySettings {
     private readonly ?string $secret;
@@ -40,7 +40,7 @@ final class MemorySettings {
         if ($hour !== null && (!ctype_digit($hour) || (int) $hour > 23)) {
             throw new ConfigException('MEMORY_CHECK_HOUR must be an hour from 0 to 23');
         }
-        // spec: BRIEF.md#всегда-в-контексте — not small by default (hermes keeps 2200); the owner changes it
+        // spec: brief/memory.md#всегда-в-контексте — not small by default (hermes keeps 2200); the owner changes it
         $limit = Env::positiveInt($env, 'MEMORY_FILE_LIMIT', 8000, 100_000);
         if ($limit < 500) {
             throw new ConfigException('MEMORY_FILE_LIMIT must be at least 500 characters');

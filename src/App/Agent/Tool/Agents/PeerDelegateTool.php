@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
 /**
  * Gives a task to a neighbouring agent over A2A and returns at once; the answer comes to this chat later, as data.
  *
- * spec: BRIEF.md#сеть-агентов — a remote agent as a worker; remote delegation is always in the background
+ * spec: brief/network.md#сеть-агентов-1 — a remote agent as a worker; remote delegation is always in the background
  */
 final class PeerDelegateTool implements Tool, ReadsOutside {
     public const NAME = 'peer_delegate';
@@ -57,7 +57,7 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         return Args::string($args, 'peer') === null ? DangerClass::Read : DangerClass::Write;
     }
 
-    /** spec: BRIEF.md#подтверждения-и-запреты — the answer of another agent is outside text */
+    /** spec: brief/agent-loop.md#контекст — the answer of another agent is outside text */
     public function readsOutside(array $args): bool {
         return true;
     }
@@ -88,7 +88,7 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
             return ToolResult::error(t('tool.peer_call.bad_reply_to'));
         }
         try {
-            // spec: BRIEF.md#между-агентами — files of the sandbox go with the task
+            // spec: brief/internet.md#между-агентами — files of the sandbox go with the task
             $files = SandboxFiles::read($this->sandbox, $args, $context);
             $out = $this->network->delegate($context->principal, $peer, $task, $meta->channel, $meta->chatId, $parent === null ? 0 : $parent->depth, $parent === null ? [] : $parent->path, $files, $context->runId, false, $contextId, $context->policy?->run->tokenBudget, $parent?->id);
         } catch (DomainException | RuntimeException $e) {

@@ -1,5 +1,5 @@
 -- У темы форума своя беседа и свой активный проект. Пустая строка — личный чат, обычная группа и тема General.
--- spec: BRIEF.md#форум-темы--проекты
+-- spec: brief/channels.md#форум-темы--проекты
 
 ALTER TABLE conversations ADD COLUMN thread_id text NOT NULL DEFAULT '';
 DROP INDEX conversations_one_open_per_chat;

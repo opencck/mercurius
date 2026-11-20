@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * that asked, as outside data. Writing to the owner is a write; to anyone else it waits for the owner's card and can be
  * granted per person.
  *
- * spec: BRIEF.md#личные-сообщения-участникам
+ * spec: brief/channels.md#личные-сообщения-участникам
  * ref: references/hermes-agent/tools/send_message_tool.py@e96221fa:L208-L304 (_handle_send), L429-L440
  *      (_mirror_sent_message) — send to a resolved target and keep the conversation aware of what was sent; hermes
  *      mirrors the text into the target's session, here the recipient's answer is relayed back to the asking one
@@ -96,7 +96,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
-        // spec: BRIEF.md#личные-сообщения-участникам — not only text and not only people: files, and other agents
+        // spec: brief/channels.md#личные-сообщения-участникам — not only text and not only people: files, and other agents
         try {
             $files = SandboxFiles::read($this->sandbox, $args, $context);
         } catch (\RuntimeException $e) {

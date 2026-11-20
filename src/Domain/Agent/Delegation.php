@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Agent;
 /**
  * A background delegation: workers of one delegate_task call that outlive the orchestrator's run and a restart.
  *
- * spec: BRIEF.md#часть-3--фоновое-делегирование
+ * spec: brief/orchestration.md#часть-3--фоновое-делегирование
  */
 final class Delegation {
     public const RUNNING = 'running';

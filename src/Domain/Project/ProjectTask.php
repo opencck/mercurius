@@ -9,8 +9,8 @@ use DateTimeImmutable;
 /**
  * A task of a project: a tree of subtasks, a profile for choosing models, a result when closed, a deadline if set.
  *
- * spec: BRIEF.md#проекты-задачи-и-отношение-участника-к-проекту
- * spec: BRIEF.md#планировщик-и-проекты — deadlines go to the daily summary
+ * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту
+ * spec: brief/scheduler.md#планировщик-и-проекты-1 — deadlines go to the daily summary
  */
 final class ProjectTask {
     public const OPEN = 'open';

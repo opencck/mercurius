@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
  * One tool result takes at most 15% of the model's window, the results of a turn at most 30%, as in hermes; a small
  * model still gets a usable result, a big one keeps the fixed ceilings.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18
  */
 final class ResultBudgetTest extends TestCase {
     public function testTheCeilingsFollowTheWindow(): void {

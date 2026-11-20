@@ -8,7 +8,7 @@ namespace OpenCCK\Domain\Repository;
  * Cookies that servers gave to http_request, kept by scope (a project, else a participant) and host: a session the
  * agent logged into stays for the next requests of that project or participant, and the model never sees it.
  *
- * spec: BRIEF.md#решения-по-доработкам-2026-11-18 — cookies of http_request are kept like browser profiles
+ * spec: brief/decisions.md#решения-по-доработкам-2026-11-18 — cookies of http_request are kept like browser profiles
  */
 interface HttpCookieRepository {
     /** @return array<string, string> name => value of the live cookies of this scope and host */

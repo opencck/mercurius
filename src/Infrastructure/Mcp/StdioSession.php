@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * read all the time in their own fiber, whatever comes — answers, notifications, requests of the server — so the
  * process never stalls on a full pipe. A process that ended fails everything that waits, with the tail of its stderr.
  *
- * spec: BRIEF.md#скиллы-и-mcp — stdio servers in the sandbox
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — stdio servers in the sandbox
  * ref: .claude/skills/skill-amphp/docs/common-mistakes.md (18. receive buffer deadlock, 19. Future::ignore) — the
  *      output is always drained; background fibers are ignored so their failures do not bring the process down
  */

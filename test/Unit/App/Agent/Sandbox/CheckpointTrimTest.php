@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * At most 20 snapshots of a working folder: the oldest go, the rest keep their files, messages and dates.
  *
- * spec: BRIEF.md#скиллы-и-mcp — the limit of snapshots, as hermes max_snapshots = 20
+ * spec: brief/skills-mcp.md#скиллы-и-mcp — the limit of snapshots, as hermes max_snapshots = 20
  */
 final class CheckpointTrimTest extends TestCase {
     private string $dir = "";

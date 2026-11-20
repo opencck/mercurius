@@ -17,7 +17,7 @@ use OpenCCK\Domain\Entity\Role;
  * The agent learns about itself on demand: an index of topics, then a topic with what is true now; the prompt holds
  * only the pointer.
  *
- * spec: BRIEF.md#знания-агента-о-себе
+ * spec: brief/agent-loop.md#агентский-цикл-и-харнесс
  */
 final class SelfInfoToolTest extends AsyncTestCase {
     public function testAnIndexThenATopicWithWhatIsTrueNow(): void {

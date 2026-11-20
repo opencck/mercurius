@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  * as what it is: a photo, audio, video, a voice message, an animation or a document — by `as`, or guessed by the name.
  * To this chat or to the owner it is an answer; to anyone else it waits for the owner's card, granted per person.
  *
- * spec: BRIEF.md#личные-сообщения-участникам — not only text: everything the messenger carries
+ * spec: brief/channels.md#личные-сообщения-участникам — not only text: everything the messenger carries
  * ref: references/hermes-agent/tools/send_message_tool.py@e96221fa:L490-L541 (_send_live_adapter_media) — media go
  *      to the target through the platform's adapter by their type; here the type is chosen or guessed by extension
  */
@@ -89,7 +89,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
 
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
         $to = Args::string($args, 'to');
-        // spec: BRIEF.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
+        // spec: brief/internet.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
         if (($to === null || $to === '') && $this->answerTask !== null && $this->conversations->meta($context->conversationId)?->channel === 'a2a') {
             $path = Args::string($args, 'path') ?? '';
             $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, self::MAX_BYTES, $context->cancellation);

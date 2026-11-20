@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * Talks to the sandbox executor over the sandbox network with a bearer token. Cancelling an exec also asks the
  * executor to kill the command.
  *
- * spec: BRIEF.md#песочница — executor behind a token
+ * spec: brief/agent-loop.md#подтверждения-и-запреты — executor behind a token
  */
 final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv {
     private const FILE_TIMEOUT = 60;
@@ -145,7 +145,7 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
     /**
      * The working folders of all participants as tar.gz into $file, streamed: for the archive of the agent.
      *
-     * spec: BRIEF.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
+     * spec: brief/operations.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
      * @throws SandboxFailure
      */
     public function archive(string $file, Cancellation $cancellation): void {
@@ -171,7 +171,7 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
     /**
      * The working folders back from a tar.gz of archive(), unpacked over the workspace by the executor.
      *
-     * spec: BRIEF.md#экспорт-и-импорт-агента — a full import brings the working folders back
+     * spec: brief/operations.md#экспорт-и-импорт-агента — a full import brings the working folders back
      * @throws SandboxFailure
      */
     public function unarchive(string $file, Cancellation $cancellation): void {

@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 final class WorkerReportsTest extends TestCase {
     public function testTheShareOfEachPartFollowsTheRoomLeftInTheOrchestratorsWindow(): void {
-        // spec: BRIEF.md#часть-1--синхронное-делегирование — min(4000, free room ÷ number of parts)
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — min(4000, free room ÷ number of parts)
         $long = str_repeat('x', 10_000);
         $reports = [new WorkerReport(1, 11, 'done', 'm', 1, 10, $long), new WorkerReport(2, 12, 'done', 'm', 1, 10, $long)];
 

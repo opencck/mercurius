@@ -15,7 +15,7 @@ use Throwable;
  * Runs the check of memory once a night, at the given hour of UTC; a night missed while the app was down is checked
  * soon after the start.
  *
- * spec: BRIEF.md#консолидация-dreaming — once a night; nothing to do, nothing done
+ * spec: brief/memory.md#консолидация-dreaming — once a night; nothing to do, nothing done
  */
 final class MemoryConsolidationModule implements AppModuleInterface {
     /** seconds after the start before a missed night is checked: the app settles first */

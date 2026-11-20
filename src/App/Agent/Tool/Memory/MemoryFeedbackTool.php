@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  * The agent marks a fact it used: useful raises its trust a little, not useful lowers it twice as much; a fact under
  * the threshold is no longer recalled. Only facts the conversation may see, once per fact in a run.
  *
- * spec: BRIEF.md#память-слои — trust of a fact follows its use
+ * spec: brief/memory.md#память-слои — trust of a fact follows its use
  * ref: references/hermes-plugin-holographic/store.py@4a794f8:L694-L709 (record_feedback) — +0.05 and a count, −0.10,
  *      clamped to [0, 1], the time of the change stays. Here no «confirmed»: what a person confirms goes through the
  *      owner's card (memory_propose)
@@ -80,7 +80,7 @@ final class MemoryFeedbackTool implements Tool {
         if ($trust === null) {
             return ToolResult::error(sprintf(t('tool.memory_feedback.not_found'), $id));
         }
-        // spec: BRIEF.md#память-слои — the recall journal keeps whether the answer was helped; a fact found by
+        // spec: brief/memory.md#память-слои — the recall journal keeps whether the answer was helped; a fact found by
         //       memory_search was not recalled into the run and has no line to mark
         $this->store->markHelpful($context->runId, $id, $useful);
         return ToolResult::ok(sprintf(t($trust < Recall::MIN_TRUST - 1e-9 ? 'tool.memory_feedback.sunk' : 'tool.memory_feedback.done'), $id, $trust));

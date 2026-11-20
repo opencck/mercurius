@@ -16,7 +16,7 @@ use function Amp\Http\Server\FormParser\parseContentBoundary;
  * Files between agents: an upload ahead of a message (multipart/form-data), parts that refer to an upload
  * (`url: a2a-file:<number>`) or carry the bytes (`raw`), files of an answer.
  *
- * spec: BRIEF.md#между-агентами
+ * spec: brief/internet.md#между-агентами
  */
 final class A2aFiles {
     /** a file and all files of one message, as Telegram */

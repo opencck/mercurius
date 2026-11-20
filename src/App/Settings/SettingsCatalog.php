@@ -10,7 +10,7 @@ use function Mercurius\I18n\t;
  * The settings the owner changes in the dialog. Everything else stays in .env: the link to Telegram (the first
  * setup goes through it), the database, Compose, the vault master key, the tokens the sandbox and browser read.
  *
- * spec: BRIEF.md#настройки-агента
+ * spec: brief/operations.md#трассировка-и-метрики
  */
 final class SettingsCatalog {
     public const SECRET = 'secret';
@@ -85,7 +85,7 @@ final class SettingsCatalog {
         'BRAVE_SEARCH_API_KEY' => ['search', self::SECRET, 'settings.about.brave_search_api_key'],
         'TAVILY_API_KEY' => ['search', self::SECRET, 'settings.about.tavily_api_key'],
         'WEB_SEARCH_MODEL' => ['search', self::TEXT, 'settings.about.web_search_model'],
-        // spec: BRIEF.md#входящие-вложения — media models are unset by default
+        // spec: brief/internet.md#входящие-вложения — media models are unset by default
         'MEDIA_VISION_MODELS' => ['media', self::TEXT, 'settings.about.media_vision_models'],
         'MEDIA_IMAGE_MODELS' => ['media', self::TEXT, 'settings.about.media_image_models'],
         'MEDIA_VIDEO_MODELS' => ['media', self::TEXT, 'settings.about.media_video_models'],

@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
  * for every value. A secret is read by its
  * author and the owner, and only by code that needs it at the moment of a call — the model never gets the value.
  *
- * spec: BRIEF.md#фаза-7-по-частям — a secret is its own kind of record, kept encrypted, rights of its author and the
+ * spec: brief/servers.md#фаза-7-по-частям — a secret is its own kind of record, kept encrypted, rights of its author and the
  *       owner; the master key is SECRETS_KEY in .env
  */
 final class Vault {
@@ -103,7 +103,7 @@ final class Vault {
     /**
      * The author reads their secret; the owner reads everyone's but a former owner's.
      *
-     * spec: BRIEF.md#несколько-пользователей — the personal stays with the former owner
+     * spec: brief/participants.md#несколько-пользователей — the personal stays with the former owner
      */
     private function mayRead(?int $author, Principal $reader): bool {
         return $author === $reader->id || ($reader->isOwner() && ($this->hidden === null || !($this->hidden)($author)));

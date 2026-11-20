@@ -15,7 +15,7 @@ use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use RuntimeException;
 
 /**
- * spec: BRIEF.md#экспорт-и-импорт-агента — a partial import: the owner's memory or skills, nothing else replaced
+ * spec: brief/operations.md#экспорт-и-импорт-агента — a partial import: the owner's memory or skills, nothing else replaced
  */
 final class PartialImportTest extends AsyncTestCase {
     /** the pg_restore scripts of the archive's tables */

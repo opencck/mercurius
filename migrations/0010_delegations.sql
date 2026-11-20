@@ -1,5 +1,5 @@
 -- Фоновые делегирования: переживают перезапуск, результат доставляется в беседу оркестратора.
--- spec: BRIEF.md#часть-3--фоновое-делегирование
+-- spec: brief/orchestration.md#часть-3--фоновое-делегирование
 
 CREATE TABLE delegations (
     id bigserial PRIMARY KEY,
