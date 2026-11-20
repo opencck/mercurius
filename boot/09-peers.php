@@ -89,7 +89,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     static fn(int $principalId): ?\OpenCCK\Domain\Agent\SandboxLimits => ($p = $principals->find($principalId)) === null ? null : $policies->forPrincipal($p)->sandbox,
 );
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
-// spec: brief/network.md#вызов-и-раздача-соседям — call one neighbour and wait, or give parts to several and merge (decision В9)
+// spec: brief/network.md#вызов-и-раздача-соседям — call one neighbour and wait, or give parts to several and merge
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($peerNetwork, $peerRepository, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerOrchestrateTool($peerNetwork, $peerRepository, $conversations));
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerCancelTool($peerNetwork));

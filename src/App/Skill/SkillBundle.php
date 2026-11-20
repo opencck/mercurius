@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/tools/skills_hub_github.py@e96221fa:L190-L205 (_skip_bundle_file, _tree_members) —
  *      dotfiles, bytecode and __pycache__ never ship; a path leaving the skill rejects the bundle
  * ref: references/hermes-agent/tools/skills_guard.py@e96221fa:L614-L615 — hermes caps 50 files, 256 KB a file, 5 MB in
- *      all; here no cap by default (owner's decision 2026-11-19: a skill of 140 files was refused), the owner may cap the
+ *      all; here no cap by default (a skill of 140 files was refused), the owner may cap the
  *      number of files with SKILL_MAX_FILES
  */
 final class SkillBundle {

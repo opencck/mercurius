@@ -58,7 +58,7 @@ final class SetModelRoleTool implements Tool, GrantKeyed {
 
     /**
      * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
-     * action and its target (owner's decision 2026-11-17)
+     * action and its target
      */
     public function grantKey(array $args): ?string {
         $role = Args::string($args, 'role') ?? '';

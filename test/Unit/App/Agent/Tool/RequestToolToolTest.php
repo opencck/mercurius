@@ -36,7 +36,7 @@ final class RequestToolToolTest extends AsyncTestCase {
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $this->tool = new RequestToolTool($this->registry, $this->policies);
         $this->registry->register($this->tool);
-        $this->agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'mercurius-rekryt');
+        $this->agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'mercurius-second');
     }
 
     private function context(): ToolContext {
@@ -44,12 +44,12 @@ final class RequestToolToolTest extends AsyncTestCase {
     }
 
     public function testItAsksTheOwnerWithACardAndTheReason(): void {
-        $args = ['tool' => 'peer_links', 'reason' => 'открыть подключение к doorotar'];
+        $args = ['tool' => 'peer_links', 'reason' => 'открыть подключение к neighbour'];
 
         self::assertSame(DangerClass::Irreversible, $this->tool->danger($args));
         self::assertNull($this->tool->grantKey($args), 'every request is the owner\'s own decision');
         self::assertStringContainsString('peer_links', $this->tool->describe($args));
-        self::assertStringContainsString('открыть подключение к doorotar', $this->tool->describe($args));
+        self::assertStringContainsString('открыть подключение к neighbour', $this->tool->describe($args));
         /** @var array{properties: array{tool: array{enum: list<string>}}} $schema */
         $schema = $this->tool->definition()->parameters;
         self::assertSame(['peer_links', 'read_file'], $schema['properties']['tool']['enum'], 'any tool but itself');

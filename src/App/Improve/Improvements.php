@@ -21,7 +21,7 @@ use function Amp\async;
 use function Mercurius\I18n\t;
 
 /**
- * The agent proposes, the owner decides (owner's decision 2026-11-18). A proposal is a card in the owner's chat:
+ * The agent proposes, the owner decides. A proposal is a card in the owner's chat:
  * - `prompt` — a new version of the notes to the system prompt; on "accept" the evaluation set runs the current
  *   version against the candidate, and the candidate becomes active only when no category got worse beyond the noise;
  * - `setting` — a value of a setting, kept on "accept" (applies after a restart);

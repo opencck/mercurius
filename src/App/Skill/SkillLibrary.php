@@ -31,7 +31,7 @@ use function Mercurius\I18n\t;
  * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills are files: built-in ones plus the folders of the participant and the project
  */
 final class SkillLibrary {
-    /** spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the layout of skills (owner's decision В14) */
+    /** spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the layout of skills */
     public const MINE = '.mercurius/skills';
     /** where the participant's skills were before 2026-11-19; SkillFolders moves them */
     public const LEGACY_MINE = 'skills';

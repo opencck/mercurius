@@ -32,7 +32,7 @@ final class ArchiveSkillSource implements SkillSource {
 
     public function fetch(string $url, Cancellation $cancellation): SkillBundle {
         $request = new Request(trim($url));
-        // no size limit (owner's decision 2026-11-19)
+        // no size limit
         $request->setBodySizeLimit(0);
         $request->setHeader('User-Agent', 'mercurius-agent');
         $response = $this->http->request($request, $cancellation);

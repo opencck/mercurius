@@ -26,7 +26,7 @@ use function Mercurius\I18n\t;
 /**
  * A stranger who writes becomes a pending visitor, and the owner gets one card: let them talk (no tools), make them a
  * user or an admin, or refuse. Until the owner decides, the stranger gets a short notice and the model is not called.
- * Once let in, the visitor is told so (decision of the owner 2026-11-16); a refusal is not announced.
+ * Once let in, the visitor is told so; a refusal is not announced.
  *
  * spec: brief/participants.md#участники-люди-и-агенты — an unknown writer is shown to the owner, who decides
  * ref: references/hermes-agent/gateway/pairing.py@e96221fa:L29-L37 — hermes lets a stranger in only after the owner

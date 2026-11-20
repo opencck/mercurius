@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
  * Gives a task to one neighbouring agent and waits for its answer, up to `wait` seconds; an answer later than that
  * comes to the chat, as for peer_delegate.
  *
- * spec: brief/network.md#вызов-и-раздача-соседям — peer_call next to peer_delegate (decision В9)
+ * spec: brief/network.md#вызов-и-раздача-соседям — peer_call next to peer_delegate
  * ref: references/hermes-agent/plugins/platforms/a2a/tools.py@e96221fa:L172-L196 (a2a_call) — call one agent and wait;
  *      the answer is the result of the call, a question of the agent comes back as such
  */

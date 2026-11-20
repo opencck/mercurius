@@ -289,7 +289,7 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testTheWordsOfARealDenialAreCaught(): void {
-        // the answers of doorotar 2026-11-19 that went out without a look in self_info
+        // answers that went out without a look in self_info
         $self = new FakeTool('self_info');
         $this->registry->register($self);
         $looked = 0;

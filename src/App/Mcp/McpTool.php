@@ -204,7 +204,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
 
     /**
      * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
-     * action and its target (owner's decision 2026-11-17)
+     * action and its target
      */
     /** @return non-empty-string */
     public function grantKey(array $args): string {

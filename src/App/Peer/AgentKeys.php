@@ -16,7 +16,7 @@ use function Mercurius\I18n\t;
 /**
  * The agent's key pairs: the main one (it signs the card and the answers) and named ones it presents to chosen
  * neighbours. A named key is made the first time it is asked for and kept in the vault; the agent makes them itself,
- * without asking the owner (the owner's decision of 2026-11-17).
+ * without asking the owner.
  *
  * spec: brief/network.md#вход-по-websocket-и-несколько-ключей
  */

@@ -35,7 +35,7 @@ final class PromptCommands {
     /**
      * The scores of the last two versions the evaluation set ran, category by category.
      *
-     * spec: brief/self-improvement.md#самоулучшение — a report comparing versions; no pairwise judging (decision В7)
+     * spec: brief/self-improvement.md#самоулучшение — a report comparing versions; no pairwise judging
      * ref: notes/claude-cookbooks.md — a score per category, so a regression shows where it happened
      */
     private function scores(): string {

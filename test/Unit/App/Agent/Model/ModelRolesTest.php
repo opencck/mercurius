@@ -45,7 +45,7 @@ final class ModelRolesTest extends AsyncTestCase {
     }
 
     public function testEveryChangeOfARoleIsKeptAndOneIsRolledBack(): void {
-        // spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback (decision В8)
+        // spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback
         $this->roles->set('cheap', 'openrouter:x/tools', 'дешевле и с инструментами', $this->user, false);
         $this->roles->set('cheap', 'openrouter:x/other', 'проверяем другую модель', $this->owner, false);
 

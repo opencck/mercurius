@@ -175,8 +175,8 @@ final class AgentNetworkTest extends AsyncTestCase {
             self::assertNull(A2aClient::taskId(['id' => $id]), $id);
         }
         self::assertNull(A2aClient::taskId(['id' => 42]));
-        $out = new \OpenCCK\Domain\Peer\OutgoingTask(7, 'doorotar', '../x', 1, 'telegram', '1', 't', A2aTask::WORKING, null);
-        self::assertSame('inbox/doorotar-7', PeerNetwork::inboxOf($out), 'the path comes from our own number of the task');
+        $out = new \OpenCCK\Domain\Peer\OutgoingTask(7, 'neighbour', '../x', 1, 'telegram', '1', 't', A2aTask::WORKING, null);
+        self::assertSame('inbox/neighbour-7', PeerNetwork::inboxOf($out), 'the path comes from our own number of the task');
     }
 
     public function testARequestSignedForAnotherInstanceIsRefused(): void {

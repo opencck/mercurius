@@ -52,8 +52,7 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/plugins/platforms/a2a/protocol.py@e96221fa:L23-L53 — states, roles, error codes, the
  *      INPUT_REQUIRED marker, the ping-pong cap; L60-L91 (build_agent_card); L258-L276 — 60 requests a minute
  * ref: references/hermes-agent/plugins/platforms/a2a/security.py@e96221fa:L101-L130 (authenticate) — identity from the
- *      credential, never the body. Here the credential is a signature by the agent's key (the owner's decision of
- *      2026-11-17), the token only opens the entrance; answers are signed too, hermes does not sign them
+ *      credential, never the body. Here the credential is a signature by the agent's key, the token only opens the entrance; answers are signed too, hermes does not sign them
  */
 final class A2aServer implements JobRuns {
     public const CHANNEL = 'a2a';

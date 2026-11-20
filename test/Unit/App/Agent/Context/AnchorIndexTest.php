@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 final class AnchorIndexTest extends TestCase {
     public function testIdentifiersOfTheTextAreCollectedOnceWithTheirCount(): void {
         $text = "Коммит 3802092a1f, ещё раз 3802092a1f. Файл src/App/Agent/AgentLoop.php и migrations/0057_http_cookies.sql.\n"
-            . "Ошибка RuntimeException: duplicate key value. Задача #1234, адрес https://mercurius.srv.rekryt.ru/a2a/ws.";
+            . "Ошибка RuntimeException: duplicate key value. Задача #1234, адрес https://mercurius.srv.example.com/a2a/ws.";
 
         $index = AnchorIndex::build($text);
 
@@ -25,7 +25,7 @@ final class AnchorIndexTest extends TestCase {
         self::assertStringContainsString('migrations/0057_http_cookies.sql', $index);
         self::assertStringContainsString('RuntimeException: duplicate key value', $index);
         self::assertStringContainsString('#1234', $index);
-        self::assertStringContainsString('https://mercurius.srv.rekryt.ru/a2a/ws', $index);
+        self::assertStringContainsString('https://mercurius.srv.example.com/a2a/ws', $index);
         self::assertSame('', AnchorIndex::build('просто разговор без идентификаторов'));
     }
 

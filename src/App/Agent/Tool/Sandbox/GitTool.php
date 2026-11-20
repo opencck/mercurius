@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  * of this one command as an HTTP header of the origin (`GIT_CONFIG_*` → `http.<origin>/.extraheader`): never into the
  * URL, the arguments other users see or the repository config, and it is masked in what git prints. The agent could
  * still read it with a program git starts, so options that start programs are refused; the rest is the owner's trust
- * (owner's decision 2026-11-18).
+ *.
  *
  * spec: brief/scheduler.md#git-с-доступом-из-хранилища — git access from the vault: a token in the environment of one git command
  * ref: references/hermes-agent/hermes_cli/git_credentials.py@e96221fa:L137-L165 (with_git_auth) — basic auth as a

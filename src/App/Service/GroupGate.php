@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  * /command@bot — or, in the free mode, decides itself and may stay silent ([SILENT]). Other messages are kept as the
  * recent talk of the group and given to the next run as data. Strangers are not answered; other bots are not seen.
  *
- * spec: brief/channels.md#группа — approved by the owner 2026-11-17
+ * spec: brief/channels.md#группа — approved by the owner
  * ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L5760-L5800 (_should_process_message) —
  *      mention, reply to the bot and a command addressed to it; L5183-L5187, L5550-L5570 — unmentioned talk observed
  *      without running the agent; gateway/response_filters.py@e96221fa:L242-L256 — silence allowed in a free chat.

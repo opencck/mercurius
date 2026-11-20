@@ -90,16 +90,16 @@ final class AgentRequestsTest extends AsyncTestCase {
     }
 
     public function testATakenNameGetsATailOfTheKey(): void {
-        $doorotar = $this->principals->createAgent('doorotar', Role::user());
-        $this->peers->allowKey($doorotar->id, 'doorotar', 'SHA256:' . str_repeat('0', 64));
+        $neighbour = $this->principals->createAgent('neighbour', Role::user());
+        $this->peers->allowKey($neighbour->id, 'neighbour', 'SHA256:' . str_repeat('0', 64));
 
-        $this->requests->knock($this->fingerprint, 'doorotar', '', 'ws');
+        $this->requests->knock($this->fingerprint, 'neighbour', '', 'ws');
         $this->press('pa:1:u');
 
         $id = $this->peers->principalByFingerprint($this->fingerprint);
-        self::assertNotSame($doorotar->id, $id, 'a claimed name never takes over a known agent');
-        self::assertSame('doorotar-' . substr($this->fingerprint, 7, 8), $this->principals->find((int) $id)?->displayName);
-        self::assertSame($doorotar->id, $this->peers->principalByFingerprint('SHA256:' . str_repeat('0', 64)));
+        self::assertNotSame($neighbour->id, $id, 'a claimed name never takes over a known agent');
+        self::assertSame('neighbour-' . substr($this->fingerprint, 7, 8), $this->principals->find((int) $id)?->displayName);
+        self::assertSame($neighbour->id, $this->peers->principalByFingerprint('SHA256:' . str_repeat('0', 64)));
     }
 
     public function testARefusedAgentIsNotShownAgain(): void {
@@ -133,19 +133,19 @@ final class AgentRequestsTest extends AsyncTestCase {
     }
 
     public function testTheCardSaysWhoConnectsToWhomAndShowsNoPreviewOfTheClaimedAddress(): void {
-        $this->requests->knock($this->fingerprint, 'mercurius-rekryt', 'https://mercurius-rekryt.example', 'ws');
+        $this->requests->knock($this->fingerprint, 'mercurius-second', 'https://mercurius-second.example', 'ws');
 
         self::assertStringContainsString('Ко мне подключается агент', $this->channel->texts('send')[0] ?? '');
         self::assertTrue($this->channel->previewsOff[0] ?? false, 'the address is the agent\'s own words: Telegram must not open it');
     }
 
     public function testTheAgentKnowsAboutTheCardAndTheDecision(): void {
-        $this->requests->knock($this->fingerprint, 'mercurius-rekryt', 'https://mercurius-rekryt.example', 'ws');
+        $this->requests->knock($this->fingerprint, 'mercurius-second', 'https://mercurius-second.example', 'ws');
         $this->press('pa:1:u');
 
         $said = array_map(static fn(array $m): string => $m['message']->content, $this->transcript->messages);
         self::assertCount(2, $said, 'the card and the decision are in the owner\'s conversation');
-        self::assertStringContainsString('mercurius-rekryt', $said[0]);
+        self::assertStringContainsString('mercurius-second', $said[0]);
         self::assertStringContainsString('untrusted', $said[0], 'the name and the address are the agent\'s words');
         self::assertStringContainsString('user', $said[1]);
         $owner = $this->principals->findByIdentity('telegram', '42');
@@ -155,7 +155,7 @@ final class AgentRequestsTest extends AsyncTestCase {
     public function testAClaimedNameAndAddressAreCleaned(): void {
         self::assertSame('evil-bot', AgentRequests::nameFrom('../Evil Bot!', $this->fingerprint));
         self::assertSame('agent-' . substr($this->fingerprint, 7, 8), AgentRequests::nameFrom('Агент', $this->fingerprint));
-        self::assertSame('mercurius-doorotar', AgentRequests::nameFrom(AgentRequests::nameOfUrl('https://mercurius-doorotar.srv.rekryt.ru/'), $this->fingerprint));
+        self::assertSame('mercurius-neighbour', AgentRequests::nameFrom(AgentRequests::nameOfUrl('https://mercurius-neighbour.srv.example.com/'), $this->fingerprint));
 
         $this->requests->knock($this->fingerprint, 'x', "javascript:alert(1)\n", 'ws');
         self::assertStringNotContainsString('javascript', $this->channel->texts('send')[0] ?? '');

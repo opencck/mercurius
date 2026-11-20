@@ -80,7 +80,7 @@ final class AgentLoop {
     private const SELF_INFO = 'self_info';
     /**
      * Words of an answer that says the agent cannot do something; lower case. Wide on purpose: a false alarm costs one
-     * look in self_info a run, a miss sends the owner a wrong "no" (doorotar 2026-11-19: "нет инструмента", "нельзя").
+     * look in self_info a run, a miss sends the owner a wrong "no" (seen live: "нет инструмента", "нельзя").
      */
     private const DENIAL_MARKERS = [
         'не вижу такой возможности', 'нет такой возможности', 'такой возможности нет', 'нет возможности',

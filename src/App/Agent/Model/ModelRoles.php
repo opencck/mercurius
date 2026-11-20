@@ -105,7 +105,7 @@ final class ModelRoles {
     /**
      * Brings a role back to the model of record $id; the owner's. Says what was done or why not.
      *
-     * spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback (decision В8)
+     * spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback
      */
     public function rollback(int $id, Principal $by): string {
         if (!$by->isOwner()) {

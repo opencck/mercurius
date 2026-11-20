@@ -93,7 +93,7 @@ final class GitHubSkillSource implements SkillSource {
         $request = new Request($url);
         $request->setHeader('Accept', $accept);
         $request->setHeader('User-Agent', 'mercurius-agent');
-        // a skill has no size limit (owner's decision 2026-11-19); the listing is bounded
+        // a skill has no size limit; the listing is bounded
         $request->setBodySizeLimit($limit);
         $response = $this->http->request($request, $cancellation);
         $body = $response->getBody()->buffer($cancellation);

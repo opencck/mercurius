@@ -18,7 +18,7 @@ use function Mercurius\I18n\t;
 
 /**
  * The agent's keys for other agents: the list with fingerprints, a new key, the key a neighbour sees. The agent makes
- * and picks keys itself — the owner is not asked (the owner's decision of 2026-11-17); only for the owner's runs.
+ * and picks keys itself — the owner is not asked; only for the owner's runs.
  *
  * spec: brief/network.md#вход-по-websocket-и-несколько-ключей
  */
