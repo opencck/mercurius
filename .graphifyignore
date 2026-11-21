@@ -2,3 +2,5 @@
 # а скиллы Claude Code — инструменты разработки, а не знания о проекте.
 references/
 .claude/
+# Словари пакета memory — таблицы слов, а не знания о проекте.
+packages/memory/resources/
