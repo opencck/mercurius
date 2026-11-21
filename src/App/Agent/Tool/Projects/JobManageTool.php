@@ -29,18 +29,23 @@ use function Mercurius\I18n\t;
  */
 final class JobManageTool implements Tool {
     public const NAME = 'job_manage';
-    public const ACTIONS = ['list', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust', 'filter', 'model', 'to_project'];
+    public const ACTIONS = ['list', 'edit', 'cancel', 'pause', 'resume', 'run_now', 'trust', 'distrust', 'filter', 'model', 'to_project'];
+    private const PROMPT_MAX = 4000;
 
     public function __construct(
         private readonly JobRepository $jobs,
         private readonly JobScheduler $scheduler,
         /** the projects jobs belong to; null — jobs belong to their participants only */
         private readonly ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null,
+        /** the check of a job's text, as on creation; null — no editing */
+        private readonly ?\Mercurius\Memory\Domain\ContentScreen $screen = null,
+        /** the runs, to see whether the one editing the job had read outside data; null — not marked */
+        private readonly ?\OpenCCK\Domain\Repository\RunRepository $runs = null,
     ) {}
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.job_manage.zadaniya_po_raspisaniyu_action_list')
-            . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model') . ' ' . t('tool.job_manage.to_project_about'), [
+            . t('tool.job_manage.edit_about') . ' ' . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model') . ' ' . t('tool.job_manage.to_project_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -48,6 +53,9 @@ final class JobManageTool implements Tool {
                 'filter' => ['type' => 'string', 'maxLength' => 500],
                 'role' => ['type' => 'string', 'enum' => ['main', 'cheap']],
                 'project' => ['type' => 'string', 'maxLength' => \OpenCCK\Domain\Project\Project::NAME_MAX],
+                'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
+                'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
+                'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
             ],
             'additionalProperties' => false,
         ]);
@@ -103,6 +111,9 @@ final class JobManageTool implements Tool {
         }
         if ($action === 'to_project') {
             return $this->toProject($job, $context, trim(Args::string($args, 'project') ?? ''));
+        }
+        if ($action === 'edit') {
+            return $this->edit($job, $args, $context);
         }
         return match ($action) {
             'cancel' => $this->set($job, Job::DONE, t('tool.job_manage.otmeneno')),
@@ -198,6 +209,50 @@ final class JobManageTool implements Tool {
         return ToolResult::ok(sprintf(t('tool.job_manage.model_set'), $job->id, $job->title, $role === 'cheap' ? 'cheap' : 'main'));
     }
 
+    /**
+     * A new text, title or schedule of the same job: "redo the job" changes it instead of setting a second one.
+     *
+     * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов
+     *
+     * @param array<string, mixed> $args
+     */
+    private function edit(Job $job, array $args, ToolContext $context): ToolResult {
+        if ($this->screen === null) {
+            return ToolResult::error(t('tool.job_manage.neizvestnoe_deystvie') . 'edit');
+        }
+        $title = trim(Args::string($args, 'title') ?? '');
+        $prompt = trim(Args::string($args, 'prompt') ?? '');
+        $given = trim(Args::string($args, 'schedule') ?? '');
+        if ($title === '' && $prompt === '' && $given === '') {
+            return ToolResult::error(t('tool.job_manage.edit_nothing'));
+        }
+        $problem = ($prompt === '' ? null : $this->screen->problem($prompt, self::PROMPT_MAX)) ?? ($title === '' ? null : $this->screen->problem($title, 100));
+        if ($problem !== null) {
+            return ToolResult::error(t('tool.job_create.tekst_zadaniya_ne_prinyat') . $problem);
+        }
+        if ($given !== '') {
+            if ($job->byEvent()) {
+                return ToolResult::error(t('tool.job_manage.zadanie_po_sobytiyu_zapuskaetsya_webhook'));
+            }
+            try {
+                $schedule = Schedule::parse($given);
+            } catch (InvalidArgumentException $e) {
+                return ToolResult::error($e->getMessage());
+            }
+            $next = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone($job->principalId), true);
+            if ($next === null) {
+                return ToolResult::error(t('tool.job_create.eto_vremya_uzhe_proshlo'));
+            }
+            $this->jobs->setSchedule($job->id, (string) $schedule, $next);
+        }
+        if ($title !== '' || $prompt !== '') {
+            // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — a text written after outside data carries the mark
+            $this->jobs->rewrite($job->id, $title !== '' ? $title : $job->title, $prompt !== '' ? $prompt : $job->prompt, $this->runs?->find($context->runId)?->outside);
+        }
+        $edited = $this->jobs->find($job->id) ?? $job;
+        return ToolResult::ok(sprintf(t('tool.job_manage.edited'), $edited->id, $edited->title, self::line($edited, $this->scheduler)));
+    }
+
     private function runNow(Job $job): ToolResult {
         if ($job->byEvent()) {
             return ToolResult::error(t('tool.job_manage.zadanie_po_sobytiyu_zapuskaetsya_webhook'));
@@ -205,7 +260,7 @@ final class JobManageTool implements Tool {
         if ($job->status !== Job::ACTIVE) {
             return ToolResult::error(sprintf(t('tool.job_manage.zadanie_na_pauze_snachala_resume'), $job->id));
         }
-        $this->jobs->setNext($job->id, new DateTimeImmutable());
+        $this->scheduler->askNow($job->id);
         return ToolResult::ok(sprintf(t('tool.job_manage.zadanie_zapustitsya_v_techenie_minuty'), $job->id, $job->title));
     }
 

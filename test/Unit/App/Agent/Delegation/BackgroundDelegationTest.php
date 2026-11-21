@@ -30,6 +30,7 @@ final class BackgroundDelegationTest extends AsyncTestCase {
     private InMemoryDelegationRepository $delegations;
     private WorkerRunner $workers;
     private BackgroundDelegations $background;
+    private DelegateTaskTool $tool;
     /** the worker's model: its answers are scripted apart from the orchestrator's */
     private string $worker;
 
@@ -43,7 +44,8 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         $this->delegations = new InMemoryDelegationRepository();
         $this->workers = new WorkerRunner($stack->loop, $stack->runs, $stack->transcript, $stack->conversations, $stack->registry, $roles, 15, 100_000, new NullLogger());
         $this->background = $this->background($stack);
-        $stack->registry->register(new DelegateTaskTool($this->workers, $this->background));
+        $this->tool = new DelegateTaskTool($this->workers, $this->background);
+        $stack->registry->register($this->tool);
         return $stack;
     }
 
@@ -84,6 +86,24 @@ final class BackgroundDelegationTest extends AsyncTestCase {
             }
         }
         return '';
+    }
+
+    public function testInAConversationThatCannotTakeALateReportTheWorkersAreAwaited(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job run has nobody to take a late report
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'посчитай']]),
+            ScriptedLlm::text('Итог: 42.'),
+        ]);
+        $stack = $this->stack($llm);
+        $this->tool->foregroundIn(static fn(int $conversationId): bool => true);
+        $llm->byModel[$this->worker] = [ScriptedLlm::text('ответ воркера: 42')];
+
+        $stack->say('задача');
+        $this->idle($stack);
+
+        self::assertStringNotContainsString('Фоновое делегирование', self::toolResult($llm));
+        self::assertStringContainsString('ответ воркера: 42', self::toolResult($llm), 'the report is in the result of the call');
+        self::assertNull($this->delegations->find(1), 'nothing is left to deliver later');
     }
 
     public function testToolAnswersAtOnceAndTheReportComesAsANewRun(): void {

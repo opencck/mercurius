@@ -67,6 +67,8 @@ final class JobScheduler implements JobRuns {
 
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
+    /** @var array<int, true> jobs whose next run the owner asked for right now */
+    private array $askedNow = [];
 
     /**
      * @param array{int, int}|null $quiet quiet hours [from, to) in the owner's zone; null — none
@@ -157,6 +159,16 @@ final class JobScheduler implements JobRuns {
             default => null,
         };
         return $hour !== null && $this->quietHour($hour, $job->principalId);
+    }
+
+    /**
+     * The next run of the job is asked for right now (run_now): its report goes at once, quiet hours or not.
+     *
+     * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов
+     */
+    public function askNow(int $jobId): bool {
+        $this->askedNow[$jobId] = true;
+        return $this->jobs->setNext($jobId, new DateTimeImmutable());
     }
 
     public function isQuiet(DateTimeImmutable $at, ?int $principalId = null): bool {
@@ -269,7 +281,9 @@ final class JobScheduler implements JobRuns {
         // spec: brief/scheduler.md#инициатива-агента — quiet hours and the daily cap of initiative messages
         // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job at an hour the owner named reports then,
         // quiet hours or not: the owner asked for it at that time
-        $quiet = $this->isQuiet(($this->now)(), $job->principalId) && !$this->namedQuietHour($job);
+        $asked = isset($this->askedNow[$job->id]);
+        unset($this->askedNow[$job->id]);
+        $quiet = !$asked && $this->isQuiet(($this->now)(), $job->principalId) && !$this->namedQuietHour($job);
         $held = $quiet || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if ($held) {

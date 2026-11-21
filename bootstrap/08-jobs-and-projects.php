@@ -101,8 +101,9 @@ $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', 
 $participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
 $jobScheduler->useProjects($projectRepository);
 $jobScheduler->useInbox(static fn(Principal $to, string $text): bool => $participantInbox->tell($to, $text));
-$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text), $runs, $projectRepository));
-$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository));
+$jobText = new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text);
+$tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, $jobText, $runs, $projectRepository));
+$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs));
 // spec: brief/scheduler.md#инициатива-агента — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');

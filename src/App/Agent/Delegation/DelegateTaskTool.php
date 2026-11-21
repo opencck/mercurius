@@ -28,10 +28,23 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
     public const NAME = 'delegate_task';
     private const MAX_TASKS = 5;
 
+    /** @var (\Closure(int): bool)|null a conversation where a late report has nobody to reach: workers are awaited there */
+    private ?\Closure $foreground = null;
+
     public function __construct(
         private readonly WorkerRunner $workers,
         private readonly ?BackgroundDelegations $background = null,
     ) {}
+
+    /**
+     * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job run ends with its report; a background
+     *       report would come to its conversation after the end, where nobody reads it, so the run waits for the workers
+     *
+     * @param \Closure(int): bool $foreground by the id of the conversation
+     */
+    public function foregroundIn(\Closure $foreground): void {
+        $this->foreground = $foreground;
+    }
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('delegation.delegate_task_tool.poruchaet_chasti_zadachi_vorkeram_otdeln')
@@ -138,7 +151,7 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
             return ToolResult::error(sprintf(t('delegation.delegate_task_tool.nuzhno_ot_1_do_zadach'), self::MAX_TASKS));
         }
         try {
-            if (($args['background'] ?? false) === true && $this->background !== null) {
+            if (($args['background'] ?? false) === true && $this->background !== null && !($this->foreground !== null && ($this->foreground)($context->conversationId))) {
                 $delegation = $this->background->spawn($context, $tasks);
                 return ToolResult::ok(sprintf(
                     t('delegation.delegate_task_tool.fonovoe_delegirovanie_nachato_zadach_otc')

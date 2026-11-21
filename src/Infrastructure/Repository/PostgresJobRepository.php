@@ -123,6 +123,13 @@ final class PostgresJobRepository implements JobRepository {
         return $this->db->execute('UPDATE jobs SET next_run_at = to_timestamp(?) WHERE id = ? RETURNING id', [$next?->getTimestamp(), $id])->fetchRow() !== null;
     }
 
+    public function rewrite(int $id, string $title, string $prompt, ?string $origin): bool {
+        return $this->db->execute(
+            'UPDATE jobs SET title = ?, prompt = ?, origin = COALESCE(?, origin), trusted = CASE WHEN ?::text IS NULL THEN trusted ELSE false END WHERE id = ? RETURNING id',
+            [$title, $prompt, $origin, $origin, $id],
+        )->fetchRow() !== null;
+    }
+
     public function setSchedule(int $id, string $schedule, ?DateTimeImmutable $next): bool {
         return $this->db->execute('UPDATE jobs SET schedule = ?, next_run_at = to_timestamp(?) WHERE id = ? RETURNING id', [$schedule, $next?->getTimestamp(), $id])->fetchRow() !== null;
     }

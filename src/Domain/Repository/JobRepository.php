@@ -89,6 +89,12 @@ interface JobRepository {
     /** Moves the next run: resuming counts it from now, a run now puts it at now. */
     public function setNext(int $id, ?DateTimeImmutable $next): bool;
 
+    /**
+     * A new title and text; a text written after outside data carries its mark ($origin) and loses the trust.
+     * False when there is no such job.
+     */
+    public function rewrite(int $id, string $title, string $prompt, ?string $origin): bool;
+
     /** A new schedule and its next run; false when there is no such job. */
     public function setSchedule(int $id, string $schedule, ?DateTimeImmutable $next): bool;
 

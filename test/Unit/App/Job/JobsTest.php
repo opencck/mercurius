@@ -378,6 +378,43 @@ description: Отчёт о диске таблицей
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $manage->danger(['action' => 'pause', 'id' => 1]));
     }
 
+    public function testAJobIsEditedInPlace(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — "redo the job" changes it, not a second one
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $this->stack->say('привет');
+        $context = new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation());
+        $manage = new JobManageTool($this->jobs, $scheduler, null, new ContentScreen(static fn(string $text): bool => str_contains($text, 'sk-')));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Дайджест', 'Собери новости с lenta.ru', 'daily:05:00', $this->now->modify('+5 hours'));
+
+        $edited = $manage->execute(['action' => 'edit', 'id' => 1, 'prompt' => 'Собери новости с meduza.io и dw.com', 'schedule' => 'daily:06:00'], $context);
+
+        self::assertFalse($edited->isError, $edited->content);
+        $job = $this->jobs->find(1);
+        self::assertSame('Собери новости с meduza.io и dw.com', $job?->prompt);
+        self::assertSame('Дайджест', $job->title, 'what is not given stays');
+        self::assertSame('daily:06:00', $job->schedule);
+        self::assertCount(1, $this->jobs->list(null), 'the same job, not a new one');
+        self::assertTrue($manage->execute(['action' => 'edit', 'id' => 1, 'prompt' => 'ключ sk-123'], $context)->isError, 'the text is checked as on creation');
+        self::assertTrue($manage->execute(['action' => 'edit', 'id' => 1], $context)->isError, 'nothing to change');
+    }
+
+    public function testARunTheOwnerAskedForNowReportsAtOnceEvenInQuietHours(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — run_now: the owner wants the report now
+        $this->now = new DateTimeImmutable();
+        // quiet all day: whenever the test runs, a report would wait
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('сводка сайтов')]), [0, 24]);
+        $this->stack->say('привет');
+        $context = new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation());
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Сайты', 'Проверь сайты', 'every:600', $this->now->modify('+8 hours'));
+
+        (new JobManageTool($this->jobs, $scheduler))->execute(['action' => 'run_now', 'id' => 1], $context);
+        $this->now = new DateTimeImmutable('+1 second');
+        $scheduler->tick(true);
+
+        self::assertNotSame([], array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'сводка сайтов')));
+        self::assertSame([], $this->jobs->pendingReports());
+    }
+
     public function testAJobGetsAnEventFilterAndTheCheapModel(): void {
         // spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — the filter of events and the model role of a job
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok')]));

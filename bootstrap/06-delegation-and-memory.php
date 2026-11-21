@@ -72,7 +72,10 @@ $workers = new WorkerRunner($loop, $runs, $transcript, $conversations, $tools, $
 // spec: brief/orchestration.md#белый-список-инструментов-воркера — a worker gets only tools of the white list
 $workers->allowOnly(explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'AGENT_WORKER_TOOLS') ?? implode(',', WorkerRunner::ALLOWED)));
 $background = new BackgroundDelegations($workers, new PostgresDelegationRepository($db), $runs, $principals, $policies, $logger);
-$tools->register(new DelegateTaskTool($workers, $background));
+$delegateTask = new DelegateTaskTool($workers, $background);
+// spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job run waits for its workers: a late report has nobody to reach
+$delegateTask->foregroundIn(static fn(int $conversationId): bool => $conversations->meta($conversationId)?->channel === \OpenCCK\App\Job\JobScheduler::CHANNEL);
+$tools->register($delegateTask);
 $tools->register(new WorkerReportTool($runs, $transcript));
 $scheduler = new RunScheduler(
     $loop,
