@@ -65,11 +65,18 @@ final class MemoryCommands {
 
     /**
      * /dream (and /consolidate): the guard against a loss of memory, and the night's sleep now, even if memory has not
-     * changed — when a model is listed for sleep.
+     * changed — when a model is listed for sleep. /dream undo <n> undoes an edit sleep made by itself.
      *
      * spec: brief/memory.md#страж-потерь
+     * spec: brief/memory.md#постоянное-разрешение — /dream undo
      */
-    public function consolidate(): string {
+    public function consolidate(string $argument = ''): string {
+        if (preg_match('~^\s*undo\b\s*#?(\d*)\s*$~u', $argument, $undo) === 1) {
+            if ($undo[1] === '') {
+                return t('service.memory_commands.dream_undo_usage');
+            }
+            return $this->consolidation === null ? t('service.memory_commands.proverka_pamyati_ne_nastroena') : $this->consolidation->undo((int) $undo[1]);
+        }
         $alert = $this->guard?->run();
         if ($this->sleeps !== null && !($this->sleeps)()) {
             return ($alert === null ? '' : $alert . "\n\n") . t('service.memory_commands.sleep_off');

@@ -11,6 +11,7 @@ use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\OwnerDirectory;
+use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\Proposals;
@@ -36,6 +37,31 @@ final class MemoryCards implements CallbackHandler {
 
     /** @var (\Closure(int, string): int)|null in how many days the person said a text in their own messages */
     private ?\Closure $days = null;
+    /** @var (\Closure(Principal, string): void)|null lets sleep make a kind of edits by itself from now on */
+    private ?\Closure $always = null;
+
+    /**
+     * The third button of sleep's cards, «Always do so»: accepts the card and gives sleep the standing permission for
+     * its kind of edit.
+     *
+     * spec: brief/memory.md#постоянное-разрешение
+     * @param \Closure(Principal, string): void $always the owner and the kind (SleepEdit::COPY, MERGE)
+     */
+    public function useAlways(\Closure $always): void {
+        $this->always = $always;
+    }
+
+    /** The kind of standing permission a card of sleep may give; null — the card is not sleep's. */
+    private static function always(Proposal $proposal): ?string {
+        if ($proposal->provenance !== Proposal::SLEEP) {
+            return null;
+        }
+        return match ($proposal->kind) {
+            Proposal::FORGET => \Mercurius\Memory\Domain\SleepEdit::COPY,
+            Proposal::MERGE => \Mercurius\Memory\Domain\SleepEdit::MERGE,
+            default => null,
+        };
+    }
 
     public function __construct(
         private readonly Proposals $proposals,
@@ -62,7 +88,8 @@ final class MemoryCards implements CallbackHandler {
      */
     public function show(Proposal $proposal): bool {
         $chatId = OwnerDirectory::chat($this->ownerChatId);
-        $who = $this->ownerOf($proposal);
+        // spec: brief/memory.md#постоянное-разрешение — what sleep found, in a participant's memory too, goes to the owner
+        $who = $proposal->provenance === Proposal::SLEEP ? null : $this->ownerOf($proposal);
         if ($who !== null) {
             $chatId = $this->principals->externalId($who, $this->channel->name()) ?? OwnerDirectory::chat($this->ownerChatId);
         }
@@ -74,6 +101,7 @@ final class MemoryCards implements CallbackHandler {
         ] : [
             new Button(t('agent.memory_cards.prinyat'), sprintf('%s:%d:a', self::PREFIX, $proposal->id)),
             new Button(t('agent.memory_cards.otklonit'), sprintf('%s:%d:r', self::PREFIX, $proposal->id)),
+            ...($this->always !== null && self::always($proposal) !== null ? [new Button(t('agent.memory_cards.always'), sprintf('%s:%d:w', self::PREFIX, $proposal->id))] : []),
         ]]));
         if (!$result->success || $result->messageId === null) {
             $this->logger->warning('Memory card was not delivered', ['proposal' => $proposal->id]);
@@ -88,11 +116,19 @@ final class MemoryCards implements CallbackHandler {
             $this->forgetWritten($callback, (int) $forget[1]);
             return;
         }
-        if (preg_match('/^mp:(\d+):([ar])$/', $callback->data, $match) !== 1) {
+        if (preg_match('/^mp:(\d+):([arw])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
-        $approve = $match[2] === 'a';
+        $approve = $match[2] !== 'r';
+        $presser = $this->principals->findByIdentity($callback->channel, $callback->userId);
+        $card = $this->store->proposal((int) $match[1]);
+        $kind = $card === null ? null : self::always($card);
+        // a standing permission is the owner's to give, and only on a card of sleep
+        if ($match[2] === 'w' && ($presser === null || !$presser->isOwner() || $kind === null || $this->always === null)) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
+            return;
+        }
         if (!$this->mayDecide($callback, (int) $match[1])) {
             $this->channel->answerCallback($callback->callbackId, t('agent.callback_router.eto_mozhet_tolko_vladelets'), true);
             return;
@@ -108,9 +144,14 @@ final class MemoryCards implements CallbackHandler {
             $this->channel->answerCallback($callback->callbackId, t('agent.memory_cards.uzhe_resheno'));
             return;
         }
+        $outcome = $decision->outcome;
+        if ($match[2] === 'w') {
+            ($this->always)($presser, $kind);
+            $outcome .= "\n" . sprintf(t('agent.memory_cards.always_set'), $kind);
+        }
         $this->channel->answerCallback($callback->callbackId, $decision->outcome);
         if ($callback->messageId !== null) {
-            $this->channel->edit($callback->chatId, $callback->messageId, $this->card($decision->proposal) . "\n\n" . $decision->outcome);
+            $this->channel->edit($callback->chatId, $callback->messageId, $this->card($decision->proposal) . "\n\n" . $outcome);
         }
         $this->logger->info('Memory proposal decided', ['proposal' => $decision->proposal->id, 'kind' => $decision->proposal->kind, 'approved' => $approve, 'applied' => $decision->applied]);
     }

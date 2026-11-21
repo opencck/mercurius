@@ -243,7 +243,7 @@ final class ChatService implements MessageHandler {
             } else {
                 $this->reply($message, match ($command) {
                     '/memory' => $this->memory->show(substr($text, strlen($command)), $message->channel, $message->chatId),
-                    '/consolidate', '/dream' => $this->memory->consolidate(),
+                    '/consolidate', '/dream' => $this->memory->consolidate(substr($text, strlen($command))),
                     '/aliases' => $this->memory->aliases(substr($text, strlen($command))),
                     default => $this->memory->forget(substr($text, strlen($command))),
                 });

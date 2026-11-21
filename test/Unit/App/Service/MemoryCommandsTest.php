@@ -110,6 +110,21 @@ final class MemoryCommandsTest extends AsyncTestCase {
         self::assertCount(1, $journal->checks, 'the guard took its snapshot');
     }
 
+    public function testDreamUndoTakesBackAnEditOfSleep(): void {
+        // spec: brief/memory.md#постоянное-разрешение — /dream undo <n>
+        $analyzer = new TextAnalyzer();
+        $consolidation = new \Mercurius\Memory\App\Consolidation($this->store, $this->proposals, new \Mercurius\Memory\Infrastructure\InMemoryConsolidationJournal(), static fn(Proposal $p): bool => true, static fn(string $t): bool => true);
+        $consolidation->useStandingPermission(static fn(): array => ['copy'], $edits = new \Mercurius\Memory\Infrastructure\InMemorySleepEdits());
+        $copy = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Кофе без сахара', ['кофе'], 0.8, Fact::OWNER_SAID, null);
+        $this->store->endFact($copy->id, 'копия');
+        $edits->record('copy', null, null, $copy->id, 15);
+        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)), $consolidation);
+
+        self::assertSame(\Mercurius\I18n\t('service.memory_commands.dream_undo_usage'), $commands->consolidate(' undo'));
+        self::assertSame(sprintf(\Mercurius\I18n\t('app.consolidation.undone'), 1), $commands->consolidate(' undo 1'));
+        self::assertTrue($this->store->fact($copy->id)?->active);
+    }
+
     public function testOnlyTheOwnerAndOnlyInPrivate(): void {
         $this->chat->handle($this->stack->message('/memory', '42', false));
         self::assertSame(\Mercurius\I18n\t(ChatService::MEMORY_PRIVATE), $this->lastReply());

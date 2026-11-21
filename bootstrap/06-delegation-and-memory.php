@@ -239,12 +239,23 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience,
     $transcript->redactCalls($fact->text, \Mercurius\I18n\t('memory.forgotten'));
     $consolidationJournal->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
 });
+// spec: brief/memory.md#постоянное-разрешение — edits sleep made by itself: recorded, undoable, not a loss for the guard
+$sleepEdits = new \Mercurius\Memory\Infrastructure\PostgresSleepEdits($db);
 // spec: brief/memory.md#страж-потерь — the guard every night and on command, with or without sleep
 $lossGuard = new \Mercurius\Memory\App\LossGuard(
     $memoryStore,
     new \Mercurius\Memory\Infrastructure\PostgresGuardJournal($db),
     static fn(string $text): bool => $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success,
+    $sleepEdits,
 );
+// spec: brief/memory.md#постоянное-разрешение — the kinds of edits sleep makes by itself, read at each pass
+$sleepAuto = static function () use ($settingsService): array {
+    $list = array_map('trim', explode(',', strtolower($settingsService->current('MEMORY_SLEEP_AUTO') ?? '')));
+    return array_values(array_intersect(\Mercurius\Memory\Domain\SleepEdit::KINDS, $list));
+};
+$memoryCards->useAlways(static function (\OpenCCK\Domain\Entity\Principal $owner, string $kind) use ($settingsService, $sleepAuto): void {
+    $settingsService->set($owner, 'MEMORY_SLEEP_AUTO', implode(',', array_values(array_unique([...$sleepAuto(), $kind]))));
+});
 // spec: brief/models.md#списки-моделей-по-категориям — sleep runs while the owner lists a model for it, read at each pass
 $sleepModels = static function () use ($settingsService): array {
     $list = $settingsService->current('MEMORY_SLEEP_MODELS') ?? '';
@@ -277,6 +288,7 @@ $sleepJudge = new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use 
 }, $logger);
 $consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $verdictCache, \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION));
 $consolidation->useMerger($sleepJudge);
+$consolidation->useStandingPermission($sleepAuto, $sleepEdits);
 // spec: brief/memory.md#ночное-обогащение — the same model gives search words; translations only while the owner turned them on
 $consolidation->useEnrichment(new \Mercurius\Memory\App\Enrichment(
     $memoryStore,
