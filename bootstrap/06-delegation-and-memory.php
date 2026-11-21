@@ -261,3 +261,21 @@ $consolidation = new Consolidation(
         return $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success;
     },
 );
+// spec: brief/memory.md#судья-пары — the model of sleep judges the gray zone; its verdicts are kept while the texts stay
+$verdictCache = new \Mercurius\Memory\Infrastructure\PostgresVerdictCache($db);
+$consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge(
+    new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use ($sleepModels): array {
+        $refs = [];
+        foreach ($sleepModels() as $model) {
+            try {
+                $refs[] = (string) ModelRef::parse($model);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+        return $refs;
+    }, $logger),
+    $verdictCache,
+    \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION,
+));
+$proposals->onForget(static fn(Fact $fact) => $verdictCache->forgetFact($fact->id));
