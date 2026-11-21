@@ -234,7 +234,7 @@ final class ChatService implements MessageHandler {
             $this->report($principal, $command, trim(substr($text, strlen($command))), $message);
             return;
         }
-        if (in_array($command, ['/memory', '/forget', '/consolidate', '/aliases'], true) && $this->memory !== null) {
+        if (in_array($command, ['/memory', '/forget', '/consolidate', '/dream', '/aliases'], true) && $this->memory !== null) {
             // spec: brief/participants.md#контекст-по-месту-и-аудитории — memory is the owner's and is shown only in a private chat
             if (!$principal->isOwner()) {
                 $this->reply($message, t(self::OWNER_ONLY));
@@ -243,7 +243,7 @@ final class ChatService implements MessageHandler {
             } else {
                 $this->reply($message, match ($command) {
                     '/memory' => $this->memory->show(substr($text, strlen($command)), $message->channel, $message->chatId),
-                    '/consolidate' => $this->memory->consolidate(),
+                    '/consolidate', '/dream' => $this->memory->consolidate(),
                     '/aliases' => $this->memory->aliases(substr($text, strlen($command))),
                     default => $this->memory->forget(substr($text, strlen($command))),
                 });

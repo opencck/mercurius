@@ -147,18 +147,32 @@ final class ConsolidationTest extends AsyncTestCase {
         self::assertStringNotContainsString('NVMe', $text);
     }
 
-    public function testASharpDropOfMemoryRaisesAnAlert(): void {
+    public function testASharpDropOfMemoryRaisesAnAlertOfTheGuardEvenWithoutSleep(): void {
+        // spec: brief/memory.md#страж-потерь — the guard is apart from sleep and runs always
+        $guardJournal = new \Mercurius\Memory\Infrastructure\InMemoryGuardJournal();
+        $guard = new \Mercurius\Memory\App\LossGuard($this->store, $guardJournal, function (string $text): bool {
+            $this->told[] = $text;
+            return $this->delivered;
+        });
         $facts = [];
         foreach (['Первый факт про сервер', 'Второй факт про сайт', 'Третий факт про почту', 'Четвёртый факт про домен'] as $text) {
             $facts[] = $this->add($text);
         }
-        $this->consolidation->run();
+        $first = $guard->run();
+        self::assertNull($first);
         $this->store->forgetFact($facts[0]->id, 'f1');
         $this->store->forgetFact($facts[1]->id, 'f2');
 
-        $text = $this->consolidation->run();
-
-        self::assertStringContainsString('Памяти стало заметно меньше: фактов было 4, стало 2', $text);
+        $this->delivered = false;
+        $alert = $guard->run();
+        self::assertNotNull($alert);
+        self::assertStringContainsString('Памяти стало заметно меньше: фактов было 4, стало 2', $alert);
+        $this->delivered = true;
+        $again = $guard->run();
+        self::assertNotNull($again, 'an alert not delivered is compared again from the same snapshot');
+        $after = $guard->run();
+        self::assertNull($after, 'once told, the new size is the snapshot');
+        self::assertStringNotContainsString('меньше', $this->consolidation->run(), 'the sleep does not tell of a loss');
     }
 
     public function testQuietMemoryIsNotReportedToTheOwner(): void {

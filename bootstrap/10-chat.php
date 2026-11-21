@@ -56,6 +56,8 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Config\Config $config
  * @var Mercurius\Memory\App\Consolidation $consolidation
  * @var Mercurius\Memory\App\Aliases $memoryAliases
+ * @var Mercurius\Memory\App\LossGuard $lossGuard
+ * @var Closure(): bool $sleeps
  * @var OpenCCK\App\Agent\ContextMemory|null $contextMemory
  * @var OpenCCK\App\Agent\MemoryRulesNotice|null $rulesNotice
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
@@ -190,7 +192,7 @@ $chat = new ChatService(
     $approvals,
     new TraceReports(new PostgresTraceReportRepository($db), $traces, $peerRepository, static fn(int $runId): bool => $ownerDirectory->isFormerOwner($runs->find($runId)?->principalId)),
     $logger,
-    new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation, $memoryAliases),
+    new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation, $memoryAliases, $lossGuard, $sleeps),
     new ProjectCommands($projectRepository),
     new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),

@@ -239,6 +239,18 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience,
     $transcript->redactCalls($fact->text, \Mercurius\I18n\t('memory.forgotten'));
     $consolidationJournal->redact($fact->text, \Mercurius\I18n\t('memory.forgotten'));
 });
+// spec: brief/memory.md#страж-потерь — the guard every night and on command, with or without sleep
+$lossGuard = new \Mercurius\Memory\App\LossGuard(
+    $memoryStore,
+    new \Mercurius\Memory\Infrastructure\PostgresGuardJournal($db),
+    static fn(string $text): bool => $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success,
+);
+// spec: brief/models.md#списки-моделей-по-категориям — sleep runs while the owner lists a model for it, read at each pass
+$sleepModels = static function () use ($settingsService): array {
+    $list = $settingsService->current('MEMORY_SLEEP_MODELS') ?? '';
+    return array_values(array_filter(array_map('trim', explode(',', $list)), static fn(string $m): bool => $m !== ''));
+};
+$sleeps = static fn(): bool => $sleepModels() !== [];
 // spec: brief/memory.md#консолидация-dreaming — the nightly check: code only, the owner decides
 $consolidation = new Consolidation(
     $memoryStore,

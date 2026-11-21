@@ -95,6 +95,8 @@ require __DIR__ . '/11-http.php';
  * @var array<string, Closure(): list<string>> $toolReliableSources
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
  * @var OpenCCK\Infrastructure\Repository\PostgresTraceRepository $traces
+ * @var Mercurius\Memory\App\LossGuard $lossGuard
+ * @var Closure(): bool $sleeps
  * @var non-empty-string $version
  */
 
@@ -105,7 +107,7 @@ require __DIR__ . '/11-http.php';
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background, deliveries: new \OpenCCK\App\Agent\DeliveryRecovery($deliveryRepository, $channel, $app->getLogger())))
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger(), toolReliable: $toolReliableSources))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
-    ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger(), $consolidationJournal))
+    ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger(), $consolidationJournal, $lossGuard, $sleeps))
     ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))
     ->addHandler(fn(App $app): \OpenCCK\Infrastructure\Module\PeerModule => new \OpenCCK\Infrastructure\Module\PeerModule($peerNetwork, $a2aServer, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(

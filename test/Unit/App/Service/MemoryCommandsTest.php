@@ -99,6 +99,17 @@ final class MemoryCommandsTest extends AsyncTestCase {
         self::assertStringContainsString(\Mercurius\I18n\t('app.aliases.none'), $this->lastReply());
     }
 
+    public function testDreamWithoutAModelOfSleepSaysSoAndStillGuards(): void {
+        // spec: brief/memory.md#страж-потерь — /dream runs the guard; without a model of sleep there is no sleep
+        $analyzer = new TextAnalyzer();
+        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)), null, null,
+            new \Mercurius\Memory\App\LossGuard($this->store, $journal = new \Mercurius\Memory\Infrastructure\InMemoryGuardJournal(), static fn(string $t): bool => true),
+            static fn(): bool => false);
+
+        self::assertSame(\Mercurius\I18n\t('service.memory_commands.sleep_off'), $commands->consolidate());
+        self::assertCount(1, $journal->checks, 'the guard took its snapshot');
+    }
+
     public function testOnlyTheOwnerAndOnlyInPrivate(): void {
         $this->chat->handle($this->stack->message('/memory', '42', false));
         self::assertSame(\Mercurius\I18n\t(ChatService::MEMORY_PRIVATE), $this->lastReply());

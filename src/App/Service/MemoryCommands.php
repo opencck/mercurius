@@ -8,6 +8,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use Mercurius\Memory\App\Aliases;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\App\LossGuard;
 use Mercurius\Memory\App\MemoryContext;
 use Mercurius\Memory\App\Proposals;
 use Mercurius\Memory\Domain\MemoryStore;
@@ -32,6 +33,9 @@ final class MemoryCommands {
         private readonly MemoryContext $context,
         private readonly ?Consolidation $consolidation = null,
         private readonly ?Aliases $aliases = null,
+        private readonly ?LossGuard $guard = null,
+        /** @var (\Closure(): bool)|null whether sleep runs: a model is listed for it */
+        private readonly ?\Closure $sleeps = null,
     ) {}
 
     /**
@@ -59,8 +63,17 @@ final class MemoryCommands {
         return t('service.memory_commands.aliases_help');
     }
 
-    /** The nightly check, now, even if memory has not changed. */
+    /**
+     * /dream (and /consolidate): the guard against a loss of memory, and the night's sleep now, even if memory has not
+     * changed — when a model is listed for sleep.
+     *
+     * spec: brief/memory.md#страж-потерь
+     */
     public function consolidate(): string {
+        $alert = $this->guard?->run();
+        if ($this->sleeps !== null && !($this->sleeps)()) {
+            return ($alert === null ? '' : $alert . "\n\n") . t('service.memory_commands.sleep_off');
+        }
         return $this->consolidation === null ? t('service.memory_commands.proverka_pamyati_ne_nastroena') : $this->consolidation->run(true);
     }
 

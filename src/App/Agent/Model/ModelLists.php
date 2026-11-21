@@ -32,6 +32,7 @@ final class ModelLists {
         'voice' => 'MEDIA_AUDIO_GEN_MODELS',
         'video' => 'MEDIA_VIDEO_MODELS',
         'film' => 'MEDIA_VIDEO_GEN_MODELS',
+        'sleep' => 'MEMORY_SLEEP_MODELS',
     ];
 
     /**
