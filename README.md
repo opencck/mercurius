@@ -1,6 +1,6 @@
 # Mercurius
 
-**English** | [Русский](README.ru.md)
+**English** | [Русский](README.ru.md) | [中文](README.cn.md)
 
 Mercurius is an autonomous personal agent. You run it on your own server with Docker Compose and talk to it through a Telegram bot. It is meant to help with any kind of work: searching the web, working with servers over SSH, writing code and running software projects, planning, research and testing.
 

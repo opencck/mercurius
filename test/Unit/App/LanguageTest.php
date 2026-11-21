@@ -54,6 +54,16 @@ final class LanguageTest extends TestCase {
         self::assertDoesNotMatchRegularExpression('/[А-Яа-яЁё]/u', \Mercurius\I18n\t('settings.about.agent_language'));
     }
 
+    public function testAChineseAgentSpeaksChinese(): void {
+        // spec: brief/operations.md#язык-агента — the third language of the interface
+        Lang::use(new CatalogTranslator('zh', Catalogs::bundled()));
+
+        $prompt = SystemPrompt::text();
+        self::assertMatchesRegularExpression('/\p{Han}/u', $prompt);
+        self::assertDoesNotMatchRegularExpression('/[А-Яа-яЁё]/u', $prompt);
+        self::assertMatchesRegularExpression('/\p{Han}/u', \Mercurius\I18n\t('chat.greeting'));
+    }
+
     public function testRussianStaysTheDefault(): void {
         self::assertStringStartsWith('Ты — Меркурий', SystemPrompt::text());
         self::assertSame('публикация, правка', (new PublicChannel('telegram', '-1', 'Блог', true, true, false, true))->rights());
