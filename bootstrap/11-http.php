@@ -89,7 +89,8 @@ if ($a2aServer !== null) {
 $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.self_info'));
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     // spec: brief/network.md#события-проекта-для-агентов — the agents of a project learn what is said in its chats
-    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events'),
+    // spec: brief/network.md#потоки-мест-для-агентов — and the streams of places the owner gives to agents
+    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events') . \Mercurius\I18n\t('self.streams'),
     'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config): string {
         $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);
         return sprintf(\Mercurius\I18n\t('self.channels'), is_string($host) ? 'wss://' . $host . '/api/ws' : '—');
@@ -151,6 +152,12 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'memory' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.memory') . "\n\n"
         . \Mercurius\I18n\t('self.memory.aliases') . "\n" . $memoryAliases->list(),
     'version' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => sprintf(\Mercurius\I18n\t('self.version'), $version, \OpenCCK\App\Service\SystemPrompt::VERSION),
+    // spec: brief/agent-loop.md#запреты — the terms of grants, the grants of areas and the bans, on demand
+    'permissions' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.permissions'),
+    // spec: brief/scheduler.md#место-итога-задания — how jobs are set, moved and where their reports go
+    'jobs' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.jobs'),
+    // spec: brief/orchestration.md#этапы-и-план — how long work is kept: the plan and the workers
+    'work' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.work'),
 ]));
 
 // spec: brief/operations.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
