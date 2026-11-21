@@ -143,6 +143,36 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         return $grants;
     }
 
+    public function addBan(?int $principalId, string $area, string $key, ?string $label, ?int $createdBy): \OpenCCK\Domain\Agent\Ban {
+        $row = $this->db->execute(
+            "INSERT INTO approval_bans (principal_id, area, key, label, created_by) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (COALESCE(principal_id, 0), area, key) WHERE removed_at IS NULL DO UPDATE SET label = COALESCE(approval_bans.label, EXCLUDED.label)
+             RETURNING id, principal_id, area, key, label, created_by",
+            [$principalId, $area, $key, $label === null ? null : mb_substr($label, 0, 300), $createdBy],
+        )->fetchRow();
+        return self::ban($row ?? []);
+    }
+
+    public function bans(): array {
+        $bans = [];
+        foreach ($this->db->execute('SELECT id, principal_id, area, key, label, created_by FROM approval_bans WHERE removed_at IS NULL ORDER BY id') as $row) {
+            $bans[] = self::ban($row);
+        }
+        return $bans;
+    }
+
+    public function removeBan(int $id): ?\OpenCCK\Domain\Agent\Ban {
+        $row = $this->db->execute('UPDATE approval_bans SET removed_at = now() WHERE id = ? AND removed_at IS NULL RETURNING id, principal_id, area, key, label, created_by', [$id])->fetchRow();
+        return $row === null ? null : self::ban($row);
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function ban(array $row): \OpenCCK\Domain\Agent\Ban {
+        $int = static fn(string $k): ?int => isset($row[$k]) && is_int($row[$k]) ? $row[$k] : null;
+        $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : '';
+        return new \OpenCCK\Domain\Agent\Ban($int('id') ?? 0, $int('principal_id'), $str('area'), $str('key'), isset($row['label']) && is_string($row['label']) ? $row['label'] : null, $int('created_by'));
+    }
+
     public function revokeGrant(int $id): ?Grant {
         $row = $this->db->execute(
             'UPDATE approval_grants SET revoked_at = now() WHERE id = ? AND revoked_at IS NULL RETURNING ' . self::GRANT,

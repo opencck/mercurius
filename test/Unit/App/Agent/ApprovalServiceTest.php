@@ -59,8 +59,8 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertTrue($this->stack->channel->previewOff('push действие'), 'an address in the arguments is not opened by Telegram');
         $buttons = array_values(array_filter($this->stack->channel->buttons, static fn(array $rows) => $rows !== []));
         // spec: brief/agent-loop.md#разрешения-навсегда — three terms and a refusal
-        self::assertSame(['ap:1:a', 'ap:1:s', 'ap:1:g', 'ap:1:d'], array_map(static fn($b) => $b->data, array_merge(...$buttons[0])));
-        self::assertSame(['Только в этот раз', 'На эту беседу', 'Разрешить навсегда', 'Отказать'], array_map(static fn($b) => $b->text, array_merge(...$buttons[0])));
+        self::assertSame(['ap:1:a', 'ap:1:s', 'ap:1:g', 'ap:1:d', 'ap:1:n'], array_map(static fn($b) => $b->data, array_merge(...$buttons[0])));
+        self::assertSame(['Только в этот раз', 'На эту беседу', 'Разрешить навсегда', 'Отказать', '⛔ Никогда'], array_map(static fn($b) => $b->text, array_merge(...$buttons[0])));
         self::assertStringContainsString('Разрешение: git-push:origin', $card, 'the card names what "for good" allows');
         self::assertContains('Жду подтверждения владельца…', $this->stack->channel->texts('edit'));
     }
@@ -268,6 +268,43 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertTrue($this->stack->approvals->hasGrant(1, 'git-push:origin'));
         self::assertSame(2, $this->push->runs);
         self::assertSame(RunStatus::Done, $this->stack->runs->find(2)?->status);
+    }
+
+    public function testNeverRefusesAndBansTheActionSoItIsRefusedWithoutACardEvenWithAGrant(): void {
+        // spec: brief/agent-loop.md#запреты
+        $this->waitingRun();
+        $this->stack->press('ap:1:n');
+        $this->stack->scheduler->awaitIdle();
+        self::assertSame(['git-push:origin'], array_map(static fn(\OpenCCK\Domain\Agent\Ban $b): string => $b->key, $this->stack->approvals->bans()));
+        self::assertStringContainsString('Запрещено владельцем навсегда', implode("\n", $this->stack->channel->texts('edit')));
+
+        // a grant of any call of the tool does not beat the ban
+        $this->stack->approvals->addGrant(1, 'tool:push');
+        $this->stack->say('и ещё раз');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertSame(0, $this->push->runs, 'banned: not run');
+        self::assertCount(1, $this->stack->approvals->approvals, 'no second card');
+        $tool = '';
+        $requests = $this->stack->llm->requests;
+        $last = end($requests);
+        self::assertNotFalse($last);
+        foreach ($last->messages as $message) {
+            $tool = $message->role === \Mercurius\Llm\Role::Tool ? $message->content : $tool;
+        }
+        self::assertStringContainsString('Запрещено владельцем', $tool);
+        self::assertStringContainsString('не проси его снова', $tool);
+    }
+
+    public function testABanOfAnotherParticipantOrAreaDoesNotReachThisRunButAPatternDoes(): void {
+        $ban = new \OpenCCK\Domain\Agent\Ban(1, 7, '', 'ssh:v1:prod:*');
+
+        self::assertFalse($ban->reaches(1, []), 'a ban of participant 7');
+        self::assertTrue($ban->reaches(7, ['job:3']));
+        self::assertTrue($ban->covers(['ssh:v1:prod:rm -rf /tmp']));
+        self::assertFalse($ban->covers(['ssh:v1:stage:rm -rf /tmp']));
+        self::assertFalse((new \OpenCCK\Domain\Agent\Ban(2, null, 'project:4', 'tool:push'))->reaches(1, ['project:5']));
+        self::assertTrue((new \OpenCCK\Domain\Agent\Ban(2, null, 'project:4', 'tool:push'))->reaches(1, ['project:4']));
     }
 
     public function testStrangerPressIsRefused(): void {

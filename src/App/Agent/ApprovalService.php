@@ -154,6 +154,12 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             }
         }
         $rows[] = [new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id))];
+        // spec: brief/agent-loop.md#запреты — "never" refuses and bans the action, the exact one or the wide one
+        $never = [new Button(t('agent.bans.never'), sprintf('ap:%d:n', $approval->id))];
+        if ($keys->wide !== null) {
+            $never[] = new Button(mb_substr(sprintf(t('agent.bans.never_wide'), $keys->wide[1]), 0, 60), sprintf('ap:%d:m', $approval->id));
+        }
+        $rows[] = $never;
         // arguments may carry an address from outside data: no preview of it in the card
         $card = new OutgoingMessage($chat, $text, disableLinkPreview: true, buttons: $rows);
         $sent = $this->channel->send($card);
@@ -203,7 +209,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
      * spec: brief/skills-mcp.md#ящики-участников-и-проектов — the owner of a mailbox confirms what is sent from it
      */
     public function ownPress(IncomingCallback $callback): bool {
-        if (preg_match('/^ap:(\d+):[asgwd]$/', $callback->data, $match) !== 1 || $callback->userId !== $callback->chatId) {
+        if (preg_match('/^ap:(\d+):[asgwdnm]$/', $callback->data, $match) !== 1 || $callback->userId !== $callback->chatId) {
             return false;
         }
         $approval = $this->approvals->find((int) $match[1]);
@@ -216,11 +222,20 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
      * spec: brief/agent-loop.md#список-разрешений
      */
     public function showGrants(string $chatId, ?string $replyTo, string $argument = ''): bool {
+        $bans = count($this->approvals->bans());
         if ($this->approvals->grants() === []) {
-            return false;
+            if ($bans === 0) {
+                return false;
+            }
+            $this->channel->send(new OutgoingMessage($chatId, sprintf(t('agent.bans.in_list'), $bans), $replyTo));
+            return true;
         }
         $selector = GrantList::selectorOf($argument);
         [$text, $rows] = $selector === null ? [t('agent.grants.list_usage'), []] : $this->list()->view($selector);
+        // spec: brief/agent-loop.md#запреты — the list of grants names the bans; they are seen and lifted by /deny
+        if ($selector === '' && $bans > 0) {
+            $text .= "\n\n" . sprintf(t('agent.bans.in_list'), $bans);
+        }
         $this->channel->send(new OutgoingMessage($chatId, $text, $replyTo, disableLinkPreview: true, buttons: $rows));
         return true;
     }
@@ -251,20 +266,36 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             $this->decideNeeds($callback, (int) $needs[1], $needs[2]);
             return;
         }
-        if (preg_match('/^ap:(\d+):([asgwd])$/', $callback->data, $match) !== 1) {
+        if (preg_match('/^ap:(\d+):([asgwdnm])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
         $id = (int) $match[1];
         $approval = $this->approvals->find($id);
+        $refused = in_array($match[2], ['d', 'n', 'm'], true);
+        $presser = $this->principals->findByIdentity($callback->channel, $callback->userId)?->id;
         $decided = $approval === null ? null : $this->approvals->decide(
             $id,
-            $match[2] === 'd' ? ApprovalStatus::Denied : ApprovalStatus::Approved,
-            $match[2] === 'd' ? t('agent.approval_service.otkazano_vladeltsem') : null,
-            $this->principals->findByIdentity($callback->channel, $callback->userId)?->id,
+            $refused ? ApprovalStatus::Denied : ApprovalStatus::Approved,
+            $match[2] === 'd' ? t('agent.approval_service.otkazano_vladeltsem') : ($refused ? t('agent.bans.refused_by_owner') : null),
+            $presser,
         );
         if ($decided === null) {
             $this->channel->answerCallback($callback->callbackId, t('agent.approval_service.uzhe_resheno'));
+            return;
+        }
+        if ($match[2] === 'n' || $match[2] === 'm') {
+            // spec: brief/agent-loop.md#запреты — a ban of the participant who asked, as a grant from a card would be;
+            //       it is lifted from the list, not from a card
+            $key = $match[2] === 'm' ? ($decided->wideKey ?? $decided->grantKey) : $decided->grantKey;
+            if ($key !== null) {
+                $words = $key === $decided->grantKey ? mb_substr(explode("\n", $decided->summary, 2)[0], 0, 200) : null;
+                $this->approvals->addBan($decided->principalId, '', $key, $words === '' ? null : $words, $presser);
+                $this->logger->info('Ban saved from a card', ['key' => $key]);
+            }
+            $this->channel->answerCallback($callback->callbackId, t('agent.bans.saved_short'));
+            $this->closeCard($decided, sprintf(t('agent.bans.saved'), GrantKeys::label($key ?? '')));
+            $this->continue($decided);
             return;
         }
         // spec: brief/agent-loop.md#разрешения-навсегда — a grant given on a card of a run that read outside data applies

@@ -329,6 +329,9 @@ if ($imported !== null || $importFailed) {
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);
 $chat->useRoles($roleCatalog);
+// spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
+$banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
+$chat->useBans($banList);
 // spec: brief/participants.md#свои-роли — a holder of reports does not see the private chats of others
 $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($runs, $conversations): bool {
     $run = $runs->find($runId);
@@ -338,7 +341,7 @@ $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($ru
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone, title: 'self-review', promptKey: 'job.self_review.prompt'))->sync($apiOwner, TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SELF_REVIEW_SCHEDULE') ?? '')) {
     $logger->warning('SELF_REVIEW_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
-$presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'gn' => $approvals, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, ...($rulesNotice === null ? [] : [\OpenCCK\App\Agent\MemoryRulesNotice::PREFIX => $rulesNotice]), HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership, \OpenCCK\App\Service\ProjectTransfers::PREFIX => $projectTransfers], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv', \OpenCCK\App\Service\ProjectTransfers::PREFIX, \OpenCCK\App\Agent\MemoryRulesNotice::PREFIX]);
+$presses = new CallbackRouter($channel, $ownerDirectory, [\OpenCCK\App\Improve\Improvements::PREFIX => $improvements, 'ap' => $approvals, 'pg' => $approvals, 'gn' => $approvals, \OpenCCK\App\Agent\BanList::PREFIX => $banList, 'pv' => $visitors, \OpenCCK\App\Peer\AgentRequests::PREFIX => $agentRequests, 'gr' => $groupGate, MemoryCards::PREFIX => $memoryCards, MemoryCards::FORGET => $memoryCards, ...($rulesNotice === null ? [] : [\OpenCCK\App\Agent\MemoryRulesNotice::PREFIX => $rulesNotice]), HostKeyCards::PREFIX => $hostKeyCards, \OpenCCK\App\Service\OwnershipTransfer::PREFIX => $ownership, \OpenCCK\App\Service\ProjectTransfers::PREFIX => $projectTransfers], ['p' . $apiOwner->id], [MemoryCards::PREFIX, 'pv', \OpenCCK\App\Agent\BanList::PREFIX, \OpenCCK\App\Service\ProjectTransfers::PREFIX, \OpenCCK\App\Agent\MemoryRulesNotice::PREFIX]);
 
 $botId = (int) explode(':', $telegram->token(), 2)[0];
 $parser = new UpdateParser($botId, allowBots: true);

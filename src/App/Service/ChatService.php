@@ -147,6 +147,12 @@ final class ChatService implements MessageHandler {
         return implode("\n", $lines);
     }
 
+    private ?\OpenCCK\App\Agent\BanList $bans = null;
+
+    public function useBans(\OpenCCK\App\Agent\BanList $bans): void {
+        $this->bans = $bans;
+    }
+
     public function useRoles(RoleCatalog $roles): void {
         $this->roles = $roles;
     }
@@ -233,6 +239,11 @@ final class ChatService implements MessageHandler {
             if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)))) {
                 $this->reply($message, t(self::NOTHING_TO_STOP));
             }
+            return;
+        }
+        // spec: brief/agent-loop.md#запреты — bans by command: the owner of the agent, and the owner of a project for it
+        if ($command === '/deny' && $this->bans !== null) {
+            $this->bans->command($principal, trim(substr($text, strlen($command))), $message->chatId, $message->messageId);
             return;
         }
         if ($command === '/permissions') {

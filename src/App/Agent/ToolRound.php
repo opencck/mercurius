@@ -226,6 +226,12 @@ final class ToolRound {
         if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
             return ToolResult::error(t('agent.agent_loop.zdes_dostupno_tolko_chtenie_etot'));
         }
+        // spec: brief/agent-loop.md#запреты — a ban of any area is stronger than a grant of any area: it is checked first,
+        //       and the refusal says not to ask again
+        $ban = $call->executable() && $call->tool !== null && $call->args !== null ? $this->banFor($state, $call->tool, $call->args, $call->call->name) : null;
+        if ($ban !== null) {
+            return ToolResult::error(sprintf(t('agent.bans.refused'), GrantKeys::label($ban->key)));
+        }
         // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a worker cannot ask the owner: an irreversible
         //      action runs only by the owner's saved "always" grant, under the same rules as for the agent itself
         if (!$state->policy->irreversible && $call->executable() && $call->danger === DangerClass::Irreversible) {
@@ -306,6 +312,31 @@ final class ToolRound {
         $this->approvals->useGrant($grant->id);
         $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $name, 'key' => $grant->key, 'grant' => $grant->id]);
         return true;
+    }
+
+    /**
+     * The ban that covers this call: of everyone, of the participant, of a project or a job the run works in.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function banFor(RunState $state, Tool\Tool $tool, array $args, string $name): ?\OpenCCK\Domain\Agent\Ban {
+        if ($this->approvals === null) {
+            return null;
+        }
+        $bans = $this->approvals->bans();
+        if ($bans === []) {
+            return null;
+        }
+        $keys = GrantKeys::of($tool, $args, $name);
+        $own = array_values(array_unique(array_filter([$keys->exact, $keys->wide[0] ?? null, GrantKeys::any($name)], static fn(?string $k): bool => $k !== null)));
+        $areas = $this->areas?->of($this->runs->find($state->run->id) ?? $state->run) ?? [];
+        foreach ($bans as $ban) {
+            if ($ban->reaches($state->principal->id, $areas) && $ban->covers($own)) {
+                $this->logger->info('Call refused by a ban', ['run' => $state->run->id, 'tool' => $name, 'ban' => $ban->id]);
+                return $ban;
+            }
+        }
+        return null;
     }
 
     private function runCall(RunState $state, ValidatedCall $call, bool $approved = false): ToolResult {

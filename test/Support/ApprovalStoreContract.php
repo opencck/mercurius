@@ -156,4 +156,19 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         self::assertNull($this->approvals->closeNeeds($needs->id, 'denied'));
         self::assertNull($this->approvals->needs('job:5'));
     }
+
+    public function testABanIsKeptOnceAndLifted(): void {
+        // spec: brief/agent-loop.md#запреты
+        $ban = $this->approvals->addBan($this->principalId, '', 'ssh:v1:prod:*', 'команды на prod', $this->principalId);
+        $again = $this->approvals->addBan($this->principalId, '', 'ssh:v1:prod:*', null, null);
+        $area = $this->approvals->addBan(null, 'project:4', 'tool:push', null, null);
+
+        self::assertSame($ban->id, $again->id, 'the same ban is kept once');
+        self::assertSame(['ssh:v1:prod:*', 'tool:push'], array_map(static fn(\OpenCCK\Domain\Agent\Ban $b): string => $b->key, $this->approvals->bans()));
+        self::assertSame('команды на prod', $this->approvals->bans()[0]->label);
+        self::assertSame('project:4', $area->area);
+        self::assertSame($ban->id, $this->approvals->removeBan($ban->id)?->id);
+        self::assertNull($this->approvals->removeBan($ban->id), 'lifted once');
+        self::assertCount(1, $this->approvals->bans());
+    }
 }

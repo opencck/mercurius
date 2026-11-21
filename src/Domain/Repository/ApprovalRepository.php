@@ -69,6 +69,16 @@ interface ApprovalRepository {
 
     public function revokeGrant(int $id): ?Grant;
 
+    /**
+     * spec: brief/agent-loop.md#запреты — a ban in an area; setting the same again keeps one
+     */
+    public function addBan(?int $principalId, string $area, string $key, ?string $label, ?int $createdBy): \OpenCCK\Domain\Agent\Ban;
+
+    /** @return list<\OpenCCK\Domain\Agent\Ban> active bans, oldest first */
+    public function bans(): array;
+
+    public function removeBan(int $id): ?\OpenCCK\Domain\Agent\Ban;
+
     /** Revokes the grants whose key starts with the prefix; how many. */
     public function revokeGrants(string $prefix): int;
 

@@ -154,6 +154,29 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         return array_values(array_filter($this->grants, static fn(Grant $g): bool => $principalId === null || $g->principalId === $principalId));
     }
 
+    /** @var array<int, \OpenCCK\Domain\Agent\Ban> */
+    public array $bans = [];
+
+    public function addBan(?int $principalId, string $area, string $key, ?string $label, ?int $createdBy): \OpenCCK\Domain\Agent\Ban {
+        foreach ($this->bans as $ban) {
+            if ($ban->principalId === $principalId && $ban->area === $area && $ban->key === $key) {
+                return $ban;
+            }
+        }
+        $id = count($this->bans) === 0 ? 1 : max(array_keys($this->bans)) + 1;
+        return $this->bans[$id] = new \OpenCCK\Domain\Agent\Ban($id, $principalId, $area, $key, $label, $createdBy);
+    }
+
+    public function bans(): array {
+        return array_values($this->bans);
+    }
+
+    public function removeBan(int $id): ?\OpenCCK\Domain\Agent\Ban {
+        $ban = $this->bans[$id] ?? null;
+        unset($this->bans[$id]);
+        return $ban;
+    }
+
     public function revokeGrant(int $id): ?Grant {
         $grant = $this->grants[$id] ?? null;
         unset($this->grants[$id]);
