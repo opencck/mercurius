@@ -299,6 +299,27 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertSame(['read'], array_map(static fn($t): string => $t->name, $llm->requests[1]->tools));
     }
 
+    public function testAWorkerGivenNoToolsGetsTheReadingToolsOfTheWhiteList(): void {
+        // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — named none: the reading ones, as a hermes child inherits
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'собери новости']]),
+            ScriptedLlm::text('собрал'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $stack->registry->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($stack->registry, $stack->policies));
+        $this->runner->allowOnly(['read', 'note', 'push']);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $offered = array_map(static fn($t): string => $t->name, $llm->requests[1]->tools);
+        self::assertContains('read', $offered);
+        self::assertNotContains('note', $offered, 'a tool that may write is given only when named');
+        self::assertNotContains('push', $offered);
+        self::assertNotContains('request_tool', $offered, 'a worker cannot ask the owner for a tool');
+    }
+
     public function testWorkerCannotAskTheOwner(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'отправь', 'tools' => ['push']]]),

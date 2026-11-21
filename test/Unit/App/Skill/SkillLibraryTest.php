@@ -152,6 +152,22 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertContains('.mercurius/skills/weekly-report/templates/table.md', array_keys($this->sandbox->files[1]));
     }
 
+    public function testARefusedSkillNamesTheLineThatLooksLikeASecret(): void {
+        // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — the refusal says what to fix, so the model does not guess by halves
+        $save = new SkillSaveTool($this->library(), $this->projectOf());
+
+        $refused = $save->execute(['name' => 'panels', 'description' => 'Панели', 'body' => "# Панели\n\nВход логином/паролем: POST <base>/login"], $this->context($this->owner));
+
+        self::assertTrue($refused->isError);
+        self::assertStringContainsString('SKILL.md', $refused->content);
+        self::assertStringContainsString('строка 8', $refused->content, 'the line in SKILL.md with its header of four lines and a blank one');
+        self::assertStringContainsString('паролем: ***', $refused->content, 'the line is shown masked');
+        self::assertStringNotContainsString('POST', $refused->content);
+
+        $long = $save->execute(['name' => 'panels', 'description' => 'Панели', 'body' => 'См. файл', 'files' => ['references/big.md' => str_repeat('а', 50_001)]], $this->context($this->owner));
+        self::assertStringContainsString('references/big.md', $long->content, 'the long file is named');
+    }
+
     public function testANamedProjectIsThePlaceAndAMissingSkillIsPointedAtItsProject(): void {
         // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a skill with a project named goes into that project;
         //       a skill that is not in this chat but is in a project of the participant is pointed at

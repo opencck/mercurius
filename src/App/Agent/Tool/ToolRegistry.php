@@ -105,7 +105,8 @@ final class ToolRegistry {
             return false;
         }
         if ($tool instanceof RequestsAccess) {
-            return $policy->tools !== null;
+            // a worker cannot ask the owner (spec: brief/orchestration.md#часть-1--синхронное-делегирование)
+            return $policy->tools !== null && $policy->irreversible;
         }
         if ($tool instanceof ToolSearchTool) {
             // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the bridge shows only the tools the participant may use, so anyone may search

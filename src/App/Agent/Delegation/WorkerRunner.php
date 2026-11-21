@@ -373,6 +373,16 @@ final class WorkerRunner {
     /** @return list<string> the tools the worker gets: asked for, allowed to the orchestrator, existing, not forbidden */
     private function tools(ToolContext $parent, WorkerTask $task): array {
         $asked = $task->tools;
+        if ($asked === [] && $this->allowed !== null) {
+            // spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — none named: the reading tools of the white list,
+            //      as a child of hermes inherits its parent's; a tool that may write is given only when named
+            // ref: references/hermes-agent/tools/delegate_tool_toolsets.py@e96221fa:L77-L101 (_resolve_child_toolsets) — no
+            //      toolsets given, the child inherits the parent's; here only the reading ones, so a forgotten list does not widen rights
+            $asked = array_values(array_filter(
+                $this->onTheList($this->registry->all()),
+                fn(string $name): bool => $this->registry->get($name)?->danger([]) === DangerClass::Read,
+            ));
+        }
         if ($task->memory !== 'none') {
             $asked = [...$asked, ...self::MEMORY_READ, ...($task->memory === 'write' ? self::MEMORY_WRITE : [])];
         }

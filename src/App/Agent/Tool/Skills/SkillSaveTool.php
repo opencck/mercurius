@@ -85,13 +85,17 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
             return ToolResult::error(t('skill.skill_catalog.imya_skilla_strochnye_latinskie_bukvy'));
         }
         $given = isset($args['files']) && is_array($args['files']) ? $args['files'] : [];
+        // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — every refusal names what to fix: the model does not guess by halves
         if (count($given) > self::FILES_MAX) {
-            return ToolResult::error(sprintf(t('tool.skill_propose.files_bad'), self::FILES_MAX));
+            return ToolResult::error(sprintf(t('tool.skill_save.too_many'), count($given), self::FILES_MAX));
         }
         $raw = ['SKILL.md' => "---\nname: " . $name . "\ndescription: " . $description . "\n---\n\n" . $body];
         foreach ($given as $path => $text) {
-            if (!is_string($path) || !is_string($text) || mb_strlen($text) > self::FILE_CHARS) {
-                return ToolResult::error(sprintf(t('tool.skill_propose.files_bad'), self::FILES_MAX));
+            if (!is_string($path) || !is_string($text)) {
+                return ToolResult::error(t('tool.skill_save.not_text'));
+            }
+            if (mb_strlen($text) > self::FILE_CHARS) {
+                return ToolResult::error(sprintf(t('tool.skill_save.too_long'), $path, mb_strlen($text), self::FILE_CHARS));
             }
             $raw[$path] = $text;
         }
@@ -103,7 +107,7 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
         // what lands in a skill is read in later conversations: no secrets, no hidden text, no dangerous patterns
         foreach ([$bundle->body, ...array_values($bundle->files)] as $text) {
             if (SecretMasker::mask($text) !== $text) {
-                return ToolResult::error(sprintf(t('tool.skill_propose.files_bad'), self::FILES_MAX));
+                return ToolResult::error(self::secretLine($raw) ?? sprintf(t('tool.skill_propose.files_bad'), self::FILES_MAX));
             }
         }
         $findings = SkillGuard::scan($bundle);
@@ -112,5 +116,23 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
         }
         $dir = $this->library->write($bundle, $target, $context->cancellation, 'skill_save');
         return ToolResult::ok(sprintf(t('tool.skill_save.done'), $bundle->name, $dir));
+    }
+
+    /**
+     * The first line that looks like a secret: its file, number and text with the value already masked, so the model
+     * rewrites that line (a word after «паролем:» reads as a password) instead of guessing.
+     *
+     * @param array<string, string> $files
+     */
+    private static function secretLine(array $files): ?string {
+        foreach ($files as $path => $text) {
+            foreach (preg_split('~\R~u', $text) ?: [] as $index => $line) {
+                $masked = SecretMasker::mask($line);
+                if ($masked !== $line) {
+                    return sprintf(t('tool.skill_save.secret_line'), $path, $index + 1, mb_substr($masked, 0, 200));
+                }
+            }
+        }
+        return null;
     }
 }

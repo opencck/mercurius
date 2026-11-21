@@ -26,7 +26,7 @@ final class ParticipantPolicy {
         public readonly bool $mayRequestApproval,
         /** only calls that read run: the danger is judged per call, by its arguments (a POST is not a read) */
         public readonly bool $readOnly = false,
-        /** irreversible calls may run (by approval or a saved grant); a worker never has this right */
+        /** irreversible calls may run (by approval or a saved grant); a worker has not: it runs them only by a saved grant */
         public readonly bool $irreversible = true,
         /** USD a UTC day of this participant may cost; 0 — no cap of their own (spec: brief/participants.md#несколько-пользователей) */
         public readonly float $dailySpendUsd = 0.0,
