@@ -422,6 +422,24 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
         return sprintf(t('agent.grants.allowed'), GrantKeys::label($key)) . ($outside ? t('agent.grants.saved_outside') : '');
     }
 
+    /**
+     * After a run of an area with nobody to ask: an area that goes on gets the card of what it lacked; an area that
+     * ended (a one-off job that ran) loses its grants and its list — there is nothing left to allow it.
+     *
+     * spec: brief/scheduler.md#разрешения-задания
+     */
+    public function afterRun(bool $ended, string $area, string $title): void {
+        if (!$ended) {
+            $this->askNeeds($area, $title);
+            return;
+        }
+        $needs = $this->approvals->needs($area);
+        if ($needs !== null) {
+            $this->approvals->closeNeeds($needs->id, 'denied');
+        }
+        $this->forgetArea($area);
+    }
+
     /** The grants of a job end with the job. */
     public function forgetArea(string $area): int {
         return $this->approvals->revokeGrants($area . '|') + $this->approvals->revokeGrants('area:' . $area);

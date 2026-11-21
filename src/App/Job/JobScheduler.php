@@ -264,7 +264,7 @@ final class JobScheduler implements JobRuns {
         $this->report($job, $number, $text, $event !== null && $source === 'webhook');
         // spec: brief/scheduler.md#разрешения-задания — what the run lacked goes to the owner as one card
         if ($this->needs !== null) {
-            ($this->needs)($job);
+            ($this->needs)($this->jobs->find($job->id) ?? $job);
         }
     }
 

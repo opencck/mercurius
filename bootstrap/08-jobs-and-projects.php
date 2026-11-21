@@ -111,7 +111,7 @@ $tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectReposi
 // spec: brief/scheduler.md#разрешения-задания — a job run is not asked by a card: what it lacked is one list after the run
 $loop->useAreas(new \OpenCCK\App\Job\JobAreas($conversations, $projectRepository));
 $jobScheduler->useNeeds(static function (\OpenCCK\Domain\Job\Job $job) use ($approvals): void {
-    $approvals->askNeeds('job:' . $job->id, sprintf('#%d «%s»', $job->id, $job->title));
+    $approvals->afterRun($job->status === \OpenCCK\Domain\Job\Job::DONE, 'job:' . $job->id, sprintf('#%d «%s»', $job->id, $job->title));
 });
 // spec: brief/scheduler.md#инициатива-агента — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {

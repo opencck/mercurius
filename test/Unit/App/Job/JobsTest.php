@@ -297,7 +297,9 @@ description: Отчёт о диске таблицей
         $deploy = new FakeTool('deploy', \OpenCCK\Domain\Agent\DangerClass::Irreversible);
         $this->stack->registry->register($deploy);
         $this->stack->loop->useAreas(new \OpenCCK\App\Job\JobAreas($this->stack->conversations));
-        $scheduler->useNeeds(fn(Job $job) => $this->stack->approvalService->askNeeds('job:' . $job->id, '#' . $job->id));
+        $scheduler->useNeeds(function (Job $job): void {
+            $this->stack->approvalService->afterRun($job->status === Job::DONE, 'job:' . $job->id, '#' . $job->id);
+        });
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Выкатка', 'Выкати прод', 'every:600', $this->now);
 
         $scheduler->tick(true);
@@ -320,6 +322,29 @@ description: Отчёт о диске таблицей
         }))
             ->execute(['action' => 'cancel', 'id' => 1], new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation()));
         self::assertSame([], $this->stack->approvals->grants($this->owner->id), 'the grants of a job end with it');
+    }
+
+    public function testAOneOffJobThatRanLeavesNoGrantsAndAsksForNone(): void {
+        // spec: brief/scheduler.md#разрешения-задания — the grants of a job end with it; a job that will not run again has
+        //       nothing to ask a grant for
+        $scheduler = $this->scheduler(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'deploy', '{"q":"prod"}')),
+            ScriptedLlm::text('Не выкатил: нет разрешения.'),
+        ]));
+        $this->stack->registry->register(new FakeTool('deploy', \OpenCCK\Domain\Agent\DangerClass::Irreversible));
+        $this->stack->loop->useAreas(new \OpenCCK\App\Job\JobAreas($this->stack->conversations));
+        $scheduler->useNeeds(function (Job $job): void {
+            $this->stack->approvalService->afterRun($job->status === Job::DONE, 'job:' . $job->id, '#' . $job->id);
+        });
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Разово', 'Выкати прод', 'once:' . $this->now->format(DATE_ATOM), $this->now);
+        $this->stack->approvals->addGrant($this->owner->id, 'job:1|tool:other', null, true);
+
+        $scheduler->tick(true);
+
+        self::assertSame(Job::DONE, $this->jobs->find(1)?->status);
+        self::assertSame([], $this->stack->approvals->grants($this->owner->id), 'the grants of the finished job are gone');
+        self::assertNull($this->stack->approvals->needs('job:1'), 'and nothing waits for the owner');
+        self::assertStringNotContainsString('не хватило разрешений', implode("\n", $this->stack->channel->texts('send')));
     }
 
     public function testAnIrreversibleStepOfAJobAsksTheOwnerAndTheRunGoesOnAfterTheDecision(): void {
