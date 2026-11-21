@@ -171,6 +171,7 @@ final class MemoryCards implements CallbackHandler {
             Proposal::CHANGE => sprintf(t('agent.memory_cards.izmenit_fakt'), (int) $proposal->factId),
             Proposal::END => sprintf(t('agent.memory_cards.otmetit_chto_fakt_bolshe_ne'), (int) $proposal->factId),
             Proposal::FORGET => sprintf(t('agent.memory_cards.zabyt_fakt_nasovsem'), (int) $proposal->factId),
+            Proposal::MERGE => sprintf(t('agent.memory_cards.merge'), (int) $proposal->factId, (int) $proposal->mergeWith),
             Proposal::PROFILE => t('agent.memory_cards.zamenit_profil_vladeltsa'),
             Proposal::SUMMARY => t('agent.memory_cards.zamenit_svodku_tekuschih_del'),
             default => $proposal->kind,
@@ -179,6 +180,19 @@ final class MemoryCards implements CallbackHandler {
         if ($withOld && $proposal->kind === Proposal::CHANGE && $proposal->factId !== null) {
             $old = $this->store->fact($proposal->factId)->text ?? '';
             $text = sprintf(t('agent.memory_cards.bylo_stanet'), SecretMasker::mask($old), $text);
+        }
+        // spec: brief/memory.md#слияние — both facts as they are now, and the one text that replaces them
+        if ($proposal->kind === Proposal::MERGE) {
+            $keep = (int) $proposal->factId;
+            $drop = (int) $proposal->mergeWith;
+            $text = sprintf(
+                t('agent.memory_cards.merge_was'),
+                $keep,
+                SecretMasker::mask($this->store->fact($keep)->text ?? '—'),
+                $drop,
+                SecretMasker::mask($this->store->fact($drop)->text ?? '—'),
+                $text,
+            );
         }
         return sprintf(
             t('agent.memory_cards.pamyat_predlozhenie_predlozhil_gde_budet'),

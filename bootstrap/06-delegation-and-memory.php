@@ -263,19 +263,18 @@ $consolidation = new Consolidation(
 );
 // spec: brief/memory.md#судья-пары — the model of sleep judges the gray zone; its verdicts are kept while the texts stay
 $verdictCache = new \Mercurius\Memory\Infrastructure\PostgresVerdictCache($db);
-$consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge(
-    new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use ($sleepModels): array {
-        $refs = [];
-        foreach ($sleepModels() as $model) {
-            try {
-                $refs[] = (string) ModelRef::parse($model);
-            } catch (\InvalidArgumentException) {
-                continue;
-            }
+// spec: brief/memory.md#слияние — the same model writes the text of a merge; the code checks it before the card
+$sleepJudge = new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use ($sleepModels): array {
+    $refs = [];
+    foreach ($sleepModels() as $model) {
+        try {
+            $refs[] = (string) ModelRef::parse($model);
+        } catch (\InvalidArgumentException) {
+            continue;
         }
-        return $refs;
-    }, $logger),
-    $verdictCache,
-    \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION,
-));
+    }
+    return $refs;
+}, $logger);
+$consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $verdictCache, \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION));
+$consolidation->useMerger($sleepJudge);
 $proposals->onForget(static fn(Fact $fact) => $verdictCache->forgetFact($fact->id));
