@@ -8,14 +8,14 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `ca0cd6d` | 2026-11-21 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
-| [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `59c57ca` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
-| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `4df58f2` | 2026-11-21 | Канал связи: адаптеры Telegram и WebSocket |
-| [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `494d0bf` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `c3909e2` | 2026-11-21 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
-| [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `8f5ad40` | 2026-11-21 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `dccc5de` | 2026-11-21 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
-| [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `563f927` | 2026-11-21 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `9a2b2dc` | 2026-11-21 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic и Bedrock |
+| [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
+| [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `c499ae3` | 2026-11-21 | Канал связи: адаптеры Telegram и WebSocket |
+| [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `ef344f6` | 2026-11-21 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `91d69b8` | 2026-11-21 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `63a21c9` | 2026-11-21 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `8b9892f` | 2026-11-21 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
 Репозиторий `mercurius-command-policy` заведён, код пока в основном репозитории (`src/CommandPolicy/`) — так и сказано в его README (2026-11-20); срока выноса нет. `mercurius-browser-service` не используется: сервис браузера — модуль `mercurius-browser`.
 
@@ -27,13 +27,13 @@ compose, по умолчанию выключен ([Модули: сервисы
 
 | Модуль | Каталог | Коммит | Проверено | Профиль | Назначение |
 |--------|---------|--------|-----------|---------|------------|
-| [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `3255af8` | 2026-11-21 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
-| [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `ee02f01` | 2026-11-21 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `d64bc83` | 2026-11-21 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
-| [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `ab68424` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
-| [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `fea31c3` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
-| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `9daef78` | 2026-11-21 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `9c7afda` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
+| [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `a43658e` | 2026-11-21 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
+| [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `589ffc3` | 2026-11-21 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `10a7903` | 2026-11-21 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
+| [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
+| [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `32d9f9b` | 2026-11-21 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
+| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 ## Как работать с пакетом
 
@@ -46,6 +46,10 @@ compose, по умолчанию выключен ([Модули: сервисы
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-21 — китайский README: пометка
+
+- README.cn.md помечены как перевод модели, не проверенный человеком: `mail` `9c7afda` → `6ab5f4d`, `connectors` `59c57ca` → `0b2faa8`, `i18n` `c3909e2` → `ef344f6`, `llm` `ca0cd6d` → `9a2b2dc`, `mcp-client` `8f5ad40` → `91d69b8`, `memory` `dccc5de` → `63a21c9`, `messenger` `4df58f2` → `c499ae3`, `peer` `563f927` → `8b9892f`, `search` `494d0bf` → `749395f`, `browser` `d64bc83` → `10a7903`, `media-docs` `ee02f01` → `589ffc3`, `media-video` `3255af8` → `a43658e`, `telegram-bot-api` `9daef78` → `32d9f9b`, `memory-file` `fea31c3` → `c5f3f65`, `skill-creator` `ab68424` → `c63571b`.
 
 ### 2026-11-21 — китайский язык
 
