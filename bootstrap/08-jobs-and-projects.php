@@ -48,6 +48,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
  * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
+ * @var OpenCCK\App\Agent\ApprovalService $approvals
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  */
 
@@ -104,7 +105,14 @@ $jobScheduler->useProjects($projectRepository);
 $jobScheduler->useInbox(static fn(Principal $to, string $text): bool => $participantInbox->tell($to, $text));
 $jobText = new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text);
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, $jobText, $runs, $projectRepository));
-$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs));
+$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs, static function (int $jobId) use ($approvals): void {
+    $approvals->forgetArea('job:' . $jobId);
+}));
+// spec: brief/scheduler.md#разрешения-задания — a job run is not asked by a card: what it lacked is one list after the run
+$loop->useAreas(new \OpenCCK\App\Job\JobAreas($conversations, $projectRepository));
+$jobScheduler->useNeeds(static function (\OpenCCK\Domain\Job\Job $job) use ($approvals): void {
+    $approvals->askNeeds('job:' . $job->id, sprintf('#%d «%s»', $job->id, $job->title));
+});
 // spec: brief/scheduler.md#инициатива-агента — the agent's own initiative on the schedule of INITIATIVE_SCHEDULE
 if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($principals->ensureOwner(TelegramChannel::NAME, $telegram->ownerId, null), TelegramChannel::NAME, $ownerDirectory->chatId(), \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'INITIATIVE_SCHEDULE') ?? '')) {
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');

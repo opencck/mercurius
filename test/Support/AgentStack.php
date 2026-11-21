@@ -65,6 +65,7 @@ final class AgentStack {
         $this->channel = new FakeChannel(max(1, $maxMessageLength));
         $this->approvals = new InMemoryApprovalRepository();
         $this->approvalService = new ApprovalService($this->approvals, $this->principals, $this->channel, '42', 1800, events: $events);
+        $this->approvalService->useRuns($this->runs);
         $loop = $this->loop = new AgentLoop($this->llm, $this->runs, $this->transcript, $this->conversations, $this->calls, $this->registry, new ToolExecutor(), 100, null, 10, approvals: $this->approvals, gate: $this->approvalService, budget: $budget);
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), $limits);
         $this->scheduler = new RunScheduler(
@@ -85,7 +86,7 @@ final class AgentStack {
         $this->scheduler->useApprovals($this->approvalService);
         $this->approvalService->onDecision($this->scheduler->resumeRun(...));
         $this->visitors = new VisitorService($this->principals, $this->channel, '42', retryDelays: [0.01, 0.01]);
-        $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'pv' => $this->visitors], openPrefixes: ['pv']);
+        $this->callbacks = new CallbackRouter($this->channel, '42', ['ap' => $this->approvalService, 'pg' => $this->approvalService, 'gn' => $this->approvalService, 'pv' => $this->visitors], openPrefixes: ['pv']);
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, reports: $reports);
     }
 

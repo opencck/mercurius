@@ -47,7 +47,7 @@ final class RequestToolToolTest extends AsyncTestCase {
         $args = ['tool' => 'peer_links', 'reason' => 'открыть подключение к neighbour'];
 
         self::assertSame(DangerClass::Irreversible, $this->tool->danger($args));
-        self::assertNull($this->tool->grantKey($args), 'every request is the owner\'s own decision');
+        self::assertSame('tool-grant:peer_links', $this->tool->grantKey($args), 'the grant is for this tool, not for asking for any');
         self::assertStringContainsString('peer_links', $this->tool->describe($args));
         self::assertStringContainsString('открыть подключение к neighbour', $this->tool->describe($args));
         /** @var array{properties: array{tool: array{enum: list<string>}}} $schema */

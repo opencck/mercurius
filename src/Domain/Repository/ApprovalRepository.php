@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\Grant;
+use OpenCCK\Domain\Agent\GrantRequest;
 
 /**
  * Approvals and saved grants.
@@ -38,12 +39,53 @@ interface ApprovalRepository {
      */
     public function deniedInARow(int $principalId, string $summary, DateTimeImmutable $since): int;
 
+    /** A wider key the card of the approval offers. */
+    public function setWideKey(int $id, string $wideKey): void;
+
+    /** Whether the participant has this grant for good (of any kind). */
     public function hasGrant(int $principalId, string $key): bool;
 
-    public function addGrant(int $principalId, string $key): void;
+    /**
+     * Saves a grant: for good, or for one conversation; $outside — it applies after outside data too. Saving again
+     * widens an existing grant (adds $outside), never narrows it.
+     *
+     * spec: brief/agent-loop.md#разрешения-навсегда
+     */
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void;
 
-    /** @return list<Grant> active grants of one participant, or of everyone when null */
+    /**
+     * The grant that lets one of the keys run: for good or for this conversation; in a run that read outside data
+     * ($outside) only a grant given for that.
+     *
+     * @param list<string> $keys
+     */
+    public function grantFor(int $principalId, array $keys, ?int $conversationId, bool $outside): ?Grant;
+
+    /** A call ran by the grant. */
+    public function useGrant(int $id): void;
+
+    /** @return list<Grant> active grants, oldest first; of one participant or of everyone */
     public function grants(?int $principalId = null): array;
 
     public function revokeGrant(int $id): ?Grant;
+
+    /** Revokes the grants whose key starts with the prefix; how many. */
+    public function revokeGrants(string $prefix): int;
+
+    /**
+     * A run with nobody to ask lacked a grant: it joins the pending list of its area (one list per area).
+     *
+     * spec: brief/scheduler.md#разрешения-задания
+     */
+    public function noteNeed(string $area, int $principalId, string $key, string $label): void;
+
+    /** The pending list of an area; null — nothing is lacking. */
+    public function needs(string $area): ?GrantRequest;
+
+    public function findNeeds(int $id): ?GrantRequest;
+
+    public function setNeedsCard(int $id, string $chatId, string $messageId): void;
+
+    /** Decides a pending list once; null when it was decided already. */
+    public function closeNeeds(int $id, string $status): ?GrantRequest;
 }

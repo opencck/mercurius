@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/agent-loop.md#модели — set_model_role, who manages roles
  */
-final class SetModelRoleTool implements Tool, GrantKeyed {
+final class SetModelRoleTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\WideGrant {
     public const NAME = 'set_model_role';
 
     public function __construct(private readonly ModelRoles $roles) {}
@@ -60,6 +60,11 @@ final class SetModelRoleTool implements Tool, GrantKeyed {
      * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
      * action and its target
      */
+    public function wideGrant(array $args): ?array {
+        $role = Args::string($args, 'role') ?? '';
+        return $role === '' ? null : ['model-role-any:' . $role, sprintf(t('agent.grants.wide_model'), $role)];
+    }
+
     public function grantKey(array $args): ?string {
         $role = Args::string($args, 'role') ?? '';
         $model = Args::string($args, 'model') ?? '';

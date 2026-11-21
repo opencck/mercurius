@@ -52,7 +52,11 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
-        return $this->classify($args)->key;
+        $found = $this->classify($args);
+        // spec: brief/agent-loop.md#разрешения-навсегда — a command that has no key of its own is granted as this exact text
+        return $found->key ?? ($found->danger === \OpenCCK\Domain\Agent\DangerClass::Irreversible
+            ? 'cmd:' . substr(hash('sha256', trim(Args::string($args, 'command') ?? '')), 0, 16)
+            : null);
     }
 
     public function describe(array $args): string {

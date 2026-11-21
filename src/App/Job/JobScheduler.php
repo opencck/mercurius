@@ -262,6 +262,18 @@ final class JobScheduler implements JobRuns {
             $text = t('job.job_scheduler.zapusk_ne_udalsya_vnutrennyaya_oshibka');
         }
         $this->report($job, $number, $text, $event !== null && $source === 'webhook');
+        // spec: brief/scheduler.md#разрешения-задания — what the run lacked goes to the owner as one card
+        if ($this->needs !== null) {
+            ($this->needs)($job);
+        }
+    }
+
+    /** @var (Closure(Job): void)|null */
+    private ?Closure $needs = null;
+
+    /** @param Closure(Job): void $needs shows the owner the grants the last run of the job lacked */
+    public function useNeeds(Closure $needs): void {
+        $this->needs = $needs;
     }
 
     /** @param string|null $text null — the run waits for the owner's decision */

@@ -67,7 +67,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
             return null;
         }
         $this->deciders[$id] = $decidedBy;
-        return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId, $a->createdAt);
+        return $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $status, $reason, $a->cardChatId, $a->cardMessageId, $a->createdAt, $a->wideKey);
     }
 
     public function due(DateTimeImmutable $now): array {
@@ -91,7 +91,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
 
     public function setCard(int $id, string $chatId, string $messageId): void {
         $a = $this->approvals[$id];
-        $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $a->status, $a->reason, $chatId, $messageId, $a->createdAt);
+        $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $a->status, $a->reason, $chatId, $messageId, $a->createdAt, $a->wideKey);
     }
 
     /** Test helper: make an approval due now. */
@@ -99,19 +99,48 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         $this->expires[$id] = new DateTimeImmutable('-1 second');
     }
 
+    public function setWideKey(int $id, string $wideKey): void {
+        $a = $this->approvals[$id];
+        $this->approvals[$id] = new Approval($a->id, $a->runId, $a->callId, $a->principalId, $a->tool, $a->summary, $a->grantKey, $a->status, $a->reason, $a->cardChatId, $a->cardMessageId, $a->createdAt, $wideKey);
+    }
+
     public function hasGrant(int $principalId, string $key): bool {
         foreach ($this->grants as $grant) {
-            if ($grant->principalId === $principalId && $grant->key === $key) {
+            if ($grant->principalId === $principalId && $grant->key === $key && $grant->conversationId === null) {
                 return true;
             }
         }
         return false;
     }
 
-    public function addGrant(int $principalId, string $key): void {
-        if (!$this->hasGrant($principalId, $key)) {
-            $grant = new Grant($this->nextGrant++, $principalId, $key);
-            $this->grants[$grant->id] = $grant;
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void {
+        foreach ($this->grants as $id => $g) {
+            if ($g->principalId === $principalId && $g->key === $key && $g->conversationId === $conversationId) {
+                $this->grants[$id] = new Grant($g->id, $principalId, $key, $conversationId, $g->outside || $outside, $g->uses);
+                return;
+            }
+        }
+        $grant = new Grant($this->nextGrant++, $principalId, $key, $conversationId, $outside);
+        $this->grants[$grant->id] = $grant;
+    }
+
+    public function grantFor(int $principalId, array $keys, ?int $conversationId, bool $outside): ?Grant {
+        $found = null;
+        foreach ($this->grants as $g) {
+            if ($g->principalId !== $principalId || !in_array($g->key, $keys, true) || ($g->conversationId !== null && $g->conversationId !== $conversationId) || ($outside && !$g->outside)) {
+                continue;
+            }
+            if ($found === null || ($g->conversationId === null && $found->conversationId !== null)) {
+                $found = $g;
+            }
+        }
+        return $found;
+    }
+
+    public function useGrant(int $id): void {
+        $g = $this->grants[$id] ?? null;
+        if ($g !== null) {
+            $this->grants[$id] = new Grant($g->id, $g->principalId, $g->key, $g->conversationId, $g->outside, $g->uses + 1);
         }
     }
 
@@ -123,5 +152,57 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         $grant = $this->grants[$id] ?? null;
         unset($this->grants[$id]);
         return $grant;
+    }
+
+    public function revokeGrants(string $prefix): int {
+        $count = 0;
+        foreach ($this->grants as $id => $g) {
+            if (str_starts_with($g->key, $prefix)) {
+                unset($this->grants[$id]);
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /** @var array<int, \OpenCCK\Domain\Agent\GrantRequest> */
+    private array $requests = [];
+
+    public function noteNeed(string $area, int $principalId, string $key, string $label): void {
+        $pending = $this->needs($area);
+        if ($pending === null) {
+            $id = count($this->requests) + 1;
+            $this->requests[$id] = new \OpenCCK\Domain\Agent\GrantRequest($id, $area, $principalId, [['key' => $key, 'label' => $label]], 'pending');
+            return;
+        }
+        if (!in_array($key, array_column($pending->items, 'key'), true)) {
+            $this->requests[$pending->id] = new \OpenCCK\Domain\Agent\GrantRequest($pending->id, $area, $pending->principalId, [...$pending->items, ['key' => $key, 'label' => $label]], 'pending', $pending->cardChatId, $pending->cardMessageId);
+        }
+    }
+
+    public function needs(string $area): ?\OpenCCK\Domain\Agent\GrantRequest {
+        foreach ($this->requests as $request) {
+            if ($request->area === $area && $request->status === 'pending') {
+                return $request;
+            }
+        }
+        return null;
+    }
+
+    public function findNeeds(int $id): ?\OpenCCK\Domain\Agent\GrantRequest {
+        return $this->requests[$id] ?? null;
+    }
+
+    public function setNeedsCard(int $id, string $chatId, string $messageId): void {
+        $r = $this->requests[$id];
+        $this->requests[$id] = new \OpenCCK\Domain\Agent\GrantRequest($r->id, $r->area, $r->principalId, $r->items, $r->status, $chatId, $messageId);
+    }
+
+    public function closeNeeds(int $id, string $status): ?\OpenCCK\Domain\Agent\GrantRequest {
+        $r = $this->requests[$id] ?? null;
+        if ($r === null || $r->status !== 'pending') {
+            return null;
+        }
+        return $this->requests[$id] = new \OpenCCK\Domain\Agent\GrantRequest($r->id, $r->area, $r->principalId, $r->items, $status, $r->cardChatId, $r->cardMessageId);
     }
 }

@@ -24,5 +24,7 @@ final class Approval {
         public readonly ?string $cardMessageId = null,
         /** when the card was asked for; null — not known */
         public readonly ?\DateTimeImmutable $createdAt = null,
+        /** a wider key the card offers to allow for good ("every command on this server"); null — none */
+        public readonly ?string $wideKey = null,
     ) {}
 }

@@ -24,7 +24,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/operations.md#настройки-агента
  */
-final class SettingsTool implements Tool, GrantKeyed {
+final class SettingsTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\WideGrant {
     public const NAME = 'settings';
 
     public function __construct(
@@ -58,6 +58,10 @@ final class SettingsTool implements Tool, GrantKeyed {
      * spec: brief/agent-loop.md#разрешения-навсегда — every irreversible action can be allowed for good; the key names the
      * action and its target
      */
+    public function wideGrant(array $args): ?array {
+        return Args::string($args, 'action') === 'set' ? ['settings-any', t('agent.grants.wide_settings')] : null;
+    }
+
     public function grantKey(array $args): ?string {
         return match (Args::string($args, 'action')) {
             'set' => ($key = Args::string($args, 'key')) === null ? null : 'settings:set:' . $key,

@@ -61,6 +61,13 @@ final class ToolRound {
         $this->planner = new BatchPlanner();
     }
 
+    private ?RunAreas $areas = null;
+
+    /** spec: brief/agent-loop.md#разрешения-навсегда — grants of an area (a job, a project) and runs with nobody to ask */
+    public function useAreas(RunAreas $areas): void {
+        $this->areas = $areas;
+    }
+
     /**
      * Tools that complete their arguments do it before the call is saved, so the card, the grant and the run all see
      * the same completed call; a call that cannot be completed gets its reason as an error.
@@ -247,6 +254,16 @@ final class ToolRound {
         if ($this->grantFor($state, $call->tool, $call->args, $call->call->name)) {
             return 'granted';
         }
+        // spec: brief/scheduler.md#разрешения-задания — a run nobody watches does not wait for a card: the call is refused
+        //       and the grant it lacked joins one list the owner gets after the run
+        $run = $this->runs->find($state->run->id) ?? $state->run;
+        $alone = $this->areas?->unattended($run);
+        if ($alone !== null && $this->approvals !== null && !$call->tool instanceof RequestsAccess) {
+            $keys = GrantKeys::of($call->tool, $call->args, $call->call->name);
+            $label = SecretMasker::mask($call->tool instanceof GrantKeyed ? $call->tool->describe($call->args) : $call->call->name);
+            $this->approvals->noteNeed($alone, $state->principal->id, $keys->exact, mb_substr($label, 0, 300));
+            return ToolResult::error(sprintf(t('agent.grants.lacking'), GrantKeys::label($keys->exact)));
+        }
         // spec: brief/network.md#участник-просит-инструмент — asking for a tool reaches the owner always
         if ($this->gate === null || $this->approvals === null) {
             return ToolResult::error(t('agent.agent_loop.deystvie_trebuet_podtverzhdeniya_vladelt'));
@@ -275,11 +292,19 @@ final class ToolRound {
      * @param array<string, mixed> $args
      */
     private function grantFor(RunState $state, Tool\Tool $tool, array $args, string $name): bool {
-        $key = $tool instanceof GrantKeyed ? $tool->grantKey($args) : null;
-        if ($key === null || $this->runs->find($state->run->id)?->outside !== null || $this->approvals?->hasGrant($state->principal->id, $key) !== true) {
+        if ($this->approvals === null) {
             return false;
         }
-        $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $name, 'key' => $key]);
+        $run = $this->runs->find($state->run->id) ?? $state->run;
+        // spec: brief/agent-loop.md#разрешения-навсегда — the call's own key, a wider key of the tool, the grant of an area
+        //       the run works in; after outside data only a grant the owner gave for that
+        $keys = GrantKeys::of($tool, $args, $name)->candidates($name, $this->areas?->of($run) ?? []);
+        $grant = $this->approvals->grantFor($state->principal->id, $keys, $run->conversationId, $run->outside !== null);
+        if ($grant === null) {
+            return false;
+        }
+        $this->approvals->useGrant($grant->id);
+        $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $name, 'key' => $grant->key, 'grant' => $grant->id]);
         return true;
     }
 

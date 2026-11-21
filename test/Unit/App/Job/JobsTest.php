@@ -286,6 +286,42 @@ description: Отчёт о диске таблицей
         self::assertSame([], $this->jobs->pendingReports());
     }
 
+    public function testAJobRunIsNotStoppedByACardWhatItLackedIsOneListAndAGrantOfTheJob(): void {
+        // spec: brief/scheduler.md#разрешения-задания
+        $scheduler = $this->scheduler(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'deploy', '{"q":"prod"}')),
+            ScriptedLlm::text('Не выкатил: нет разрешения.'),
+            ScriptedLlm::calls(new ToolCall('c2', 'deploy', '{"q":"prod"}')),
+            ScriptedLlm::text('Выкатил в прод.'),
+        ]));
+        $deploy = new FakeTool('deploy', \OpenCCK\Domain\Agent\DangerClass::Irreversible);
+        $this->stack->registry->register($deploy);
+        $this->stack->loop->useAreas(new \OpenCCK\App\Job\JobAreas($this->stack->conversations));
+        $scheduler->useNeeds(fn(Job $job) => $this->stack->approvalService->askNeeds('job:' . $job->id, '#' . $job->id));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Выкатка', 'Выкати прод', 'every:600', $this->now);
+
+        $scheduler->tick(true);
+
+        self::assertCount(0, $deploy->calls);
+        self::assertSame('Не выкатил: нет разрешения.', $this->jobs->find(1)?->lastResult, 'the run ended, it did not wait');
+        $sent = implode("\n", $this->stack->channel->texts('send'));
+        self::assertStringContainsString('Заданию #1 не хватило разрешений', $sent);
+        self::assertStringContainsString('любой вызов deploy', $sent);
+
+        $this->stack->press('gn:1:j');
+        self::assertSame(['job:1|tool:deploy'], array_map(static fn($g): string => $g->key, $this->stack->approvals->grants($this->owner->id)));
+
+        $this->now = $this->now->modify('+11 hours');
+        $scheduler->tick(true);
+        self::assertSame([['q' => 'prod']], $deploy->calls, 'the next run of the job has the grant');
+
+        (new JobManageTool($this->jobs, $scheduler, null, null, null, function (int $id): void {
+            $this->stack->approvalService->forgetArea('job:' . $id);
+        }))
+            ->execute(['action' => 'cancel', 'id' => 1], new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation()));
+        self::assertSame([], $this->stack->approvals->grants($this->owner->id), 'the grants of a job end with it');
+    }
+
     public function testAnIrreversibleStepOfAJobAsksTheOwnerAndTheRunGoesOnAfterTheDecision(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([
             ScriptedLlm::calls(new ToolCall('c1', 'deploy', '{"q":"prod"}')),

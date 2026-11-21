@@ -150,6 +150,27 @@ final class RunScheduler {
      * spoke there in the last day. Someone the channel knows but who is not an active participant, and a stranger,
      * count as a visitor.
      */
+    /**
+     * Whether a group's words may be someone else's: any group, unless the owner writes and nobody but the owner spoke
+     * there in the last day — the owner's own words are not outside data, in a group as in the private chat.
+     *
+     * spec: brief/agent-loop.md#запуск-начатый-внешними-данными
+     */
+    private function othersSpoke(\OpenCCK\Domain\Agent\ConversationMeta $meta, Principal $principal): bool {
+        if (!str_starts_with($meta->chatId, '-')) {
+            return false;
+        }
+        if (!$principal->isOwner() || $this->speakers === null) {
+            return true;
+        }
+        foreach (($this->speakers)($meta->channel, $meta->chatId, $meta->threadId) as $userId) {
+            if ($this->principals->findByIdentity($meta->channel, $userId)?->id !== $principal->id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private function policyIn(int $conversationId, Principal $principal): ParticipantPolicy {
         $policy = $this->policies->forPrincipal($principal);
         $speakers = $this->speakers;
@@ -803,7 +824,7 @@ final class RunScheduler {
         $policy = $this->policyIn($conversationId, $principal);
         // spec: brief/agent-loop.md#разрешения-навсегда — in a group other people's words are in the context: saved grants do not apply
         // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the mark is set at the start, before the model reads anything
-        $sources = array_values(array_unique([...(str_starts_with($meta->chatId, '-') ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
+        $sources = array_values(array_unique([...($this->othersSpoke($meta, $principal) ? ['group chat'] : []), ...$outside, ...($this->tainted[$conversationId] ?? [])]));
         unset($this->tainted[$conversationId]);
         $run = $this->runs->start($conversationId, $principal->id, $model, $policy->run, null, $sources === [] ? null : implode(', ', $sources));
         if ($run === null) {

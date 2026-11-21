@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a read runs at once, a change after confirmation
  */
-final class SshRunTool implements Tool, GrantKeyed {
+final class SshRunTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\WideGrant {
     public const NAME = 'ssh_run';
 
     public function __construct(private readonly ServerConsole $console) {}
@@ -59,6 +59,16 @@ final class SshRunTool implements Tool, GrantKeyed {
      * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — one-off grants as the base of learned preferences; a change of the policy drops
      *       the grants
      */
+    /** Every changing command on this server; the "never" list and commands with raised rights stay apart. */
+    public function wideGrant(array $args): ?array {
+        $command = trim(Args::string($args, 'command') ?? '');
+        $server = mb_strtolower(trim(Args::string($args, 'server') ?? ''));
+        if ($command === '' || $server === '' || $this->console->classify($command, $server)->class !== Classification::CHANGE) {
+            return null;
+        }
+        return ['ssh-any:' . $server, sprintf(t('agent.grants.wide_ssh'), $server)];
+    }
+
     public function grantKey(array $args): ?string {
         $command = trim(Args::string($args, 'command') ?? '');
         $server = mb_strtolower(trim(Args::string($args, 'server') ?? ''));

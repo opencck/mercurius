@@ -41,6 +41,8 @@ final class JobManageTool implements Tool {
         private readonly ?\Mercurius\Memory\Domain\ContentScreen $screen = null,
         /** the runs, to see whether the one editing the job had read outside data; null — not marked */
         private readonly ?\OpenCCK\Domain\Repository\RunRepository $runs = null,
+        /** @var (\Closure(int): void)|null called with the id of a cancelled job: its grants end with it */
+        private readonly ?\Closure $cancelled = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -116,7 +118,7 @@ final class JobManageTool implements Tool {
             return $this->edit($job, $args, $context);
         }
         return match ($action) {
-            'cancel' => $this->set($job, Job::DONE, t('tool.job_manage.otmeneno')),
+            'cancel' => $this->cancel($job),
             'pause' => $this->set($job, Job::PAUSED, t('tool.job_manage.priostanovleno')),
             'resume' => $this->resume($job),
             'run_now' => $this->runNow($job),
@@ -157,6 +159,14 @@ final class JobManageTool implements Tool {
         }
         $this->jobs->setProject($job->id, $project->id);
         return ToolResult::ok(sprintf(t('tool.job_manage.into_project'), $job->id, $job->title, $project->name));
+    }
+
+    private function cancel(Job $job): ToolResult {
+        // spec: brief/scheduler.md#разрешения-задания
+        if ($this->cancelled !== null) {
+            ($this->cancelled)($job->id);
+        }
+        return $this->set($job, Job::DONE, t('tool.job_manage.otmeneno'));
     }
 
     private function set(Job $job, string $status, string $what): ToolResult {

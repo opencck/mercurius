@@ -58,8 +58,88 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertStringContainsString('"remote": "origin"', $card);
         self::assertTrue($this->stack->channel->previewOff('push действие'), 'an address in the arguments is not opened by Telegram');
         $buttons = array_values(array_filter($this->stack->channel->buttons, static fn(array $rows) => $rows !== []));
-        self::assertSame(['ap:1:a', 'ap:1:g', 'ap:1:d'], array_map(static fn($b) => $b->data, $buttons[0][0]));
+        // spec: brief/agent-loop.md#разрешения-навсегда — three terms and a refusal
+        self::assertSame(['ap:1:a', 'ap:1:s', 'ap:1:g', 'ap:1:d'], array_map(static fn($b) => $b->data, array_merge(...$buttons[0])));
+        self::assertSame(['Только в этот раз', 'На эту беседу', 'Разрешить навсегда', 'Отказать'], array_map(static fn($b) => $b->text, array_merge(...$buttons[0])));
+        self::assertStringContainsString('Разрешение: git-push:origin', $card, 'the card names what "for good" allows');
         self::assertContains('Жду подтверждения владельца…', $this->stack->channel->texts('edit'));
+    }
+
+    public function testAGrantForTheConversationEndsWithIt(): void {
+        $this->waitingRun();
+        $this->stack->press('ap:1:s');
+        $this->stack->scheduler->awaitIdle();
+
+        $this->stack->say('и ещё раз');
+        $this->stack->scheduler->awaitIdle();
+        self::assertSame(2, $this->push->runs, 'the same conversation: no second card');
+        self::assertFalse($this->stack->approvals->hasGrant(1, 'git-push:origin'), 'it is not a grant for good');
+
+        $first = $this->stack->runs->find(1);
+        self::assertNotNull($first);
+        $conversation = $first->conversationId;
+        self::assertNotNull($this->stack->approvals->grantFor(1, ['git-push:origin'], $conversation, false));
+        self::assertNull($this->stack->approvals->grantFor(1, ['git-push:origin'], $conversation + 1, false), 'another conversation asks again');
+    }
+
+    public function testAToolWithoutAKeyOfItsOwnIsAllowedForGoodAsAWhole(): void {
+        // spec: brief/agent-loop.md#разрешения-навсегда — there is no card without "for good"
+        $stack = new AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'wipe', '{}')),
+            ScriptedLlm::text('Готово.'),
+            ScriptedLlm::calls(new ToolCall('c2', 'wipe', '{"x":1}')),
+            ScriptedLlm::text('И ещё раз.'),
+        ]));
+        $wipe = new \OpenCCK\Test\Support\FakeTool('wipe', \OpenCCK\Domain\Agent\DangerClass::Irreversible);
+        $stack->registry->register($wipe);
+        $stack->say('сотри');
+        $stack->scheduler->awaitIdle();
+        self::assertStringContainsString('любой вызов wipe', implode("\n", $stack->channel->texts('send')));
+
+        $stack->press('ap:1:g');
+        $stack->scheduler->awaitIdle();
+        $stack->say('ещё');
+        $stack->scheduler->awaitIdle();
+
+        self::assertTrue($stack->approvals->hasGrant(1, 'tool:wipe'));
+        self::assertCount(2, $wipe->calls, 'the second call did not ask');
+    }
+
+    public function testAGrantGivenOnACardAfterOutsideDataAppliesAfterOutsideDataToo(): void {
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the owner saw the warning on that card
+        $stack = new AgentStack(new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'web', '{}')),
+            ScriptedLlm::calls(new ToolCall('c2', 'push', '{"remote":"origin"}')),
+            ScriptedLlm::text('Отправил.'),
+            ScriptedLlm::calls(new ToolCall('c3', 'web', '{}')),
+            ScriptedLlm::calls(new ToolCall('c4', 'push', '{"remote":"origin"}')),
+            ScriptedLlm::text('И ещё раз.'),
+        ]));
+        $stack->registry->register($this->push);
+        $stack->registry->register(new \OpenCCK\Test\Support\FakeOutsideTool('web'));
+        $stack->approvals->addGrant(1, 'git-push:origin');
+        $this->stack = $stack;
+        $this->waitingRun();
+        self::assertStringContainsString('⚠️', $this->card(), 'the card warns what "for good" means here');
+
+        $stack->press('ap:1:g');
+        $stack->scheduler->awaitIdle();
+        $stack->say('ещё раз');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(2, $this->push->runs, 'the second run read outside data and did not ask');
+        self::assertTrue($stack->approvals->grants(1)[0]->outside);
+        self::assertSame(1, $stack->approvals->grants(1)[0]->uses);
+    }
+
+    public function testTheOwnerAllowsAnAreaByCommand(): void {
+        $this->stack->say('/permissions allow job 5 outside');
+        $this->stack->say('/permissions allow server Base');
+        $this->stack->say('/permissions allow nonsense');
+
+        $keys = array_map(static fn($g): string => $g->key . ($g->outside ? '!' : ''), $this->stack->approvals->grants(1));
+        self::assertSame(['area:job:5!', 'ssh-any:base'], $keys);
+        self::assertStringContainsString('Формат: /permissions allow', implode("\n", $this->stack->channel->texts('send')));
     }
 
     public function testAfterOutsideDataTheCardSaysWhyAGrantWasNotUsed(): void {

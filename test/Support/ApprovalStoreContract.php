@@ -115,4 +115,37 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         self::assertFalse($this->approvals->hasGrant($this->principalId, 'git-push:origin'));
         self::assertNull($this->approvals->revokeGrant($grants[0]->id));
     }
+
+    public function testAGrantHasATermAndALevel(): void {
+        // spec: brief/agent-loop.md#разрешения-навсегда — for a conversation or for good; after outside data only a grant given for that
+        $this->approvals->addGrant($this->principalId, 'http:POST a.example.com');
+        self::assertNotNull($this->approvals->grantFor($this->principalId, ['x', 'http:POST a.example.com'], null, false));
+        self::assertNull($this->approvals->grantFor($this->principalId, ['http:POST a.example.com'], null, true), 'an ordinary grant does not work after outside data');
+
+        $this->approvals->addGrant($this->principalId, 'http:POST a.example.com', null, true);
+        $grant = $this->approvals->grantFor($this->principalId, ['http:POST a.example.com'], null, true);
+        self::assertNotNull($grant, 'the same grant was widened');
+        self::assertCount(1, $this->approvals->grants($this->principalId));
+        $this->approvals->useGrant($grant->id);
+        self::assertSame(1, $this->approvals->grants($this->principalId)[0]->uses);
+
+        self::assertSame(1, $this->approvals->revokeGrants('http:POST'));
+        self::assertSame([], $this->approvals->grants($this->principalId));
+    }
+
+    public function testTheListOfLackingGrantsOfAnAreaIsOneAndDecidedOnce(): void {
+        // spec: brief/scheduler.md#разрешения-задания
+        $this->approvals->noteNeed('job:5', $this->principalId, 'http:POST a.example.com', 'POST a.example.com');
+        $this->approvals->noteNeed('job:5', $this->principalId, 'http:POST a.example.com', 'POST a.example.com');
+        $this->approvals->noteNeed('job:5', $this->principalId, 'ssh-any:base', 'команды на base');
+
+        $needs = $this->approvals->needs('job:5');
+        self::assertNotNull($needs);
+        self::assertSame(['http:POST a.example.com', 'ssh-any:base'], array_column($needs->items, 'key'));
+        $this->approvals->setNeedsCard($needs->id, '42', '7');
+        self::assertSame('7', $this->approvals->findNeeds($needs->id)?->cardMessageId);
+        self::assertSame('granted', $this->approvals->closeNeeds($needs->id, 'granted')?->status);
+        self::assertNull($this->approvals->closeNeeds($needs->id, 'denied'));
+        self::assertNull($this->approvals->needs('job:5'));
+    }
 }

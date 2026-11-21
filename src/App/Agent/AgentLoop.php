@@ -105,6 +105,11 @@ final class AgentLoop {
     private ToolUseGuidance $toolUse;
     private ?\OpenCCK\App\Agent\Tool\ToolSearch $toolSearch = null;
 
+    /** spec: brief/agent-loop.md#разрешения-навсегда — grants of an area and runs with nobody to ask */
+    public function useAreas(RunAreas $areas): void {
+        $this->round->useAreas($areas);
+    }
+
     /** spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — many MCP tools go to the model through the bridge tool_search */
     public function useToolSearch(\OpenCCK\App\Agent\Tool\ToolSearch $search): void {
         $this->toolSearch = $search;

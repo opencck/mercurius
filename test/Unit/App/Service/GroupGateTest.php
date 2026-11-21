@@ -280,7 +280,22 @@ final class GroupGateTest extends AsyncTestCase {
 
         self::assertCount(1, $this->stack->llm->requests, 'the owner pays for the agent: their words are answered past the limit');
         $runs = array_values($this->stack->runs->runs);
-        self::assertSame('group chat', $runs[0]->outside ?? null, 'a run in a group has other people\'s words in its context: grants do not apply');
+        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the owner's own words are not outside data
+        self::assertNull($runs[0]->outside ?? null, 'only the owner spoke in the group: saved grants apply as in the private chat');
+    }
+
+    public function testAGroupWhereSomeoneElseSpokeMarksTheOwnersRunToo(): void {
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('ок')]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':f');
+        $this->say('а я гость', '77');
+
+        $this->say('@mrcuribot что скажешь?');
+        delay(0.3);
+
+        $runs = array_values($this->stack->runs->runs);
+        $marks = array_map(static fn(\OpenCCK\Domain\Agent\Run $run): ?string => $run->outside, $runs);
+        self::assertSame('group chat', array_pop($marks), 'other people\'s words are in the context: only a grant given for that applies');
     }
 
     public function testANewGroupWaitsForTheOwnerAndARefusalLeaves(): void {

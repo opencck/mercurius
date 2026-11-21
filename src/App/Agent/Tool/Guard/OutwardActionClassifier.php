@@ -44,7 +44,13 @@ final class OutwardActionClassifier {
     public function classify(string $command): Classification {
         foreach (self::OPAQUE as $pattern) {
             if (preg_match($pattern, $command) === 1) {
-                return new Classification(DangerClass::Irreversible, null, t('tool.command_classifier.komanda_kotoruyu_nelzya_razobrat_s'));
+                // spec: brief/agent-loop.md#команды-в-песочнице — code inside a command is the same code as in a file, and a
+                //       file runs without a card: the card stays only where the text names a program that acts outward
+                $named = array_values(array_filter(self::OUTWARD, static fn(string $program): bool => preg_match('/(?<![\w.-])' . $program . '(?![\w-])/', $command) === 1));
+                sort($named);
+                return $named === []
+                    ? new Classification(DangerClass::Write, null, t('tool.command_classifier.komanda_v_pesochnitse'))
+                    : new Classification(DangerClass::Irreversible, 'exec-outward:' . implode(',', $named), sprintf(t('tool.command_classifier.opaque_outward'), implode(', ', $named)));
             }
         }
         // Redirections such as 2>&1 and &>file are not separators.

@@ -65,6 +65,12 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
     ) {}
 
     private ?string $participantChannel = null;
+    private ?\OpenCCK\Domain\Repository\RunRepository $runs = null;
+
+    /** The runs, to know the conversation a grant "for this conversation" lasts for and whether the run read outside data. */
+    public function useRuns(\OpenCCK\Domain\Repository\RunRepository $runs): void {
+        $this->runs = $runs;
+    }
 
     /** @param Closure(int): void $resume */
     public function onDecision(Closure $resume): void {
@@ -75,7 +81,9 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
         // spec: brief/skills-mcp.md#ящики-участников-и-проектов — the card of a participant's own thing goes to that participant
         $chat = $decider === null ? OwnerDirectory::chat($this->ownerChatId) : $this->privateChat($decider);
         $args = $call->args ?? [];
-        $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($args) : null;
+        // spec: brief/agent-loop.md#разрешения-навсегда — every action has a key: its own, else "any call of this tool"
+        $keys = GrantKeys::of($call->tool, $args, $call->call->name);
+        $key = $keys->exact;
         $label = SecretMasker::mask($call->tool instanceof GrantKeyed ? $call->tool->describe($args) : $call->call->name);
         $shown = SecretMasker::mask(json_encode(SecretMasker::maskArgs($args), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
         $summary = $label . "\n" . $call->call->name . ' ' . $shown;
@@ -91,6 +99,9 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             $key,
             new DateTimeImmutable(sprintf('+%d seconds', $this->timeoutSeconds)),
         );
+        if ($keys->wide !== null) {
+            $this->approvals->setWideKey($approval->id, $keys->wide[0]);
+        }
         if ($chat === null) {
             $decided = $this->approvals->decide($approval->id, ApprovalStatus::Denied, t('agent.approval_service.decider_unreachable'), null);
             if ($decided !== null) {
@@ -125,16 +136,26 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             // spec: brief/agent-loop.md#подтверждения-и-запреты — the owner sees why a grant was not used and what may have steered the agent
             $text .= sprintf(t('agent.approval_service.outside_note'), \OpenCCK\App\Service\MessageMeta::inline($run->outside));
         }
-        $row = [];
+        // spec: brief/agent-loop.md#разрешения-навсегда — three terms: this once, this conversation, for good; the button
+        //       "for good" names what it allows, and a wider grant of the tool stands next to it
+        $rows = [];
         if (!$unreadable) {
-            $row[] = new Button(t('agent.approval_service.razreshit'), sprintf('ap:%d:a', $approval->id));
-            if ($key !== null) {
-                $row[] = new Button(t('agent.approval_service.razreshat_vsegda'), sprintf('ap:%d:g', $approval->id));
+            $text .= sprintf(t('agent.grants.card_key'), GrantKeys::label($key));
+            if ($run->outside !== null) {
+                $text .= t('agent.grants.card_outside_risk');
+            }
+            $rows[] = [
+                new Button(t('agent.grants.once'), sprintf('ap:%d:a', $approval->id)),
+                new Button(t('agent.grants.session'), sprintf('ap:%d:s', $approval->id)),
+            ];
+            $rows[] = [new Button(t('agent.grants.forever'), sprintf('ap:%d:g', $approval->id))];
+            if ($keys->wide !== null) {
+                $rows[] = [new Button(mb_substr(sprintf(t('agent.grants.forever_wide'), $keys->wide[1]), 0, 60), sprintf('ap:%d:w', $approval->id))];
             }
         }
-        $row[] = new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id));
+        $rows[] = [new Button(t('agent.approval_service.otkazat'), sprintf('ap:%d:d', $approval->id))];
         // arguments may carry an address from outside data: no preview of it in the card
-        $card = new OutgoingMessage($chat, $text, disableLinkPreview: true, buttons: [$row]);
+        $card = new OutgoingMessage($chat, $text, disableLinkPreview: true, buttons: $rows);
         $sent = $this->channel->send($card);
         // The run streams into the same chat: a short flood is waited out before the action is refused.
         if (!$sent->success && $sent->errorKind === \Mercurius\Messenger\SendErrorKind::RateLimited && $sent->retryAfter !== null && $sent->retryAfter <= self::FLOOD_WAIT) {
@@ -182,7 +203,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
      * spec: brief/skills-mcp.md#ящики-участников-и-проектов — the owner of a mailbox confirms what is sent from it
      */
     public function ownPress(IncomingCallback $callback): bool {
-        if (preg_match('/^ap:(\d+):[agd]$/', $callback->data, $match) !== 1 || $callback->userId !== $callback->chatId) {
+        if (preg_match('/^ap:(\d+):[asgwd]$/', $callback->data, $match) !== 1 || $callback->userId !== $callback->chatId) {
             return false;
         }
         $approval = $this->approvals->find((int) $match[1]);
@@ -204,7 +225,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
         $rows = [];
         foreach ($this->approvals->grants() as $grant) {
             $name = $this->principals->find($grant->principalId)->displayName ?? (t('agent.approval_service.uchastnik') . $grant->principalId);
-            $lines[] = sprintf('%d. %s — %s', $grant->id, $grant->key, $name);
+            $lines[] = sprintf('%d. %s — %s%s%s%s', $grant->id, GrantKeys::label($grant->key), $name, $grant->conversationId === null ? '' : t('agent.grants.list_session'), $grant->outside ? t('agent.grants.list_outside') : '', $grant->uses === 0 ? '' : sprintf(t('agent.grants.list_uses'), $grant->uses));
             $rows[] = [new Button(sprintf(t('agent.approval_service.otozvat'), $grant->id), sprintf('pg:%d:x', $grant->id))];
         }
         return [$lines === [] ? t('agent.approval_service.no_grants_left') : t('agent.approval_service.sohranennye_razresheniya') . implode("\n", $lines), $rows];
@@ -224,7 +245,11 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             }
             return;
         }
-        if (preg_match('/^ap:(\d+):([agd])$/', $callback->data, $match) !== 1) {
+        if (preg_match('/^gn:(\d+):([jad])$/', $callback->data, $needs) === 1) {
+            $this->decideNeeds($callback, (int) $needs[1], $needs[2]);
+            return;
+        }
+        if (preg_match('/^ap:(\d+):([asgwd])$/', $callback->data, $match) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }
@@ -240,18 +265,31 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             $this->channel->answerCallback($callback->callbackId, t('agent.approval_service.uzhe_resheno'));
             return;
         }
-        if ($match[2] === 'g' && $decided->grantKey !== null) {
-            $this->approvals->addGrant($decided->principalId, $decided->grantKey);
+        // spec: brief/agent-loop.md#разрешения-навсегда — a grant given on a card of a run that read outside data applies
+        //       after outside data too: the owner saw the warning on that card
+        $run = $this->runs?->find($decided->runId);
+        $outside = $run?->outside !== null;
+        $saved = match ($match[2]) {
+            'g' => $decided->grantKey,
+            'w' => $decided->wideKey ?? $decided->grantKey,
+            's' => $run === null ? null : $decided->grantKey,
+            default => null,
+        };
+        if ($saved !== null) {
+            $this->approvals->addGrant($decided->principalId, $saved, $match[2] === 's' ? $run?->conversationId : null, $outside);
+            $this->logger->info('Grant saved', ['key' => $saved, 'term' => $match[2], 'outside' => $outside]);
         }
         $this->channel->answerCallback($callback->callbackId, match ($match[2]) {
             'a' => t('agent.approval_service.razresheno'),
-            'g' => t('agent.approval_service.razresheno_i_zapomneno'),
+            's' => t('agent.grants.saved_session_short'),
+            'g', 'w' => t('agent.approval_service.razresheno_i_zapomneno'),
             default => t('agent.approval_service.otkazano'),
         });
-        $this->closeCard($decided, match ($match[2]) {
-            'a' => t('agent.approval_service.razresheno_vladeltsem'),
-            'g' => sprintf(t('agent.approval_service.razresheno_vladeltsem_i_zapomneno'), $decided->grantKey ?? t('agent.approval_service.bez_klyucha')),
-            default => t('agent.approval_service.otkazano_vladeltsem'),
+        $this->closeCard($decided, match (true) {
+            $match[2] === 'd' => t('agent.approval_service.otkazano_vladeltsem'),
+            $saved === null => t('agent.approval_service.razresheno_vladeltsem'),
+            $match[2] === 's' => sprintf(t('agent.grants.saved_session'), GrantKeys::label($saved)),
+            default => sprintf(t('agent.approval_service.razresheno_vladeltsem_i_zapomneno'), GrantKeys::label($saved)) . ($outside ? t('agent.grants.saved_outside') : ''),
         });
         $this->continue($decided);
     }
@@ -299,6 +337,94 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             $approval->cardMessageId,
             sprintf(t('agent.approval_service.deystvie'), $approval->summary, $outcome),
         );
+    }
+
+    /**
+     * The grants a run with nobody to ask lacked, as one card: allow these to the area, allow the area everything, or
+     * refuse. Sent once per list.
+     *
+     * spec: brief/scheduler.md#разрешения-задания
+     */
+    public function askNeeds(string $area, string $title): void {
+        $needs = $this->approvals->needs($area);
+        $chat = OwnerDirectory::chat($this->ownerChatId);
+        if ($needs === null || $needs->cardMessageId !== null) {
+            return;
+        }
+        $lines = array_map(static fn(array $item): string => sprintf('• %s — %s', GrantKeys::label($item['key']), $item['label']), $needs->items);
+        $sent = $this->channel->send(new OutgoingMessage(
+            $chat,
+            sprintf(t('agent.grants.needs_card'), $title, mb_substr(implode("\n", $lines), 0, self::CARD_LIMIT)),
+            disableLinkPreview: true,
+            buttons: [
+                [new Button(t('agent.grants.needs_these'), sprintf('gn:%d:j', $needs->id))],
+                [new Button(t('agent.grants.needs_all'), sprintf('gn:%d:a', $needs->id))],
+                [new Button(t('agent.approval_service.otkazat'), sprintf('gn:%d:d', $needs->id))],
+            ],
+        ));
+        if ($sent->success && $sent->messageId !== null) {
+            $this->approvals->setNeedsCard($needs->id, $chat, $sent->messageId);
+        }
+    }
+
+    private function decideNeeds(IncomingCallback $callback, int $id, string $choice): void {
+        $decided = $this->approvals->closeNeeds($id, $choice === 'd' ? 'denied' : 'granted');
+        if ($decided === null) {
+            $this->channel->answerCallback($callback->callbackId, t('agent.approval_service.uzhe_resheno'));
+            return;
+        }
+        // the grants of an area are given for that area and apply after outside data too: a job reads outside data by its nature
+        if ($choice === 'a') {
+            $this->approvals->addGrant($decided->principalId, 'area:' . $decided->area, null, true);
+        } elseif ($choice === 'j') {
+            foreach ($decided->items as $item) {
+                $this->approvals->addGrant($decided->principalId, $decided->area . '|' . $item['key'], null, true);
+            }
+        }
+        $outcome = match ($choice) {
+            'a' => sprintf(t('agent.grants.needs_all_done'), $decided->area),
+            'j' => sprintf(t('agent.grants.needs_these_done'), count($decided->items), $decided->area),
+            default => t('agent.approval_service.otkazano_vladeltsem'),
+        };
+        $this->channel->answerCallback($callback->callbackId, $choice === 'd' ? t('agent.approval_service.otkazano') : t('agent.approval_service.razresheno_i_zapomneno'));
+        if ($decided->cardChatId !== null && $decided->cardMessageId !== null) {
+            $this->channel->edit($decided->cardChatId, $decided->cardMessageId, $outcome, buttons: []);
+        }
+        $this->logger->info('Lacking grants decided', ['area' => $decided->area, 'choice' => $choice, 'items' => count($decided->items)]);
+    }
+
+    /**
+     * "/permissions allow <job N | project N | server имя | tool имя> [outside]" — a grant for an area as a whole, by the
+     * owner's own command; "outside" — it applies after outside data too.
+     *
+     * spec: brief/agent-loop.md#разрешения-навсегда
+     */
+    public function allow(Principal $owner, string $argument): string {
+        $parts = preg_split('~\s+~', trim($argument)) ?: [];
+        $outside = strtolower((string) end($parts)) === 'outside';
+        if ($outside) {
+            array_pop($parts);
+        }
+        $kind = strtolower($parts[0] ?? '');
+        $name = trim(implode(' ', array_slice($parts, 1)));
+        $key = match (true) {
+            $name === '' => null,
+            in_array($kind, ['job', 'project'], true) && ctype_digit($name) => sprintf('area:%s:%d', $kind, (int) $name),
+            $kind === 'server' => 'ssh-any:' . mb_strtolower($name),
+            $kind === 'tool' && preg_match('~^[a-z0-9_]+$~', $name) === 1 => GrantKeys::any($name),
+            default => null,
+        };
+        if ($key === null) {
+            return t('agent.grants.allow_usage');
+        }
+        $this->approvals->addGrant($owner->id, $key, null, $outside);
+        $this->logger->info('Grant saved by command', ['key' => $key, 'outside' => $outside]);
+        return sprintf(t('agent.grants.allowed'), GrantKeys::label($key)) . ($outside ? t('agent.grants.saved_outside') : '');
+    }
+
+    /** The grants of a job end with the job. */
+    public function forgetArea(string $area): int {
+        return $this->approvals->revokeGrants($area . '|') + $this->approvals->revokeGrants('area:' . $area);
     }
 
     private function continue(Approval $approval): void {

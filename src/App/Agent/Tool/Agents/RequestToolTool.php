@@ -51,8 +51,9 @@ final class RequestToolTool implements Tool, GrantKeyed, RequestsAccess {
     }
 
     public function grantKey(array $args): ?string {
-        // a right is the owner's decision every time, never a saved grant
-        return null;
+        // spec: brief/agent-loop.md#разрешения-навсегда — the grant is for this tool, not for asking for any tool
+        $tool = Args::string($args, 'tool');
+        return $tool === null || $tool === '' ? null : 'tool-grant:' . $tool;
     }
 
     public function describe(array $args): string {

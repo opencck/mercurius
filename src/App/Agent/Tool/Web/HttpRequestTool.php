@@ -27,7 +27,7 @@ use function Mercurius\I18n\t;
  * spec: brief/agent-loop.md#инструменты — http_request; GET/HEAD read, internal addresses only with the owner's permission
  * ref: references/hermes-agent/website/docs/user-guide/security.md@e96221fa:L819-L833 — redirect chains re-checked at every hop
  */
-final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside, \OpenCCK\App\Agent\Tool\PreparesInConversation, \OpenCCK\App\Agent\Tool\DecidedByParticipant {
+final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\WideGrant, ReadsOutside, \OpenCCK\App\Agent\Tool\PreparesInConversation, \OpenCCK\App\Agent\Tool\DecidedByParticipant {
     /** set by the code when a secret of the project is used: who gave it and to which project; a model cannot set them */
     private const SECRET_OWNER = 'secret_owner';
     private const SECRET_PROJECT = 'secret_project';
@@ -113,6 +113,15 @@ final class HttpRequestTool implements Tool, GrantKeyed, ReadsOutside, \OpenCCK\
         return in_array(self::method($args), ['GET', 'HEAD'], true) && self::secrets($args) === [] && $this->internalHost($args) === null
             ? DangerClass::Read
             : DangerClass::Irreversible;
+    }
+
+    /** Any request without secrets to this host; a request with a secret keeps its own grant "secret + host". */
+    public function wideGrant(array $args): ?array {
+        $host = parse_url(Args::string($args, 'url') ?? '', PHP_URL_HOST);
+        if (self::secrets($args) !== [] || !is_string($host) || $host === '' || in_array(self::method($args), ['GET', 'HEAD'], true)) {
+            return null;
+        }
+        return ['http-any:' . strtolower($host), sprintf(t('agent.grants.wide_http'), strtolower($host))];
     }
 
     public function grantKey(array $args): ?string {

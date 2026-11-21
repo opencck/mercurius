@@ -10,6 +10,7 @@ use DateTimeInterface;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\Grant;
+use OpenCCK\Domain\Agent\GrantRequest;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use UnexpectedValueException;
 
@@ -19,7 +20,8 @@ use UnexpectedValueException;
  *      — "resolve, then draw"; hermes pops in-memory state, we decide by a conditional UPDATE
  */
 final class PostgresApprovalRepository implements ApprovalRepository {
-    private const COLUMNS = 'id, run_id, call_id, principal_id, tool, summary, grant_key, status, reason, card_chat_id, card_message_id, extract(epoch FROM created_at)::float8 AS created_epoch';
+    private const COLUMNS = 'id, run_id, call_id, principal_id, tool, summary, grant_key, status, reason, card_chat_id, card_message_id, extract(epoch FROM created_at)::float8 AS created_epoch, wide_key';
+    private const GRANT = 'id, principal_id, key, conversation_id, outside, uses';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -92,24 +94,48 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         return $denied;
     }
 
+    public function setWideKey(int $id, string $wideKey): void {
+        $this->db->execute('UPDATE approvals SET wide_key = ? WHERE id = ?', [$wideKey, $id]);
+    }
+
     public function hasGrant(int $principalId, string $key): bool {
         return $this->db->execute(
-            'SELECT 1 FROM approval_grants WHERE principal_id = ? AND key = ? AND revoked_at IS NULL',
+            'SELECT 1 FROM approval_grants WHERE principal_id = ? AND key = ? AND conversation_id IS NULL AND revoked_at IS NULL',
             [$principalId, $key],
         )->fetchRow() !== null;
     }
 
-    public function addGrant(int $principalId, string $key): void {
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void {
         $this->db->execute(
-            'INSERT INTO approval_grants (principal_id, key) VALUES (?, ?) ON CONFLICT (principal_id, key) WHERE revoked_at IS NULL DO NOTHING',
-            [$principalId, $key],
+            'INSERT INTO approval_grants (principal_id, key, conversation_id, outside) VALUES (?, ?, ?, ?)
+             ON CONFLICT (principal_id, key, COALESCE(conversation_id, 0)) WHERE revoked_at IS NULL
+             DO UPDATE SET outside = approval_grants.outside OR EXCLUDED.outside',
+            [$principalId, $key, $conversationId, $outside],
         );
+    }
+
+    public function grantFor(int $principalId, array $keys, ?int $conversationId, bool $outside): ?Grant {
+        if ($keys === []) {
+            return null;
+        }
+        $row = $this->db->execute(
+            'SELECT ' . self::GRANT . ' FROM approval_grants
+             WHERE principal_id = ? AND key = ANY(?) AND revoked_at IS NULL
+               AND (conversation_id IS NULL OR conversation_id = ?) AND (outside OR NOT ?::boolean)
+             ORDER BY conversation_id NULLS FIRST, id LIMIT 1',
+            [$principalId, $keys, $conversationId, $outside],
+        )->fetchRow();
+        return $row === null ? null : self::grant($row);
+    }
+
+    public function useGrant(int $id): void {
+        $this->db->execute('UPDATE approval_grants SET uses = uses + 1, last_used_at = now() WHERE id = ?', [$id]);
     }
 
     public function grants(?int $principalId = null): array {
         $grants = [];
         foreach ($this->db->execute(
-            'SELECT id, principal_id, key FROM approval_grants WHERE (?::bigint IS NULL OR principal_id = ?) AND revoked_at IS NULL ORDER BY id',
+            'SELECT ' . self::GRANT . ' FROM approval_grants WHERE (?::bigint IS NULL OR principal_id = ?) AND revoked_at IS NULL ORDER BY id',
             [$principalId, $principalId],
         ) as $row) {
             $grants[] = self::grant($row);
@@ -119,10 +145,67 @@ final class PostgresApprovalRepository implements ApprovalRepository {
 
     public function revokeGrant(int $id): ?Grant {
         $row = $this->db->execute(
-            'UPDATE approval_grants SET revoked_at = now() WHERE id = ? AND revoked_at IS NULL RETURNING id, principal_id, key',
+            'UPDATE approval_grants SET revoked_at = now() WHERE id = ? AND revoked_at IS NULL RETURNING ' . self::GRANT,
             [$id],
         )->fetchRow();
         return $row === null ? null : self::grant($row);
+    }
+
+    public function revokeGrants(string $prefix): int {
+        $count = 0;
+        foreach ($this->db->execute(
+            'UPDATE approval_grants SET revoked_at = now() WHERE revoked_at IS NULL AND left(key, length(?)) = ? RETURNING id',
+            [$prefix, $prefix],
+        ) as $row) {
+            $count++;
+        }
+        return $count;
+    }
+
+    public function noteNeed(string $area, int $principalId, string $key, string $label): void {
+        $item = json_encode([['key' => $key, 'label' => $label]], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        $this->db->execute(
+            "INSERT INTO grant_requests (area, principal_id, items) VALUES (?, ?, ?::jsonb)
+             ON CONFLICT (area) WHERE status = 'pending' DO UPDATE SET items = grant_requests.items || EXCLUDED.items
+             WHERE NOT grant_requests.items @> jsonb_build_array(jsonb_build_object('key', ?::text))",
+            [$area, $principalId, $item, $key],
+        );
+    }
+
+    public function needs(string $area): ?GrantRequest {
+        $row = $this->db->execute("SELECT id, area, principal_id, items::text AS items, status, card_chat_id, card_message_id FROM grant_requests WHERE area = ? AND status = 'pending'", [$area])->fetchRow();
+        return $row === null ? null : self::request($row);
+    }
+
+    public function findNeeds(int $id): ?GrantRequest {
+        $row = $this->db->execute('SELECT id, area, principal_id, items::text AS items, status, card_chat_id, card_message_id FROM grant_requests WHERE id = ?', [$id])->fetchRow();
+        return $row === null ? null : self::request($row);
+    }
+
+    public function setNeedsCard(int $id, string $chatId, string $messageId): void {
+        $this->db->execute('UPDATE grant_requests SET card_chat_id = ?, card_message_id = ? WHERE id = ?', [$chatId, $messageId, $id]);
+    }
+
+    public function closeNeeds(int $id, string $status): ?GrantRequest {
+        $row = $this->db->execute(
+            "UPDATE grant_requests SET status = ? WHERE id = ? AND status = 'pending' RETURNING id, area, principal_id, items::text AS items, status, card_chat_id, card_message_id",
+            [$status, $id],
+        )->fetchRow();
+        return $row === null ? null : self::request($row);
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function request(array $row): GrantRequest {
+        $items = [];
+        /** @var mixed $decoded */
+        $decoded = json_decode(self::string($row, 'items'), true);
+        /** @var mixed $item */
+        foreach (is_array($decoded) ? $decoded : [] as $item) {
+            if (is_array($item) && isset($item['key'], $item['label']) && is_string($item['key']) && is_string($item['label'])) {
+                $items[] = ['key' => $item['key'], 'label' => $item['label']];
+            }
+        }
+        return new GrantRequest(self::int($row, 'id'), self::string($row, 'area'), self::int($row, 'principal_id'), $items, self::string($row, 'status'), self::nullable($row, 'card_chat_id'), self::nullable($row, 'card_message_id'));
     }
 
     /** @param array<string, mixed> $row */
@@ -142,12 +225,13 @@ final class PostgresApprovalRepository implements ApprovalRepository {
             isset($row['created_epoch']) && is_float($row['created_epoch'])
                 ? (\DateTimeImmutable::createFromFormat('U.u', sprintf('%.6F', $row['created_epoch'])) ?: null)
                 : null,
+            self::nullable($row, 'wide_key'),
         );
     }
 
     /** @param array<string, mixed> $row */
     private static function grant(array $row): Grant {
-        return new Grant(self::int($row, 'id'), self::int($row, 'principal_id'), self::string($row, 'key'));
+        return new Grant(self::int($row, 'id'), self::int($row, 'principal_id'), self::string($row, 'key'), isset($row['conversation_id']) && is_int($row['conversation_id']) ? $row['conversation_id'] : null, ($row['outside'] ?? false) === true, isset($row['uses']) && is_int($row['uses']) ? $row['uses'] : 0);
     }
 
     /** @param array<string, mixed> $row */
