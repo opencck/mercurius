@@ -390,7 +390,8 @@ description: Отчёт о диске таблицей
 
         self::assertFalse($edited->isError, $edited->content);
         $job = $this->jobs->find(1);
-        self::assertSame('Собери новости с meduza.io и dw.com', $job?->prompt);
+        self::assertNotNull($job);
+        self::assertSame('Собери новости с meduza.io и dw.com', $job->prompt);
         self::assertSame('Дайджест', $job->title, 'what is not given stays');
         self::assertSame('daily:06:00', $job->schedule);
         self::assertCount(1, $this->jobs->list(null), 'the same job, not a new one');
