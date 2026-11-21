@@ -126,6 +126,24 @@ final class JobsTest extends AsyncTestCase {
         self::assertFalse($this->jobs->find($job->id)?->trusted);
     }
 
+    public function testInMinutesIsCountedByTheServerNotByTheTimeOfThePrompt(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — "in two minutes" in a conversation opened hours ago
+        $now = new DateTimeImmutable('2026-11-21 15:00:00 UTC');
+
+        self::assertSame('once:2026-11-21T15:02:00Z', Schedule::resolve('in:2', $now));
+        self::assertSame('daily:10:00', Schedule::resolve('daily:10:00', $now), 'other schedules stay as they are');
+        self::assertSame('in:0', Schedule::resolve('in:0', $now), 'zero minutes is not a moment');
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $create = new JobCreateTool($this->jobs, $this->stack->conversations, $scheduler, new ContentScreen());
+        $context = new ToolContext(1, $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42'), $this->owner, new NullCancellation());
+        $created = $create->execute(['title' => 'Напомни', 'prompt' => 'Напомни про чай', 'schedule' => 'in:2'], $context);
+
+        self::assertFalse($created->isError, $created->content);
+        $at = $this->jobs->find(1)?->nextRunAt;
+        self::assertNotNull($at);
+        self::assertEqualsWithDelta(time() + 120, $at->getTimestamp(), 5, 'two minutes from the server\'s now');
+    }
+
     public function testSchedulesComputeTheNextRunFromNow(): void {
         $zone = new DateTimeZone('Asia/Bangkok');
 
@@ -569,6 +587,6 @@ description: Отчёт о диске таблицей
     public function testAJobByEventPassesTheSchemaOfJobCreate(): void {
         $this->scheduler(new ScriptedLlm([]));
         $schema = json_encode((new JobCreateTool($this->jobs, $this->stack->conversations, $this->scheduler(new ScriptedLlm([])), new ContentScreen()))->definition()->parameters, JSON_THROW_ON_ERROR);
-        self::assertStringContainsString('"schedule":{"type":"string","minLength":5', $schema, '"event" is five letters');
+        self::assertStringContainsString('"schedule":{"type":"string","minLength":4', $schema, '"event" is five letters and "in:2" four: both pass');
     }
 }

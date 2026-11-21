@@ -57,7 +57,7 @@ final class JobManageTool implements Tool {
                 'project' => ['type' => 'string', 'maxLength' => \OpenCCK\Domain\Project\Project::NAME_MAX],
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
-                'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
+                'schedule' => ['type' => 'string', 'minLength' => 4, 'maxLength' => 60, 'description' => t('tool.job_create.schedule_in')],
                 // spec: brief/scheduler.md#место-итога-задания
                 'deliver' => ['type' => 'string', 'enum' => ['default', 'here', 'private'], 'description' => t('tool.job_manage.deliver')],
                 'participant' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.job_manage.participant')],
@@ -289,7 +289,7 @@ final class JobManageTool implements Tool {
                 return ToolResult::error(t('tool.job_manage.zadanie_po_sobytiyu_zapuskaetsya_webhook'));
             }
             try {
-                $schedule = Schedule::parse($given);
+                $schedule = Schedule::parse(Schedule::resolve($given, new DateTimeImmutable()));
             } catch (InvalidArgumentException $e) {
                 return ToolResult::error($e->getMessage());
             }

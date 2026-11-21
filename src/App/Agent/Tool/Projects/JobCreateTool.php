@@ -51,7 +51,7 @@ final class JobCreateTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall,
             'properties' => [
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
-                'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
+                'schedule' => ['type' => 'string', 'minLength' => 4, 'maxLength' => 60, 'description' => t('tool.job_create.schedule_in')],
                 'watch' => ['type' => 'string', 'pattern' => '^https?://', 'maxLength' => 2048, 'description' => t('tool.job_create.watch')],
                 'project' => ['type' => 'string', 'minLength' => 1, 'maxLength' => \OpenCCK\Domain\Project\Project::NAME_MAX],
             ],
@@ -117,7 +117,7 @@ final class JobCreateTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall,
             return ToolResult::error(t('tool.job_create.tekst_zadaniya_ne_prinyat') . $problem);
         }
         try {
-            $schedule = Schedule::parse(Args::string($args, 'schedule') ?? '');
+            $schedule = Schedule::parse(Schedule::resolve(Args::string($args, 'schedule') ?? '', new DateTimeImmutable()));
         } catch (InvalidArgumentException $e) {
             return ToolResult::error($e->getMessage());
         }

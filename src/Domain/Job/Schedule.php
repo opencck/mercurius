@@ -30,6 +30,19 @@ final class Schedule {
     ) {}
 
     /** @throws InvalidArgumentException */
+    /**
+     * "in:<minutes>" — a one-off job that many minutes from now, by the server's clock: the model does not count the
+     * moment itself from the time in its prompt, which is the time the conversation was opened.
+     *
+     * spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов
+     */
+    public static function resolve(string $schedule, DateTimeImmutable $now): string {
+        if (preg_match('~^in:(\d{1,6})$~', trim($schedule), $m) !== 1 || (int) $m[1] < 1) {
+            return $schedule;
+        }
+        return 'once:' . $now->modify(sprintf('+%d minutes', (int) $m[1]))->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
+    }
+
     public static function parse(string $schedule): self {
         [$kind, $value] = array_pad(explode(':', trim($schedule), 2), 2, '');
         return match (true) {
