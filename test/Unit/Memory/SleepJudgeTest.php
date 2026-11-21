@@ -148,6 +148,7 @@ final class SleepJudgeTest extends AsyncTestCase {
                 return array_slice($this->texts, 0, count($pairs));
             }
 
+            /** @return array{int, int, float} */
             public function spent(): array {
                 return [0, 0, 0.0];
             }
@@ -167,8 +168,9 @@ final class SleepJudgeTest extends AsyncTestCase {
 
         self::assertCount(1, $this->shown);
         self::assertSame(Proposal::MERGE, $this->shown[0]->kind);
-        self::assertNotNull($this->shown[0]->mergeWith);
-        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.merge_card'), $this->shown[0]->factId, $this->shown[0]->mergeWith, $this->shown[0]->id), $report);
+        $card = $this->shown[0];
+        self::assertNotNull($card->mergeWith);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.merge_card'), (int) $card->factId, $card->mergeWith, $card->id), $report);
 
         $this->store = new InMemoryMemoryStore();
         $this->journal = new InMemoryConsolidationJournal();
