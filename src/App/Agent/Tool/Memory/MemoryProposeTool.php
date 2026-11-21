@@ -50,7 +50,7 @@ final class MemoryProposeTool implements Tool {
                 'text' => ['type' => 'string', 'maxLength' => Proposals::SUMMARY_MAX],
                 'reason' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 500],
                 'about_person' => ['type' => 'boolean', 'description' => t('tool.memory_propose.about_person')],
-                // spec: brief/memory.md#всегда-в-контексте — profile and summary are edited by entries
+                // spec: brief/memory.md#профиль-и-сводка — profile and summary are edited by entries
                 'edit' => ['type' => 'string', 'enum' => \Mercurius\Memory\App\CoreEntries::EDITS, 'description' => t('tool.memory_propose.edit')],
                 'old_text' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.memory_propose.old_text')],
                 'project' => ['type' => 'boolean', 'description' => t('tool.memory_propose.project')],
