@@ -277,4 +277,13 @@ $sleepJudge = new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use 
 }, $logger);
 $consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $verdictCache, \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION));
 $consolidation->useMerger($sleepJudge);
+// spec: brief/memory.md#ночное-обогащение — the same model gives search words; translations only while the owner turned them on
+$consolidation->useEnrichment(new \Mercurius\Memory\App\Enrichment(
+    $memoryStore,
+    $textAnalyzer,
+    new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
+    $sleepJudge,
+    static fn(): bool => $settingsService->current('MEMORY_SLEEP_TRANSLATE') === '1',
+    $memoryAliases,
+));
 $proposals->onForget(static fn(Fact $fact) => $verdictCache->forgetFact($fact->id));

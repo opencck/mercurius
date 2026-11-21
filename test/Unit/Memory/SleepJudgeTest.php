@@ -7,10 +7,12 @@ namespace OpenCCK\Test\Unit\Memory;
 use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Memory\App\CachedJudge;
 use Mercurius\Memory\App\Consolidation;
+use Mercurius\Memory\App\Enrichment;
 use Mercurius\Memory\App\Proposals;
 use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\Fact;
 use Mercurius\Memory\Domain\Proposal;
+use Mercurius\Memory\Domain\SleepEnricher;
 use Mercurius\Memory\Domain\SleepJudge;
 use Mercurius\Memory\Domain\SleepMerger;
 use Mercurius\Memory\Domain\TextAnalyzer;
@@ -192,6 +194,42 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertCount(1, $llm->requests);
         self::assertStringNotContainsString('sk-or-v1', $llm->requests[0]->messages[1]->content);
         self::assertSame(1, $judge->spent()[0]);
+    }
+
+    public function testTheModelGivesSearchWordsAndTheNightSaysSoEvenWhenMemoryDidNotChange(): void {
+        // spec: brief/memory.md#ночное-обогащение
+        $a = $this->add('Сервер pve-01 стоит в Хельсинки');
+        $secret = $this->add('Пароль от pve-01: sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef');
+        $llm = new ScriptedLlm([
+            ScriptedLlm::text('{"facts": [{"fact": 1, "words": ["гипервизор", 7], "spellings": [["pve", "proxmox"], ["x"]]}, {"fact": 9, "words": ["x"]}]}'),
+            ScriptedLlm::text('{"facts": []}'),
+        ]);
+        $judge = new LlmSleepJudge($llm, static fn(): array => ['openrouter:first/model'], new NullLogger());
+
+        $found = $judge->enrich([$secret, $a], true);
+
+        self::assertSame([null, [['гипервизор'], [['pve', 'proxmox']]]], $found);
+        self::assertStringNotContainsString('sk-or-v1', $llm->requests[0]->messages[1]->content);
+        self::assertStringContainsString('Chinese', $llm->requests[0]->messages[0]->content, 'translations asked only when on');
+        $judge->enrich([$a], false);
+        self::assertStringNotContainsString('Chinese', $llm->requests[1]->messages[0]->content);
+
+        $consolidation = new Consolidation($this->store, new Proposals($this->store, $this->analyzer, new ContentScreen(), 'k'), $this->journal, static fn(Proposal $p): bool => true, static fn(string $t): bool => true);
+        $consolidation->run(true);
+        $consolidation->useEnrichment(new Enrichment($this->store, $this->analyzer, new ContentScreen(), new class implements SleepEnricher {
+            public function enrich(array $facts, bool $translate): array {
+                return array_map(static fn(Fact $f): array => [['гипервизор'], []], $facts);
+            }
+
+            public function spent(): array {
+                return [1, 300, 0.002];
+            }
+        }, static fn(): bool => false));
+
+        $report = $consolidation->run();
+
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.enriched'), 2, 1), $report, 'the night ran though memory did not change; a word in another script than the fact is not kept');
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.model_spent'), 1, 300, 0.002), $report);
     }
 
     public function testTheModelsAnswerIsReadAndAFailingModelGivesWayToTheNext(): void {

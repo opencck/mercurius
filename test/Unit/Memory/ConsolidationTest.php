@@ -53,7 +53,7 @@ final class ConsolidationTest extends AsyncTestCase {
     private function add(string $text, float $trust = 0.8, string $scope = 'owner', int $age = 0, string $provenance = Fact::OWNER_SAID): Fact {
         $fact = $this->store->addFact($scope, Fact::KNOWLEDGE, $text, $this->analyzer->keys($text), $trust, $provenance, null);
         if ($age > 0) {
-            $fact = $this->store->facts[$fact->id] = new Fact($fact->id, $fact->scope, $fact->category, $fact->text, $fact->keys, $fact->trust, $fact->provenance, true, 1, $this->now - $age);
+            $fact = $this->store->facts[$fact->id] = $fact->with(updatedAt: $this->now - $age);
         }
         return $fact;
     }

@@ -52,6 +52,7 @@ final class SettingsCatalog {
         'MEMORY_NUDGE_TURNS' => '10',
         'MEMORY_FILE_LIMIT' => '4000',
         'MEMORY_RULES_NOTICE' => '0',
+        'MEMORY_SLEEP_TRANSLATE' => '0',
     ];
 
     /**
@@ -59,7 +60,7 @@ final class SettingsCatalog {
      *
      * spec: brief/operations.md#настройки-агента
      */
-    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS'];
+    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
@@ -128,6 +129,7 @@ final class SettingsCatalog {
         'MEMORY_FILE_LIMIT' => ['memory', self::INT, 'settings.about.memory_file_limit'],
         'MEMORY_RULES_NOTICE' => ['memory', self::INT, 'settings.about.memory_rules_notice'],
         'MEMORY_SLEEP_MODELS' => ['models', self::TEXT, 'settings.about.memory_sleep_models'],
+        'MEMORY_SLEEP_TRANSLATE' => ['memory', self::INT, 'settings.about.memory_sleep_translate'],
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
         'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
         'BROWSER_CONFIRM' => ['agent', self::INT, 'settings.about.browser_confirm'],
