@@ -133,6 +133,7 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | Тексты агента на русском и английском: переводчик, каталоги, формы числа и проверка совпадения. |
 | [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате вызова. |
 | [`mercurius-memory`](https://github.com/opencck/mercurius-memory) | Память агента: факты с версиями и происхождением, вспоминание по ключам и векторам HRR, предложения на решение владельца, ядро, ночная проверка; хранилища PostgreSQL и в памяти со своими миграциями. |
+| [`mercurius-todo`](https://github.com/opencck/mercurius-todo) | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, несделанное для контекста, хранилища в памяти и на PostgreSQL. |
 | [`mercurius-peer`](https://github.com/opencck/mercurius-peer) | Связь агентов по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей. |
 
 Модули — браузер, медиа, почта и свой сервер Bot API — перечислены в разделе [Модули](#модули). Репозиторий [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy) заведён, но код пока в основном репозитории (`src/CommandPolicy/`).

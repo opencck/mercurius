@@ -87,3 +87,6 @@
 	path = skills/memory-file
 	url = https://github.com/opencck/mercurius-skill-memory-file.git
 	branch = master
+[submodule "packages/todo"]
+	path = packages/todo
+	url = git@github.com:opencck/mercurius-todo.git

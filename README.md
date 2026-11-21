@@ -134,6 +134,7 @@ Components useful outside Mercurius live in their own repositories and are inclu
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | The texts of the agent in Russian and English: a translator, catalogs, plural forms and a parity check. |
 | [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) | An MCP client: JSON-RPC over Streamable HTTP, tools and resources by pages, files in tool results. |
 | [`mercurius-memory`](https://github.com/opencck/mercurius-memory) | Memory for agents: facts with versions and provenance, recall by keys and HRR vectors, proposals the owner decides, a core layer, nightly consolidation; PostgreSQL and in-memory stores with their migrations. |
+| [`mercurius-todo`](https://github.com/opencck/mercurius-todo) | The plan of a conversation: items with statuses and subtasks, replace or merge by id, the items still to do, stores in memory and on PostgreSQL. |
 | [`mercurius-peer`](https://github.com/opencck/mercurius-peer) | Agent-to-agent over A2A: P-256 keys and signatures, a client (a card that proves its key, tasks, cancelling, files), a WebSocket with a handshake of keys. |
 
 Modules — the browser, media, mail and the local Bot API server — are listed in [Modules](#modules). The repository [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy) is reserved: its code still lives in this repository (`src/CommandPolicy/`).

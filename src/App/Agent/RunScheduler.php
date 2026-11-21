@@ -592,6 +592,19 @@ final class RunScheduler {
         $this->afterRun[] = $then;
     }
 
+    private ?ConversationPlan $plan = null;
+
+    /** spec: brief/agent-loop.md#список-дел-беседы — what of the conversation's plan is left goes into every run */
+    public function usePlan(ConversationPlan $plan): void {
+        $this->plan = $plan;
+    }
+
+    /** The active items of the conversation's plan after the text of the turn. */
+    private function withPlan(int $conversationId, string $text): string {
+        $plan = $this->plan?->active($conversationId);
+        return $plan === null ? $text : $text . "\n\n" . $plan;
+    }
+
     /** @param ConversationAudience|null $audience shared with the memory tools */
     public function useMemory(MemoryContext $memory, ?ConversationAudience $audience = null): void {
         $this->memory = $memory;
@@ -836,7 +849,7 @@ final class RunScheduler {
             return null;
         }
         try {
-            $this->transcript->appendUser($conversationId, $run->id, $this->withSkillNote($principal, $meta, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text), $messageId);
+            $this->transcript->appendUser($conversationId, $run->id, $this->withPlan($conversationId, $this->withSkillNote($principal, $meta, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text)), $messageId);
             $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
             $observer->start();
         } catch (Throwable $e) {

@@ -105,6 +105,11 @@ final class AgentLoop {
     private ToolUseGuidance $toolUse;
     private ?\OpenCCK\App\Agent\Tool\ToolSearch $toolSearch = null;
 
+    /** spec: brief/agent-loop.md#список-дел-беседы — the plan next to the summary after compaction */
+    public function usePlan(ConversationPlan $plan): void {
+        $this->compactor?->usePlan($plan);
+    }
+
     /** spec: brief/agent-loop.md#разрешения-навсегда — grants of an area and runs with nobody to ask */
     public function useAreas(RunAreas $areas): void {
         $this->round->useAreas($areas);

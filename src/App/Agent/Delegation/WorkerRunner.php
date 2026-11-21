@@ -116,7 +116,7 @@ final class WorkerRunner {
     public const ALLOWED = [
         'read_file', 'list_files', 'search_files', 'write_file', 'run_command', 'git', 'checkpoint', 'http_request', 'web_search', 'web_read',
         'browser', 'documents', 'media', 'skill_view', 'self_info', 'servers', 'ssh_run', 'sql_query', 'file_write', 'tcp_probe',
-        'memory_search', 'history_search', 'experience_search', 'memory_propose',
+        'memory_search', 'history_search', 'experience_search', 'memory_propose', 'todo_list',
     ];
     /** @var list<string>|null names a worker may get, `name*` for a prefix; null — no list (tests) */
     private ?array $allowed = null;

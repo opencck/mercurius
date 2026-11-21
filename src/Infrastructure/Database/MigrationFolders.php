@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Database;
 
 use Mercurius\Memory\Migrations as MemoryMigrations;
+use Mercurius\Todo\Migrations as TodoMigrations;
 
 /**
  * Where the migrations of the agent lie: its own folder and the folders of the packages that keep tables. They are
@@ -15,6 +16,6 @@ use Mercurius\Memory\Migrations as MemoryMigrations;
 final class MigrationFolders {
     /** @return list<string> */
     public static function of(string $root): array {
-        return [rtrim($root, '/') . '/migrations', MemoryMigrations::directory()];
+        return [rtrim($root, '/') . '/migrations', MemoryMigrations::directory(), TodoMigrations::directory()];
     }
 }

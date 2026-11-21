@@ -121,6 +121,7 @@ PHP 8.2+、AMPHP v3 / Revolt、[`opencck/server`](https://github.com/opencck)、
 | [`mercurius-i18n`](https://github.com/opencck/mercurius-i18n) | 智能体的俄语和英语文本：翻译器、目录、复数形式和一致性检查。 |
 | [`mercurius-mcp-client`](https://github.com/opencck/mercurius-mcp-client) | MCP 客户端：基于 Streamable HTTP 的 JSON-RPC、分页的工具和资源、工具结果中的文件。 |
 | [`mercurius-memory`](https://github.com/opencck/mercurius-memory) | 智能体的记忆：带版本和来源的事实、按键和 HRR 向量召回、由所有者裁决的提案、核心层、夜间整合；PostgreSQL 和内存存储及其迁移。 |
+| [`mercurius-todo`](https://github.com/opencck/mercurius-todo) | 对话计划：带状态和子任务的条目，按编号替换或合并，为上下文提供未完成的条目，内存与 PostgreSQL 存储。 |
 | [`mercurius-peer`](https://github.com/opencck/mercurius-peer) | 基于 A2A 的智能体间通信：P-256 密钥和签名、客户端（证明其密钥的卡片、任务、取消、文件）、带密钥握手的 WebSocket。 |
 
 模块——浏览器、媒体、邮件和本地 Bot API 服务器——列在[模块](#模块)中。仓库 [`mercurius-command-policy`](https://github.com/opencck/mercurius-command-policy) 为预留：它的代码目前仍在本仓库中（`src/CommandPolicy/`）。

@@ -179,6 +179,25 @@ final class ContextCompactorTest extends AsyncTestCase {
         self::assertStringContainsString("- исходная задача\n- уточнение посреди задачи", $summary);
     }
 
+    public function testTheLivePlanGoesNextToTheSummaryWithOnlyWhatIsLeft(): void {
+        // spec: brief/agent-loop.md#список-дел-беседы — after compaction the model sees what is still to do, not what is done
+        $this->longRun();
+        $this->llm = new ScriptedLlm([ScriptedLlm::text('резюме')]);
+        $store = new \Mercurius\Todo\Infrastructure\InMemoryTodoStore();
+        $store->save('conversation:1', (new \Mercurius\Todo\TodoList())->write([
+            ['id' => '1', 'content' => 'Собрать ленты', 'status' => 'completed'],
+            ['id' => '2', 'content' => 'Написать дайджест', 'status' => 'in_progress'],
+        ]), 0);
+        $compactor = $this->compactor();
+        $compactor->usePlan(new \OpenCCK\App\Agent\ConversationPlan($store));
+
+        $compactor->ensure($this->run, 'system', 40, 4000);
+        $summary = (string) $compactor->summaryMessage(1);
+
+        self::assertStringContainsString('[>] 2. Написать дайджест', $summary);
+        self::assertStringNotContainsString('Собрать ленты', $summary);
+    }
+
     public function testSecondCompactionUpdatesTheSummary(): void {
         $this->longRun();
         $this->llm = new ScriptedLlm([ScriptedLlm::text('первое резюме'), ScriptedLlm::text('второе резюме')]);

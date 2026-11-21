@@ -142,6 +142,12 @@ $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwne
 });
 $memoryContext = new MemoryContext($memoryStore, $recall);
 $scheduler->useMemory($memoryContext, $audience);
+// spec: brief/agent-loop.md#список-дел-беседы — the plan of a conversation for multistep work, kept by the package todo
+$todoStore = new \Mercurius\Todo\Infrastructure\PostgresTodoStore($db);
+$conversationPlan = new \OpenCCK\App\Agent\ConversationPlan($todoStore, $logger);
+$tools->register(new \OpenCCK\App\Agent\Tool\Todo\TodoListTool($todoStore));
+$scheduler->usePlan($conversationPlan);
+$loop->usePlan($conversationPlan);
 // spec: brief/memory.md#файл-памяти-места — MEMORY.md at the root of the folder of the context: the participant's own in their
 // private chat, the project's or the place's for everyone there; no sandbox — no file
 $contextMemory = null;

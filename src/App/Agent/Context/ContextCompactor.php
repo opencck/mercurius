@@ -136,11 +136,19 @@ final class ContextCompactor {
      * user messages of that part verbatim — the newest first to fit, each at most 2000 characters, all of them at
      * most a tenth of the window; null when nothing was compacted.
      */
+    private ?\OpenCCK\App\Agent\ConversationPlan $plan = null;
+
+    /** spec: brief/agent-loop.md#список-дел-беседы — the plan as it is now goes next to the summary */
+    public function usePlan(\OpenCCK\App\Agent\ConversationPlan $plan): void {
+        $this->plan = $plan;
+    }
+
     public function summaryMessage(int $conversationId): ?string {
         $compaction = $this->conversations->compaction($conversationId);
         if ($compaction->summary === null) {
             return null;
         }
+        $plan = $this->plan?->active($conversationId);
         $budget = intdiv($this->windowFor($this->conversations->meta($conversationId)?->model) * 4, 10);
         $shown = [];
         $users = $this->transcript->userMessages($conversationId, 0, $compaction->uptoId);
@@ -157,7 +165,7 @@ final class ContextCompactor {
         $list = $shown === [] && $hidden === 0 ? '' : "\n\n" . \Mercurius\I18n\t(SummaryPrompt::USERS) . "\n"
             . ($hidden > 0 ? sprintf(t('context.context_compactor.rannih_soobscheniy_ne_pokazano_oni'), $hidden) : '')
             . implode("\n", $shown);
-        return \Mercurius\I18n\t(SummaryPrompt::HEADER) . "\n\n" . $compaction->summary . $list;
+        return \Mercurius\I18n\t(SummaryPrompt::HEADER) . "\n\n" . $compaction->summary . $list . ($plan === null ? '' : "\n\n" . $plan);
     }
 
     /**
