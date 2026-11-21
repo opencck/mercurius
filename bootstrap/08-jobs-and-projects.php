@@ -55,7 +55,7 @@ $ownerZone = new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OW
 $quietRaw = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'QUIET_HOURS') ?? '23-8';
 $quietHours = preg_match('~^(\d{1,2})-(\d{1,2})$~', $quietRaw, $q) === 1 ? [(int) $q[1] % 24, (int) $q[2] % 24] : null;
 $jobRepository = new PostgresJobRepository($db);
-$jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JOB_TOKEN_BUDGET') ?? '100000'));
+$jobTokens = max(1000, (int) (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'JOB_TOKEN_BUDGET') ?? '300000'));
 // spec: brief/scheduler.md#наблюдение-за-страницей — a watched address is read through the guard of internal addresses, as text
 $jobWatchHttp = HttpClients::guarded($addressGuard);
 $jobWatchText = new TextExtractor();

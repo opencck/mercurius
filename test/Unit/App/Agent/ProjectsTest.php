@@ -131,6 +131,8 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('Главный проект', $block);
         self::assertStringNotContainsString('Чужое отношение', $block);
         self::assertStringContainsString('#1 Память', $block);
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — tasks of a project are not scheduled jobs
+        self::assertStringContainsString('job_manage list', $block, 'the agent knows where the jobs are');
         self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::visitor(), null), 'telegram', '42'));
         self::assertSame('', $context->block($this->owner, 'telegram', '43'));
     }

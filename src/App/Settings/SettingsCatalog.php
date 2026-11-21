@@ -44,7 +44,7 @@ final class SettingsCatalog {
         'SKILL_MAX_FILES' => '0',
         'AGENT_TOOL_USE_GUIDANCE' => 'auto',
         'AGENT_MONTHLY_SPEND_CAP' => '0',
-        'JOB_TOKEN_BUDGET' => '100000',
+        'JOB_TOKEN_BUDGET' => '300000',
         'GROUP_FREE_DAILY_TOKENS' => '200000',
         'MEDIA_AUDIO_AUTO_MINUTES' => '10',
         'MEDIA_TEXT_LIMIT' => '20000',

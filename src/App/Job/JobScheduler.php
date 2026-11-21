@@ -88,7 +88,7 @@ final class JobScheduler implements JobRuns {
         private readonly ?array $quiet,
         private readonly LoggerInterface $logger,
         ?Closure $now = null,
-        private readonly int $tokenBudget = 100_000,
+        private readonly int $tokenBudget = 300_000,
         /** @var (Closure(string): string)|null the text an address gives now (through the guard of internal addresses) */
         private readonly ?Closure $fetch = null,
         /** the daily cap of reports the owner did not ask for right now; null — no cap */
@@ -141,13 +141,34 @@ final class JobScheduler implements JobRuns {
         }
     }
 
+    /**
+     * The owner named an hour inside the quiet hours for this job (daily:05:00, a one-off at night): its report
+     * goes then. A run that catches up a missed one at night still waits for the morning.
+     */
+    public function namedQuietHour(Job $job): bool {
+        try {
+            $schedule = Schedule::parse($job->schedule);
+        } catch (Throwable) {
+            return false;
+        }
+        $hour = match ($schedule->kind) {
+            'daily', 'weekly' => preg_match('~(\d{2}):\d{2}$~', $schedule->value, $m) === 1 ? (int) $m[1] : null,
+            'once' => (int) (new DateTimeImmutable($schedule->value))->setTimezone($this->zone($job->principalId))->format('G'),
+            default => null,
+        };
+        return $hour !== null && $this->quietHour($hour, $job->principalId);
+    }
+
     public function isQuiet(DateTimeImmutable $at, ?int $principalId = null): bool {
+        return $this->quietHour((int) $at->setTimezone($this->zone($principalId))->format('G'), $principalId);
+    }
+
+    private function quietHour(int $hour, ?int $principalId): bool {
         $quiet = $this->clock === null || $principalId === null ? $this->quiet : $this->clock->quiet($principalId);
         if ($quiet === null) {
             return false;
         }
         [$from, $to] = $quiet;
-        $hour = (int) $at->setTimezone($this->zone($principalId))->format('G');
         return $from > $to ? ($hour >= $from || $hour < $to) : ($hour >= $from && $hour < $to);
     }
 
@@ -246,7 +267,10 @@ final class JobScheduler implements JobRuns {
         }
         $report = sprintf(t('job.job_scheduler.report'), $byEvent ? '⚡' : '⏰', $job->id, $job->title, $byEvent ? t('job.job_scheduler.sobytie') : t('job.job_scheduler.zapusk'), $number, mb_substr($text, 0, self::REPORT_MAX));
         // spec: brief/scheduler.md#инициатива-агента — quiet hours and the daily cap of initiative messages
-        $held = $this->isQuiet(($this->now)(), $job->principalId) || ($this->budget !== null && !$this->budget->take());
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job at an hour the owner named reports then,
+        // quiet hours or not: the owner asked for it at that time
+        $quiet = $this->isQuiet(($this->now)(), $job->principalId) && !$this->namedQuietHour($job);
+        $held = $quiet || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if ($held) {
             return;

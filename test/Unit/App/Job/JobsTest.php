@@ -273,6 +273,19 @@ description: Отчёт о диске таблицей
         self::assertSame([], $this->jobs->pendingReports());
     }
 
+    public function testAJobAtAnHourTheOwnerNamedReportsAtOnceEvenInQuietHours(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — the owner chose 05:00
+        // 22:00 UTC is 05:00 in Bangkok, inside quiet hours 23–8.
+        $this->now = new DateTimeImmutable('2026-11-17 22:00:00 UTC');
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('утренний дайджест')]), [23, 8]);
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Дайджест', 'Собери новости', 'daily:05:00', $this->now);
+
+        $scheduler->tick(true);
+
+        self::assertNotSame([], array_filter($this->stack->channel->texts('send'), static fn(string $t): bool => str_contains($t, 'утренний дайджест')));
+        self::assertSame([], $this->jobs->pendingReports());
+    }
+
     public function testAnIrreversibleStepOfAJobAsksTheOwnerAndTheRunGoesOnAfterTheDecision(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([
             ScriptedLlm::calls(new ToolCall('c1', 'deploy', '{"q":"prod"}')),
