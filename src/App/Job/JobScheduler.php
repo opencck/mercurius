@@ -277,6 +277,20 @@ final class JobScheduler implements JobRuns {
 
     /** @var (\Closure(Principal, Job): string)|null the memory core for a job's run; '' where it must not go */
     private ?\Closure $core = null;
+    /** @var (\Closure(Principal, string, string): array{string, string})|null the rules and notes blocks of the place's MEMORY.md */
+    private ?\Closure $placeMemory = null;
+
+    /**
+     * The MEMORY.md of the project a job works for: a job of a project gets the project's file as a chat of the project
+     * does — its rules as instructions, its notes as reference data.
+     *
+     * spec: brief/memory.md#файл-памяти-места — a job of a project
+     *
+     * @param \Closure(Principal, string, string): array{string, string} $read the runner, the channel and chat of the run
+     */
+    public function usePlaceMemory(\Closure $read): void {
+        $this->placeMemory = $read;
+    }
 
     /**
      * spec: brief/participants.md#контекст-по-месту-и-аудитории — a job run knows its owner's memory core only when its report goes
@@ -351,7 +365,10 @@ final class JobScheduler implements JobRuns {
             $block = (new \OpenCCK\App\Agent\ProjectContext($this->projects))->block($principal, self::CHANNEL, $chat);
         }
         $model = $job->modelRole !== '' && $this->modelOf !== null ? (($this->modelOf)($job->modelRole) ?? $this->model) : $this->model;
-        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $this->core === null ? '' : ($this->core)($principal, $job), project: $block, skills: $this->skills?->index($principal, $project) ?? ''), $model);
+        [$rules, $notes] = $project !== null && $this->placeMemory !== null ? ($this->placeMemory)($principal, self::CHANNEL, $chat) : ['', ''];
+        $core = $this->core === null ? '' : ($this->core)($principal, $job);
+        $core = implode("\n\n", array_filter([$core, $notes], static fn(string $p): bool => $p !== ''));
+        $this->conversations->setMeta($conversation, PromptBuilder::system($principal, ($this->now)(), $core, project: $block, skills: $this->skills?->index($principal, $project) ?? '', rules: $rules), $model);
         // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — an event, a watched page or a job set up after outside data
         //       marks the run: no saved grant applies in it, unless the owner trusts the source of the job
         $outside = $job->trusted ? null : implode(', ', array_filter([$event === null ? null : $source, $job->origin]));

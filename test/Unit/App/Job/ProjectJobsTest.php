@@ -96,6 +96,26 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->channel->texts('send'), 'not into the chat of whoever set the job');
     }
 
+    public function testAJobOfAProjectGetsTheProjectsMemoryFile(): void {
+        // spec: brief/memory.md#файл-памяти-места — a job of a project gets the project's MEMORY.md as a chat of the project does
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));
+        $project = $this->projects->create('Поиск', 'работа');
+        $seen = [];
+        $scheduler->usePlaceMemory(function (Principal $who, string $channel, string $chat) use (&$seen): array {
+            $seen[] = [$channel, $this->projects->active($channel, $chat)?->name];
+            return ['ПРАВИЛА ПРОЕКТА: откликаться только на удалёнку', 'ЗАМЕТКИ ПРОЕКТА'];
+        });
+        $job = $this->jobs->create($this->agent->id, 'a2a', 'a2a-ctx', 'Отклики', 'Сделай отклики', 'every:60', $this->now->modify('-1 minute'));
+        $this->jobs->setProject($job->id, $project->id);
+
+        $scheduler->tick(true);
+
+        $system = $this->stack->llm->requests[0]->messages[0]->content ?? '';
+        self::assertSame([[JobScheduler::CHANNEL, 'Поиск']], $seen, 'read while the run is bound to the project');
+        self::assertStringContainsString('ПРАВИЛА ПРОЕКТА: откликаться только на удалёнку', $system);
+        self::assertStringContainsString('ЗАМЕТКИ ПРОЕКТА', $system);
+    }
+
     public function testAJobOfAProjectReportsIntoTheTopicOfTheProject(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));
         $project = $this->projects->create('Поиск', 'работа');

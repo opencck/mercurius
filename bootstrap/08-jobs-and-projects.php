@@ -29,7 +29,9 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Agent\Tool\Guard\AddressGuard $addressGuard
  * @var Mercurius\Messenger\RoutingChannel $channel
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
+ * @var OpenCCK\App\Agent\ContextMemory|null $contextMemory
  * @var Amp\Postgres\PostgresConnectionPool $db
+ * @var OpenCCK\Infrastructure\Config\MemorySettings $memorySettings
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
  * @var Monolog\Logger $logger
  * @var OpenCCK\App\Agent\AgentLoop $loop
@@ -83,6 +85,16 @@ $jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job 
     $private = $job->threadId === '' && $principals->externalId($who->id, $job->channel) === $job->chatId;
     return $private ? $scheduler->coreOf($who) : '';
 });
+// spec: brief/memory.md#файл-памяти-места — a job of a project gets the project's MEMORY.md
+if ($contextMemory !== null) {
+    $jobScheduler->usePlaceMemory(static function (Principal $who, string $channel, string $chat) use ($contextMemory, $memorySettings): array {
+        $place = $contextMemory->shared($who, $channel, $chat, '', false);
+        if ($place === null || $place->kind !== \OpenCCK\App\Agent\MemoryPlace::PROJECT) {
+            return ['', ''];
+        }
+        return \OpenCCK\App\Agent\RunScheduler::memoryBlocks(\OpenCCK\App\Agent\MemoryFile::parse($contextMemory->read($place)), $memorySettings->fileLimit, 'place');
+    });
+}
 $digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
 $digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 // spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner and reports to them
