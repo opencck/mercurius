@@ -187,7 +187,7 @@ $chat = new ChatService(
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation, $memoryAliases, $lossGuard, $sleeps),
     new ProjectCommands($projectRepository),
-    new ServerCommands($vault, $serverRepository, $commandAudit),
+    $serverCommands = new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
@@ -329,6 +329,8 @@ if ($imported !== null || $importFailed) {
 $ownership = new \OpenCCK\App\Service\OwnershipTransfer($principals, $channel, $ownerDirectory, $logger);
 $chat->useOwnership($ownership);
 $chat->useRoles($roleCatalog);
+// spec: brief/participants.md#секреты-проекта — "/secret <project>: …" keeps a secret of a project
+$serverCommands->useProjects($projectRepository);
 // spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);

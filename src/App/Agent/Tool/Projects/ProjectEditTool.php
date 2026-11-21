@@ -30,13 +30,12 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
         'relation' => ProjectLevel::Read, 'activate' => ProjectLevel::Read, 'members' => ProjectLevel::Read,
         'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read, 'transfer' => ProjectLevel::Owner,
-        'share_secret' => ProjectLevel::Full, 'unshare_secret' => ProjectLevel::Full,
         // spec: brief/participants.md#права-проекта — members see the rights, only the owner of the project changes them
         'rights' => ProjectLevel::Read, 'grant_tool' => ProjectLevel::Owner, 'revoke_tool' => ProjectLevel::Owner, 'set_limit' => ProjectLevel::Owner,
         // spec: brief/scheduler.md#часовой-пояс-проекта — the clock of the project is its owner's to set
@@ -167,8 +166,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'status' => ['type' => 'string', 'enum' => Project::STATUSES],
                 'participant' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'access' => ['type' => 'string', 'enum' => ProjectLevel::GIVEN],
-                'secret' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
-                'site' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 253],
                 'tool' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 128],
                 'limit' => ['type' => 'string', 'enum' => \OpenCCK\App\Service\ProjectPolicies::LIMITS],
                 'value' => ['type' => 'number', 'minimum' => 0],
@@ -257,8 +254,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'unshare' => $this->unshare($project, $context, $level, Args::string($args, 'participant') ?? ''),
             'members' => $this->members($project),
             'transfer' => $this->transfer($project, Args::string($args, 'participant') ?? ''),
-            'share_secret' => $this->shareSecret($project, $context, trim(Args::string($args, 'secret') ?? ''), strtolower(trim(Args::string($args, 'site') ?? ''))),
-            'unshare_secret' => $this->unshareSecret($project, $context, trim(Args::string($args, 'secret') ?? '')),
             'rights', 'grant_tool', 'revoke_tool', 'set_limit' => $this->rights($project, $action, $args),
             'timezone', 'quiet' => $this->clock($project, $action, $text),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
@@ -377,42 +372,6 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             $this->channels->leave($context->principal);
         }
         return ToolResult::ok(t('tool.project_edit.unbound'));
-    }
-
-    private ?\OpenCCK\App\Vault\Vault $vault = null;
-    private ?\OpenCCK\Domain\Repository\ProjectLinkRepository $links = null;
-
-    /** spec: brief/participants.md#ресурсы-проекта — a secret is given to a project by its author, for one site */
-    public function useSecrets(\OpenCCK\App\Vault\Vault $vault, \OpenCCK\Domain\Repository\ProjectLinkRepository $links): void {
-        $this->vault = $vault;
-        $this->links = $links;
-    }
-
-    /**
-     * Gives a secret to the project: those who work in it use the secret in requests to this site and never see it.
-     *
-     * spec: brief/participants.md#ресурсы-проекта
-     */
-    private function shareSecret(Project $project, ToolContext $context, string $name, string $site): ToolResult {
-        $id = $this->vault?->id($name);
-        if ($this->vault === null || $this->links === null || $id === null || !$this->vault->readable($name, $context->principal)) {
-            return ToolResult::error(sprintf(t('tool.project_edit.secret_not_yours'), $name));
-        }
-        if (preg_match(\OpenCCK\Domain\Mail\Mailbox::HOST_PATTERN, $site) !== 1) {
-            return ToolResult::error(t('tool.project_edit.secret_needs_site'));
-        }
-        $this->links->bindSecret($id, $project->id, $site);
-        return ToolResult::ok(sprintf(t('tool.project_edit.secret_shared'), $name, $project->name, $site));
-    }
-
-    private function unshareSecret(Project $project, ToolContext $context, string $name): ToolResult {
-        $id = $this->vault?->id($name);
-        $binding = $id === null ? null : $this->links?->secretBinding($id);
-        if ($this->vault === null || $this->links === null || $id === null || $binding === null || $binding['projectId'] !== $project->id || !$this->vault->readable($name, $context->principal)) {
-            return ToolResult::error(sprintf(t('tool.project_edit.secret_not_shared'), $name, $project->name));
-        }
-        $this->links->unbindSecret($id);
-        return ToolResult::ok(sprintf(t('tool.project_edit.secret_unshared'), $name, $project->name));
     }
 
     /** spec: brief/channels.md#форум-темы--проекты — a new name for the project and its forum topics */

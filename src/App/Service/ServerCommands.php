@@ -31,8 +31,70 @@ final class ServerCommands {
     ) {}
 
     /** "/secret <name> <value>" stores, "/secret - <name>" removes. */
+    private ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null;
+
+    /** spec: brief/participants.md#секреты-проекта — "/secret <project>: …" keeps a secret of a project */
+    public function useProjects(\OpenCCK\Domain\Repository\ProjectRepository $projects): void {
+        $this->projects = $projects;
+    }
+
+    /**
+     * The project a command names before a colon: a project the participant sees by that name; null — the text is a
+     * personal secret (its value may hold a colon). A project shared with the participant is named too, to be refused.
+     *
+     * @return array{\OpenCCK\Domain\Project\Project, string}|null the project and the rest of the command
+     */
+    private function projectOf(Principal $principal, string $argument): ?array {
+        if ($this->projects === null || preg_match('~^([^:\n]{1,100}):(?:\s+(.*))?$~su', $argument, $m) !== 1) {
+            return null;
+        }
+        $project = $this->projects->byName(trim($m[1]), \OpenCCK\Domain\Project\Project::scopeOf($principal));
+        return $project === null ? null : [$project, trim($m[2] ?? '')];
+    }
+
+    /**
+     * "/secret <project>: <name> <value> <site>" keeps or updates a secret of a project, "… - <name>" removes it,
+     * "<project>:" alone lists the names. Only the owner of the project and the owner of the agent manage them.
+     *
+     * spec: brief/participants.md#секреты-проекта
+     */
+    private function projectSecret(Principal $principal, \OpenCCK\Domain\Project\Project $project, #[SensitiveParameter] string $rest): string {
+        if (!$project->visibleTo($principal)) {
+            return sprintf(t('service.server_commands.project_secret_owner_only'), $project->name);
+        }
+        if ($rest === '') {
+            $names = $this->vault->projectNames($project->id);
+            return $names === [] ? sprintf(t('service.server_commands.project_secrets_none'), $project->name)
+                : sprintf(t('service.server_commands.project_secrets'), $project->name) . implode("\n", array_map(static fn(array $s): string => sprintf('%s — %s', $s['name'], $s['site']), $names));
+        }
+        if (str_starts_with($rest, '- ')) {
+            $name = trim(substr($rest, 2));
+            return $this->vault->removeProject($name, $project->id) ? sprintf(t('service.server_commands.project_secret_removed'), $name, $project->name) : sprintf(t('service.server_commands.project_secret_none'), $name, $project->name);
+        }
+        // the value keeps its own spaces and lines: it is what stands between the name and the site
+        if (preg_match('~^(\S+)\s+(.+)\s+(\S+)$~su', $rest, $m) !== 1) {
+            return t('service.server_commands.project_secret_usage');
+        }
+        [, $name, $value, $site] = $m;
+        $value = trim($value);
+        $site = strtolower(trim($site, '/'));
+        if (preg_match('~^(?=.{3,253}$)[a-z0-9-]+(\.[a-z0-9-]+)+$~', $site) !== 1) {
+            return sprintf(t('service.server_commands.project_secret_bad_site'), $site);
+        }
+        try {
+            $existed = $this->vault->putProject($project->id, $name, $site, $value, $principal);
+        } catch (DomainException $e) {
+            return $e->getMessage();
+        }
+        return sprintf(t($existed ? 'service.server_commands.project_secret_updated' : 'service.server_commands.project_secret_saved'), $name, $project->name, $site);
+    }
+
     public function secret(Principal $principal, #[SensitiveParameter] string $argument): string {
         $argument = trim($argument);
+        $named = $this->projectOf($principal, $argument);
+        if ($named !== null) {
+            return $this->projectSecret($principal, $named[0], $named[1]);
+        }
         if (str_starts_with($argument, '- ')) {
             $name = trim(substr($argument, 2));
             return $this->vault->remove($name, $principal) ? sprintf(t('service.server_commands.sekret_udalen'), $name) : sprintf(t('service.server_commands.sekreta_net_ili_on_ne'), $name);
@@ -66,9 +128,14 @@ final class ServerCommands {
         }
     }
 
-    public function secrets(Principal $principal): string {
+    public function secrets(Principal $principal, string $argument = ''): string {
         if (!$this->vault->enabled()) {
             return t('service.server_commands.hranilische_sekretov_vyklyucheno_v_env');
+        }
+        // spec: brief/participants.md#секреты-проекта — "/secrets <project>" lists the names of a project's secrets for its owner
+        $named = trim($argument) === '' ? null : $this->projectOf($principal, trim($argument) . ':');
+        if ($named !== null) {
+            return $this->projectSecret($principal, $named[0], '');
         }
         $names = $this->vault->names($principal);
         return $names === [] ? t('service.server_commands.sekretov_net_secret_imya_znachenie') : t('service.server_commands.sekrety_tolko_imena') . implode("\n", array_map(static fn(array $s): string => sprintf('%s — %s', $s['name'], $s['kind']), $names));

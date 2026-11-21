@@ -432,7 +432,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {
-            $this->reply($message, $principal->role->may(Power::Secrets) && $message->isPrivateChat ? $this->servers->secrets($principal) : t(self::SECRET_PRIVATE));
+            $this->reply($message, $principal->role->may(Power::Secrets) && $message->isPrivateChat ? $this->servers->secrets($principal, substr($text, strlen($command))) : t(self::SECRET_PRIVATE));
             return;
         }
         if (in_array($command, ['/servers', '/server', '/audit'], true) && $this->servers !== null) {

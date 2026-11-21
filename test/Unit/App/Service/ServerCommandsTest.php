@@ -40,6 +40,29 @@ final class ServerCommandsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->transcript->messages, 'nor the transcript');
     }
 
+    public function testTheOwnerOfAProjectKeepsItsSecretForASiteAndAMemberIsRefused(): void {
+        // spec: brief/participants.md#секреты-проекта
+        $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
+        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $commands->useProjects($projects);
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $anna = new Principal(7, PrincipalKind::Human, Role::user(), 'Анна');
+        $project = $projects->create('Job Hunt', '');
+        $projects->share($project->id, $anna->id, 'write', 1);
+
+        self::assertStringContainsString('сохранён, годится для hh.ru', $commands->secret($owner, 'Job Hunt: hh-token value with spaces hh.ru'));
+        self::assertSame('value with spaces', $this->vault->revealShared('hh-token', $project->id, 'api.hh.ru'), 'the value is what stands between the name and the site');
+        self::assertStringContainsString('hh-token — hh.ru', $commands->secret($owner, 'Job Hunt:'));
+        self::assertStringContainsString('только его владелец', $commands->secret($anna, 'Job Hunt: hh-token other hh.ru'));
+        self::assertStringContainsString('только его владелец', $commands->secrets($anna, 'Job Hunt'), 'a member sees no list');
+        self::assertStringContainsString('не сайт', $commands->secret($owner, 'Job Hunt: hh-token value nosite'));
+
+        $commands->secret($owner, 'web-pass http://a:b@c');
+        self::assertSame('http://a:b@c', $this->vault->reveal('web-pass', $owner), 'a colon in a personal value is not a project');
+        self::assertStringContainsString('удалён', $commands->secret($owner, 'Job Hunt: - hh-token'));
+        self::assertNull($this->vault->revealShared('hh-token', $project->id, 'hh.ru'));
+    }
+
     public function testTheSameCommandUpdatesASecret(): void {
         // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a wrong value is fixed by sending it again
         $this->stack->say('/secret web-pass wrong-value-1');

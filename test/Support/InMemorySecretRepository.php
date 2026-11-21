@@ -54,4 +54,53 @@ final class InMemorySecretRepository implements SecretRepository {
         unset($this->secrets[$secret['id']]);
         return true;
     }
+
+    /** @var array<int, array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int, site: string, project: int}> */
+    public array $projectSecrets = [];
+
+    public function storeIn(int $projectId, string $site, string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int {
+        if ($this->findIn($name, $projectId) !== null) {
+            throw new DomainException(sprintf('Секрет «%s» уже есть.', $name));
+        }
+        $id = 1000 + count($this->projectSecrets) + 1;
+        $this->projectSecrets[$id] = ['id' => $id, 'name' => $name, 'kind' => $kind, 'nonce' => $nonce, 'ciphertext' => $ciphertext, 'principal' => $principalId, 'site' => $site, 'project' => $projectId];
+        return $id;
+    }
+
+    public function findIn(string $name, int $projectId): ?array {
+        foreach ($this->projectSecrets as $secret) {
+            if ($secret['project'] === $projectId && mb_strtolower($secret['name']) === mb_strtolower($name)) {
+                return ['id' => $secret['id'], 'name' => $secret['name'], 'kind' => $secret['kind'], 'nonce' => $secret['nonce'], 'ciphertext' => $secret['ciphertext'], 'principal' => $secret['principal'], 'site' => $secret['site']];
+            }
+        }
+        return null;
+    }
+
+    public function ofProject(int $projectId): array {
+        $found = [];
+        foreach ($this->projectSecrets as $secret) {
+            if ($secret['project'] === $projectId) {
+                $found[] = ['name' => $secret['name'], 'kind' => $secret['kind'], 'site' => $secret['site']];
+            }
+        }
+        return $found;
+    }
+
+    public function replaceIn(string $name, int $projectId, string $site, string $kind, string $nonce, string $ciphertext): bool {
+        $secret = $this->findIn($name, $projectId);
+        if ($secret === null) {
+            return false;
+        }
+        $this->projectSecrets[$secret['id']] = ['kind' => $kind, 'nonce' => $nonce, 'ciphertext' => $ciphertext, 'site' => $site] + $this->projectSecrets[$secret['id']];
+        return true;
+    }
+
+    public function deleteIn(string $name, int $projectId): bool {
+        $secret = $this->findIn($name, $projectId);
+        if ($secret === null) {
+            return false;
+        }
+        unset($this->projectSecrets[$secret['id']]);
+        return true;
+    }
 }

@@ -81,10 +81,11 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
     }
 
     /**
-     * A secret that is not the caller's own but was given to the project of this chat for this site: the call is
-     * marked with who gave it, so the card goes to that participant and the value is taken as the project's.
+     * A secret of the project of this chat for this site: the call is marked with who stored it, so the card goes to
+     * that participant and the value is taken as the project's. A project's secret wins over a personal one of the
+     * same name.
      *
-     * spec: brief/participants.md#ресурсы-проекта
+     * spec: brief/participants.md#секреты-проекта
      */
     public function prepareIn(array $args, \OpenCCK\Domain\Entity\Principal $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
         unset($args[self::SECRET_OWNER], $args[self::SECRET_PROJECT]);
@@ -95,7 +96,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
             return $args;
         }
         foreach (self::secrets($args) as $name) {
-            $author = $vault->readable($name, $principal) ? null : $vault->sharedWith($name, $project, $host);
+            $author = $vault->sharedWith($name, $project, $host);
             if ($author !== null) {
                 $args[self::SECRET_OWNER] = $author;
                 $args[self::SECRET_PROJECT] = $project;
@@ -227,13 +228,14 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         /** @var array<string, string> $values name => value of every secret of the call */
         $values = [];
         foreach (self::secrets($args) as $name) {
-            $value = $this->vault?->reveal($name, $context->principal);
-            // spec: brief/participants.md#ресурсы-проекта — a secret of the project, for its site, while the caller still works there
+            $value = null;
+            // spec: brief/participants.md#секреты-проекта — a secret of the project first, for its site, while the caller still works there
             $project = isset($args[self::SECRET_PROJECT]) && is_int($args[self::SECRET_PROJECT]) ? $args[self::SECRET_PROJECT] : null;
             $host = parse_url($url, PHP_URL_HOST);
-            if ($value === null && $project !== null && is_string($host) && $this->projectOf !== null && ($this->projectOf)($context->conversationId, $context->principal) === $project) {
+            if ($project !== null && is_string($host) && $this->projectOf !== null && ($this->projectOf)($context->conversationId, $context->principal) === $project) {
                 $value = $this->vault?->revealShared($name, $project, $host);
             }
+            $value ??= $this->vault?->reveal($name, $context->principal);
             if ($value === null) {
                 $names = $this->vault === null ? [] : array_column($this->vault->names($context->principal), 'name');
                 return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $name, $names === [] ? '—' : implode(', ', $names)));

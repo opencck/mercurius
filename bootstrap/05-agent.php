@@ -114,7 +114,6 @@ $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addre
     },
     $principals,
 ));
-$vault->useProjects(new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkRepository($db));
 // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: brief/participants.md#решения-владельца-о-правах — search providers in the order of SEARCH_PROVIDERS

@@ -38,13 +38,6 @@ final class Vault {
         $this->key = $key;
     }
 
-    private ?\OpenCCK\Domain\Repository\ProjectLinkRepository $projectLinks = null;
-
-    /** spec: brief/participants.md#ресурсы-проекта — a secret given to a project is used by those who work in it */
-    public function useProjects(\OpenCCK\Domain\Repository\ProjectLinkRepository $links): void {
-        $this->projectLinks = $links;
-    }
-
     /** Who stored the secret; null — no such secret, or its author is gone. */
     public function authorOf(string $name): ?int {
         return $this->secrets->find($name)['principal'] ?? null;
@@ -64,26 +57,62 @@ final class Vault {
     }
 
     /**
-     * The author of a secret given to this project for this host; null — the secret is not the project's, or the
+     * The author of the project's secret with this name for this host; null — the project has no such secret, or the
      * request goes elsewhere. A secret of a project never leaves for another site.
      *
-     * spec: brief/participants.md#ресурсы-проекта
+     * spec: brief/participants.md#секреты-проекта
      */
     public function sharedWith(string $name, int $projectId, string $host): ?int {
-        $secret = $this->secrets->find($name);
-        $binding = $secret === null ? null : $this->projectLinks?->secretBinding($secret['id']);
-        if ($secret === null || $binding === null || $binding['projectId'] !== $projectId || !self::hostFits($host, $binding['host'])) {
+        $secret = $this->secrets->findIn($name, $projectId);
+        if ($secret === null || !self::hostFits($host, $secret['site'])) {
             return null;
         }
-        return $secret['principal'];
+        return $secret['principal'] ?? 0;
     }
 
     /** The value of a secret of the project, for a request to its site; the caller has checked the right to work in the project. */
     public function revealShared(string $name, int $projectId, string $host): ?string {
-        if ($this->sharedWith($name, $projectId, $host) === null) {
+        $secret = $this->secrets->findIn($name, $projectId);
+        if ($secret === null || !self::hostFits($host, $secret['site'])) {
             return null;
         }
-        return self::known($this->decrypt($this->secrets->find($name)));
+        return self::known($this->decrypt($secret));
+    }
+
+    /**
+     * Keeps a secret of a project for one site; the same name again takes the new value and site. True when it was
+     * there before. The caller has checked that the author is the owner of the project or of the agent.
+     *
+     * spec: brief/participants.md#секреты-проекта
+     *
+     * @throws DomainException when the vault is off, the name, site or value is wrong
+     */
+    public function putProject(int $projectId, string $name, string $site, #[SensitiveParameter] string $value, Principal $author): bool {
+        $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
+        if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+            throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
+        }
+        if ($value === '' || strlen($value) > self::VALUE_MAX) {
+            throw new DomainException(t('vault.vault.pustoy_ili_slishkom_dlinnyy_sekret'));
+        }
+        $kind = str_starts_with($value, '-----BEGIN') ? 'private_key' : 'password';
+        $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+        $cipher = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key);
+        if ($this->secrets->findIn($name, $projectId) !== null) {
+            $this->secrets->replaceIn($name, $projectId, $site, $kind, $nonce, $cipher);
+            return true;
+        }
+        $this->secrets->storeIn($projectId, $site, $name, $kind, $nonce, $cipher, $author->id);
+        return false;
+    }
+
+    /** @return list<array{name: string, kind: string, site: string}> the names and sites of a project's secrets, never values */
+    public function projectNames(int $projectId): array {
+        return $this->secrets->ofProject($projectId);
+    }
+
+    public function removeProject(string $name, int $projectId): bool {
+        return $this->secrets->deleteIn($name, $projectId);
     }
 
     public function enabled(): bool {
@@ -175,7 +204,7 @@ final class Vault {
         return $secret === null || !$this->mayRead($secret['principal'], $reader) ? null : $this->decrypt($secret);
     }
 
-    /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null $secret */
+    /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int, site?: string}|null $secret */
     private function decrypt(?array $secret): ?string {
         if ($secret === null || $this->key === null) {
             return null;

@@ -217,17 +217,9 @@ final class ProjectChannelsTest extends AsyncTestCase {
     }
 
     public function testASecretOfAProjectServesItsSiteAndIsConfirmedByItsAuthor(): void {
+        // spec: brief/participants.md#секреты-проекта
         $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $vault->useProjects($this->links);
-        $vault->put('hh-token', 'token', 'hh-secret-value-123', $this->owner);
-        $edit = new ProjectEditTool($this->projects, $this->stack->conversations, principals: $this->stack->principals);
-        $edit->useSecrets($vault, $this->links);
-        $at = fn(Principal $who): ToolContext => new ToolContext(1, $this->stack->conversations->openConversation($who->id, 'test', 'chat-' . $who->id), $who, new NullCancellation());
-
-        self::assertTrue($edit->execute(['action' => 'share_secret', 'project' => 'Job Hunt', 'secret' => 'hh-token', 'site' => 'hh.ru'], $at($this->agent))->isError, 'not the agent\'s secret to give');
-        self::assertTrue($edit->execute(['action' => 'share_secret', 'project' => 'Job Hunt', 'secret' => 'hh-token'], $at($this->owner))->isError, 'a site is needed');
-        $shared = $edit->execute(['action' => 'share_secret', 'project' => 'Job Hunt', 'secret' => 'hh-token', 'site' => 'hh.ru'], $at($this->owner));
-        self::assertFalse($shared->isError, $shared->content);
+        $vault->putProject($this->project->id, 'hh-token', 'hh.ru', 'hh-secret-value-123', $this->owner);
 
         self::assertSame($this->owner->id, $vault->sharedWith('hh-token', $this->project->id, 'api.hh.ru'));
         self::assertNull($vault->sharedWith('hh-token', $this->project->id, 'evil.example'), 'a secret of a project never leaves for another site');
@@ -266,8 +258,30 @@ final class ProjectChannelsTest extends AsyncTestCase {
         self::assertTrue($tool->execute($prepared, new ToolContext(1, 1, $this->agent, new NullCancellation()))->isError);
 
         $inProject = true;
-        self::assertFalse($edit->execute(['action' => 'unshare_secret', 'project' => 'Job Hunt', 'secret' => 'hh-token'], $at($this->owner))->isError);
+        self::assertTrue($vault->removeProject('hh-token', $this->project->id));
         self::assertTrue($tool->execute($prepared, new ToolContext(1, 1, $this->agent, new NullCancellation()))->isError);
+    }
+
+    public function testWithSecretsOfTheSameNameTheRequestGoesWithTheProjectsOne(): void {
+        // spec: brief/participants.md#секреты-проекта
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('hh-token', 'token', 'personal-value-111', $this->agent);
+        $vault->putProject($this->project->id, 'hh-token', 'hh.ru', 'project-value-222', $this->owner);
+        $http = new FakeHttpClient(['https://api.hh.ru/me' => [200, ['content-type' => 'application/json'], '{"ok":true}']]);
+        $tool = new HttpRequestTool(
+            $http,
+            new AddressGuard(static fn(string $host): array => ['93.184.216.34']),
+            $vault,
+            projectOf: fn(int $conversationId, Principal $who): int => $this->project->id,
+            principals: $this->stack->principals,
+        );
+
+        $prepared = $tool->prepareIn(['url' => 'https://api.hh.ru/me', 'secret' => 'hh-token'], $this->agent, 1, new NullCancellation());
+        $result = $tool->execute($prepared, new ToolContext(1, 1, $this->agent, new NullCancellation()));
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame('Bearer project-value-222', $http->headers[0]['authorization'] ?? null, 'the project\'s secret wins over the personal one');
+        self::assertSame('personal-value-111', $vault->reveal('hh-token', $this->agent), 'the personal secret stays as it was');
     }
 
     public function testAClickUnderSomeoneElsesLoginIsTheirsToAllow(): void {

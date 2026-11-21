@@ -164,7 +164,6 @@ $projectLinks = new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkReposi
 $projectChannels = new \OpenCCK\App\Peer\ProjectChannels($projectRepository, $projectLinks);
 $projectEditTool = new ProjectEditTool($projectRepository, $conversations, $forumTopics, $principals, $projectTransfers);
 $projectEditTool->useChannels($projectChannels);
-$projectEditTool->useSecrets($vault, $projectLinks);
 $tools->register($projectEditTool);
 // spec: brief/participants.md#права-проекта — a run in a project works with the project's rights, never above its owner's
 $projectPolicies = new \OpenCCK\App\Service\ProjectPolicies(
