@@ -1,0 +1,28 @@
+{
+  "about": "记忆睡眠测试用的事实对：判断者应给出的结论。same — 同一件事（复本或换种说法），adds_detail — 一条补充另一条，contradicts — 相互矛盾，supersedes — 第二条取代第一条，unrelated — 虽有共同词但无关。由模型撰写，未经人工核对。",
+  "pairs": [
+    {"a": "服务器 bj-01 在北京机房", "b": "bj-01 位于北京的机房", "label": "same"},
+    {"a": "林芳喜欢喝绿茶", "b": "林芳爱喝绿茶", "label": "same"},
+    {"a": "一家人住在杭州", "b": "全家住在杭州", "label": "same"},
+    {"a": "密码用keyring保存", "b": "所有密码都保存在keyring里", "label": "same"},
+    {"a": "會計師陳小姐每季報稅", "b": "会计师陈小姐每个季度报税", "label": "same"},
+    {"a": "服务器 bj-01 在北京机房", "b": "服务器 bj-01 在北京机房，内存 64 GB", "label": "adds_detail"},
+    {"a": "家里养了一只狗", "b": "家里的狗是柯基，名字叫豆豆", "label": "adds_detail"},
+    {"a": "主人每周去健身房", "b": "主人每周二和周四晚上去健身房", "label": "adds_detail"},
+    {"a": "网店用 Laravel 开发", "b": "网店用 Laravel 11 和 PHP 8.3 开发，部署在 Docker 里", "label": "adds_detail"},
+    {"a": "主人喜欢吃辣", "b": "主人一点辣都不能吃", "label": "contradicts"},
+    {"a": "网店通过支付宝收款", "b": "网店只用 PayPal 收款", "label": "contradicts"},
+    {"a": "表哥在香港当医生", "b": "表哥在香港当律师", "label": "contradicts"},
+    {"a": "豆豆是一只猫", "b": "豆豆是一只狗", "label": "contradicts"},
+    {"a": "代码托管在 Gitee", "b": "代码托管在 GitHub", "label": "contradicts"},
+    {"a": "主人用华为手机", "b": "主人把华为手机换成了 iPhone", "label": "supersedes"},
+    {"a": "一家人住在北京", "b": "一家人从北京搬到了杭州", "label": "supersedes"},
+    {"a": "团队任务在钉钉里管理", "b": "团队任务从钉钉迁到了飞书", "label": "supersedes"},
+    {"a": "家里的车是大众帕萨特", "b": "帕萨特卖了，现在开比亚迪汉", "label": "supersedes"},
+    {"a": "服务器 bj-01 在北京", "b": "服务器 sh-02 在上海", "label": "unrelated"},
+    {"a": "林芳喜欢喝绿茶", "b": "表哥喜欢喝乌龙茶", "label": "unrelated"},
+    {"a": "母亲的生日是三月八日", "b": "儿子的生日是二月二日", "label": "unrelated"},
+    {"a": "模型调用的预算是每月五十美元", "b": "云服务器的预算是每月两百美元", "label": "unrelated"},
+    {"a": "主人每周二去健身房", "b": "主人周六上午去上日语课", "label": "unrelated"}
+  ]
+}
