@@ -20,5 +20,8 @@ final class Grant {
         public readonly bool $outside = false,
         /** how many calls ran by it */
         public readonly int $uses = 0,
+        /** what it allows, in words (secrets masked); null — said by the key */
+        public readonly ?string $label = null,
+        public readonly ?\DateTimeImmutable $createdAt = null,
     ) {}
 }

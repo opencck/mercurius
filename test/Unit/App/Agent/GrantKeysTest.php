@@ -46,6 +46,7 @@ final class GrantKeysTest extends TestCase {
     public function testLabelsSayWhatAKeyAllows(): void {
         self::assertSame('любой вызов wipe', GrantKeys::label('tool:wipe'));
         self::assertSame('всё в области job:5', GrantKeys::label('area:job:5'));
-        self::assertSame('http:POST a.example.com', GrantKeys::label('http:POST a.example.com'));
+        self::assertSame('POST на a.example.com', GrantKeys::label('http:POST a.example.com'));
+        self::assertSame('git-push:origin', GrantKeys::label('git-push:origin'), 'a key with no words of its own is shown as it is');
     }
 }

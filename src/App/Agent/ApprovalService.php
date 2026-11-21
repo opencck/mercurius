@@ -210,37 +210,39 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
         return $approval !== null && $approval->cardChatId !== null && $approval->cardChatId === $callback->chatId;
     }
 
-    public function showGrants(string $chatId, ?string $replyTo): bool {
+    /**
+     * The list of saved grants: the summary, or the part the argument names; false when there are no grants.
+     *
+     * spec: brief/agent-loop.md#список-разрешений
+     */
+    public function showGrants(string $chatId, ?string $replyTo, string $argument = ''): bool {
         if ($this->approvals->grants() === []) {
             return false;
         }
-        [$text, $rows] = $this->grantList();
-        $this->channel->send(new OutgoingMessage($chatId, $text, $replyTo, buttons: $rows));
+        $selector = GrantList::selectorOf($argument);
+        [$text, $rows] = $selector === null ? [t('agent.grants.list_usage'), []] : $this->list()->view($selector);
+        $this->channel->send(new OutgoingMessage($chatId, $text, $replyTo, disableLinkPreview: true, buttons: $rows));
         return true;
     }
 
-    /** @return array{string, list<list<Button>>} the text of the saved grants and a revoke button for each */
-    private function grantList(): array {
-        $lines = [];
-        $rows = [];
-        foreach ($this->approvals->grants() as $grant) {
-            $name = $this->principals->find($grant->principalId)->displayName ?? (t('agent.approval_service.uchastnik') . $grant->principalId);
-            $lines[] = sprintf('%d. %s — %s%s%s%s', $grant->id, GrantKeys::label($grant->key), $name, $grant->conversationId === null ? '' : t('agent.grants.list_session'), $grant->outside ? t('agent.grants.list_outside') : '', $grant->uses === 0 ? '' : sprintf(t('agent.grants.list_uses'), $grant->uses));
-            $rows[] = [new Button(sprintf(t('agent.approval_service.otozvat'), $grant->id), sprintf('pg:%d:x', $grant->id))];
-        }
-        return [$lines === [] ? t('agent.approval_service.no_grants_left') : t('agent.approval_service.sohranennye_razresheniya') . implode("\n", $lines), $rows];
+    private function list(): GrantList {
+        return new GrantList($this->approvals, $this->principals);
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if (preg_match('/^pg:(\d+):x$/', $callback->data, $grant) === 1) {
-            $revoked = $this->approvals->revokeGrant((int) $grant[1]);
-            $this->channel->answerCallback($callback->callbackId, $revoked === null ? t('agent.approval_service.uzhe_otozvano') : t('agent.approval_service.otozvano'));
-            if ($revoked !== null) {
-                $this->logger->info('Grant revoked', ['grant' => $revoked->id, 'key' => $revoked->key]);
+        if (str_starts_with($callback->data, 'pg:')) {
+            // spec: brief/agent-loop.md#список-разрешений — every press redraws the same message
+            $pressed = $this->list()->press($callback->data);
+            if ($pressed === null) {
+                $this->channel->answerCallback($callback->callbackId);
+                return;
             }
-            // spec: brief/agent-loop.md#подтверждения-и-запреты — the list is updated after a revoke
+            [$answer, [$text, $rows]] = $pressed;
+            $this->channel->answerCallback($callback->callbackId, $answer === '' ? null : $answer);
+            if ($answer !== '') {
+                $this->logger->info('Grants changed from the list', ['press' => preg_replace('~^(pg:\w+):.*$~', '$1', $callback->data)]);
+            }
             if ($callback->messageId !== null) {
-                [$text, $rows] = $this->grantList();
                 $this->channel->edit($callback->chatId, $callback->messageId, $text, buttons: $rows);
             }
             return;
@@ -276,7 +278,9 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             default => null,
         };
         if ($saved !== null) {
-            $this->approvals->addGrant($decided->principalId, $saved, $match[2] === 's' ? $run?->conversationId : null, $outside);
+            // spec: brief/agent-loop.md#список-разрешений — the exact grant keeps what it allows in words, for the list
+            $words = $saved === $decided->grantKey ? mb_substr(explode("\n", $decided->summary, 2)[0], 0, 200) : null;
+            $this->approvals->addGrant($decided->principalId, $saved, $match[2] === 's' ? $run?->conversationId : null, $outside, $words === '' ? null : $words);
             $this->logger->info('Grant saved', ['key' => $saved, 'term' => $match[2], 'outside' => $outside]);
         }
         $this->channel->answerCallback($callback->callbackId, match ($match[2]) {
@@ -378,7 +382,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
             $this->approvals->addGrant($decided->principalId, 'area:' . $decided->area, null, true);
         } elseif ($choice === 'j') {
             foreach ($decided->items as $item) {
-                $this->approvals->addGrant($decided->principalId, $decided->area . '|' . $item['key'], null, true);
+                $this->approvals->addGrant($decided->principalId, $decided->area . '|' . $item['key'], null, true, sprintf('%s: %s', $decided->area, $item['label']));
             }
         }
         $outcome = match ($choice) {

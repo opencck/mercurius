@@ -21,7 +21,7 @@ use UnexpectedValueException;
  */
 final class PostgresApprovalRepository implements ApprovalRepository {
     private const COLUMNS = 'id, run_id, call_id, principal_id, tool, summary, grant_key, status, reason, card_chat_id, card_message_id, extract(epoch FROM created_at)::float8 AS created_epoch, wide_key';
-    private const GRANT = 'id, principal_id, key, conversation_id, outside, uses';
+    private const GRANT = 'id, principal_id, key, conversation_id, outside, uses, label, extract(epoch FROM created_at)::bigint AS created';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -105,12 +105,12 @@ final class PostgresApprovalRepository implements ApprovalRepository {
         )->fetchRow() !== null;
     }
 
-    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void {
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false, ?string $label = null): void {
         $this->db->execute(
-            'INSERT INTO approval_grants (principal_id, key, conversation_id, outside) VALUES (?, ?, ?, ?)
+            'INSERT INTO approval_grants (principal_id, key, conversation_id, outside, label) VALUES (?, ?, ?, ?, ?)
              ON CONFLICT (principal_id, key, COALESCE(conversation_id, 0)) WHERE revoked_at IS NULL
-             DO UPDATE SET outside = approval_grants.outside OR EXCLUDED.outside',
-            [$principalId, $key, $conversationId, $outside],
+             DO UPDATE SET outside = approval_grants.outside OR EXCLUDED.outside, label = COALESCE(approval_grants.label, EXCLUDED.label)',
+            [$principalId, $key, $conversationId, $outside, $label === null ? null : mb_substr($label, 0, 300)],
         );
     }
 
@@ -231,7 +231,7 @@ final class PostgresApprovalRepository implements ApprovalRepository {
 
     /** @param array<string, mixed> $row */
     private static function grant(array $row): Grant {
-        return new Grant(self::int($row, 'id'), self::int($row, 'principal_id'), self::string($row, 'key'), isset($row['conversation_id']) && is_int($row['conversation_id']) ? $row['conversation_id'] : null, ($row['outside'] ?? false) === true, isset($row['uses']) && is_int($row['uses']) ? $row['uses'] : 0);
+        return new Grant(self::int($row, 'id'), self::int($row, 'principal_id'), self::string($row, 'key'), isset($row['conversation_id']) && is_int($row['conversation_id']) ? $row['conversation_id'] : null, ($row['outside'] ?? false) === true, isset($row['uses']) && is_int($row['uses']) ? $row['uses'] : 0, self::nullable($row, 'label'), isset($row['created']) && is_int($row['created']) ? (new \DateTimeImmutable())->setTimestamp($row['created']) : null);
     }
 
     /** @param array<string, mixed> $row */

@@ -168,9 +168,9 @@ final class VisitorServiceTest extends AsyncTestCase {
 
         $this->stack->say('/permissions');
         self::assertStringContainsString('git-push:origin', implode("\n", $this->stack->channel->texts('send')));
-        self::assertSame(['pg:1:x'], $this->lastButtons());
+        self::assertSame(['pg:r:1::0'], $this->lastButtons());
 
-        $this->stack->press('pg:1:x');
+        $this->stack->press('pg:r:1::0');
         self::assertFalse($this->stack->approvals->hasGrant(1, 'git-push:origin'));
         self::assertSame('Отозвано.', $this->stack->channel->answers[0][1]);
         self::assertSame([], $this->stack->llm->requests);

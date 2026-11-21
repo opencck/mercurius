@@ -128,6 +128,14 @@ abstract class ApprovalStoreContract extends AsyncTestCase {
         self::assertCount(1, $this->approvals->grants($this->principalId));
         $this->approvals->useGrant($grant->id);
         self::assertSame(1, $this->approvals->grants($this->principalId)[0]->uses);
+        // spec: brief/agent-loop.md#список-разрешений — the words of a grant are kept once and stay
+        $this->approvals->addGrant($this->principalId, 'ssh:v2:base:abc', null, false, 'ssh base: docker ps');
+        $this->approvals->addGrant($this->principalId, 'ssh:v2:base:abc', null, false, 'other words');
+        $kept = $this->approvals->grantFor($this->principalId, ['ssh:v2:base:abc'], null, false);
+        self::assertNotNull($kept);
+        self::assertSame('ssh base: docker ps', $kept->label);
+        self::assertNotNull($kept->createdAt);
+        self::assertSame(1, $this->approvals->revokeGrants('ssh:'));
 
         self::assertSame(1, $this->approvals->revokeGrants('http:POST'));
         self::assertSame([], $this->approvals->grants($this->principalId));

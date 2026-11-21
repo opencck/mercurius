@@ -113,15 +113,21 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
         return false;
     }
 
-    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void {
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false, ?string $label = null): void {
         foreach ($this->grants as $id => $g) {
             if ($g->principalId === $principalId && $g->key === $key && $g->conversationId === $conversationId) {
-                $this->grants[$id] = new Grant($g->id, $principalId, $key, $conversationId, $g->outside || $outside, $g->uses);
+                $this->grants[$id] = new Grant($g->id, $principalId, $key, $conversationId, $g->outside || $outside, $g->uses, $g->label ?? $label, $g->createdAt);
                 return;
             }
         }
-        $grant = new Grant($this->nextGrant++, $principalId, $key, $conversationId, $outside);
+        $grant = new Grant($this->nextGrant++, $principalId, $key, $conversationId, $outside, 0, $label, new DateTimeImmutable());
         $this->grants[$grant->id] = $grant;
+    }
+
+    /** Test helper: a grant given so many days ago. */
+    public function ageGrant(int $id, int $days): void {
+        $g = $this->grants[$id];
+        $this->grants[$id] = new Grant($g->id, $g->principalId, $g->key, $g->conversationId, $g->outside, $g->uses, $g->label, new DateTimeImmutable(sprintf('-%d days', $days)));
     }
 
     public function grantFor(int $principalId, array $keys, ?int $conversationId, bool $outside): ?Grant {
@@ -140,7 +146,7 @@ final class InMemoryApprovalRepository implements ApprovalRepository {
     public function useGrant(int $id): void {
         $g = $this->grants[$id] ?? null;
         if ($g !== null) {
-            $this->grants[$id] = new Grant($g->id, $g->principalId, $g->key, $g->conversationId, $g->outside, $g->uses + 1);
+            $this->grants[$id] = new Grant($g->id, $g->principalId, $g->key, $g->conversationId, $g->outside, $g->uses + 1, $g->label, $g->createdAt);
         }
     }
 

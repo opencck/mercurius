@@ -242,7 +242,7 @@ final class ChatService implements MessageHandler {
             } elseif (str_starts_with(strtolower($argument), 'allow') && $this->approvals !== null) {
                 // spec: brief/agent-loop.md#разрешения-навсегда — a grant for an area as a whole, by the owner's command
                 $this->reply($message, $this->approvals->allow($principal, substr($argument, 5)));
-            } elseif ($this->approvals?->showGrants($message->chatId, $message->messageId) !== true) {
+            } elseif ($this->approvals?->showGrants($message->chatId, $message->messageId, $argument) !== true) {
                 $this->reply($message, t(self::NO_GRANTS));
             }
             return;

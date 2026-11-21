@@ -51,7 +51,7 @@ interface ApprovalRepository {
      *
      * spec: brief/agent-loop.md#разрешения-навсегда
      */
-    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false): void;
+    public function addGrant(int $principalId, string $key, ?int $conversationId = null, bool $outside = false, ?string $label = null): void;
 
     /**
      * The grant that lets one of the keys run: for good or for this conversation; in a run that read outside data

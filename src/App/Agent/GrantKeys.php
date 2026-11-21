@@ -90,6 +90,24 @@ final class GrantKeys {
         if (str_starts_with($key, 'area:')) {
             return sprintf(t('agent.grants.area'), substr($key, 5));
         }
-        return $key;
+        // a grant of one action inside an area: "job:5|<key>"
+        if (preg_match('~^((?:job|project):\d+)\|(.+)$~s', $key, $m) === 1) {
+            return sprintf(t('agent.grants.l_in_area'), $m[1], self::label($m[2]));
+        }
+        return match (true) {
+            preg_match('~^ssh-any:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.wide_ssh'), $m[1]),
+            preg_match('~^ssh(?:-never|-sudo)?:v\d+:([^:]+):~', $key, $m) === 1 => sprintf(t('agent.grants.l_ssh'), $m[1]),
+            preg_match('~^model-role-any:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.wide_model'), $m[1]),
+            preg_match('~^model-role:([^:]+):(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_model'), $m[1], $m[2]),
+            $key === 'settings-any' => t('agent.grants.wide_settings'),
+            $key === 'settings:restart' => t('agent.grants.l_restart'),
+            preg_match('~^settings:set:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_setting'), $m[1]),
+            preg_match('~^http-any:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.wide_http'), $m[1]),
+            preg_match('~^http:(\S+) (.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_http'), $m[1], $m[2]),
+            preg_match('~^http-secret:(\S+) (.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_http_secret'), $m[1], $m[2]),
+            preg_match('~^server-add:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_server_add'), $m[1]),
+            preg_match('~^tool-grant:(.+)$~', $key, $m) === 1 => sprintf(t('agent.grants.l_tool_grant'), $m[1]),
+            default => $key,
+        };
     }
 }
