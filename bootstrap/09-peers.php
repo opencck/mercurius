@@ -130,6 +130,9 @@ $projectEvents = new \OpenCCK\App\Peer\ProjectEvents(
     $projectChannels->subscribed(...),
 );
 $tracer->onRunFinished($projectEvents->finished(...));
+// spec: brief/network.md#потоки-мест-для-агентов — the streams of places the owner gives to agents of the network
+$placeStreams = new \OpenCCK\Infrastructure\Repository\PostgresPlaceStreamRepository($db);
+$projectEvents->useStreams($placeStreams);
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDelegateTool($peerNetwork, $peerRepository, $conversations, $sandbox));
 // spec: brief/network.md#вызов-и-раздача-соседям — call one neighbour and wait, or give parts to several and merge
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerCallTool($peerNetwork, $peerRepository, $conversations));
@@ -183,6 +186,7 @@ if ($a2aServer !== null) {
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
     // spec: brief/network.md#опознание-агентов-ключи-ecdsa — the extended card names the tools of the asking agent's own policy
     $a2aServer->useProjects($projectChannels);
+    $a2aServer->useStreams($placeStreams);
     $a2aServer->useSkills(static function (Principal $agent) use ($tools, $policies): array {
         $skills = [];
         foreach (array_slice($tools->definitions($policies->forPrincipal($agent)), 0, 30) as $definition) {

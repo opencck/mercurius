@@ -149,6 +149,11 @@ final class ChatService implements MessageHandler {
 
     private ?\OpenCCK\App\Agent\BanList $bans = null;
     private ?\OpenCCK\App\Export\ProjectArchiveCommands $projectArchives = null;
+    private ?\OpenCCK\App\Peer\StreamCommands $streamCommands = null;
+
+    public function useStreams(\OpenCCK\App\Peer\StreamCommands $commands): void {
+        $this->streamCommands = $commands;
+    }
 
     public function useProjectArchives(\OpenCCK\App\Export\ProjectArchiveCommands $archives): void {
         $this->projectArchives = $archives;
@@ -244,6 +249,11 @@ final class ChatService implements MessageHandler {
             if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)))) {
                 $this->reply($message, t(self::NOTHING_TO_STOP));
             }
+            return;
+        }
+        // spec: brief/network.md#потоки-мест-для-агентов — the owner gives agents the streams of places
+        if (in_array($command, ['/stream', '/streams'], true) && $this->streamCommands !== null) {
+            $this->reply($message, $this->streamCommands->handle($principal, $message, $command, trim(substr($text, strlen($command)))));
             return;
         }
         // spec: brief/agent-loop.md#запреты — bans by command: the owner of the agent, and the owner of a project for it

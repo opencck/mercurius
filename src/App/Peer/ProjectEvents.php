@@ -28,6 +28,15 @@ use Throwable;
  */
 final class ProjectEvents {
     public const METHOD = 'ProjectEvent';
+    /** the notice of a stream of a place: spec: brief/network.md#потоки-мест-для-агентов */
+    public const PLACE_METHOD = 'PlaceEvent';
+
+    private ?\OpenCCK\Domain\Repository\PlaceStreamRepository $streams = null;
+
+    /** spec: brief/network.md#потоки-мест-для-агентов — what is said in a place reaches the agents subscribed to its stream */
+    public function useStreams(\OpenCCK\Domain\Repository\PlaceStreamRepository $streams): void {
+        $this->streams = $streams;
+    }
     /** the longest text and answer an event carries */
     public const TEXT_MAX = 4000;
 
@@ -50,11 +59,18 @@ final class ProjectEvents {
             $run = $this->runs->find($runId);
             $meta = $run === null || $run->parentRunId !== null ? null : $this->conversations->meta($run->conversationId);
             $project = $meta === null ? null : $this->projects->active($meta->channel, $meta->chatId, $meta->threadId);
-            if ($run === null || $meta === null || $project === null) {
+            if ($run === null || $meta === null) {
                 return;
             }
-            $agents = $this->agentsOf($project->id, $project->ownerId, $run->principalId);
-            if ($agents === []) {
+            $agents = $project === null ? [] : $this->agentsOf($project->id, $project->ownerId, $run->principalId);
+            $listeners = [];
+            foreach ($this->streams?->listeners($meta->channel, $meta->chatId) ?? [] as $stream) {
+                $who = $stream->principalId === $run->principalId ? null : $this->principals->find($stream->principalId);
+                if ($who !== null && $stream->covers($meta->channel, $meta->chatId, $meta->threadId) && $who->status === PrincipalStatus::Active) {
+                    $listeners[$stream->principalId] = $stream->id;
+                }
+            }
+            if ($agents === [] && $listeners === []) {
                 return;
             }
             $asked = '';
@@ -69,7 +85,7 @@ final class ProjectEvents {
             }
             $name = $this->principals->find($run->principalId)?->displayName;
             $params = [
-                'project' => ['id' => $project->id, 'name' => $project->name],
+                'project' => $project === null ? null : ['id' => $project->id, 'name' => $project->name],
                 'place' => ['channel' => $meta->channel, 'chat' => $meta->chatId, 'thread' => $meta->threadId],
                 'run' => $run->id,
                 'from' => sprintf('%s (#%d)', $name ?? '—', $run->principalId),
@@ -80,6 +96,10 @@ final class ProjectEvents {
             ];
             foreach ($agents as $agent) {
                 ($this->push)($agent->id, self::METHOD, $params);
+            }
+            // for a subscribed agent the stream is outside data, as the words of a neighbour are
+            foreach ($listeners as $principalId => $streamId) {
+                ($this->push)($principalId, self::PLACE_METHOD, ['stream' => $streamId] + $params);
             }
         } catch (Throwable $e) {
             $this->logger->warning('An event of a project was not sent', ['run' => $runId, 'error' => $e::class]);

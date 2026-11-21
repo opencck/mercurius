@@ -45,6 +45,11 @@ final class ProjectEventsTest extends AsyncTestCase {
         );
     }
 
+    /** @return list<array{int, string, array<string, mixed>}> what went out so far */
+    private function pushed(): array {
+        return $this->pushed;
+    }
+
     /** A finished run of $who in a chat: what was asked and what was answered. */
     private function exchange(Principal $who, string $chat, string $thread, string $asked, string $answered): int {
         $conversation = $this->stack->conversations->openConversation($who->id, 'telegram', $chat, $thread);
@@ -103,5 +108,36 @@ final class ProjectEventsTest extends AsyncTestCase {
         $this->events->finished($this->exchange($this->owner, '-100500', '4', 'пароль: hunter2secret', 'Записал.'));
 
         self::assertStringNotContainsString('hunter2secret', json_encode($this->pushed, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+    }
+
+    public function testANeighbourSubscribedToATopicHearsItAndNothingOfOtherPlaces(): void {
+        // spec: brief/network.md#потоки-мест-для-агентов
+        $streams = new \OpenCCK\Test\Support\InMemoryPlaceStreamRepository();
+        $this->events->useStreams($streams);
+        $commands = new \OpenCCK\App\Peer\StreamCommands($streams, $this->stack->principals, new \Psr\Log\NullLogger(), $this->projects);
+        $inTopic = new \Mercurius\Messenger\IncomingMessage('telegram', '-100500', '42', 'owner', 'Owner', '/stream give helper', '1', null, false, new \DateTimeImmutable(), '1', '4', raw: ['is_topic_message' => true]);
+        self::assertStringContainsString('дан поток', $commands->handle($this->owner, $inTopic, '/stream', 'give helper'));
+        $stream = $streams->of($this->agent->id)[0];
+
+        $this->events->finished($this->exchange($this->owner, '-100500', '4', 'до подписки', 'ответ'));
+        self::assertSame([], $this->pushed, 'given but not subscribed yet');
+        $streams->setSubscribed($stream->id, true);
+
+        $this->events->finished($this->exchange($this->owner, '-100500', '4', 'в теме', 'ответ в теме'));
+        $this->events->finished($this->exchange($this->owner, '-100500', '9', 'в другой теме', 'ответ'));
+        $this->events->finished($this->exchange($this->owner, '-100777', '', 'в другом чате', 'ответ'));
+
+        $pushed = $this->pushed();
+        self::assertCount(1, $pushed);
+        [$to, $method, $params] = $pushed[0];
+        self::assertSame([$this->agent->id, 'PlaceEvent'], [$to, $method]);
+        self::assertSame('в теме', $params['text']);
+        self::assertSame($stream->id, $params['stream'] ?? null);
+
+        self::assertStringContainsString('отозван', $commands->handle($this->owner, $inTopic, '/stream', 'take helper'));
+        $this->events->finished($this->exchange($this->owner, '-100500', '4', 'после отзыва', 'ответ'));
+        self::assertCount(1, $this->pushed(), 'taken back: the subscription ended at once');
+        $private = new \Mercurius\Messenger\IncomingMessage('telegram', '42', '42', 'owner', 'Owner', '/stream give helper', '2', null, true, new \DateTimeImmutable(), '2');
+        self::assertStringContainsString('не выдаётся', $commands->handle($this->owner, $private, '/stream', 'give helper'));
     }
 }

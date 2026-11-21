@@ -84,7 +84,37 @@ final class A2aServer implements JobRuns {
         'ListProjects' => ['projects', true],
         'SubscribeProject' => ['subscribe', true],
         'UnsubscribeProject' => ['unsubscribe', true],
+        // spec: brief/network.md#потоки-мест-для-агентов — the streams of places the owner gave to this agent
+        'ListStreams' => ['streams', true],
+        'SubscribeStream' => ['stream_on', true],
+        'UnsubscribeStream' => ['stream_off', true],
     ];
+
+    private ?\OpenCCK\Domain\Repository\PlaceStreamRepository $streams = null;
+
+    public function useStreams(\OpenCCK\Domain\Repository\PlaceStreamRepository $streams): void {
+        $this->streams = $streams;
+    }
+
+    /**
+     * The streams of places given to the agent, subscribing and leaving; a stream not given to it is refused with why.
+     *
+     * @param array<array-key, mixed> $params
+     * @return array<string, mixed>
+     */
+    private function streams(Principal $agent, mixed $id, string $handler, array $params): array {
+        if ($this->streams === null) {
+            return self::error($id, self::ERR_METHOD_NOT_FOUND, 'streams are not available');
+        }
+        if ($handler !== 'streams') {
+            $stream = isset($params['stream']) && is_int($params['stream']) ? $this->streams->find($params['stream']) : null;
+            if ($stream === null || $stream->principalId !== $agent->id) {
+                return self::error($id, self::ERR_INVALID_PARAMS, 'this stream is not given to this agent: the owner of the agent gives streams (ListStreams)');
+            }
+            $this->streams->setSubscribed($stream->id, $handler === 'stream_on');
+        }
+        return ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['streams' => array_map(static fn(\OpenCCK\Domain\Peer\PlaceStream $s): array => $s->toArray(), $this->streams->of($agent->id))]];
+    }
 
     private ?ProjectChannels $channels = null;
 
@@ -439,6 +469,7 @@ final class A2aServer implements JobRuns {
             'extended' => [200, ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->extendedCard($agent)]],
             'file' => [200, $this->file($agent, $id, $params)],
             'projects', 'subscribe', 'unsubscribe' => [200, $this->projects($agent, $id, $handler, $params)],
+            'streams', 'stream_on', 'stream_off' => [200, $this->streams($agent, $id, $handler, $params)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
         };
     }

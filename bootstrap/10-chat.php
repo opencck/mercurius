@@ -71,6 +71,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresImprovementRepository $improvementRepository
  * @var OpenCCK\Infrastructure\Repository\PostgresJobRepository $jobRepository
  * @var OpenCCK\App\Job\JobScheduler $jobScheduler
+ * @var OpenCCK\Infrastructure\Repository\PostgresPlaceStreamRepository $placeStreams
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository $projectPolicyStore
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectPrefRepository $projectPrefs
  * @var OpenCCK\App\Service\ProjectPolicies $projectPolicies
@@ -338,6 +339,7 @@ $serverCommands->useProjects($projectRepository);
 // spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);
+$chat->useStreams(new \OpenCCK\App\Peer\StreamCommands($placeStreams, $principals, $logger, $projectRepository));
 // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves to another instance as a sealed file
 $chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
     new \OpenCCK\App\Export\ProjectArchive(
