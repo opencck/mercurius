@@ -150,6 +150,11 @@ final class ChatService implements MessageHandler {
     private ?\OpenCCK\App\Agent\BanList $bans = null;
     private ?\OpenCCK\App\Export\ProjectArchiveCommands $projectArchives = null;
     private ?\OpenCCK\App\Peer\StreamCommands $streamCommands = null;
+    private ?OwnerOverview $overview = null;
+
+    public function useOverview(OwnerOverview $overview): void {
+        $this->overview = $overview;
+    }
 
     public function useStreams(\OpenCCK\App\Peer\StreamCommands $commands): void {
         $this->streamCommands = $commands;
@@ -249,6 +254,11 @@ final class ChatService implements MessageHandler {
             if (!$this->scheduler->stop($this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message)))) {
                 $this->reply($message, t(self::NOTHING_TO_STOP));
             }
+            return;
+        }
+        // spec: brief/participants.md#обзор-владельца — a participant at a glance, from the owner's own chat
+        if ($command === '/overview' && $this->overview !== null) {
+            $this->reply($message, $this->overview->show($principal, trim(substr($text, strlen($command)))));
             return;
         }
         // spec: brief/network.md#потоки-мест-для-агентов — the owner gives agents the streams of places

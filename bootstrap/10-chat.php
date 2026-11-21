@@ -339,6 +339,8 @@ $serverCommands->useProjects($projectRepository);
 // spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);
+// spec: brief/participants.md#обзор-владельца
+$chat->useOverview(new \OpenCCK\App\Service\OwnerOverview($principals, $projectRepository, $jobRepository, $policies, $approvalStore, $jobScheduler, $vault, new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db), $placeStreams, $projectPolicies));
 $chat->useStreams(new \OpenCCK\App\Peer\StreamCommands($placeStreams, $principals, $logger, $projectRepository));
 // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves to another instance as a sealed file
 $chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
