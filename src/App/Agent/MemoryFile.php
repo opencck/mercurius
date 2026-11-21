@@ -21,6 +21,10 @@ final class MemoryFile {
         public readonly string $notes,
     ) {}
 
+    public static function of(string $rules, string $notes): self {
+        return new self(trim($rules), trim($notes));
+    }
+
     public static function parse(string $text): self {
         $rules = [];
         $notes = [];

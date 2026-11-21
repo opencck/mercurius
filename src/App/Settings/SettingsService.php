@@ -60,6 +60,24 @@ final class SettingsService {
     }
 
     /**
+     * The value of a setting now: the stored one over .env, for settings read at each use (SettingsCatalog::LIVE); a
+     * secret is never given here.
+     *
+     * spec: brief/operations.md#настройки-агента
+     */
+    public function current(string $key): ?string {
+        if (SettingsCatalog::secret($key)) {
+            return null;
+        }
+        $stored = $this->settings->all()[$key] ?? null;
+        if ($stored !== null && !$stored['secret']) {
+            return $stored['value'] ?? '';
+        }
+        $env = isset($this->env[$key]) && is_string($this->env[$key]) ? $this->env[$key] : null;
+        return $env ?? SettingsCatalog::DEFAULTS[$key] ?? null;
+    }
+
+    /**
      * Stored keys the catalog no longer has: a release renamed or removed them; they are not applied.
      *
      * spec: brief/operations.md#настройки-агента
@@ -143,7 +161,7 @@ final class SettingsService {
         } else {
             $this->settings->set($key, $value, false, $who->id);
         }
-        return sprintf(t('settings.settings_service.sohranena_primenitsya_posle_perezapuska'), $key);
+        return sprintf(t(in_array($key, SettingsCatalog::LIVE, true) ? 'settings.saved_live' : 'settings.settings_service.sohranena_primenitsya_posle_perezapuska'), $key);
     }
 
     /** A secret setting takes the value of a vault secret the owner put with /secret: the value never enters the dialog. */

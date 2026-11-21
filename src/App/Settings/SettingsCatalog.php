@@ -51,7 +51,15 @@ final class SettingsCatalog {
         'MEDIA_INBOX_DAYS' => '30',
         'MEMORY_NUDGE_TURNS' => '10',
         'MEMORY_FILE_LIMIT' => '4000',
+        'MEMORY_RULES_NOTICE' => '0',
     ];
+
+    /**
+     * Settings read at each use: a change works at once, no restart.
+     *
+     * spec: brief/operations.md#настройки-агента
+     */
+    public const LIVE = ['MEMORY_RULES_NOTICE'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
@@ -118,6 +126,7 @@ final class SettingsCatalog {
         'MEMORY_HRR_WEIGHT' => ['memory', self::FLOAT, 'settings.about.memory_hrr_weight'],
         'MEMORY_NUDGE_TURNS' => ['memory', self::INT, 'settings.about.memory_nudge_turns'],
         'MEMORY_FILE_LIMIT' => ['memory', self::INT, 'settings.about.memory_file_limit'],
+        'MEMORY_RULES_NOTICE' => ['memory', self::INT, 'settings.about.memory_rules_notice'],
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
         'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
         'BROWSER_CONFIRM' => ['agent', self::INT, 'settings.about.browser_confirm'],

@@ -52,6 +52,7 @@ use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
  * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\App\Agent\Model\ModelRouter $modelRouter
+ * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
@@ -196,6 +197,23 @@ if ($contextMemory !== null) {
     $factNudge->useMemoryFiles($contextMemory);
 }
 $scheduler->useAfterRun($factNudge->afterRun(...));
+// spec: brief/memory.md#сообщение-об-изменении-правил — a change of the rules of a MEMORY.md is told when the owner keeps it on
+$rulesNotice = null;
+if ($contextMemory !== null) {
+    $rulesNotice = new \OpenCCK\App\Agent\MemoryRulesNotice(
+        $contextMemory,
+        new \OpenCCK\Infrastructure\Repository\PostgresMemoryRuleRepository($db),
+        $conversations,
+        $audience,
+        $channel,
+        $principals,
+        $ownerDirectory,
+        static fn(): bool => $settingsService->current('MEMORY_RULES_NOTICE') === '1',
+        $logger,
+        \Mercurius\Messenger\Telegram\TelegramChannel::NAME,
+    );
+    $scheduler->useAfterRun($rulesNotice->afterRun(...));
+}
 // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a forgotten fact also leaves the transcripts it was recalled into
 $experience = new PostgresExperienceRepository($db);
 $workers->useExperience($experience);
