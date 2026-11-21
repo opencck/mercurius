@@ -148,6 +148,8 @@ $conversationPlan = new \OpenCCK\App\Agent\ConversationPlan($todoStore, $logger)
 $tools->register(new \OpenCCK\App\Agent\Tool\Todo\TodoListTool($todoStore));
 $scheduler->usePlan($conversationPlan);
 $loop->usePlan($conversationPlan);
+// spec: brief/orchestration.md#этапы-и-план — a part named after a plan item moves it
+$workers->usePlans($todoStore);
 // spec: brief/memory.md#файл-памяти-места — MEMORY.md at the root of the folder of the context: the participant's own in their
 // private chat, the project's or the place's for everyone there; no sandbox — no file
 $contextMemory = null;

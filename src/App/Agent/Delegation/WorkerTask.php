@@ -40,13 +40,23 @@ final class WorkerTask {
         array $contextOf = [],
         /** @var array<array-key, mixed>|null the answer's JSON Schema; null — a free answer */
         public readonly ?array $outputSchema = null,
+        /** the id of the orchestrator's plan item this part does: its status follows the part */
+        public readonly ?string $todo = null,
+        /** @var list<int> parts of the same call (positions from 1) that must end first; their reports come with this part */
+        public readonly array $after = [],
     ) {
         $this->contextOf = array_values(array_unique(array_filter($contextOf, static fn(string $c): bool => in_array($c, self::CONTEXT_OF, true))));
     }
 
     /** @param list<string> $tools */
     public function withTools(array $tools): self {
-        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile, $this->verify, $this->mode, $this->memory, $this->contextOf, $this->outputSchema);
+        return new self($this->goal, $this->context, $this->output, $tools, $this->role, $this->profile, $this->verify, $this->mode, $this->memory, $this->contextOf, $this->outputSchema, $this->todo, $this->after);
+    }
+
+    /** The same part with more background: the reports of the parts it waited for. */
+    public function withMoreContext(string $more): self {
+        $context = trim($this->context . "\n\n" . $more);
+        return new self($this->goal, $context, $this->output, $this->tools, $this->role, $this->profile, $this->verify, $this->mode, $this->memory, $this->contextOf, $this->outputSchema, $this->todo, $this->after);
     }
 
     /**
@@ -91,6 +101,8 @@ final class WorkerTask {
             'memory' => $this->memory,
             'context_of' => $this->contextOf,
             'output_schema' => $this->outputSchema,
+            'todo' => $this->todo,
+            'after' => $this->after,
         ];
     }
 
@@ -117,7 +129,27 @@ final class WorkerTask {
             $memory,
             $of,
             isset($data['output_schema']) && is_array($data['output_schema']) ? $data['output_schema'] : null,
+            self::text($data, 'todo') === '' ? null : self::text($data, 'todo'),
+            self::positions($data['after'] ?? null),
         );
+    }
+
+    /**
+     * Positions of parts (from 1) from a list; anything else is dropped.
+     *
+     * @return list<int>
+     */
+    public static function positions(mixed $value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+        $found = [];
+        foreach (array_keys($value) as $key) {
+            if (isset($value[$key]) && is_int($value[$key]) && $value[$key] >= 1) {
+                $found[] = $value[$key];
+            }
+        }
+        return array_values(array_unique($found));
     }
 
     /** @param array<array-key, mixed> $data */

@@ -183,6 +183,43 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         self::assertNull($stack->runs->find(3), 'nothing is delivered after /stop');
     }
 
+    public function testTheOrchestratorListsSteersAndStopsOneBackgroundPart(): void {
+        // spec: brief/orchestration.md#этапы-и-план
+        $llm = new ScriptedLlm([self::delegate([['goal' => 'читай долго', 'tools' => ['read']]]), ScriptedLlm::text('Запустил в фоне.'), ScriptedLlm::text('Итог.')]);
+        $stack = $this->stack($llm);
+        $llm->byModel[$this->worker] = [];
+        for ($i = 0; $i < 20; $i++) {
+            $llm->byModel[$this->worker][] = ScriptedLlm::calls(new ToolCall('r' . $i, 'read', '{"q":"' . $i . '"}'));
+        }
+        $here = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::owner(), null), new \Amp\NullCancellation());
+        $elsewhere = new \OpenCCK\App\Agent\Tool\ToolContext(1, 99, $here->principal, new \Amp\NullCancellation());
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+        \Amp\delay(0.1);
+
+        self::assertStringContainsString('#1, часть 1 — идёт: читай долго', $this->tool->execute(['action' => 'list'], $here)->content);
+        self::assertTrue($this->tool->execute(['action' => 'steer', 'delegation' => 1, 'part' => 1, 'text' => 'читай только заголовки'], $elsewhere)->isError, 'another conversation cannot reach it');
+        self::assertFalse($this->tool->execute(['action' => 'steer', 'delegation' => 1, 'part' => 1, 'text' => 'читай только заголовки'], $here)->isError);
+        \Amp\delay(0.5);
+        $steered = false;
+        foreach ($llm->requests as $request) {
+            foreach ($request->model === $this->worker ? $request->messages : [] as $message) {
+                $steered = $steered || str_contains($message->content, 'читай только заголовки');
+            }
+        }
+        self::assertTrue($steered, 'the worker got the word at its next step');
+        self::assertFalse($this->tool->execute(['action' => 'stop', 'delegation' => 1, 'part' => 1], $here)->isError);
+        $this->idle($stack);
+
+        self::assertSame(RunStatus::Stopped, $stack->runs->find(2)?->status);
+        $delegation = $this->delegations->find(1);
+        self::assertNotNull($delegation);
+        self::assertSame(Delegation::DONE, $delegation->status, 'the delegation ends with what its parts did');
+        self::assertTrue($delegation->delivered);
+        self::assertTrue($this->tool->execute(['action' => 'stop', 'delegation' => 1, 'part' => 1], $here)->isError, 'nothing runs any more');
+    }
+
     public function testWorkerGoesOnAfterARestart(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'читай', 'tools' => ['read']]]),

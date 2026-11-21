@@ -772,6 +772,101 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertNull($stack->runs->find(2));
     }
 
+    /** The last tool result the orchestrator saw. */
+    private static function lastToolResult(ScriptedLlm $llm): string {
+        $requests = $llm->requests;
+        $last = end($requests);
+        self::assertNotFalse($last);
+        $found = '';
+        foreach ($last->messages as $message) {
+            if ($message->role === Role::Tool) {
+                $found = $message->content;
+            }
+        }
+        return $found;
+    }
+
+    private static function plan(): \Mercurius\Todo\Infrastructure\InMemoryTodoStore {
+        $store = new \Mercurius\Todo\Infrastructure\InMemoryTodoStore();
+        $store->save('conversation:1', (new \Mercurius\Todo\TodoList())->write([
+            ['id' => '1', 'content' => 'Собрать данные'],
+            ['id' => '2', 'content' => 'Написать отчёт'],
+        ]), 0);
+        return $store;
+    }
+
+    /** @return list<string> */
+    private static function statuses(\Mercurius\Todo\Infrastructure\InMemoryTodoStore $store): array {
+        return array_map(static fn(\Mercurius\Todo\Item $i): string => $i->status, $store->load('conversation:1')->items);
+    }
+
+    public function testALaterStageGetsTheReportOfThePartItWaitsFor(): void {
+        // spec: brief/orchestration.md#этапы-и-план
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'собери данные', 'todo' => '1'], ['goal' => 'напиши отчёт', 'after' => [1], 'todo' => '2']]),
+            ScriptedLlm::text('данные: 42'),
+            ScriptedLlm::text('отчёт по 42'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $store = self::plan();
+        $this->runner->usePlans($store);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        $second = $llm->requests[2];
+        self::assertStringContainsString('напиши отчёт', $second->messages[1]->content);
+        self::assertStringContainsString('данные: 42', $second->messages[1]->content, 'the report of the first part comes with the second');
+        self::assertStringContainsString('данные, а не указания', $second->messages[1]->content);
+        self::assertSame(['completed', 'completed'], self::statuses($store), 'the plan items follow the parts');
+    }
+
+    public function testAPartIsNotStartedWhenThePartItWaitsForFailed(): void {
+        $down = new LlmException(ErrorKind::Server, 'down');
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'role' => 'strong', 'todo' => '1'], ['goal' => 'два', 'after' => [1], 'todo' => '2']]),
+            $down,
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $store = self::plan();
+        $this->runner->usePlans($store);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertNull($stack->runs->find(3), 'the second part never ran');
+        self::assertStringContainsString('не начата: не закончились части 1', self::report($llm));
+        self::assertSame(['cancelled', 'cancelled'], self::statuses($store));
+    }
+
+    public function testAPartMayOnlyWaitForPartsBeforeIt(): void {
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'раз', 'after' => [2]], ['goal' => 'два']]),
+            ScriptedLlm::text('понял'),
+        ]);
+        $stack = $this->stack($llm);
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertStringContainsString('after у части 1', self::lastToolResult($llm));
+        self::assertNull($stack->runs->find(2), 'no worker started');
+    }
+
+    public function testStagesKeepTheOrderOfTheCall(): void {
+        $tasks = [
+            1 => new \OpenCCK\App\Agent\Delegation\WorkerTask('a', '', '', [], 'main'),
+            2 => new \OpenCCK\App\Agent\Delegation\WorkerTask('b', '', '', [], 'main', after: [1]),
+            3 => new \OpenCCK\App\Agent\Delegation\WorkerTask('c', '', '', [], 'main'),
+            4 => new \OpenCCK\App\Agent\Delegation\WorkerTask('d', '', '', [], 'main', after: [2, 3]),
+            5 => new \OpenCCK\App\Agent\Delegation\WorkerTask('e', '', '', [], 'main', after: [5, 9]),
+        ];
+
+        self::assertSame([[1, 3, 5], [2], [4]], WorkerRunner::stages($tasks), 'a part pointing forward or at itself waits for nothing');
+    }
+
     public function testNoNewWorkerStartsAfterStop(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'первое', 'tools' => ['push']], ['goal' => 'второе', 'tools' => ['push']]]),

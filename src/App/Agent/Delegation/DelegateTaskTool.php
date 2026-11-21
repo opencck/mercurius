@@ -52,7 +52,8 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
             . t('delegation.delegate_task_tool.rashody_vorker_ne_vidit_besedy')
             . t('delegation.delegate_task_tool.parallelno_role_cheap_prostaya_massovaya')
             . t('delegation.delegate_task_tool.kazhdoy_zadache_svedi_ih_sam')
-            . t('delegation.delegate_task_tool.ne_nuzhen_v_etom_hode'), [
+            . t('delegation.delegate_task_tool.ne_nuzhen_v_etom_hode')
+            . t('delegation.delegate_task_tool.stages'), [
             'type' => 'object',
             'properties' => [
                 'tasks' => [
@@ -80,20 +81,27 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                             'context_of' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => WorkerTask::CONTEXT_OF], 'description' => t('delegation.delegate_task_tool.context_of')],
                             // spec: brief/orchestration.md#схема-ответа-воркера
                             'output_schema' => ['type' => 'object', 'description' => t('delegation.delegate_task_tool.output_schema')],
+                            // spec: brief/orchestration.md#этапы-и-план
+                            'todo' => ['type' => 'string', 'description' => t('delegation.delegate_task_tool.todo')],
+                            'after' => ['type' => 'array', 'items' => ['type' => 'integer', 'minimum' => 1], 'description' => t('delegation.delegate_task_tool.after')],
                         ],
                         'required' => ['goal'],
                         'additionalProperties' => false,
                     ],
                 ],
                 'background' => ['type' => 'boolean', 'description' => t('delegation.delegate_task_tool.vypolnit_v_fone_otvet_pridet')],
+                // spec: brief/orchestration.md#этапы-и-план — the orchestrator sees, steers and stops its background parts, as in hermes
+                'action' => ['type' => 'string', 'enum' => ['run', 'list', 'steer', 'stop'], 'description' => t('delegation.delegate_task_tool.action')],
+                'delegation' => ['type' => 'integer', 'description' => t('delegation.delegate_task_tool.delegation')],
+                'part' => ['type' => 'integer', 'minimum' => 1, 'description' => t('delegation.delegate_task_tool.part')],
+                'text' => ['type' => 'string', 'description' => t('delegation.delegate_task_tool.text')],
             ],
-            'required' => ['tasks'],
             'additionalProperties' => false,
         ]);
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Write;
+        return ($args['action'] ?? 'run') === 'list' ? DangerClass::Read : DangerClass::Write;
     }
 
     /** Workers read pages and files: their reports carry what they read, so they are data, not instructions. */
@@ -111,6 +119,10 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {
+        $action = isset($args['action']) && is_string($args['action']) ? $args['action'] : 'run';
+        if ($action !== 'run') {
+            return $this->manage($action, $args, $context);
+        }
         $tasks = [];
         $raw = isset($args['tasks']) && is_array($args['tasks']) ? $args['tasks'] : [];
         if ($raw !== []) {
@@ -132,6 +144,14 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                 if (($item['verify'] ?? false) === true && trim(self::field($item, 'output') ?? '') === '' && $schema === null) {
                     return ToolResult::error(t('delegation.delegate_task_tool.verify_needs_output'));
                 }
+                $position = count($tasks) + 1;
+                $after = WorkerTask::positions($item['after'] ?? null);
+                foreach ($after as $before) {
+                    if ($before >= $position) {
+                        return ToolResult::error(sprintf(t('delegation.delegate_task_tool.after_bad'), $position));
+                    }
+                }
+                $todo = trim(self::field($item, 'todo') ?? '');
                 $tasks[] = new WorkerTask(
                     self::field($item, 'goal') ?? '',
                     self::field($item, 'context') ?? '',
@@ -144,6 +164,8 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
                     $memory,
                     $of,
                     $schema,
+                    $todo === '' ? null : $todo,
+                    $after,
                 );
             }
         }
@@ -165,6 +187,50 @@ final class DelegateTaskTool implements Tool, LongRunning, \OpenCCK\App\Agent\To
             return ToolResult::error($e->getMessage());
         }
         return ToolResult::ok(WorkerReports::text($reports, $this->workers->reportRoom($context)));
+    }
+
+    /**
+     * spec: brief/orchestration.md#этапы-и-план — list, steer or stop the background parts of this conversation
+     * ref: references/hermes-agent/tools/delegate_tool.py@e96221fa:L621-L628, L903-L919 — list/steer/stop of running
+     *      children: steer reaches the child's next step without stopping it, stop ends one child; here a part is named
+     *      by its delegation and position, and continue of a finished child is not taken
+     *
+     * @param array<array-key, mixed> $args
+     */
+    private function manage(string $action, array $args, ToolContext $context): ToolResult {
+        if ($this->background === null) {
+            return ToolResult::error(t('delegation.delegate_task_tool.no_background'));
+        }
+        if ($action === 'list') {
+            $lines = [];
+            foreach ($this->background->parts($context->conversationId) as $part) {
+                $lines[] = sprintf(
+                    t('delegation.delegate_task_tool.list_line'),
+                    $part['delegation'],
+                    $part['part'],
+                    t($part['running'] ? 'delegation.delegate_task_tool.part_running' : 'delegation.delegate_task_tool.part_waiting'),
+                    mb_substr($part['goal'], 0, 200),
+                );
+            }
+            return ToolResult::ok($lines === [] ? t('delegation.delegate_task_tool.no_background') : implode("\n", $lines));
+        }
+        $delegation = isset($args['delegation']) && is_int($args['delegation']) ? $args['delegation'] : 0;
+        $part = isset($args['part']) && is_int($args['part']) ? $args['part'] : 0;
+        if ($delegation < 1 || $part < 1) {
+            return ToolResult::error(t('delegation.delegate_task_tool.needs_part'));
+        }
+        if ($action === 'stop') {
+            return $this->background->stopPart($context->conversationId, $delegation, $part)
+                ? ToolResult::ok(sprintf(t('delegation.delegate_task_tool.stopped_part'), $part, $delegation))
+                : ToolResult::error(sprintf(t('delegation.delegate_task_tool.not_running'), $part, $delegation));
+        }
+        $text = trim(self::field($args, 'text') ?? '');
+        if ($action !== 'steer' || $text === '') {
+            return ToolResult::error(t('delegation.delegate_task_tool.needs_text'));
+        }
+        return $this->background->steerPart($context->conversationId, $delegation, $part, mb_substr($text, 0, 2000))
+            ? ToolResult::ok(sprintf(t('delegation.delegate_task_tool.steered_part'), $part, $delegation))
+            : ToolResult::error(sprintf(t('delegation.delegate_task_tool.not_running'), $part, $delegation));
     }
 
     /** @param array<array-key, mixed> $item */

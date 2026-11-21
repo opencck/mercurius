@@ -15,6 +15,7 @@ use OpenCCK\App\Agent\SilentObserver;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
+use Mercurius\Todo\Item;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\Experience;
 use OpenCCK\Domain\Agent\ModelRole;
@@ -272,28 +273,158 @@ final class WorkerRunner {
      */
     public function runTasks(ToolContext $parent, Run $orchestrator, array $tasks, int $share, int $seconds, array $existing = [], ?\Closure $onRun = null, ?\Closure $onReport = null, string $tag = '', int $minSeconds = 0): array {
         $jobs = [];
+        /** @var array<int, WorkerReport> $reports */
+        $reports = [];
         foreach ($tasks as $position => $task) {
-            $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport, $tag, $minSeconds): WorkerReport {
+            $jobs[$position] = function () use ($parent, $orchestrator, $position, $task, $share, $seconds, $existing, $onRun, $onReport, $tag, $minSeconds, &$reports): WorkerReport {
                 $runs = $existing[$position] ?? [null, null, null];
                 $started = $runs[0] !== null || $runs[1] !== null || $runs[2] !== null;
-                if (!$started && $parent->cancellation->isRequested()) {
+                // spec: brief/orchestration.md#этапы-и-план — a part waits for the parts named in after; their reports come with it
+                $failed = array_values(array_filter($task->after, static fn(int $p): bool => isset($reports[$p]) && $reports[$p]->status !== 'done'));
+                if ($task->after !== [] && !$started) {
+                    $task = $task->withMoreContext(self::earlier($task, $reports));
+                }
+                $this->mark($parent, $task, Item::IN_PROGRESS);
+                if (!$started && $failed !== []) {
+                    $report = new WorkerReport($position, null, 'failed', '', 0, 0, '', sprintf(t('delegation.worker_runner.after_failed'), implode(', ', $failed)));
+                } elseif (!$started && $parent->cancellation->isRequested()) {
                     $report = new WorkerReport($position, null, 'stopped', '', 0, 0, '', t('delegation.worker_runner.ne_nachat_zadacha_ostanovlena'), StopReason::Stopped);
                 } elseif (!$started && $seconds < $minSeconds) {
                     $report = new WorkerReport($position, null, 'limit', '', 0, 0, '', t('delegation.worker_runner.ne_nachat_istek_srok_delegirovaniya'), StopReason::Deadline);
                 } else {
                     $begun = hrtime(true);
-                    $report = $this->one($parent, $orchestrator, $position, $task, $share, $seconds, $runs, $onRun, $tag);
+                    // spec: brief/orchestration.md#этапы-и-план — one part can be stopped or steered while it runs
+                    $stop = new \Amp\DeferredCancellation();
+                    $own = $parent->withCancellation(new \Amp\CompositeCancellation($parent->cancellation, $stop->getCancellation()));
+                    $runIds = [];
+                    $watch = function (int $position, int $attempt, int $runId) use ($onRun, $stop, &$runIds): void {
+                        $this->parts[$runId] = $stop;
+                        $runIds[] = $runId;
+                        if ($onRun !== null) {
+                            $onRun($position, $attempt, $runId);
+                        }
+                    };
+                    try {
+                        $report = $this->one($own, $orchestrator, $position, $task, $share, $seconds, $runs, $watch, $tag);
+                    } finally {
+                        foreach ($runIds as $runId) {
+                            unset($this->parts[$runId]);
+                        }
+                    }
                     $this->remember($parent, $task, $report, intdiv(hrtime(true) - $begun, 1_000_000));
                 }
+                $this->mark($parent, $task, $report->status === 'done' ? Item::COMPLETED : Item::CANCELLED);
+                $reports[$position] = $report;
                 if ($onReport !== null) {
                     $onReport($report);
                 }
                 return $report;
             };
         }
-        $reports = $this->readOnly($parent, array_values($tasks)) ? $this->side($jobs) : array_map(static fn(\Closure $job): WorkerReport => $job(), $jobs);
+        // spec: brief/orchestration.md#этапы-и-план — stages: a part runs once the parts it waits for have ended
+        foreach (self::stages($tasks) as $stage) {
+            $now = array_intersect_key($jobs, array_flip($stage));
+            $stageTasks = array_values(array_intersect_key($tasks, array_flip($stage)));
+            $done = $this->readOnly($parent, $stageTasks) ? $this->side($now) : array_map(static fn(\Closure $job): WorkerReport => $job(), $now);
+            $reports = $done + $reports;
+        }
         ksort($reports);
         return array_values($reports);
+    }
+
+    /** @var array<int, \Amp\DeferredCancellation> the run of a part => what stops that part alone */
+    private array $parts = [];
+    private ?\Mercurius\Todo\TodoStore $plans = null;
+
+    /** spec: brief/orchestration.md#этапы-и-план — a part named after an item of the orchestrator's plan moves that item */
+    public function usePlans(\Mercurius\Todo\TodoStore $plans): void {
+        $this->plans = $plans;
+    }
+
+    /** Stops one running part by the run of its worker; false — no such part runs here. */
+    public function stopPart(int $runId): bool {
+        $stop = $this->parts[$runId] ?? null;
+        if ($stop === null) {
+            return false;
+        }
+        $stop->cancel();
+        return true;
+    }
+
+    /** Gives a running part a word of the orchestrator: it comes with the next step, the current call is not cut. */
+    public function steerPart(int $runId, string $text): bool {
+        if (!isset($this->parts[$runId])) {
+            return false;
+        }
+        $this->transcript->inbox($runId, sprintf(t('delegation.worker_runner.steer'), $text));
+        return true;
+    }
+
+    /** Whether the run of a part runs in this process now. */
+    public function running(int $runId): bool {
+        return isset($this->parts[$runId]);
+    }
+
+    /**
+     * Positions by stages: a stage holds the parts whose parts to wait for are all in earlier stages.
+     *
+     * @param array<int, WorkerTask> $tasks
+     * @return list<list<int>>
+     */
+    public static function stages(array $tasks): array {
+        $stage = [];
+        foreach ($tasks as $position => $task) {
+            $depth = 0;
+            foreach ($task->after as $before) {
+                // only earlier parts count: the tool refuses anything else, an old record is read safely
+                if ($before < $position && isset($stage[$before])) {
+                    $depth = max($depth, $stage[$before] + 1);
+                }
+            }
+            $stage[$position] = $depth;
+        }
+        $stages = [];
+        foreach ($stage as $position => $depth) {
+            $stages[$depth][] = $position;
+        }
+        ksort($stages);
+        return array_values($stages);
+    }
+
+    /**
+     * The reports of the parts a part waited for, as its background.
+     *
+     * @param array<int, WorkerReport> $reports
+     */
+    private static function earlier(WorkerTask $task, array $reports): string {
+        $lines = [t('delegation.worker_runner.after_head')];
+        foreach ($task->after as $position) {
+            $report = $reports[$position] ?? null;
+            if ($report !== null) {
+                $lines[] = sprintf(t('delegation.worker_runner.after_part'), $position, mb_substr($report->summary, 0, 4000));
+            }
+        }
+        return implode("\n\n", $lines);
+    }
+
+    /** Moves the orchestrator's plan item of a part; a missing item or a busy plan is left as it is. */
+    private function mark(ToolContext $parent, WorkerTask $task, string $status): void {
+        if ($this->plans === null || $task->todo === null) {
+            return;
+        }
+        $place = \OpenCCK\App\Agent\Tool\Todo\TodoListTool::place($parent->conversationId);
+        try {
+            $before = $this->plans->load($place);
+            if (!in_array($task->todo, array_map(static fn(Item $i): string => $i->id, $before->items), true)) {
+                return;
+            }
+            $after = $before->write([['id' => $task->todo, 'status' => $status]], true);
+            if ($after->revision !== $before->revision) {
+                $this->plans->save($place, $after, $before->revision);
+            }
+        } catch (Throwable $e) {
+            $this->logger->notice('The plan item of a part was not moved', ['parent' => $parent->runId, 'error' => $e::class]);
+        }
     }
 
     /**

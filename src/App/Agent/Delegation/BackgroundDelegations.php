@@ -14,6 +14,7 @@ use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\Delegation;
+use OpenCCK\Domain\Agent\DelegationTask;
 use OpenCCK\Domain\Repository\DelegationRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 use OpenCCK\Domain\Repository\RunRepository;
@@ -136,6 +137,61 @@ final class BackgroundDelegations {
             }
         }
         return $stopped;
+    }
+
+    /**
+     * spec: brief/orchestration.md#этапы-и-план — the background parts of a conversation that have not ended
+     *
+     * @return list<array{delegation: int, part: int, goal: string, running: bool}>
+     */
+    public function parts(int $conversationId): array {
+        $parts = [];
+        foreach ($this->delegations->running($conversationId) as $delegation) {
+            foreach ($this->delegations->tasks($delegation->id) as $task) {
+                if ($task->report !== null) {
+                    continue;
+                }
+                $run = self::current($task);
+                $parts[] = [
+                    'delegation' => $delegation->id,
+                    'part' => $task->position,
+                    'goal' => isset($task->task['goal']) && is_string($task->task['goal']) ? $task->task['goal'] : '',
+                    'running' => $run !== null && $this->workers->running($run),
+                ];
+            }
+        }
+        return $parts;
+    }
+
+    /** Stops one running part of a background delegation of this conversation; false — no such part runs here. */
+    public function stopPart(int $conversationId, int $delegationId, int $position): bool {
+        $run = $this->runningPart($conversationId, $delegationId, $position);
+        return $run !== null && $this->workers->stopPart($run);
+    }
+
+    /** Gives one running part of a background delegation of this conversation a word; false — no such part runs here. */
+    public function steerPart(int $conversationId, int $delegationId, int $position, string $text): bool {
+        $run = $this->runningPart($conversationId, $delegationId, $position);
+        return $run !== null && $this->workers->steerPart($run, $text);
+    }
+
+    /** The run of a part now: the verifier's, the retry's or the first one. */
+    private static function current(DelegationTask $task): ?int {
+        return $task->verifyRunId ?? $task->retryRunId ?? $task->runId;
+    }
+
+    private function runningPart(int $conversationId, int $delegationId, int $position): ?int {
+        $delegation = $this->delegations->find($delegationId);
+        // only the conversation's own delegations: a number from the model must not reach another conversation
+        if ($delegation === null || $delegation->conversationId !== $conversationId || $delegation->status !== Delegation::RUNNING) {
+            return null;
+        }
+        foreach ($this->delegations->tasks($delegationId) as $task) {
+            if ($task->position === $position && $task->report === null) {
+                return self::current($task);
+            }
+        }
+        return null;
     }
 
     public function owns(int $runId): bool {
