@@ -7,7 +7,9 @@ namespace OpenCCK\App\Agent;
 /**
  * MEMORY.md in two sections: «Правила» — what the person said plainly about how to work with them, and «Заметки» — the
  * agent's working notes. The headings are known in three languages, in any case and level; text before the first of
- * them, and a file without them, is notes: old text does not gain the force of rules by itself.
+ * them, and a file without them, is notes: old text does not gain the force of rules by itself. A section ends at the
+ * next heading of its level or higher, as in Markdown: what follows another heading of that level is notes, so rules
+ * put on top of an old file do not swallow it; a deeper heading stays inside its section.
  *
  * spec: brief/memory.md#правила-и-заметки-memorymd
  */
@@ -29,16 +31,20 @@ final class MemoryFile {
         $rules = [];
         $notes = [];
         $into = null;
+        $level = 0;
         foreach (preg_split('~\R~u', $text) ?: [] as $line) {
-            if (preg_match('~^\s{0,3}#{1,6}\s*(.+?)\s*#*\s*$~u', $line, $m) === 1) {
-                $title = rtrim(mb_strtolower($m[1]), ': ');
+            if (preg_match('~^\s{0,3}(#{1,6})\s*(.+?)\s*#*\s*$~u', $line, $m) === 1) {
+                $title = rtrim(mb_strtolower($m[2]), ': ');
                 if (in_array($title, self::RULES, true)) {
-                    $into = 'rules';
+                    [$into, $level] = ['rules', strlen($m[1])];
                     continue;
                 }
                 if (in_array($title, self::NOTES, true)) {
-                    $into = 'notes';
+                    [$into, $level] = ['notes', strlen($m[1])];
                     continue;
+                }
+                if ($into === 'rules' && strlen($m[1]) <= $level) {
+                    $into = 'notes';
                 }
             }
             if ($into === 'rules') {

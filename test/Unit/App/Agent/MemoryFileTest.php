@@ -35,6 +35,14 @@ final class MemoryFileTest extends TestCase {
         self::assertSame("вступление\nпроект", $file->notes);
     }
 
+    public function testRulesPutOnTopOfAnOldFileDoNotSwallowIt(): void {
+        // spec: brief/memory.md#правила-и-заметки-memorymd — a section ends at the next heading of its level
+        $file = MemoryFile::parse("# Память\n## Правила\n- коротко\n### Код\n- целиком\n## Скрипт разбора\nстарый текст\n## Документация\nссылки");
+
+        self::assertSame("- коротко\n### Код\n- целиком", $file->rules);
+        self::assertSame("# Память\n## Скрипт разбора\nстарый текст\n## Документация\nссылки", $file->notes);
+    }
+
     public function testWithinTheLimitTheRulesStayWhole(): void {
         $file = MemoryFile::parse("## Правила\n" . str_repeat('п', 50) . "\n## Заметки\n" . str_repeat('з', 100));
 
