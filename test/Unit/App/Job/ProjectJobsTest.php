@@ -193,4 +193,20 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertTrue($manage->execute(['action' => 'to_project', 'id' => $job->id, 'project' => 'Поиск'], $this->as($member))->isError, 'only the owner of a project puts a job into it');
         self::assertInstanceOf(Project::class, $project);
     }
+
+    public function testAnEditNamingAProjectMovesTheJobThereAndSaysSo(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — edit with project was silently ignored, the agent
+        //       told the owner the job had moved
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $project = $this->projects->create('Новости', 'дайджест');
+        $job = $this->jobs->create($this->owner->id, 'telegram', '42', 'Дайджест', 'Собери новости', 'daily:05:00', $this->now->modify('+1 hour'));
+        $manage = new JobManageTool($this->jobs, $scheduler, $this->projects, new \Mercurius\Memory\Domain\ContentScreen());
+
+        $edited = $manage->execute(['action' => 'edit', 'id' => $job->id, 'prompt' => 'Собери новости без источников', 'project' => 'Новости'], $this->as($this->owner, 'telegram'));
+
+        self::assertFalse($edited->isError, $edited->content);
+        self::assertSame($project->id, $this->jobs->find($job->id)?->projectId);
+        self::assertStringContainsString('«Новости»', $edited->content, 'the answer names the project');
+        self::assertTrue($manage->execute(['action' => 'edit', 'id' => $job->id, 'project' => 'Нет такого'], $this->as($this->owner, 'telegram'))->isError, 'a project that cannot be is an error, not silence');
+    }
 }

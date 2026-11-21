@@ -223,12 +223,22 @@ final class JobManageTool implements Tool {
         $title = trim(Args::string($args, 'title') ?? '');
         $prompt = trim(Args::string($args, 'prompt') ?? '');
         $given = trim(Args::string($args, 'schedule') ?? '');
-        if ($title === '' && $prompt === '' && $given === '') {
+        $project = Args::string($args, 'project');
+        if ($title === '' && $prompt === '' && $given === '' && $project === null) {
             return ToolResult::error(t('tool.job_manage.edit_nothing'));
         }
         $problem = ($prompt === '' ? null : $this->screen->problem($prompt, self::PROMPT_MAX)) ?? ($title === '' ? null : $this->screen->problem($title, 100));
         if ($problem !== null) {
             return ToolResult::error(t('tool.job_create.tekst_zadaniya_ne_prinyat') . $problem);
+        }
+        // a named project moves the job, as to_project does; before, edit dropped it without a word and the agent told
+        // the owner the job had moved
+        $moved = null;
+        if ($project !== null) {
+            $moved = $this->toProject($job, $context, trim($project));
+            if ($moved->isError) {
+                return $moved;
+            }
         }
         if ($given !== '') {
             if ($job->byEvent()) {
@@ -250,7 +260,7 @@ final class JobManageTool implements Tool {
             $this->jobs->rewrite($job->id, $title !== '' ? $title : $job->title, $prompt !== '' ? $prompt : $job->prompt, $this->runs?->find($context->runId)?->outside);
         }
         $edited = $this->jobs->find($job->id) ?? $job;
-        return ToolResult::ok(sprintf(t('tool.job_manage.edited'), $edited->id, $edited->title, self::line($edited, $this->scheduler)));
+        return ToolResult::ok(sprintf(t('tool.job_manage.edited'), $edited->id, $edited->title, self::line($edited, $this->scheduler)) . ($moved === null ? '' : "\n" . $moved->content));
     }
 
     private function runNow(Job $job): ToolResult {
