@@ -42,6 +42,18 @@ final class WriteFileTool extends SandboxTool {
         $old = Args::string($args, 'old');
         $new = Args::string($args, 'new');
         if ($content !== null && $old === null && $new === null) {
+            // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a SKILL.md stays a skill: a file that
+            //       is not one would vanish from the index, so it is refused here and skill_save is named
+            if (preg_match('~(?:^|/)\.mercurius/skills/([^/]+)/SKILL\.md$~', str_replace('\\', '/', $path), $m) === 1) {
+                try {
+                    $name = \OpenCCK\App\Skill\SkillBundle::fromFiles(['SKILL.md' => $content], 'folder', '')->name;
+                } catch (\InvalidArgumentException $e) {
+                    return ToolResult::error(sprintf(t('tool.write_file.not_a_skill'), $e->getMessage()));
+                }
+                if ($name !== strtolower($m[1])) {
+                    return ToolResult::error(sprintf(t('tool.write_file.not_a_skill'), sprintf(t('tool.write_file.skill_name'), $name, $m[1])));
+                }
+            }
             $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_zapisan_bayt'), $path, strlen($content)));
         }

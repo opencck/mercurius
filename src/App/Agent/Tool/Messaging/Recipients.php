@@ -23,11 +23,26 @@ use function Mercurius\I18n\t;
  * spec: brief/channels.md#личные-сообщения-участникам
  */
 final class Recipients {
+    /** @var (\Closure(\OpenCCK\Domain\Agent\ConversationMeta): (array{string, ?string}|null))|null */
+    private ?\Closure $home = null;
+
     public function __construct(
         private readonly PrincipalRepository $principals,
         /** the channel the people are written to in: their identities there are their chats */
         private readonly string $channel,
     ) {}
+
+    /**
+     * "Here" of a conversation that is not a chat of the messenger (a run of a job): the chat and topic its report
+     * goes to; null from the closure — the conversation's own chat.
+     *
+     * spec: brief/scheduler.md#задания-проекта
+     *
+     * @param \Closure(\OpenCCK\Domain\Agent\ConversationMeta): (array{string, ?string}|null) $home
+     */
+    public function useHome(\Closure $home): void {
+        $this->home = $home;
+    }
 
     /** The active person the name points to; the text — why there is none. */
     public function find(string $to): Principal|string {
@@ -81,7 +96,14 @@ final class Recipients {
     public function where(?string $to, ToolContext $context, ConversationRepository $conversations): array|string {
         if ($to === null || trim($to) === '') {
             $meta = $conversations->meta($context->conversationId);
-            return $meta === null ? t('tool.send_file.no_chat') : [$meta->chatId, $meta->threadId === '' ? null : $meta->threadId];
+            if ($meta === null) {
+                return t('tool.send_file.no_chat');
+            }
+            $home = $this->home === null ? null : ($this->home)($meta);
+            if ($home === null && $meta->channel === \OpenCCK\App\Job\JobScheduler::CHANNEL) {
+                return t('tool.send_file.no_chat');
+            }
+            return $home ?? [$meta->chatId, $meta->threadId === '' ? null : $meta->threadId];
         }
         $person = $this->find($to);
         if (is_string($person)) {

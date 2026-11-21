@@ -440,6 +440,35 @@ final class JobScheduler implements JobRuns {
     }
 
     /**
+     * The chat and topic a run of a job writes to when it sends something "here": the topic of its project, else the
+     * chat the job was set in; null when there is no such chat (the report goes to a participant's inbox).
+     *
+     * spec: brief/scheduler.md#задания-проекта
+     *
+     * @param string $chat the chat of the run's conversation, "job-<id>-<run>"
+     * @return array{string, ?string}|null
+     */
+    public function homeOf(string $chat): ?array {
+        $job = preg_match('~^job-(\d+)-\d+$~', $chat, $m) === 1 ? $this->jobs->find((int) $m[1]) : null;
+        if ($job === null) {
+            return null;
+        }
+        try {
+            $project = $this->projectOf($job);
+        } catch (\RuntimeException) {
+            return null;
+        }
+        $topic = $project === null ? null : ($this->projects?->topicsOf($project->id)[0] ?? null);
+        if ($topic !== null) {
+            return [$topic['chatId'], $topic['threadId'] === '' ? null : $topic['threadId']];
+        }
+        if ($project !== null || $job->channel === \OpenCCK\App\Peer\A2aServer::CHANNEL) {
+            return null;
+        }
+        return [$job->chatId, $job->threadId === '' ? null : $job->threadId];
+    }
+
+    /**
      * Sends a report; why it did not go, or null. A refusal of the chat (the bot was blocked, the chat is gone) is
      * permanent: sending again would not help.
      *

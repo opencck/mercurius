@@ -31,6 +31,8 @@ final class ProjectTool implements Tool {
     public function __construct(
         private readonly ProjectRepository $projects,
         private readonly ConversationRepository $conversations,
+        /** the folder and the jobs of a project; null — not shown */
+        private readonly ?ProjectContext $extras = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -93,6 +95,9 @@ final class ProjectTool implements Tool {
         }
         $tasks = $this->projects->openTasks($project->id, self::TASKS);
         $parts[] = t('tool.project.otkrytye_zadachi') . ($tasks === [] ? t('tool.project.net') : implode("\n", array_map(ProjectContext::task(...), $tasks)));
+        if ($this->extras !== null) {
+            $parts[] = $this->extras->extras($project);
+        }
         return ToolResult::ok(SecretMasker::mask(implode("\n\n", $parts)));
     }
 }

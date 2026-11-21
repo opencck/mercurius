@@ -25,7 +25,27 @@ final class ProjectContext {
     public const BUDGET = 2500;
     public const TASKS = 10;
 
+    /** @var (\Closure(int): list<string>)|null the lines of the jobs of a project */
+    private ?\Closure $jobs = null;
+
     public function __construct(private readonly ProjectRepository $projects) {}
+
+    /**
+     * spec: brief/scheduler.md#задания-проекта — a project shows its jobs, so "the task that collects news" is found
+     *       and changed instead of set anew
+     *
+     * @param \Closure(int): list<string> $jobs by the id of the project
+     */
+    public function useJobs(\Closure $jobs): void {
+        $this->jobs = $jobs;
+    }
+
+    /** The folder of the project in the sandbox and its jobs by a schedule. */
+    public function extras(Project $project): string {
+        $lines = $this->jobs === null ? [] : ($this->jobs)($project->id);
+        return sprintf(t('agent.project_context.folder'), $project->id)
+            . ($lines === [] ? '' : "\n\n" . t('agent.project_context.jobs') . implode("\n", $lines));
+    }
 
     /** The project a chat or forum topic works on; null when none. */
     public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
@@ -59,6 +79,7 @@ final class ProjectContext {
         if ($tasks !== []) {
             $parts[] = t('agent.project_context.otkrytye_zadachi') . implode("\n", array_map(self::task(...), $tasks));
         }
+        $parts[] = $this->extras($project);
         $text = SecretMasker::mask(implode("\n\n", $parts));
         return mb_strlen($text) > self::BUDGET ? mb_substr($text, 0, self::BUDGET - 1) . '…' : $text;
     }

@@ -152,6 +152,20 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertContains('.mercurius/skills/weekly-report/templates/table.md', array_keys($this->sandbox->files[1]));
     }
 
+    public function testASkillFileThatIsNotASkillIsLeftOutAndBreaksNothing(): void {
+        // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a file spoiled by a direct write (the
+        //       line breaks written as backslash-n) must not fail the runs of the project
+        $this->sandbox->files[1]['.mercurius/skills/spoiled/SKILL.md'] = '---\\nname: spoiled\\ndescription: Сломан\\n---\\n\\n# Текст';
+        $this->sandbox->files[1]['.mercurius/skills/notes/SKILL.md'] = self::skill('notes', 'Заметки владельца');
+        $library = $this->library();
+
+        $catalog = $library->catalog($this->owner, null);
+
+        self::assertArrayNotHasKey('spoiled', $catalog);
+        self::assertArrayHasKey('notes', $catalog, 'the other skills are still there');
+        self::assertStringContainsString('notes', $library->index($this->owner, null));
+    }
+
     public function testARefusedSkillNamesTheLineThatLooksLikeASecret(): void {
         // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — the refusal says what to fix, so the model does not guess by halves
         $save = new SkillSaveTool($this->library(), $this->projectOf());

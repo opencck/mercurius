@@ -47,6 +47,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Skill\SkillLibrary $skillLibrary
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
+ * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  */
 
@@ -110,7 +111,12 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 }
 
 // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту
-$scheduler->useProjects(new ProjectContext($projectRepository));
+$projectContext = new ProjectContext($projectRepository);
+// spec: brief/scheduler.md#задания-проекта — a project shows its jobs: the agent changes the one that is there
+$projectContext->useJobs(static fn(int $projectId): array => array_map(static fn(\OpenCCK\Domain\Job\Job $job): string => JobManageTool::line($job, $jobScheduler), $jobRepository->ofProjects([$projectId])));
+$scheduler->useProjects($projectContext);
+// what a run of a job sends "here" goes where its report goes
+$recipients->useHome(static fn(\OpenCCK\Domain\Agent\ConversationMeta $meta): ?array => $meta->channel === JobScheduler::CHANNEL ? $jobScheduler->homeOf($meta->chatId) : null);
 // spec: brief/self-improvement.md#самоулучшение — the agent proposes, the owner accepts; notes come into new prompts
 $improvementRepository = new \OpenCCK\Infrastructure\Repository\PostgresImprovementRepository($db);
 $evalScores = new \OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository($db);
@@ -120,7 +126,7 @@ $traceReview = new \OpenCCK\App\Agent\Tool\Self\TraceReviewTool(new \OpenCCK\Inf
 // spec: brief/skills-mcp.md#учёт-использования-журнал-правок-и-обновление-скиллов — the review names the skills nobody opened for a month
 $traceReview->useSkills($skillLibrary);
 $tools->register($traceReview);
-$tools->register(new ProjectTool($projectRepository, $conversations));
+$tools->register(new ProjectTool($projectRepository, $conversations, $projectContext));
 $groupRepository = new \OpenCCK\Infrastructure\Repository\PostgresGroupRepository($db);
 $forumTopics = new \OpenCCK\App\Service\ForumTopics($channel, $groupRepository, $projectRepository, $logger);
 // spec: brief/participants.md#доступ-к-проектам-и-передача — a project passes to another participant with their consent: the

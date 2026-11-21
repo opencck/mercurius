@@ -194,6 +194,49 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertInstanceOf(Project::class, $project);
     }
 
+    public function testAFileSentFromAJobRunGoesWhereTheReportGoes(): void {
+        // spec: brief/scheduler.md#задания-проекта — the conversation of a run is not a chat of the messenger: what the
+        //       run sends "here" goes to the topic of the project, else to the chat the job was set in
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $project = $this->projects->create('Новости', 'дайджест');
+        $this->projects->activate('telegram', '-100500', $project->id, '4');
+        $inTopic = $this->jobs->create($this->owner->id, 'telegram', '42', 'Дайджест', 'Собери', 'every:60', $this->now->modify('+1 hour'));
+        $this->jobs->setProject($inTopic->id, $project->id);
+        $plain = $this->jobs->create($this->owner->id, 'telegram', '42', 'Диск', 'Проверь', 'every:60', $this->now->modify('+1 hour'), null, '7');
+
+        self::assertSame(['-100500', '4'], $scheduler->homeOf(sprintf('job-%d-3', $inTopic->id)));
+        self::assertSame(['42', '7'], $scheduler->homeOf(sprintf('job-%d-1', $plain->id)));
+        self::assertNull($scheduler->homeOf('job-999-1'));
+
+        $recipients = new \OpenCCK\App\Agent\Tool\Messaging\Recipients($this->stack->principals, 'telegram');
+        $recipients->useHome(static fn(\OpenCCK\Domain\Agent\ConversationMeta $meta): ?array => $meta->channel === JobScheduler::CHANNEL ? $scheduler->homeOf($meta->chatId) : null);
+        $conversation = $this->stack->conversations->openConversation($this->owner->id, JobScheduler::CHANNEL, sprintf('job-%d-3', $inTopic->id));
+        $context = new ToolContext(1, $conversation, $this->owner, new NullCancellation());
+        self::assertSame(['-100500', '4'], $recipients->where(null, $context, $this->stack->conversations));
+    }
+
+    public function testTheProjectShowsItsJobsAndItsFolder(): void {
+        // spec: brief/scheduler.md#задания-проекта — asked about "the task that collects news", the agent finds the job in
+        //       the project instead of setting a second one
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $project = $this->projects->create('Новости', 'дайджест');
+        $this->projects->activate('telegram', '-100500', $project->id, '4');
+        $job = $this->jobs->create($this->owner->id, 'telegram', '42', 'Утренний дайджест', 'Собери', 'daily:10:00', $this->now->modify('+1 hour'));
+        $this->jobs->setProject($job->id, $project->id);
+        $context = new \OpenCCK\App\Agent\ProjectContext($this->projects);
+        $context->useJobs(fn(int $id): array => array_map(static fn(\OpenCCK\Domain\Job\Job $j): string => JobManageTool::line($j, $scheduler), $this->jobs->ofProjects([$id])));
+
+        $block = $context->block($this->owner, 'telegram', '-100500', '4');
+        self::assertStringContainsString('Утренний дайджест', $block);
+        self::assertStringContainsString('job_manage', $block);
+        self::assertStringContainsString(sprintf('projects/%d/', $project->id), $block);
+
+        $tool = new \OpenCCK\App\Agent\Tool\Projects\ProjectTool($this->projects, $this->stack->conversations, $context);
+        $shown = $tool->execute(['name' => 'Новости'], $this->as($this->owner, 'telegram'))->content;
+        self::assertStringContainsString('Утренний дайджест', $shown);
+        self::assertStringContainsString(sprintf('projects/%d/', $project->id), $shown);
+    }
+
     public function testAnEditNamingAProjectMovesTheJobThereAndSaysSo(): void {
         // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — edit with project was silently ignored, the agent
         //       told the owner the job had moved

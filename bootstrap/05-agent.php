@@ -152,6 +152,7 @@ $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::cr
 /** @var \OpenCCK\App\Peer\A2aServer|null $a2aServer set below: the client asks it who answers a neighbour, send_file answers a task */
 $a2aServer = null;
 $checkpoints = $sandbox === null ? null : new \OpenCCK\App\Agent\Sandbox\Checkpoints($sandbox, $logger);
+$recipients = new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME);
 if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\CheckpointTool($sandbox, $checkpoints));
     $tools->register(new ReadFileTool($sandbox));
@@ -163,12 +164,12 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
     // spec: brief/agent-loop.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: brief/internet.md#между-агентами — in a task of another agent a file goes with the answer
-    $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME), static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
+    $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, $recipients, static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
         return $a2aServer instanceof \OpenCCK\App\Peer\A2aServer && $a2aServer->answerFile($runId, $name, $bytes);
     }));
 }
 // spec: brief/channels.md#личные-сообщения-участникам — a location, a contact, a poll, an article: what the messenger carries
-$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendContentTool($channel, $conversations, new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME)));
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendContentTool($channel, $conversations, $recipients));
 $logger->info('Sandbox', ['enabled' => $sandbox !== null]);
 // Tracing: steps of every run, masked payloads.
 $traces = new PostgresTraceRepository($db);

@@ -495,7 +495,14 @@ final class SkillLibrary {
             }
             // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the description goes into the prompt: a dangerous skill
             //       is not in the index at all
-            if (SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => $raw], 'folder', '')))) {
+            try {
+                $blocked = SkillGuard::blocks(SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => $raw], 'folder', '')));
+            } catch (Throwable $e) {
+                // a file that is not a skill (spoiled by a direct write) is left out: it must not fail every run of the place
+                $this->logger->notice('A skill was not read', ['dir' => $dir . '/' . $m[1], 'error' => $e::class]);
+                continue;
+            }
+            if ($blocked) {
                 $this->logger->warning('A folder skill is left out of the index by the check', ['dir' => $dir . '/' . $m[1]]);
                 continue;
             }

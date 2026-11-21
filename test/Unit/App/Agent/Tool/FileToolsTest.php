@@ -65,6 +65,32 @@ final class FileToolsTest extends TestCase {
         self::assertSame(['list 7 . 1'], $this->sandbox->calls);
     }
 
+    public function testASkillFileIsNotOverwrittenWithWhatIsNotASkill(): void {
+        // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a SKILL.md written with its line breaks
+        //       as backslash-n stopped being a skill and failed the runs of its project
+        $write = new WriteFileTool($this->sandbox);
+        $path = 'projects/8/.mercurius/skills/news-digest/SKILL.md';
+
+        $spoiled = $write->execute(['path' => $path, 'content' => '---\nname: news-digest\ndescription: Дайджест\n---\n\n# Текст'], self::context());
+        self::assertTrue($spoiled->isError);
+        self::assertStringContainsString('skill_save', $spoiled->content);
+        self::assertArrayNotHasKey($path, $this->sandbox->files[7] ?? []);
+
+        $good = $write->execute(['path' => $path, 'content' => "---
+name: news-digest
+description: Дайджест
+---
+
+# Текст"], self::context());
+        self::assertFalse($good->isError, $good->content);
+        self::assertTrue($write->execute(['path' => $path, 'content' => "---
+name: other
+description: Дайджест
+---
+
+# Текст"], self::context())->isError, 'the name must agree with the folder');
+    }
+
     public function testWriteNeedsContentOrPair(): void {
         $result = (new WriteFileTool($this->sandbox))->execute(['path' => 'x'], self::context());
 
