@@ -219,9 +219,12 @@ final class ToolRound {
         if ($state->policy->readOnly && $call->executable() && $call->danger !== DangerClass::Read) {
             return ToolResult::error(t('agent.agent_loop.zdes_dostupno_tolko_chtenie_etot'));
         }
-        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a worker gets no irreversible action, a saved grant included
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a worker cannot ask the owner: an irreversible
+        //      action runs only by the owner's saved "always" grant, under the same rules as for the agent itself
         if (!$state->policy->irreversible && $call->executable() && $call->danger === DangerClass::Irreversible) {
-            return ToolResult::error(t('agent.agent_loop.vorkeru_neobratimye_deystviya_nedostupny'));
+            return $call->tool !== null && $call->args !== null && $this->grantFor($state, $call->tool, $call->args, $call->call->name)
+                ? 'granted'
+                : ToolResult::error(t('agent.agent_loop.vorkeru_neobratimye_deystviya_nedostupny'));
         }
         if (!$call->executable() || $call->danger !== DangerClass::Irreversible || $call->tool === null || $call->args === null) {
             return true;
@@ -241,12 +244,7 @@ final class ToolRound {
                 return $refused;
             }
         }
-        $key = $call->tool instanceof GrantKeyed ? $call->tool->grantKey($call->args) : null;
-        // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — after outside data a grant is not used: the text read may be someone's
-        //      instructions, so the owner sees every irreversible action of this run on a card
-        $outside = $this->runs->find($state->run->id)?->outside;
-        if ($key !== null && $outside === null && $this->approvals?->hasGrant($state->principal->id, $key) === true) {
-            $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $call->call->name, 'key' => $key]);
+        if ($this->grantFor($state, $call->tool, $call->args, $call->call->name)) {
             return 'granted';
         }
         // spec: brief/network.md#участник-просит-инструмент — asking for a tool reaches the owner always
@@ -268,6 +266,23 @@ final class ToolRound {
         $this->gate->request($this->runs->find($state->run->id) ?? $state->run, $call, $state->principal, $decider);
         return false;
     }
+    /**
+     * A saved "always" grant of the participant covers this call.
+     *
+     * spec: brief/agent-loop.md#запуск-начатый-внешними-данными — after outside data a grant is not used: the text read may
+     *       be someone's instructions, so the owner sees every irreversible action of this run on a card
+     *
+     * @param array<string, mixed> $args
+     */
+    private function grantFor(RunState $state, Tool\Tool $tool, array $args, string $name): bool {
+        $key = $tool instanceof GrantKeyed ? $tool->grantKey($args) : null;
+        if ($key === null || $this->runs->find($state->run->id)?->outside !== null || $this->approvals?->hasGrant($state->principal->id, $key) !== true) {
+            return false;
+        }
+        $this->logger->info('Irreversible call allowed by a saved grant', ['run' => $state->run->id, 'tool' => $name, 'key' => $key]);
+        return true;
+    }
+
     private function runCall(RunState $state, ValidatedCall $call, bool $approved = false): ToolResult {
         if (!$call->executable() || $call->tool === null) {
             return ToolResult::error($call->error ?? t('agent.agent_loop.vyzov_ne_proshel_proverku'));

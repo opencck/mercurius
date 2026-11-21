@@ -313,7 +313,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
 
         self::assertSame([], array_filter($stack->channel->texts('send'), static fn(string $t): bool => str_starts_with($t, 'Подтвердите')));
         self::assertSame(RunStatus::Done, $stack->runs->find(1)?->status);
-        self::assertStringContainsString('необратимые действия недоступны', $llm->requests[2]->messages[3]->content);
+        self::assertStringContainsString('только по сохранённому разрешению', $llm->requests[2]->messages[3]->content);
     }
 
     public function testNotEnoughBudgetRefuses(): void {
@@ -561,7 +561,28 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertSame(1, substr_count($report, 'Проверка:'), 'the failed part is not checked');
     }
 
-    public function testWorkerCannotDoIrreversibleEvenWithAGrant(): void {
+    public function testWorkerDoesAnIrreversibleActionTheOwnerAllowedForGood(): void {
+        // spec: brief/orchestration.md#часть-1--синхронное-делегирование — a saved "always" grant works for a worker too
+        $llm = new ScriptedLlm([
+            self::delegate([['goal' => 'отправь', 'tools' => ['send'], 'role' => 'cheap']]),
+            ScriptedLlm::calls(new ToolCall('s1', 'send', '{}')),
+            ScriptedLlm::text('отправил'),
+            ScriptedLlm::text('итог'),
+        ]);
+        $stack = $this->stack($llm);
+        $send = new FakeKeyedTool('send', 'send:x');
+        $stack->registry->register($send);
+        $stack->approvals->addGrant(1, 'send:x');
+
+        $stack->say('задача');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(1, $send->runs);
+        self::assertStringContainsString('отправил', self::report($llm));
+        self::assertSame([], array_filter($stack->channel->texts('send'), static fn(string $t): bool => str_starts_with($t, 'Подтвердите')), 'no card: the grant decided');
+    }
+
+    public function testWorkerWithoutAGrantGetsNoIrreversibleAction(): void {
         $llm = new ScriptedLlm([
             self::delegate([['goal' => 'отправь', 'tools' => ['send'], 'role' => 'cheap']]),
             ScriptedLlm::calls(new ToolCall('s1', 'send', '{}')),
@@ -571,8 +592,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         $stack = $this->stack($llm);
         $send = new FakeKeyedTool('send', 'send:x');
         $stack->registry->register($send);
-        // The owner saved a grant for this action: the orchestrator could use it, a worker may not.
-        $stack->approvals->addGrant(1, 'send:x');
+        $stack->approvals->addGrant(1, 'send:other');
 
         $stack->say('задача');
         $stack->scheduler->awaitIdle();
