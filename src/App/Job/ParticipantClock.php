@@ -22,6 +22,31 @@ final class ParticipantClock {
         private readonly ?array $ownerQuiet,
     ) {}
 
+    private ?\OpenCCK\Domain\Repository\ProjectPrefRepository $projects = null;
+
+    /** spec: brief/scheduler.md#часовой-пояс-проекта — a project keeps its own clock */
+    public function useProjects(\OpenCCK\Domain\Repository\ProjectPrefRepository $projects): void {
+        $this->projects = $projects;
+    }
+
+    /** The zone of a place: a project's own, else the environment's; without a project — the participant's. */
+    public function zoneFor(?int $principalId, ?int $projectId): DateTimeZone {
+        if ($projectId === null || $this->projects === null) {
+            return $this->zone($principalId);
+        }
+        $name = $this->projects->get($projectId)['timezone'];
+        return ($name === null ? null : self::parseZone($name)) ?? $this->ownerZone;
+    }
+
+    /** @return array{int, int}|null the quiet hours of a place, as zoneFor() picks its zone */
+    public function quietFor(?int $principalId, ?int $projectId): ?array {
+        if ($projectId === null || $this->projects === null) {
+            return $this->quiet($principalId);
+        }
+        $raw = $this->projects->get($projectId)['quiet'];
+        return $raw === null ? $this->ownerQuiet : self::parseQuiet($raw);
+    }
+
     public function zone(?int $principalId): DateTimeZone {
         $name = $principalId === null ? null : $this->prefs->get($principalId)['timezone'];
         if ($name === null) {

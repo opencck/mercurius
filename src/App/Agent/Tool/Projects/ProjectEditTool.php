@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret', 'rights', 'grant_tool', 'revoke_tool', 'set_limit'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
@@ -39,6 +39,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         'share_secret' => ProjectLevel::Full, 'unshare_secret' => ProjectLevel::Full,
         // spec: brief/participants.md#права-проекта — members see the rights, only the owner of the project changes them
         'rights' => ProjectLevel::Read, 'grant_tool' => ProjectLevel::Owner, 'revoke_tool' => ProjectLevel::Owner, 'set_limit' => ProjectLevel::Owner,
+        // spec: brief/scheduler.md#часовой-пояс-проекта — the clock of the project is its owner's to set
+        'timezone' => ProjectLevel::Owner, 'quiet' => ProjectLevel::Owner,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -57,6 +59,51 @@ final class ProjectEditTool implements Tool, GrantKeyed {
 
     private ?\OpenCCK\App\Peer\ProjectChannels $channels = null;
     private ?\OpenCCK\App\Service\ProjectPolicies $rights = null;
+    private ?\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs = null;
+    /** @var (\Closure(int): void)|null the jobs of a project count their next runs again by its new clock */
+    private ?\Closure $rescheduled = null;
+
+    /**
+     * spec: brief/scheduler.md#часовой-пояс-проекта
+     *
+     * @param \Closure(int): void $rescheduled by the id of the project
+     */
+    public function usePrefs(\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs, \Closure $rescheduled): void {
+        $this->prefs = $prefs;
+        $this->rescheduled = $rescheduled;
+    }
+
+    /** The time zone or the quiet hours of a project; an empty text brings back those of the environment. */
+    private function clock(Project $project, string $action, string $text): ToolResult {
+        $prefs = $this->prefs;
+        if ($prefs === null) {
+            return ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action);
+        }
+        $now = $prefs->get($project->id);
+        $value = $text === '' ? null : $text;
+        if ($action === 'timezone') {
+            if ($value !== null && \OpenCCK\App\Job\ParticipantClock::parseZone($value) === null) {
+                return ToolResult::error(sprintf(t('tool.project_edit.bad_zone'), $value));
+            }
+            $prefs->save($project->id, $value, $now['quiet']);
+        } else {
+            $quiet = $value === null ? null : (in_array(mb_strtolower($value), ['none', 'нет', '-'], true) ? '' : $value);
+            if ($quiet !== null && $quiet !== '' && \OpenCCK\App\Job\ParticipantClock::parseQuiet($quiet) === null) {
+                return ToolResult::error(sprintf(t('tool.project_edit.bad_quiet'), $text));
+            }
+            $prefs->save($project->id, $now['timezone'], $quiet);
+        }
+        if ($this->rescheduled !== null) {
+            ($this->rescheduled)($project->id);
+        }
+        $saved = $prefs->get($project->id);
+        return ToolResult::ok(sprintf(
+            t('tool.project_edit.clock_set'),
+            $project->name,
+            $saved['timezone'] ?? t('tool.project_edit.from_env'),
+            $saved['quiet'] === null ? t('tool.project_edit.from_env') : ($saved['quiet'] === '' ? '—' : $saved['quiet']),
+        ));
+    }
 
     /** spec: brief/participants.md#права-проекта */
     public function useRights(\OpenCCK\App\Service\ProjectPolicies $rights): void {
@@ -109,7 +156,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.share_about')
             . ' ' . t('tool.project_edit.transfer_about')
             . ' ' . t('tool.project_edit.secret_about')
-            . ' ' . t('tool.project_edit.rights_about'), [
+            . ' ' . t('tool.project_edit.rights_about')
+            . ' ' . t('tool.project_edit.clock_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -212,6 +260,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'share_secret' => $this->shareSecret($project, $context, trim(Args::string($args, 'secret') ?? ''), strtolower(trim(Args::string($args, 'site') ?? ''))),
             'unshare_secret' => $this->unshareSecret($project, $context, trim(Args::string($args, 'secret') ?? '')),
             'rights', 'grant_tool', 'revoke_tool', 'set_limit' => $this->rights($project, $action, $args),
+            'timezone', 'quiet' => $this->clock($project, $action, $text),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }

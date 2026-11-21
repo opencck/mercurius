@@ -252,4 +252,38 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertStringContainsString('«Новости»', $edited->content, 'the answer names the project');
         self::assertTrue($manage->execute(['action' => 'edit', 'id' => $job->id, 'project' => 'Нет такого'], $this->as($this->owner, 'telegram'))->isError, 'a project that cannot be is an error, not silence');
     }
+
+    public function testAJobOfAProjectRunsAtTenByTheProjectsZoneNotItsOwners(): void {
+        // spec: brief/scheduler.md#часовой-пояс-проекта
+        $this->stack = new AgentStack(new ScriptedLlm([]));
+        $this->owner = $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $people = new \OpenCCK\Test\Support\InMemoryParticipantPrefRepository();
+        $people->save($this->owner->id, 'Europe/Moscow', null);
+        $projectPrefs = new \OpenCCK\Test\Support\InMemoryProjectPrefRepository();
+        $clock = new \OpenCCK\App\Job\ParticipantClock($people, new DateTimeZone('UTC'), null);
+        $clock->useProjects($projectPrefs);
+        $scheduler = new JobScheduler($this->jobs, $this->stack->loop, $this->stack->runs, $this->stack->transcript, $this->stack->conversations, $this->stack->principals, $this->stack->policies, $this->stack->registry, $this->stack->channel, 'test/model', new DateTimeZone('UTC'), null, new NullLogger(), fn(): DateTimeImmutable => $this->now, clock: $clock);
+        $scheduler->useProjects($this->projects);
+        $project = $this->projects->create('Таиланд', '');
+        $edit = new \OpenCCK\App\Agent\Tool\Projects\ProjectEditTool($this->projects, $this->stack->conversations);
+        $edit->usePrefs($projectPrefs, $scheduler->rescheduleProject(...));
+        $owner = $this->as($this->owner, 'telegram');
+
+        self::assertTrue($edit->execute(['action' => 'timezone', 'project' => 'Таиланд', 'text' => 'Mars/Olympus'], $owner)->isError, 'not a zone');
+        self::assertFalse($edit->execute(['action' => 'timezone', 'project' => 'Таиланд', 'text' => 'Asia/Bangkok'], $owner)->isError);
+        $created = $this->create($scheduler)->execute(['title' => 'Утро', 'prompt' => 'Сводка', 'schedule' => 'daily:10:00', 'project_id' => $project->id], $owner);
+        self::assertFalse($created->isError, $created->content);
+        $job = $this->jobs->find(1);
+        self::assertNotNull($job);
+
+        self::assertSame('10:00', $job->nextRunAt?->setTimezone(new DateTimeZone('Asia/Bangkok'))->format('H:i'), 'ten by the project\'s zone');
+        self::assertSame('Asia/Bangkok', $scheduler->zoneOf($job)->getName());
+        self::assertStringContainsString('+07', $created->content);
+        $this->jobs->setProject($job->id, null);
+        self::assertSame('Europe/Moscow', $scheduler->zoneOf($this->jobs->find(1) ?? $job)->getName(), 'out of the project — its owner\'s own zone');
+
+        $this->jobs->setProject($job->id, $project->id);
+        self::assertFalse($edit->execute(['action' => 'timezone', 'project' => 'Таиланд', 'text' => ''], $owner)->isError);
+        self::assertSame('10:00', $this->jobs->find(1)?->nextRunAt?->setTimezone(new DateTimeZone('UTC'))->format('H:i'), 'back to the environment\'s zone, counted again');
+    }
 }

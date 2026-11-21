@@ -68,6 +68,9 @@ $proactiveBudget = new \OpenCCK\App\Job\ProactiveBudget($proactivePerDay !== nul
 // spec: brief/participants.md#несколько-пользователей — a participant's own time zone and quiet hours for their jobs
 $participantPrefs = new \OpenCCK\Infrastructure\Repository\PostgresParticipantPrefRepository($db);
 $participantClock = new \OpenCCK\App\Job\ParticipantClock($participantPrefs, $ownerZone, $quietHours);
+// spec: brief/scheduler.md#часовой-пояс-проекта — a project keeps its own clock, the environment's by default
+$projectPrefs = new \OpenCCK\Infrastructure\Repository\PostgresProjectPrefRepository($db);
+$participantClock->useProjects($projectPrefs);
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool($participantPrefs, $participantClock));
 $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, clock: $participantClock, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
     $request = new \Amp\Http\Client\Request($url);
@@ -122,6 +125,7 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
 
 // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту
 $projectContext = new ProjectContext($projectRepository);
+$projectContext->usePrefs($projectPrefs);
 // spec: brief/scheduler.md#задания-проекта — a project shows its jobs: the agent changes the one that is there
 $projectContext->useJobs(static fn(int $projectId): array => array_map(static fn(\OpenCCK\Domain\Job\Job $job): string => JobManageTool::line($job, $jobScheduler), $jobRepository->ofProjects([$projectId])));
 $scheduler->useProjects($projectContext);
@@ -173,6 +177,7 @@ $projectPolicies = new \OpenCCK\App\Service\ProjectPolicies(
     $participantInbox,
 );
 $projectEditTool->useRights($projectPolicies);
+$projectEditTool->usePrefs($projectPrefs, $jobScheduler->rescheduleProject(...));
 $scheduler->useProjectPolicies($projectPolicies);
 $jobScheduler->useProjectPolicies($projectPolicies);
 $projectTransfers->usePolicies($projectPolicies);

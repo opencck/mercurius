@@ -160,6 +160,7 @@ final class JobManageTool implements Tool {
         }
         if ($name === '') {
             $this->jobs->setProject($job->id, null);
+            $this->reschedule($job->id);
             return ToolResult::ok(sprintf(t('tool.job_manage.out_of_project'), $job->id, $job->title));
         }
         $project = $this->projects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($context->principal));
@@ -167,7 +168,24 @@ final class JobManageTool implements Tool {
             return ToolResult::error(sprintf(t('tool.job_manage.project_owner_only'), $name));
         }
         $this->jobs->setProject($job->id, $project->id);
+        $this->reschedule($job->id);
         return ToolResult::ok(sprintf(t('tool.job_manage.into_project'), $job->id, $job->title, $project->name));
+    }
+
+    /** spec: brief/scheduler.md#часовой-пояс-проекта — a job that changed its place counts its next run by the new clock */
+    private function reschedule(int $id): void {
+        $job = $this->jobs->find($id);
+        if ($job === null || $job->byEvent() || $job->status !== Job::ACTIVE) {
+            return;
+        }
+        try {
+            $next = Schedule::parse($job->schedule)->next(new DateTimeImmutable(), $this->scheduler->zoneOf($job), true);
+        } catch (InvalidArgumentException) {
+            return;
+        }
+        if ($next !== null) {
+            $this->jobs->setNext($job->id, $next);
+        }
     }
 
     private function cancel(Job $job): ToolResult {
@@ -189,7 +207,7 @@ final class JobManageTool implements Tool {
         }
         if (!$job->byEvent()) {
             try {
-                $next = Schedule::parse($job->schedule)->next(new DateTimeImmutable(), $this->scheduler->zone($job->principalId));
+                $next = Schedule::parse($job->schedule)->next(new DateTimeImmutable(), $this->scheduler->zoneOf($job));
             } catch (InvalidArgumentException) {
                 $next = null;
             }
@@ -275,7 +293,7 @@ final class JobManageTool implements Tool {
             } catch (InvalidArgumentException $e) {
                 return ToolResult::error($e->getMessage());
             }
-            $next = $schedule->next(new DateTimeImmutable(), $this->scheduler->zone($job->principalId), true);
+            $next = $schedule->next(new DateTimeImmutable(), $this->scheduler->zoneOf($this->jobs->find($job->id) ?? $job), true);
             if ($next === null) {
                 return ToolResult::error(t('tool.job_create.eto_vremya_uzhe_proshlo'));
             }
@@ -403,7 +421,7 @@ final class JobManageTool implements Tool {
             $job->title,
             $when,
             $job->status === Job::ACTIVE ? t('tool.job_manage.vklyucheno') : t('tool.job_manage.na_pauze'),
-            $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zone($job->principalId))->format('Y-m-d H:i'),
+            $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zoneOf($job))->format('Y-m-d H:i T'),
             $job->runs,
         ) . (JobScheduler::destination($job) === '' ? '' : ' · ' . JobScheduler::destination($job));
     }

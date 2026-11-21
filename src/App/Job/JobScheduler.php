@@ -106,11 +106,45 @@ final class JobScheduler implements JobRuns {
         return $this->clock === null || $principalId === null ? $this->zone : $this->clock->zone($principalId);
     }
 
+    /**
+     * The zone a job keeps: its project's, else its participant's.
+     *
+     * spec: brief/scheduler.md#часовой-пояс-проекта
+     * ref: references/hermes-agent/cron/jobs.py@e96221fa:L1815-L1816 (create_job, timezone) — a zone pinning the wall
+     *      clock of a schedule; here the zone belongs to the place of the job, not to the job
+     */
+    public function zoneOf(Job $job): DateTimeZone {
+        return $this->clock === null ? $this->zone : $this->clock->zoneFor($job->principalId, $job->projectId);
+    }
+
+    /** A project's clock changed: its active jobs by a schedule count their next runs by the new one. */
+    public function rescheduleProject(int $projectId): void {
+        foreach ($this->jobs->ofProjects([$projectId]) as $job) {
+            if ($job->byEvent() || $job->status !== Job::ACTIVE) {
+                continue;
+            }
+            try {
+                $next = Schedule::parse($job->schedule)->next(($this->now)(), $this->zoneOf($job), true);
+            } catch (Throwable) {
+                continue;
+            }
+            if ($next !== null) {
+                $this->jobs->setNext($job->id, $next);
+            }
+        }
+    }
+
+    /** Whether a moment falls in the quiet hours of a job's place. */
+    public function quietFor(DateTimeImmutable $at, Job $job): bool {
+        $quiet = $this->clock === null ? $this->quiet : $this->clock->quietFor($job->principalId, $job->projectId);
+        return self::within((int) $at->setTimezone($this->zoneOf($job))->format('G'), $quiet);
+    }
+
     /** One pass: held reports out of the quiet hours, then the due jobs, each in its own fiber. */
     public function tick(bool $wait = false): void {
         $now = ($this->now)();
         foreach ($this->jobs->pendingReports() as $job) {
-            if (!$this->isQuiet($now, $job->principalId)) {
+            if (!$this->quietFor($now, $job)) {
                 if ($this->budget !== null && !$this->budget->take()) {
                     break;
                 }
@@ -126,7 +160,7 @@ final class JobScheduler implements JobRuns {
         $futures = [];
         foreach ($this->jobs->due($now, self::BATCH) as $job) {
             try {
-                $next = Schedule::parse($job->schedule)->next($now, $this->zone($job->principalId));
+                $next = Schedule::parse($job->schedule)->next($now, $this->zoneOf($job));
             } catch (Throwable) {
                 $this->jobs->setStatus($job->id, Job::PAUSED);
                 continue;
@@ -155,10 +189,10 @@ final class JobScheduler implements JobRuns {
         }
         $hour = match ($schedule->kind) {
             'daily', 'weekly' => preg_match('~(\d{2}):\d{2}$~', $schedule->value, $m) === 1 ? (int) $m[1] : null,
-            'once' => (int) (new DateTimeImmutable($schedule->value))->setTimezone($this->zone($job->principalId))->format('G'),
+            'once' => (int) (new DateTimeImmutable($schedule->value))->setTimezone($this->zoneOf($job))->format('G'),
             default => null,
         };
-        return $hour !== null && $this->quietHour($hour, $job->principalId);
+        return $hour !== null && self::within($hour, $this->clock === null ? $this->quiet : $this->clock->quietFor($job->principalId, $job->projectId));
     }
 
     /**
@@ -176,7 +210,11 @@ final class JobScheduler implements JobRuns {
     }
 
     private function quietHour(int $hour, ?int $principalId): bool {
-        $quiet = $this->clock === null || $principalId === null ? $this->quiet : $this->clock->quiet($principalId);
+        return self::within($hour, $this->clock === null || $principalId === null ? $this->quiet : $this->clock->quiet($principalId));
+    }
+
+    /** @param array{int, int}|null $quiet */
+    private static function within(int $hour, ?array $quiet): bool {
         if ($quiet === null) {
             return false;
         }
@@ -295,7 +333,7 @@ final class JobScheduler implements JobRuns {
         // quiet hours or not: the owner asked for it at that time
         $asked = isset($this->askedNow[$job->id]);
         unset($this->askedNow[$job->id]);
-        $quiet = !$asked && $this->isQuiet(($this->now)(), $job->principalId) && !$this->namedQuietHour($job);
+        $quiet = !$asked && $this->quietFor(($this->now)(), $job) && !$this->namedQuietHour($job);
         $held = $quiet || ($this->budget !== null && !$this->budget->take());
         $this->jobs->finish($job->id, mb_substr($text, 0, 2000), $held ? $report : null);
         if ($held) {
@@ -435,7 +473,7 @@ final class JobScheduler implements JobRuns {
             $event === null || $source !== 'webhook' ? t('job.job_scheduler.po_raspisaniyu') : t('job.job_scheduler.po_sobytiyu'),
             $job->title,
             $number,
-            ($this->now)()->setTimezone($this->zone($job->principalId))->format('Y-m-d H:i T'),
+            ($this->now)()->setTimezone($this->zoneOf($job))->format('Y-m-d H:i T'),
             $job->lastResult === null ? '' : t('job.job_scheduler.itog_proshlogo_zapuska') . $job->lastResult,
             $job->prompt,
             $event === null ? '' : t($source === 'webhook' ? 'job.job_scheduler.sobytie_prishlo_izvne_eto_dannye' : 'job.job_scheduler.watch_changed') . UntrustedWrapper::wrap($source, $event),

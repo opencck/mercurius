@@ -38,10 +38,23 @@ final class ProjectContext {
         $this->jobs = $jobs;
     }
 
-    /** The folder of the project in the sandbox and its jobs by a schedule. */
+    private ?\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs = null;
+
+    /** spec: brief/scheduler.md#часовой-пояс-проекта — a project's own clock is named in its block */
+    public function usePrefs(\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs): void {
+        $this->prefs = $prefs;
+    }
+
+    /** The folder of the project in the sandbox, its own clock and its jobs by a schedule. */
     public function extras(Project $project): string {
         $lines = $this->jobs === null ? [] : ($this->jobs)($project->id);
-        return sprintf(t('agent.project_context.folder'), $project->id)
+        $prefs = $this->prefs?->get($project->id) ?? ['timezone' => null, 'quiet' => null];
+        $clock = $prefs['timezone'] === null && $prefs['quiet'] === null ? '' : "\n" . sprintf(
+            t('agent.project_context.clock'),
+            $prefs['timezone'] ?? '—',
+            $prefs['quiet'] === null ? '—' : ($prefs['quiet'] === '' ? t('agent.project_context.no_quiet') : $prefs['quiet']),
+        );
+        return sprintf(t('agent.project_context.folder'), $project->id) . $clock
             . ($lines === [] ? '' : "\n\n" . t('agent.project_context.jobs') . implode("\n", $lines));
     }
 

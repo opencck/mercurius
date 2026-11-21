@@ -148,6 +148,13 @@ final class JobCreateTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall,
         $job = $this->jobs->create($context->principal->id, $meta->channel, $meta->chatId, $title, $prompt, (string) $schedule, $first, $origin, $meta->threadId);
         if ($projectId !== null) {
             $this->jobs->setProject($job->id, $projectId);
+            // spec: brief/scheduler.md#часовой-пояс-проекта — a job of a project keeps the project's clock
+            $placed = $this->jobs->find($job->id) ?? $job;
+            $first = $first === null ? null : ($schedule->next(new DateTimeImmutable(), $this->scheduler->zoneOf($placed), true) ?? $first);
+            if ($first !== null) {
+                $this->jobs->setNext($job->id, $first);
+            }
+            $job = $placed;
         }
         if ($carded) {
             // the owner of the agent saw the job on the card: its runs are not marked, saved grants apply in them
@@ -165,7 +172,7 @@ final class JobCreateTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall,
             $job->id,
             $job->title,
             $schedule->describe(),
-            $first->setTimezone($this->scheduler->zone($context->principal->id))->format('Y-m-d H:i T'),
+            $first->setTimezone($this->scheduler->zoneOf($job))->format('Y-m-d H:i T'),
         ));
     }
 }
