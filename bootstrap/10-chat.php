@@ -71,6 +71,10 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresImprovementRepository $improvementRepository
  * @var OpenCCK\Infrastructure\Repository\PostgresJobRepository $jobRepository
  * @var OpenCCK\App\Job\JobScheduler $jobScheduler
+ * @var OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository $projectPolicyStore
+ * @var OpenCCK\Infrastructure\Repository\PostgresProjectPrefRepository $projectPrefs
+ * @var OpenCCK\App\Service\ProjectPolicies $projectPolicies
+ * @var OpenCCK\Infrastructure\Repository\PostgresProjectLinkRepository $projectLinks
  * @var OpenCCK\Infrastructure\Llm\ProviderRouter $llm
  * @var OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository $llmCalls
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
@@ -334,6 +338,32 @@ $serverCommands->useProjects($projectRepository);
 // spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);
+// spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves to another instance as a sealed file
+$chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
+    new \OpenCCK\App\Export\ProjectArchive(
+        $projectRepository,
+        $projectPolicyStore,
+        $projectPrefs,
+        $approvalStore,
+        $jobRepository,
+        $principals,
+        PATH_ROOT . '/storage/app/exports',
+        $sandbox,
+        static function (int $id) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principals->find($id);
+            return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+        },
+        new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db),
+        $vault,
+        $projectLinks,
+        $projectPolicies,
+        $jobScheduler,
+    ),
+    $projectRepository,
+    $channel,
+    $logger,
+    PATH_ROOT . '/storage/app/import',
+));
 // spec: brief/participants.md#свои-роли — a holder of reports does not see the private chats of others
 $chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($runs, $conversations): bool {
     $run = $runs->find($runId);

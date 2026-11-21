@@ -16,6 +16,18 @@ final class InMemoryProjectLinkRepository implements ProjectLinkRepository {
         $this->subscriptions[$projectId . ':' . $principalId] = true;
     }
 
+    public function subscribers(int $projectId): array {
+        $ids = [];
+        foreach (array_keys($this->subscriptions) as $key) {
+            [$project, $principal] = array_map('intval', explode(':', $key));
+            if ($project === $projectId) {
+                $ids[] = $principal;
+            }
+        }
+        sort($ids);
+        return $ids;
+    }
+
     public function unsubscribe(int $projectId, int $principalId): bool {
         $had = isset($this->subscriptions[$projectId . ':' . $principalId]);
         unset($this->subscriptions[$projectId . ':' . $principalId]);

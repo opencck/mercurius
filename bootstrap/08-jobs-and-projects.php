@@ -166,8 +166,9 @@ $projectEditTool = new ProjectEditTool($projectRepository, $conversations, $foru
 $projectEditTool->useChannels($projectChannels);
 $tools->register($projectEditTool);
 // spec: brief/participants.md#права-проекта — a run in a project works with the project's rights, never above its owner's
+$projectPolicyStore = new \OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository($db);
 $projectPolicies = new \OpenCCK\App\Service\ProjectPolicies(
-    new \OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository($db),
+    $projectPolicyStore,
     $projectRepository,
     $principals,
     $policies,

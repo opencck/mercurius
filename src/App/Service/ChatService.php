@@ -148,6 +148,11 @@ final class ChatService implements MessageHandler {
     }
 
     private ?\OpenCCK\App\Agent\BanList $bans = null;
+    private ?\OpenCCK\App\Export\ProjectArchiveCommands $projectArchives = null;
+
+    public function useProjectArchives(\OpenCCK\App\Export\ProjectArchiveCommands $archives): void {
+        $this->projectArchives = $archives;
+    }
 
     public function useBans(\OpenCCK\App\Agent\BanList $bans): void {
         $this->bans = $bans;
@@ -442,6 +447,22 @@ final class ChatService implements MessageHandler {
                 $command === '/server' => $this->servers->server(substr($text, strlen($command))),
                 default => $this->servers->audit(),
             });
+            return;
+        }
+        // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves as a sealed file; its password leaves the chat
+        $sub = strtolower(explode(' ', trim(substr($text, strlen($command))), 2)[0]);
+        if ($command === '/project' && in_array($sub, ['export', 'import'], true) && $this->projectArchives !== null) {
+            $argument = trim(substr(trim(substr($text, strlen($command))), strlen($sub)));
+            if (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } elseif ($sub === 'export') {
+                $this->reply($message, $this->projectArchives->export($principal, $message->chatId, $argument));
+            } else {
+                $this->reply($message, $this->projectArchives->import($principal, $message->chatId, $argument, $message->attachments[0] ?? $message->repliedAttachments[0] ?? null));
+            }
+            if ($argument !== '' && !$this->deleteOnce($message)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
             return;
         }
         if (in_array($command, ['/project', '/projects'], true) && $this->projects !== null) {

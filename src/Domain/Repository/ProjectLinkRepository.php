@@ -20,6 +20,9 @@ interface ProjectLinkRepository {
     /** @return list<int> the projects the participant listens to */
     public function subscriptionsOf(int $principalId): array;
 
+    /** @return list<int> the participants that listen to the project */
+    public function subscribers(int $projectId): array;
+
     /** Gives a secret to a project for requests to one host; a secret belongs to one project at a time. */
     public function bindSecret(int $secretId, int $projectId, string $host): void;
 

@@ -14,6 +14,17 @@ final class PostgresProjectLinkRepository implements ProjectLinkRepository {
         $this->db->execute('INSERT INTO project_subscriptions (project_id, principal_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [$projectId, $principalId]);
     }
 
+    public function subscribers(int $projectId): array {
+        $ids = [];
+        foreach ($this->db->execute('SELECT principal_id FROM project_subscriptions WHERE project_id = ? ORDER BY principal_id', [$projectId]) as $row) {
+            $id = $row['principal_id'] ?? null;
+            if (is_int($id)) {
+                $ids[] = $id;
+            }
+        }
+        return $ids;
+    }
+
     public function unsubscribe(int $projectId, int $principalId): bool {
         return $this->db->execute('DELETE FROM project_subscriptions WHERE project_id = ? AND principal_id = ? RETURNING project_id', [$projectId, $principalId])->fetchRow() !== null;
     }
