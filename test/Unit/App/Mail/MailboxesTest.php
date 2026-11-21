@@ -180,6 +180,24 @@ final class MailboxesTest extends AsyncTestCase {
         }
     }
 
+    public function testInAProjectAMailboxOfAnotherParticipantNotGivenToItIsNotThere(): void {
+        // spec: brief/skills-mcp.md#ящики-участников-и-проектов — the mailboxes of the project and one's own, nobody else's
+        $this->project = new Project(3, 'Job Hunt', '', Project::ACTIVE, '', 0);
+        $this->levels[$this->mailer->id] = 'write';
+        $given = $this->mailboxes->add($this->owner, 'jobs', 'imap.example.net', 'jobs@example.net', 'owner-pass');
+        $this->mailboxes->toProject($this->owner, 'jobs', $this->project);
+        $kept = $this->mailboxes->add($this->owner, 'private', 'imap.example.net', 'me@example.net', 'owner-pass');
+        $own = $this->mailboxes->add($this->mailer, 'work', 'imap.example.com', 'me@example.com', 'mail-pass');
+
+        self::assertSame($given->id, self::id($this->mailboxes->pick($this->mailer, 1, 'jobs')), 'given to the project');
+        self::assertSame($own->id, self::id($this->mailboxes->pick($this->mailer, 1, 'work')), 'their own, for their own runs');
+        self::assertIsString($this->mailboxes->pick($this->mailer, 1, 'private'), 'the owner\'s mailbox not given to the project');
+        self::assertNull($this->mailboxes->usable($this->mailer, 1, $kept->id));
+        $unknown = $this->mailboxes->pick($this->mailer, 1, 'nothing');
+        self::assertIsString($unknown);
+        self::assertStringNotContainsString('private', $unknown, 'not even named in the list');
+    }
+
     /** @return list<array{headers: array<string, string>, tool: string, args: array<string, mixed>}> what reached the mail server */
     private function sentCalls(): array {
         return $this->sent;
