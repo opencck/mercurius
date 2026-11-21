@@ -38,6 +38,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
+ * @var OpenCCK\App\Service\RoleCatalog $roleCatalog
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  * @var OpenCCK\App\Vault\Vault $vault
@@ -158,6 +159,24 @@ $projectEditTool = new ProjectEditTool($projectRepository, $conversations, $foru
 $projectEditTool->useChannels($projectChannels);
 $projectEditTool->useSecrets($vault, $projectLinks);
 $tools->register($projectEditTool);
+// spec: brief/participants.md#права-проекта — a run in a project works with the project's rights, never above its owner's
+$projectPolicies = new \OpenCCK\App\Service\ProjectPolicies(
+    new \OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository($db),
+    $projectRepository,
+    $principals,
+    $policies,
+    static fn(\OpenCCK\Domain\Agent\ParticipantPolicy $policy): array => $tools->names($policy),
+    $logger,
+    $participantInbox,
+);
+$projectEditTool->useRights($projectPolicies);
+$scheduler->useProjectPolicies($projectPolicies);
+$jobScheduler->useProjectPolicies($projectPolicies);
+$projectTransfers->usePolicies($projectPolicies);
+$policies->onChange($projectPolicies->reconcileAll(...));
+$roleCatalog->onChange($policies->changed(...));
+// the owner's limits come from the environment: a change there reaches the projects at the start
+$projectPolicies->reconcileAll();
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool($channel, $conversations));
 $channelRepository = new \OpenCCK\Infrastructure\Repository\PostgresChannelRepository($db);
 $channelRegistry = new \OpenCCK\App\Service\ChannelRegistry($channelRepository, $channel, $ownerDirectory, $logger);

@@ -224,7 +224,7 @@ final class JobScheduler implements JobRuns {
         $number = (int) $m[2];
         async(function () use ($job, $principal, $run, $number): void {
             try {
-                $text = $this->complete($job, $number, $this->loop->run($run, $this->policy($principal, $job), $principal, new SilentObserver(), new NullCancellation()));
+                $text = $this->complete($job, $number, $this->loop->run($run, $this->policy($principal, $job, $this->projectOf($job)), $principal, new SilentObserver(), new NullCancellation()));
             } catch (Throwable $e) {
                 $this->logger->error('Job run failed', ['job' => $job->id, 'error' => $e::class]);
                 $text = t('job.job_scheduler.zapusk_ne_udalsya_vnutrennyaya_oshibka');
@@ -391,9 +391,16 @@ final class JobScheduler implements JobRuns {
         return $this->principals->find($job->principalId) ?? throw new \RuntimeException('principal is gone');
     }
 
+    private ?\OpenCCK\App\Service\ProjectPolicies $projectPolicies = null;
+
+    /** spec: brief/participants.md#права-проекта — a job of a project runs with the project's rights */
+    public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $policies): void {
+        $this->projectPolicies = $policies;
+    }
+
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
-    private function policy(Principal $principal, Job $job): ParticipantPolicy {
-        $owner = $this->policies->forPrincipal($principal);
+    private function policy(Principal $principal, Job $job, ?\OpenCCK\Domain\Project\Project $project = null): ParticipantPolicy {
+        $owner = $project !== null && $this->projectPolicies !== null ? $this->projectPolicies->of($project) : $this->policies->forPrincipal($principal);
         $tools = array_values(array_diff($this->registry->names($owner), self::JOB_TOOLS));
         if ($job->title === 'self-review') {
             $tools = array_values(array_intersect($tools, self::SELF_REVIEW_TOOLS));
@@ -405,7 +412,7 @@ final class JobScheduler implements JobRuns {
     private function execute(Job $job, int $number, ?string $event, string $source = 'webhook'): ?string {
         $project = $this->projectOf($job);
         $principal = $this->runnerOf($job, $project);
-        $policy = $this->policy($principal, $job);
+        $policy = $this->policy($principal, $job, $project);
         $chat = sprintf('job-%d-%d', $job->id, $number);
         $conversation = $this->conversations->openConversation($principal->id, self::CHANNEL, $chat);
         $block = '';

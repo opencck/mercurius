@@ -30,13 +30,15 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'share_secret', 'unshare_secret', 'rights', 'grant_tool', 'revoke_tool', 'set_limit'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
         'relation' => ProjectLevel::Read, 'activate' => ProjectLevel::Read, 'members' => ProjectLevel::Read,
         'share' => ProjectLevel::Full, 'unshare' => ProjectLevel::Read, 'transfer' => ProjectLevel::Owner,
         'share_secret' => ProjectLevel::Full, 'unshare_secret' => ProjectLevel::Full,
+        // spec: brief/participants.md#права-проекта — members see the rights, only the owner of the project changes them
+        'rights' => ProjectLevel::Read, 'grant_tool' => ProjectLevel::Owner, 'revoke_tool' => ProjectLevel::Owner, 'set_limit' => ProjectLevel::Owner,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -54,6 +56,43 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     ) {}
 
     private ?\OpenCCK\App\Peer\ProjectChannels $channels = null;
+    private ?\OpenCCK\App\Service\ProjectPolicies $rights = null;
+
+    /** spec: brief/participants.md#права-проекта */
+    public function useRights(\OpenCCK\App\Service\ProjectPolicies $rights): void {
+        $this->rights = $rights;
+    }
+
+    /**
+     * The project's rights: seen by its members, changed by its owner within the owner's own.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function rights(Project $project, string $action, array $args): ToolResult {
+        if ($this->rights === null) {
+            return ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action);
+        }
+        $tool = trim(Args::string($args, 'tool') ?? '');
+        try {
+            if ($action === 'grant_tool' || $action === 'revoke_tool') {
+                if ($tool === '') {
+                    return ToolResult::error(t('tool.project_edit.needs_tool'));
+                }
+                $action === 'grant_tool' ? $this->rights->grant($project, $tool) : $this->rights->revoke($project, $tool);
+            } elseif ($action === 'set_limit') {
+                $value = $args['value'] ?? null;
+                $limit = Args::string($args, 'limit') ?? '';
+                if (!is_int($value) && !is_float($value)) {
+                    return ToolResult::error(t('tool.project_edit.needs_limit'));
+                }
+                // limits other than the daily spend are whole numbers
+                $this->rights->limit($project, $limit, $limit === 'daily_spend_usd' ? (float) $value : (is_float($value) && floor($value) === $value ? (int) $value : $value));
+            }
+        } catch (\InvalidArgumentException $e) {
+            return ToolResult::error($e->getMessage());
+        }
+        return ToolResult::ok($this->rights->describe($project));
+    }
 
     /** spec: brief/network.md#проект-как-канал-для-агентов — an agent that binds its chat to a project works there from then on */
     public function useChannels(\OpenCCK\App\Peer\ProjectChannels $channels): void {
@@ -69,7 +108,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.rename_about')
             . ' ' . t('tool.project_edit.share_about')
             . ' ' . t('tool.project_edit.transfer_about')
-            . ' ' . t('tool.project_edit.secret_about'), [
+            . ' ' . t('tool.project_edit.secret_about')
+            . ' ' . t('tool.project_edit.rights_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -81,6 +121,9 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'access' => ['type' => 'string', 'enum' => ProjectLevel::GIVEN],
                 'secret' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
                 'site' => ['type' => 'string', 'minLength' => 3, 'maxLength' => 253],
+                'tool' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 128],
+                'limit' => ['type' => 'string', 'enum' => \OpenCCK\App\Service\ProjectPolicies::LIMITS],
+                'value' => ['type' => 'number', 'minimum' => 0],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -168,6 +211,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'transfer' => $this->transfer($project, Args::string($args, 'participant') ?? ''),
             'share_secret' => $this->shareSecret($project, $context, trim(Args::string($args, 'secret') ?? ''), strtolower(trim(Args::string($args, 'site') ?? ''))),
             'unshare_secret' => $this->unshareSecret($project, $context, trim(Args::string($args, 'secret') ?? '')),
+            'rights', 'grant_tool', 'revoke_tool', 'set_limit' => $this->rights($project, $action, $args),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }

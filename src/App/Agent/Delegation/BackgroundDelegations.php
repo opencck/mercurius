@@ -246,7 +246,7 @@ final class BackgroundDelegations {
             $this->close($delegation, Delegation::STOPPED, t('delegation.background_delegations.zapusk_orkestrator_ili_uchastnik_bolshe'));
             return;
         }
-        $context = new ToolContext($orchestrator->id, $delegation->conversationId, $principal, $cancellation, $this->policies->forPrincipal($principal), $delegation->callId);
+        $context = new ToolContext($orchestrator->id, $delegation->conversationId, $principal, $cancellation, $this->scheduler?->policyFor($delegation->conversationId, $principal) ?? $this->policies->forPrincipal($principal), $delegation->callId);
         $tasks = [];
         $existing = [];
         $share = 0;

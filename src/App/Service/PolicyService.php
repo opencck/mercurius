@@ -27,6 +27,25 @@ final class PolicyService {
         private readonly ?\Closure $template = null,
     ) {}
 
+    /** @var list<\Closure(): void> */
+    private array $listeners = [];
+
+    /**
+     * spec: brief/participants.md#права-проекта — whoever depends on a participant's rights hears of a change
+     *
+     * @param \Closure(): void $listener
+     */
+    public function onChange(\Closure $listener): void {
+        $this->listeners[] = $listener;
+    }
+
+    /** Someone's rights changed: a policy, a role or a role's template. */
+    public function changed(): void {
+        foreach ($this->listeners as $listener) {
+            $listener();
+        }
+    }
+
     /** tools that are a power of a role, not only a tool */
     private const POWER_TOOLS = [
         'channel_post' => Power::Publish,
@@ -101,6 +120,7 @@ final class PolicyService {
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
         $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($target->role), $merged), $base)->capTo($this->owner());
         $this->repository->save($target->id, $merged);
+        $this->changed();
         return $policy;
     }
 }

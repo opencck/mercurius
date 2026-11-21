@@ -23,7 +23,25 @@ final class RoleCatalog {
     /** @var array<string, array<string, mixed>> role => policy template */
     private array $templates = [];
 
+    /** @var (\Closure(): void)|null */
+    private ?\Closure $onChange = null;
+
     public function __construct(private readonly RoleRepository $roles) {}
+
+    /**
+     * spec: brief/participants.md#права-проекта — a change of a role's powers or template changes the rights of its holders
+     *
+     * @param \Closure(): void $listener
+     */
+    public function onChange(\Closure $listener): void {
+        $this->onChange = $listener;
+    }
+
+    private function changed(): void {
+        if ($this->onChange !== null) {
+            ($this->onChange)();
+        }
+    }
 
     public function load(): void {
         Role::clear();
@@ -103,6 +121,7 @@ final class RoleCatalog {
         }
         $this->roles->save($name, $title, $position, array_values(array_unique($powers)), $policy);
         $this->load();
+        $this->changed();
         return sprintf(t('roles.changed'), $name);
     }
 

@@ -48,6 +48,11 @@ final class ParticipantPolicy {
         return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd);
     }
 
+    /** The same policy where only calls that read run. */
+    public function readOnlyCopy(): self {
+        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, true, $this->irreversible, $this->dailySpendUsd);
+    }
+
     public function allowsTool(string $name): bool {
         return $this->tools === null || in_array($name, $this->tools, true);
     }

@@ -171,10 +171,35 @@ final class RunScheduler {
         return false;
     }
 
+    private ?\OpenCCK\App\Service\ProjectPolicies $projectPolicies = null;
+
+    /** spec: brief/participants.md#права-проекта — a run in a project's chat, topic or job works with the project's rights */
+    public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $policies): void {
+        $this->projectPolicies = $policies;
+    }
+
+    /** The policy a participant's run in a conversation gets now: for a background delegation after a restart. */
+    public function policyFor(int $conversationId, Principal $principal): ParticipantPolicy {
+        return $this->policyIn($conversationId, $principal);
+    }
+
+    /** The project of the conversation's chat or topic, when project rights apply here. */
+    private function projectAt(?ConversationMeta $meta): ?\OpenCCK\Domain\Project\Project {
+        return $meta === null || $this->projectPolicies === null ? null : $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId);
+    }
+
     private function policyIn(int $conversationId, Principal $principal): ParticipantPolicy {
         $policy = $this->policies->forPrincipal($principal);
-        $speakers = $this->speakers;
         $meta = $this->conversations->meta($conversationId);
+        // spec: brief/participants.md#права-проекта — in a project the project's rights, whoever of its members writes
+        $project = $this->projectAt($meta);
+        $inProject = $project === null ? null : $this->projectPolicies?->forRun($project, $principal);
+        $members = null;
+        if ($inProject !== null) {
+            $policy = $inProject;
+            $members = $project;
+        }
+        $speakers = $this->speakers;
         if ($speakers === null || $meta === null) {
             return $policy;
         }
@@ -189,6 +214,10 @@ final class RunScheduler {
             if ($speaker !== null && $speaker->id === $principal->id) {
                 continue;
             }
+            // a member of the project does not narrow its rights: the owner of the project set them; anyone else does
+            if ($members !== null && $speaker !== null && $speaker->status === \OpenCCK\Domain\Entity\PrincipalStatus::Active && $this->projectPolicies?->forRun($members, $speaker) !== null) {
+                continue;
+            }
             if ($speaker === null || $speaker->status !== \OpenCCK\Domain\Entity\PrincipalStatus::Active) {
                 $visitor ??= $this->policies->visitor();
                 $policy = $policy->narrowedBy($visitor, keepApproval: $principal->isOwner());
@@ -197,6 +226,13 @@ final class RunScheduler {
             $policy = $policy->narrowedBy($this->policies->forPrincipal($speaker), keepApproval: $principal->isOwner());
         }
         return $policy;
+    }
+
+    /** What someone who joins a run brings: the project's rights for its member, their own otherwise. */
+    private function joinerCap(int $conversationId, Principal $principal): ParticipantPolicy {
+        $project = $this->projectAt($this->conversations->meta($conversationId));
+        $inProject = $project === null ? null : $this->projectPolicies?->forRun($project, $principal);
+        return $inProject ?? $this->policies->forPrincipal($principal);
     }
 
     /** Runs of scheduled jobs go on through the job scheduler. */
@@ -308,7 +344,7 @@ final class RunScheduler {
             if ($this->speakers !== null && $principal->id !== $run->principalId) {
                 $starter = $this->principals->find($run->principalId);
                 if ($starter !== null) {
-                    $joined = $this->policyIn($conversationId, $starter)->capTo($this->policies->forPrincipal($principal));
+                    $joined = $this->policyIn($conversationId, $starter)->capTo($this->joinerCap($conversationId, $principal));
                     $this->caps[$run->id] = isset($this->caps[$run->id]) ? $this->caps[$run->id]->capTo($joined) : $joined;
                 }
             }

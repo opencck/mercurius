@@ -150,6 +150,8 @@ final class ParticipantsTool implements Tool {
         if ($decided === null) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
+        // spec: brief/participants.md#права-проекта — a new role may take rights the participant's projects use
+        $this->policies->changed();
         return ToolResult::ok(sprintf(t('tool.participants.decided'), $decided->id, $decided->displayName ?? '', $decided->role->value, $decided->status->value));
     }
 

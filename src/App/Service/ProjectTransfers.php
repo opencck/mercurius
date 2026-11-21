@@ -46,6 +46,13 @@ final class ProjectTransfers implements CallbackHandler {
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
+    private ?ProjectPolicies $policies = null;
+
+    /** spec: brief/participants.md#права-проекта — a project passed on keeps no more rights than its new owner has */
+    public function usePolicies(ProjectPolicies $policies): void {
+        $this->policies = $policies;
+    }
+
     /** The participant an owner id stands for: null is the owner of the agent. */
     private function holder(?int $id): ?Principal {
         return $id === null ? $this->principals->owner() : $this->principals->find($id);
@@ -141,7 +148,11 @@ final class ProjectTransfers implements CallbackHandler {
         $this->projects->settle($transfer->id, ProjectTransfer::ACCEPTED);
         $this->logger->notice('A project passed to a new owner', ['project' => $project->id, 'from' => $transfer->fromId, 'to' => $transfer->toId]);
         $this->notify($from, sprintf(t('service.project_transfers.accepted_notice'), self::name($by), $project->name));
-        return sprintf(t('service.project_transfers.accepted'), $project->name, self::name($from));
+        $accepted = sprintf(t('service.project_transfers.accepted'), $project->name, self::name($from));
+        $moved = $this->projects->find($project->id);
+        $changes = $moved === null || $this->policies === null ? [] : $this->policies->reconcile($moved);
+        return $changes === [] ? $accepted : $accepted . "
+" . sprintf(t('project.policy.narrowed'), $project->name, implode('; ', $changes));
     }
 
     private function notify(?Principal $who, string $text): void {

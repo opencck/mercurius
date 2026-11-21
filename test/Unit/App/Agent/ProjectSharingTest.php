@@ -103,4 +103,31 @@ final class ProjectSharingTest extends AsyncTestCase {
         self::assertFalse($this->edit->execute(['action' => 'deactivate'], $context)->isError);
         self::assertNull($this->projects->active('test', 'chat-' . $this->agent->id));
     }
+
+    public function testOnlyTheOwnerOfAProjectChangesItsRightsAndMembersSeeThem(): void {
+        // spec: brief/participants.md#права-проекта
+        $policies = new \OpenCCK\App\Service\PolicyService(new \OpenCCK\Test\Support\InMemoryPolicyRepository(), new \OpenCCK\Domain\Agent\RunLimits(30, 1_000_000, 900, 120));
+        $policies->update($this->agent, ['tools' => ['read_file', 'web_read']]);
+        $this->edit->useRights(new \OpenCCK\App\Service\ProjectPolicies(
+            new \OpenCCK\Test\Support\InMemoryProjectPolicyRepository(),
+            $this->projects,
+            $this->principals,
+            $policies,
+            static fn(\OpenCCK\Domain\Agent\ParticipantPolicy $p): array => array_values(array_filter(['read_file', 'web_read', 'ssh_run'], $p->allowsTool(...))),
+            new \Psr\Log\NullLogger(),
+        ));
+        $this->edit->execute(['action' => 'create', 'project' => 'Поиск', 'text' => 'работа'], $this->as($this->agent));
+        $this->edit->execute(['action' => 'share', 'project' => 'Поиск', 'participant' => 'Анна', 'access' => 'write'], $this->as($this->agent));
+
+        self::assertTrue($this->edit->execute(['action' => 'revoke_tool', 'project' => 'Поиск', 'tool' => 'web_read'], $this->as($this->user))->isError, 'write does not change the rights');
+        self::assertTrue($this->edit->execute(['action' => 'grant_tool', 'project' => 'Поиск', 'tool' => 'ssh_run'], $this->as($this->agent))->isError, 'not above the owner of the project');
+        $revoked = $this->edit->execute(['action' => 'revoke_tool', 'project' => 'Поиск', 'tool' => 'web_read'], $this->as($this->agent));
+        self::assertFalse($revoked->isError, $revoked->content);
+        self::assertTrue($this->edit->execute(['action' => 'set_limit', 'project' => 'Поиск', 'limit' => 'max_turns', 'value' => 99], $this->as($this->agent))->isError, 'above the owner\'s 30 turns');
+        self::assertFalse($this->edit->execute(['action' => 'set_limit', 'project' => 'Поиск', 'limit' => 'max_turns', 'value' => 10.0], $this->as($this->agent))->isError);
+
+        $seen = $this->edit->execute(['action' => 'rights', 'project' => 'Поиск'], $this->as($this->user))->content;
+        self::assertStringContainsString('Инструменты: read_file.', $seen);
+        self::assertStringContainsString('max_turns=10', $seen);
+    }
 }

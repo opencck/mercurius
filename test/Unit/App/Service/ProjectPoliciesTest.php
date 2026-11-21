@@ -1,0 +1,141 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OpenCCK\Test\Unit\App\Service;
+
+use InvalidArgumentException;
+use OpenCCK\App\Service\PolicyService;
+use OpenCCK\App\Service\ProjectPolicies;
+use OpenCCK\Domain\Agent\ParticipantPolicy;
+use OpenCCK\Domain\Agent\RunLimits;
+use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Domain\Project\Project;
+use OpenCCK\Test\Support\InMemoryPolicyRepository;
+use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryProjectPolicyRepository;
+use OpenCCK\Test\Support\InMemoryProjectRepository;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+
+/**
+ * The rights of a project: never above its owner's, changed only within them, narrowed when the owner loses a right.
+ *
+ * spec: brief/participants.md#права-проекта
+ */
+final class ProjectPoliciesTest extends TestCase {
+    private const TOOLS = ['read_file', 'web_read', 'ssh_run', 'http_request'];
+
+    private InMemoryProjectRepository $projects;
+    private InMemoryPrincipalRepository $principals;
+    private InMemoryProjectPolicyRepository $stored;
+    private PolicyService $policies;
+    private ProjectPolicies $rights;
+    private Principal $alice;
+    private Principal $bob;
+    private Project $project;
+
+    protected function setUp(): void {
+        $this->projects = new InMemoryProjectRepository();
+        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals->ensureOwner('telegram', '42', 'Owner');
+        $this->policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 1_000_000, 900, 120));
+        $this->alice = $this->participant('51', 'Алиса');
+        $this->bob = $this->participant('52', 'Боб');
+        $this->policies->update($this->alice, ['tools' => ['read_file', 'web_read', 'ssh_run'], 'token_budget' => 200_000]);
+        $this->policies->update($this->bob, ['tools' => ['read_file']]);
+        $this->stored = new InMemoryProjectPolicyRepository();
+        $this->rights = new ProjectPolicies(
+            $this->stored,
+            $this->projects,
+            $this->principals,
+            $this->policies,
+            static fn(ParticipantPolicy $p): array => array_values(array_filter(self::TOOLS, $p->allowsTool(...))),
+            new NullLogger(),
+        );
+        $this->project = $this->projects->create('Новости', '', $this->alice->id);
+    }
+
+    private function participant(string $id, string $name): Principal {
+        $visitor = $this->principals->createVisitor('telegram', $id, $name);
+        return $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? throw new \RuntimeException('no participant');
+    }
+
+    public function testANewProjectHasTheRightsOfItsOwner(): void {
+        $policy = $this->rights->of($this->project);
+
+        self::assertSame(['read_file', 'web_read', 'ssh_run'], $policy->tools);
+        self::assertSame(200_000, $policy->run->tokenBudget);
+    }
+
+    public function testAProjectDoesNotGetAToolItsOwnerHasNot(): void {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('http_request');
+
+        $this->rights->grant($this->project, 'http_request');
+    }
+
+    public function testTheOwnerNarrowsTheProjectAndALimitAboveTheirOwnIsRefused(): void {
+        $this->rights->revoke($this->project, 'ssh_run');
+        $this->rights->limit($this->project, 'token_budget', 50_000);
+
+        $policy = $this->rights->of($this->project);
+        self::assertSame(['read_file', 'web_read'], $policy->tools);
+        self::assertSame(50_000, $policy->run->tokenBudget);
+        try {
+            $this->rights->limit($this->project, 'token_budget', 300_000);
+            self::fail('a limit above the owner\'s is refused');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('200000', $e->getMessage());
+        }
+        $this->rights->grant($this->project, 'ssh_run');
+        self::assertContains('ssh_run', $this->rights->of($this->project)->tools ?? []);
+    }
+
+    public function testWhenTheOwnerLosesAToolTheProjectLosesItAndTheLimitGoesDown(): void {
+        $this->rights->limit($this->project, 'token_budget', 150_000);
+        $this->policies->update($this->alice, ['tools' => ['read_file'], 'token_budget' => 100_000]);
+
+        self::assertSame(['read_file'], $this->rights->of($this->project)->tools, 'capped at once, before any reconcile');
+        $changes = $this->rights->reconcile($this->project);
+
+        self::assertCount(2, $changes);
+        self::assertStringContainsString('web_read, ssh_run', $changes[0]);
+        self::assertStringContainsString('150000 → 100000', $changes[1]);
+        self::assertSame(['read_file'], $this->stored->find($this->project->id)['tools'] ?? null, 'the stored rights are narrowed too');
+        self::assertSame([], $this->rights->reconcile($this->project), 'nothing more to narrow');
+        $this->policies->update($this->alice, ['tools' => ['read_file', 'web_read', 'ssh_run']]);
+        self::assertSame(['read_file'], $this->rights->of($this->project)->tools, 'a right the owner gets back does not come back to the project by itself');
+    }
+
+    public function testAMemberWorksWithTheRightsOfTheProjectAndAReaderOnlyReads(): void {
+        $this->projects->share($this->project->id, $this->bob->id, 'write', $this->alice->id);
+        $carol = $this->participant('53', 'Кэрол');
+        $this->projects->share($this->project->id, $carol->id, 'read', $this->alice->id);
+        $stranger = $this->participant('54', 'Дэйв');
+
+        $bob = $this->rights->forRun($this->project, $this->bob);
+        $reader = $this->rights->forRun($this->project, $carol);
+
+        self::assertNotNull($bob);
+        self::assertSame(['read_file', 'web_read', 'ssh_run'], $bob->tools, 'more than Bob has of his own');
+        self::assertFalse($bob->readOnly);
+        self::assertNotNull($reader);
+        self::assertTrue($reader->readOnly);
+        self::assertNull($this->rights->forRun($this->project, $stranger), 'no access — the usual rights');
+    }
+
+    public function testAProjectPassedOnIsNarrowedToItsNewOwner(): void {
+        $this->rights->revoke($this->project, 'ssh_run');
+        $this->projects->setOwner($this->project->id, $this->bob->id);
+        $moved = $this->projects->find($this->project->id);
+        self::assertNotNull($moved);
+
+        $changes = $this->rights->reconcile($moved);
+
+        self::assertSame(['read_file'], $this->rights->of($moved)->tools);
+        self::assertStringContainsString('web_read', implode(' ', $changes));
+    }
+}
