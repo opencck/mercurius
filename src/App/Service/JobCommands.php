@@ -6,7 +6,6 @@ namespace OpenCCK\App\Service;
 
 use DateTimeImmutable;
 use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
-use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Vault\Vault;
@@ -26,7 +25,6 @@ final class JobCommands {
         private readonly JobRepository $jobs,
         private readonly JobScheduler $scheduler,
         private readonly Vault $vault,
-        private readonly DailyDigest $digest,
         private readonly ?string $appUrl,
     ) {}
 
@@ -73,7 +71,4 @@ final class JobCommands {
         );
     }
 
-    public function digest(): string {
-        return $this->digest->text(new DateTimeImmutable()) ?? t('service.job_commands.svodka_pusta_net_srokov_na');
-    }
 }

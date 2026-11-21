@@ -7,10 +7,9 @@ namespace OpenCCK\Domain\Repository;
 use DateTimeImmutable;
 use DomainException;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Project\ProjectTask;
 
 /**
- * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — projects, their tasks, each participant's relation
+ * spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — projects, their tasks, each participant's relation
  *       to a project, and the project a chat works on
  */
 interface ProjectRepository {
@@ -60,7 +59,7 @@ interface ProjectRepository {
      */
     public function setOwner(int $projectId, ?int $ownerId): ?Project;
 
-    /** Whether a project holds nothing yet: no goal, card, skill or task. */
+    /** Whether a project holds nothing yet: no goal, card or skill. */
     public function isEmpty(int $projectId): bool;
 
     /**
@@ -99,23 +98,6 @@ interface ProjectRepository {
      * @throws \DomainException another project of the same owner has that name
      */
     public function rename(int $id, string $name): ?Project;
-
-
-    /** @param array<string, int> $profile */
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask;
-
-    /** Sets the deadline of a task; null removes it. */
-    public function setTaskDue(int $id, ?DateTimeImmutable $dueAt): ?ProjectTask;
-
-    /** @return list<ProjectTask> open tasks of active projects with a deadline by $until, earliest first */
-    public function dueTasks(DateTimeImmutable $until, int $limit): array;
-
-    public function task(int $id): ?ProjectTask;
-
-    public function setTaskStatus(int $id, string $status, ?string $result): ?ProjectTask;
-
-    /** @return list<ProjectTask> open and in progress, oldest first */
-    public function openTasks(int $projectId, int $limit): array;
 
     public function relation(int $projectId, int $principalId): ?string;
 

@@ -19,14 +19,13 @@ use OpenCCK\Domain\Repository\ProjectRepository;
 use function Mercurius\I18n\t;
 
 /**
- * Projects of the owner: the list, or one project with its card, open tasks and the caller's relation to it.
+ * Projects of the owner: the list, or one project with its card, folder, jobs and the caller's relation to it.
  *
- * spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the other projects on request
+ * spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — the other projects on request
  */
 final class ProjectTool implements Tool {
     public const NAME = 'project';
     private const LIST = 30;
-    private const TASKS = 30;
 
     public function __construct(
         private readonly ProjectRepository $projects,
@@ -76,7 +75,6 @@ final class ProjectTool implements Tool {
                     $p->name,
                     ProjectContext::status($p->status),
                     $p->goal === '' ? '' : t('tool.project.tsel') . mb_substr($p->goal, 0, 120),
-                    count($this->projects->openTasks($p->id, 100)),
                     $active?->id === $p->id ? t('tool.project.proekt_etogo_chata') : '',
                 ),
                 $all,
@@ -93,8 +91,6 @@ final class ProjectTool implements Tool {
         if ($relation !== null) {
             $parts[] = t('tool.project.otnoshenie_sobesednika') . $relation;
         }
-        $tasks = $this->projects->openTasks($project->id, self::TASKS);
-        $parts[] = t('tool.project.otkrytye_zadachi') . ($tasks === [] ? t('tool.project.net') : implode("\n", array_map(ProjectContext::task(...), $tasks)));
         if ($this->extras !== null) {
             $parts[] = $this->extras->extras($project);
         }

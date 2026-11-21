@@ -7,7 +7,6 @@ namespace OpenCCK\Test\Unit\App\Job;
 use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
 use DateTimeZone;
-use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Vault\Vault;
@@ -15,7 +14,6 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Test\Support\AgentStack;
-use OpenCCK\Test\Support\InMemoryDigestJournal;
 use OpenCCK\Test\Support\InMemoryJobRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
@@ -24,7 +22,7 @@ use Psr\Log\NullLogger;
 
 use function Amp\delay;
 
-final class HooksAndDigestTest extends AsyncTestCase {
+final class HooksTest extends AsyncTestCase {
     private const SECRET = 'hook-secret-value';
 
     private DateTimeImmutable $now;
@@ -191,80 +189,4 @@ final class HooksAndDigestTest extends AsyncTestCase {
         self::assertSame(5_000, $this->stack->runs->find(1)?->limits->tokenBudget);
     }
 
-    public function testTheDailySummaryComesOnceAtItsTimeAndOnlyWithNews(): void {
-        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
-        $projects = new InMemoryProjectRepository();
-        $journal = new InMemoryDigestJournal();
-        $digest = new DailyDigest($projects, $this->jobs, $journal, $this->scheduler, $this->stack->channel, '42', '09:00', new NullLogger(), fn(): DateTimeImmutable => $this->now);
-
-        self::assertNull($digest->text($this->now), 'nothing to say');
-        $digest->tick();
-        self::assertSame([], $this->stack->channel->texts('send'), 'an empty summary is not sent');
-
-        $home = $projects->create('Дом', '');
-        $projects->addTask($home->id, 'Оплатить свет', null, [], new DateTimeImmutable('2026-11-16 12:00 UTC'));
-        $projects->addTask($home->id, 'Позвонить врачу', null, [], new DateTimeImmutable('2026-11-17 10:00 UTC'));
-        $projects->addTask($home->id, 'Купить билеты', null, [], new DateTimeImmutable('2026-11-18 05:00 UTC'));
-        $projects->addTask($home->id, 'Отпуск', null, [], new DateTimeImmutable('2026-12-20 05:00 UTC'));
-        $this->jobs->create($this->owner->id, 'telegram', '42', 'Бэкап', 'Проверь бэкап', 'daily:15:00', new DateTimeImmutable('2026-11-17 08:00 UTC'));
-        $this->now = new DateTimeImmutable('2026-11-17 04:00 UTC'); // 11:00 Bangkok, a new day for the journal
-        $journal->days = [];
-
-        $digest->tick();
-        $digest->tick();
-
-        self::assertSame(
-            ["🗓 Сводка на 2026-11-17\n\nПросрочено:\n• 16.11 19:00 — #1 Оплатить свет (Дом)\n\nСегодня:\n• 17.11 17:00 — #2 Позвонить врачу (Дом)"
-            . "\n\nЗавтра:\n• 18.11 12:00 — #3 Купить билеты (Дом)\n\nЗадания сегодня:\n15:00 — #1 «Бэкап»"],
-            $this->stack->channel->texts('send'),
-            'once a day',
-        );
-    }
-
-    public function testTheSummarySaysHowLongMemoryProposalsWait(): void {
-        // spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — the queue of memory proposals waiting for the owner
-        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
-        $memory = new \Mercurius\Memory\Infrastructure\InMemoryMemoryStore();
-        $memory->propose('add', null, 'owner', 'кот — Барсик', 'сказал', null, null);
-        $memory->propose('add', null, 'owner', 'пёс — Шарик', 'сказал', null, null);
-        $later = new DateTimeImmutable('+3 days');
-        $digest = new DailyDigest(new InMemoryProjectRepository(), $this->jobs, new InMemoryDigestJournal(), $this->scheduler, $this->stack->channel, '42', '09:00', new NullLogger(), static fn(): DateTimeImmutable => $later);
-        self::assertNull($digest->text($later), 'without the memory nothing to say');
-
-        $digest->useMemory($memory);
-
-        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.daily_digest.memory_waiting'), 2, 3), (string) $digest->text($later));
-    }
-
-    public function testTheSummarySaysWhenTheCommandJournalWasChanged(): void {
-        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the chain of the command journal is checked every day
-        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
-        $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();
-        $record = ['principal' => 1, 'run' => null, 'server' => 'web', 'command' => 'id', 'class' => 'read', 'event' => 'done', 'exit' => 0, 'ms' => 5, 'error' => null];
-        $audit->append($record);
-        $audit->append($record);
-        $digest = new DailyDigest(new InMemoryProjectRepository(), $this->jobs, new InMemoryDigestJournal(), $this->scheduler, $this->stack->channel, '42', '09:00', new NullLogger(), static fn(): DateTimeImmutable => new DateTimeImmutable());
-        $digest->useAudit($audit);
-        self::assertNull($digest->text(new DateTimeImmutable()), 'a whole chain is not news');
-
-        $audit->tamper(0, 'rm -rf /');
-
-        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('job.daily_digest.audit_broken'), 1), (string) $digest->text(new DateTimeImmutable()));
-    }
-
-    public function testTheSummaryWaitsForItsTimeAndTheEndOfQuietHours(): void {
-        $this->scheduler(new ScriptedLlm([]), quiet: [23, 8]);
-        $projects = new InMemoryProjectRepository();
-        $home = $projects->create('Дом', '');
-        $projects->addTask($home->id, 'Счёт', null, [], new DateTimeImmutable('2026-11-17 10:00 UTC'));
-        $journal = new InMemoryDigestJournal();
-        $early = new DailyDigest($projects, $this->jobs, $journal, $this->scheduler, $this->stack->channel, '42', '11:30', new NullLogger(), fn(): DateTimeImmutable => $this->now);
-        $nightly = new DailyDigest($projects, $this->jobs, $journal, $this->scheduler, $this->stack->channel, '42', '06:00', new NullLogger(), fn(): DateTimeImmutable => new DateTimeImmutable('2026-11-16 23:30 UTC'));
-
-        $early->tick(); // 10:00 Bangkok, before 11:30
-        $nightly->tick(); // 06:30 Bangkok, quiet until 08:00
-
-        self::assertSame([], $this->stack->channel->texts('send'));
-        self::assertSame([], $journal->days, 'nothing claimed before the summary can go');
-    }
 }

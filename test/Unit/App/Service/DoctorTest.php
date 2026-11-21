@@ -54,13 +54,12 @@ final class DoctorTest extends AsyncTestCase {
             'APP_URL' => 'https://bot.example',
             'OWNER_TIMEZONE' => 'Mars/Olympus',
             'QUIET_HOURS' => 'ночью',
-            'DIGEST_TIME' => '9 утра',
         ]);
 
         foreach ([
             '❌ Токен бота', '❌ Владелец', '❌ Модели: нужен OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY или AWS_BEARER_TOKEN_BEDROCK',
             '❌ Хранилище секретов: SECRETS_KEY — 32 байта', '❌ Telegram: APP_URL задан, а TELEGRAM_WEBHOOK_SECRET пуст',
-            '❌ Часовой пояс: OWNER_TIMEZONE не распознан', '⚠️ Тихие часы', '⚠️ Сводка',
+            '❌ Часовой пояс: OWNER_TIMEZONE не распознан', '⚠️ Тихие часы',
         ] as $line) {
             self::assertStringContainsString($line, $text);
         }

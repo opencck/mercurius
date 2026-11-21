@@ -95,10 +95,6 @@ $validateSettings = static function (array $env): ?string {
         if ($quiet !== null && preg_match('~^([01]?\d|2[0-3])-([01]?\d|2[0-3])$~', $quiet) !== 1) {
             return 'QUIET_HOURS: «с-до» в часах, например 23-8';
         }
-        $digest = \OpenCCK\Infrastructure\Config\Env::raw($env, 'DIGEST_TIME');
-        if ($digest !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digest) !== 1) {
-            return 'DIGEST_TIME: ЧЧ:ММ, например 09:00';
-        }
     } catch (ConfigException $e) {
         return $e->getMessage();
     } catch (Throwable $e) {

@@ -72,7 +72,6 @@ final class ProjectSharingTest extends AsyncTestCase {
 
         $this->edit->execute(['action' => 'share', 'project' => 'Поиск', 'participant' => 'Анна', 'access' => 'write'], $this->as($this->agent));
         self::assertFalse($this->edit->execute(['action' => 'card', 'project' => 'Поиск', 'text' => 'правка'], $this->as($this->user))->isError);
-        self::assertFalse($this->edit->execute(['action' => 'add_task', 'project' => 'Поиск', 'text' => 'задача'], $this->as($this->user))->isError);
         self::assertTrue($this->edit->execute(['action' => 'share', 'project' => 'Поиск', 'participant' => 'owner', 'access' => 'read'], $this->as($this->user))->isError, 'write does not share');
 
         $this->edit->execute(['action' => 'share', 'project' => 'Поиск', 'participant' => 'Анна', 'access' => 'full'], $this->as($this->agent));

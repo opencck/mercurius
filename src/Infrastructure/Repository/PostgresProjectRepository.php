@@ -9,7 +9,6 @@ use Amp\Sql\SqlQueryError;
 use DateTimeImmutable;
 use DomainException;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use UnexpectedValueException;
 
@@ -17,7 +16,6 @@ use function Mercurius\I18n\t;
 
 final class PostgresProjectRepository implements ProjectRepository {
     private const PROJECT = 'id, name, goal, status, card, extract(epoch FROM updated_at)::bigint AS updated, owner_id, skill';
-    private const TASK = 'id, project_id, parent_id, title, status, profile::text AS profile, result, extract(epoch FROM due_at)::bigint AS due';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -91,7 +89,7 @@ final class PostgresProjectRepository implements ProjectRepository {
 
     public function isEmpty(int $projectId): bool {
         $row = $this->db->execute(
-            "SELECT 1 FROM projects p WHERE p.id = ? AND p.goal = '' AND p.card = '' AND p.skill = '' AND NOT EXISTS (SELECT 1 FROM project_tasks t WHERE t.project_id = p.id)",
+            "SELECT 1 FROM projects p WHERE p.id = ? AND p.goal = '' AND p.card = '' AND p.skill = ''",
             [$projectId],
         )->fetchRow();
         return $row !== null;
@@ -171,58 +169,6 @@ final class PostgresProjectRepository implements ProjectRepository {
         return $row === null ? null : self::project($row);
     }
 
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?DateTimeImmutable $dueAt = null): ProjectTask {
-        $row = $this->db->execute(
-            'INSERT INTO project_tasks (project_id, parent_id, title, profile, due_at) VALUES (?, ?, ?, ?::jsonb, to_timestamp(?)) RETURNING ' . self::TASK,
-            [$projectId, $parentId, $title, $profile === [] ? null : json_encode($profile, JSON_THROW_ON_ERROR), $dueAt?->getTimestamp()],
-        )->fetchRow();
-        return self::task_($row ?? throw new UnexpectedValueException('Task was not created'));
-    }
-
-    public function setTaskDue(int $id, ?DateTimeImmutable $dueAt): ?ProjectTask {
-        $row = $this->db->execute('UPDATE project_tasks SET due_at = to_timestamp(?) WHERE id = ? RETURNING ' . self::TASK, [$dueAt?->getTimestamp(), $id])->fetchRow();
-        return $row === null ? null : self::task_($row);
-    }
-
-    public function dueTasks(DateTimeImmutable $until, int $limit): array {
-        $found = [];
-        foreach ($this->db->execute(
-            "SELECT " . self::TASK . " FROM project_tasks
-             WHERE status IN ('open', 'doing') AND due_at <= to_timestamp(?)
-               AND project_id IN (SELECT id FROM projects WHERE status = 'active' AND owner_id IS NULL)
-             ORDER BY due_at, id LIMIT ?",
-            [$until->getTimestamp(), $limit],
-        ) as $row) {
-            $found[] = self::task_($row);
-        }
-        return $found;
-    }
-
-    public function task(int $id): ?ProjectTask {
-        $row = $this->db->execute('SELECT ' . self::TASK . ' FROM project_tasks WHERE id = ?', [$id])->fetchRow();
-        return $row === null ? null : self::task_($row);
-    }
-
-    public function setTaskStatus(int $id, string $status, ?string $result): ?ProjectTask {
-        $row = $this->db->execute(
-            "UPDATE project_tasks SET status = ?, result = coalesce(?, result),
-             closed_at = CASE WHEN ? IN ('done', 'dropped') THEN now() ELSE NULL END WHERE id = ? RETURNING " . self::TASK,
-            [$status, $result, $status, $id],
-        )->fetchRow();
-        return $row === null ? null : self::task_($row);
-    }
-
-    public function openTasks(int $projectId, int $limit): array {
-        $found = [];
-        foreach ($this->db->execute(
-            "SELECT " . self::TASK . " FROM project_tasks WHERE project_id = ? AND status IN ('open', 'doing') ORDER BY id LIMIT ?",
-            [$projectId, $limit],
-        ) as $row) {
-            $found[] = self::task_($row);
-        }
-        return $found;
-    }
-
     public function relation(int $projectId, int $principalId): ?string {
         $row = $this->db->execute('SELECT text FROM project_relations WHERE project_id = ? AND principal_id = ?', [$projectId, $principalId])->fetchRow();
         $text = $row['text'] ?? null;
@@ -270,32 +216,6 @@ final class PostgresProjectRepository implements ProjectRepository {
     /** @param array<string, mixed> $row */
     private static function project(array $row): Project {
         return new Project(self::int($row, 'id'), self::str($row, 'name'), self::str($row, 'goal'), self::str($row, 'status'), self::str($row, 'card'), self::int($row, 'updated'), isset($row['owner_id']) && is_int($row['owner_id']) ? $row['owner_id'] : null, self::str($row, 'skill'));
-    }
-
-    /** @param array<string, mixed> $row */
-    private static function task_(array $row): ProjectTask {
-        $profile = [];
-        if (isset($row['profile']) && is_string($row['profile'])) {
-            /** @var mixed $decoded */
-            $decoded = json_decode($row['profile'], true, 4, JSON_THROW_ON_ERROR);
-            if (is_array($decoded)) {
-                foreach (array_keys($decoded) as $axis) {
-                    if (is_string($axis) && isset($decoded[$axis]) && is_int($decoded[$axis])) {
-                        $profile[$axis] = $decoded[$axis];
-                    }
-                }
-            }
-        }
-        return new ProjectTask(
-            self::int($row, 'id'),
-            self::int($row, 'project_id'),
-            isset($row['parent_id']) && is_int($row['parent_id']) ? $row['parent_id'] : null,
-            self::str($row, 'title'),
-            self::str($row, 'status'),
-            $profile,
-            isset($row['result']) && is_string($row['result']) ? $row['result'] : null,
-            isset($row['due']) && is_int($row['due']) ? new DateTimeImmutable('@' . $row['due']) : null,
-        );
     }
 
     /** @param array<string, mixed> $row */

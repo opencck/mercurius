@@ -19,7 +19,7 @@ declare(strict_types=1);
  *   07  servers, skills, MCP   SSH with the command policy, skills, MCP servers, the built-in mail
  *   08  jobs and projects      jobs by schedule and by event, self-improvement, groups, forum topics, channels
  *   09  peers                  the agent network over A2A: keys, client and server, connections, unknown agents
- *   10  chat                   the digest, visitors and groups, chat commands, the evaluation gate, export and import
+ *   10  chat                   visitors and groups, chat commands, the evaluation gate, export and import
  *   11  http                   routes: the Telegram webhook, A2A, the WebSocket API, job hooks, metrics, health
  *
  * spec: brief/architecture.md#устройство-приложения-на-opencck
@@ -58,7 +58,7 @@ require __DIR__ . '/07-servers-skills-mcp.php';
 require __DIR__ . '/08-jobs-and-projects.php';
 // 09 — the agent network over A2A
 require __DIR__ . '/09-peers.php';
-// 10 — the digest, visitors and groups, chat commands, the evaluation gate, export and import, Telegram updates
+// 10 — visitors and groups, chat commands, the evaluation gate, export and import, Telegram updates
 require __DIR__ . '/10-chat.php';
 // 11 — HTTP routes and health
 require __DIR__ . '/11-http.php';
@@ -74,7 +74,6 @@ require __DIR__ . '/11-http.php';
  * @var OpenCCK\Infrastructure\Config\Config $config
  * @var Mercurius\Memory\App\Consolidation $consolidation
  * @var Mercurius\Memory\Infrastructure\PostgresConsolidationJournal $consolidationJournal
- * @var OpenCCK\App\Job\DailyDigest $dailyDigest
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var Mercurius\Messenger\Deduplicator $deduplicator
  * @var OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository $deliveryRepository
@@ -108,7 +107,7 @@ require __DIR__ . '/11-http.php';
     ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger(), toolReliable: $toolReliableSources))
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger(), $consolidationJournal, $lossGuard, $sleeps))
-    ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger(), $dailyDigest))
+    ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger()))
     ->addHandler(fn(App $app): \OpenCCK\Infrastructure\Module\PeerModule => new \OpenCCK\Infrastructure\Module\PeerModule($peerNetwork, $a2aServer, $app->getLogger()))
     ->addHandler(fn(App $app): TelegramModule => new TelegramModule(
         $telegramApi,

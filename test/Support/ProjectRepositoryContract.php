@@ -7,7 +7,6 @@ namespace OpenCCK\Test\Support;
 use Amp\PHPUnit\AsyncTestCase;
 use DomainException;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
 /**
@@ -44,20 +43,6 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         $this->projects->create('альфа', '');
 
         self::assertSame(['альфа', 'Бета', 'Архив'], array_map(static fn(Project $p): string => $p->name, $this->projects->all(10)));
-    }
-
-    public function testTasksOpenCloseAndNest(): void {
-        $project = $this->projects->create('Меркурий', '');
-        $parent = $this->projects->addTask($project->id, 'Память', null, ['reasoning' => 6]);
-        $child = $this->projects->addTask($project->id, 'HRR', $parent->id, []);
-        $this->projects->addTask($project->id, 'Сеть', null, []);
-
-        $this->projects->setTaskStatus($child->id, ProjectTask::DONE, 'Замер записан');
-        $closed = $this->projects->task($child->id);
-
-        self::assertSame([$parent->id, ProjectTask::DONE, 'Замер записан'], [$closed?->parentId, $closed?->status, $closed?->result]);
-        self::assertSame(['Память', 'Сеть'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks($project->id, 10)));
-        self::assertSame(['reasoning' => 6], $this->projects->task($parent->id)?->profile);
     }
 
     public function testEachOwnerHasTheirOwnProjectsAndTheAgentOwnerSeesAll(): void {
@@ -130,25 +115,6 @@ abstract class ProjectRepositoryContract extends AsyncTestCase {
         self::assertTrue($this->projects->settle($offer->id, 'accepted'));
         self::assertFalse($this->projects->settle($offer->id, 'declined'), 'settled once');
         self::assertSame([], $this->projects->offersTo(null));
-    }
-
-    public function testDeadlinesOfOpenTasksInActiveProjectsComeEarliestFirst(): void {
-        $project = $this->projects->create('Дом', '');
-        $paused = $this->projects->create('Архив', '');
-        $this->projects->update($paused->id, null, Project::PAUSED, null);
-        $late = $this->projects->addTask($project->id, 'Налог', null, [], new \DateTimeImmutable('2026-11-20 10:00 UTC'));
-        $soon = $this->projects->addTask($project->id, 'Счёт', null, [], new \DateTimeImmutable('2026-11-18 09:00 UTC'));
-        $done = $this->projects->addTask($project->id, 'Готово', null, [], new \DateTimeImmutable('2026-11-17 09:00 UTC'));
-        $this->projects->setTaskStatus($done->id, ProjectTask::DONE, 'сделано');
-        $this->projects->addTask($paused->id, 'На паузе', null, [], new \DateTimeImmutable('2026-11-17 09:00 UTC'));
-        $this->projects->addTask($project->id, 'Без срока', null, []);
-
-        self::assertSame([$soon->id, $late->id], array_map(static fn(ProjectTask $t): int => $t->id, $this->projects->dueTasks(new \DateTimeImmutable('2026-11-30 UTC'), 10)));
-        self::assertEquals(new \DateTimeImmutable('2026-11-18 09:00 UTC'), $this->projects->task($soon->id)?->dueAt);
-
-        $this->projects->setTaskDue($soon->id, null);
-        self::assertSame([$late->id], array_map(static fn(ProjectTask $t): int => $t->id, $this->projects->dueTasks(new \DateTimeImmutable('2026-11-30 UTC'), 10)));
-        self::assertSame([], $this->projects->dueTasks(new \DateTimeImmutable('2026-11-19 UTC'), 10));
     }
 
     public function testRelationsAreKeptPerParticipant(): void {

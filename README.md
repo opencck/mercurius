@@ -16,7 +16,7 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - **Servers:** a vault of secrets, a registry of servers, SSH with a command policy and a log, routes through VLESS.
 - **Internet:** web search through SearXNG, Brave, Tavily or a model with web search; reading pages and documents; a browser in its own container.
 - **Skills and MCP:** a skill catalog with versions and the owner's approval; ordinary `SKILL.md` skills of other agents imported from GitHub or an archive with their files; MCP servers over HTTP with tool filters and a circuit breaker; built-in mail (IMAP/SMTP) as an MCP server.
-- **Scheduler and projects:** jobs by a schedule or a signed webhook, quiet hours, a daily digest; projects with tasks and deadlines.
+- **Scheduler and projects:** jobs by a schedule or a signed webhook, quiet hours; projects with a card, a folder, skills and jobs.
 - **Groups:** work in groups the owner approves (on mention or freely); a forum where each topic is a project; posts in a channel through the owner's card.
 - **Delegation:** worker agents with a clean context and their own rights (read or write), a model per part, a verifier for costly parts, background work.
 - **Agent network:** Mercurius instances give each other tasks over A2A, known by their keys: a call that waits for the answer, parts given to several neighbours and merged, cancelling, deadlines, the spend carried along the chain.

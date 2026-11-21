@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * The daily digest, visitors and groups, the chat commands, the evaluation gate, export and import, Telegram updates.
+ * Visitors and groups, the chat commands, the evaluation gate, export and import, Telegram updates.
  *
  * A part of the start of the agent: bootstrap/index.php includes the parts in order, in one scope. A part reads what the parts
  * before it made and leaves what it makes to the parts after it.
@@ -21,7 +21,6 @@ use OpenCCK\App\Agent\Tool\Memory\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\Memory\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
 use OpenCCK\App\Agent\Tool\Memory\MemorySearchTool;
-use OpenCCK\App\Job\DailyDigest;
 use OpenCCK\App\Service\AccessService;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\JobCommands;
@@ -34,7 +33,6 @@ use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Infrastructure\Http\HttpClients;
-use OpenCCK\Infrastructure\Repository\PostgresDigestJournal;
 use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
 use Mercurius\Memory\App\Proposals;
@@ -62,7 +60,6 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\App\Agent\MemoryRulesNotice|null $rulesNotice
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
  * @var Amp\Postgres\PostgresConnectionPool $db
- * @var non-falsy-string|null $digestTime
  * @var OpenCCK\Infrastructure\Media\DocsService $docsService
  * @var OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository $evalScores
  * @var OpenCCK\Infrastructure\Repository\PostgresExperienceRepository $experience
@@ -121,10 +118,6 @@ use Mercurius\Memory\App\Proposals;
  * @var non-empty-string $version
  */
 
-$dailyDigest = new DailyDigest($projectRepository, $jobRepository, new PostgresDigestJournal($db), $jobScheduler, $channel, $ownerDirectory, $digestTime, $logger);
-// spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — the summary counts the memory proposals waiting for the owner
-$dailyDigest->useMemory($memoryStore);
-$dailyDigest->useAudit($commandAudit);
 $tools->register(new MemorySearchTool($recall, $audience));
 $tools->register(new \OpenCCK\App\Agent\Tool\Memory\MemoryFeedbackTool($memoryStore, $audience));
 // spec: brief/memory.md#словари — the agent fills the owner's table of words that mean one thing
@@ -197,7 +190,7 @@ $chat = new ChatService(
     new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
     new McpCommands($mcpManager, $mcpServers),
-    new JobCommands($jobRepository, $jobScheduler, $vault, $dailyDigest, $config->appUrl),
+    new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
     // spec: brief/operations.md#как-сделано-поставка — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...)),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),

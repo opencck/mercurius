@@ -16,7 +16,6 @@ use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
@@ -66,58 +65,36 @@ final class ProjectsTest extends AsyncTestCase {
         foreach (['create', 'goal', 'status', 'relation'] as $action) {
             self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => $action]), $action);
         }
-        foreach (['card', 'add_task', 'task_status', 'task_due', 'activate'] as $action) {
+        foreach (['card', 'activate'] as $action) {
             self::assertSame(DangerClass::Write, $tool->danger(['action' => $action]), $action);
         }
     }
 
-    public function testTheAgentKeepsTheCardAndTasksOfTheChatsProject(): void {
+    public function testTheAgentKeepsTheCardOfTheChatsProjectAndHasNoTasks(): void {
+        // spec: brief/scheduler.md#как-сделано-задания-по-событию-и-проекты — tasks of a project are gone: a skill keeps them if needed
         $this->edit(['action' => 'create', 'project' => 'Меркурий', 'text' => 'Агент на сервере']);
         $this->edit(['action' => 'activate', 'project' => 'Меркурий']);
 
         self::assertFalse($this->edit(['action' => 'card', 'text' => 'PHP 8.2, AMPHP, PostgreSQL'])->isError);
-        self::assertStringContainsString('Задача #1', $this->edit(['action' => 'add_task', 'text' => 'Память', 'profile' => ['reasoning' => 6]])->content);
-        $this->edit(['action' => 'add_task', 'text' => 'HRR', 'parent_id' => 1]);
-        self::assertTrue($this->edit(['action' => 'task_status', 'task_id' => 2, 'status' => 'done'])->isError, 'a closed task needs a result');
-        self::assertFalse($this->edit(['action' => 'task_status', 'task_id' => 2, 'status' => 'done', 'text' => 'замер записан'])->isError);
+        self::assertTrue($this->edit(['action' => 'add_task', 'text' => 'Память'])->isError, 'there is no such action');
 
         $project = $this->projects->byName('меркурий');
         self::assertNotNull($project);
         self::assertSame('PHP 8.2, AMPHP, PostgreSQL', $project->card);
-        self::assertSame(['reasoning' => 6], $this->projects->task(1)?->profile);
-        self::assertSame(ProjectTask::DONE, $this->projects->task(2)?->status);
-        self::assertSame(['Память'], array_map(static fn(ProjectTask $t): string => $t->title, $this->projects->openTasks($project->id, 10)));
+        self::assertNotContains('add_task', ProjectEditTool::ACTIONS);
     }
 
-    public function testDeadlinesAreReadInTheOwnersZone(): void {
-        $zone = new \DateTimeZone('Asia/Bangkok');
-        self::assertEquals(new \DateTimeImmutable('2026-11-20 16:59 UTC'), ProjectEditTool::due('2026-11-20', $zone), 'a date is the end of that day');
-        self::assertEquals(new \DateTimeImmutable('2026-11-20 03:30 UTC'), ProjectEditTool::due('2026-11-20T10:30', $zone));
-        self::assertNull(ProjectEditTool::due('в пятницу', $zone));
-        self::assertNull(ProjectEditTool::due('2026-13-45', $zone));
-
-        $this->edit(['action' => 'create', 'project' => 'Дом']);
-        self::assertStringContainsString('срок 2026-11-20 23:59', $this->edit(['action' => 'add_task', 'project' => 'Дом', 'text' => 'Налог', 'due' => '2026-11-20'])->content);
-        self::assertTrue($this->edit(['action' => 'add_task', 'project' => 'Дом', 'text' => 'Счёт', 'due' => 'завтра'])->isError);
-        self::assertSame('Срок задачи #1 снят.', $this->edit(['action' => 'task_due', 'project' => 'Дом', 'task_id' => 1, 'due' => ''])->content);
-        self::assertNull($this->projects->task(1)?->dueAt);
-    }
-
-    public function testSecretsAndForeignTasksAreRefused(): void {
+    public function testSecretsAndUnknownProjectsAreRefused(): void {
         $this->edit(['action' => 'create', 'project' => 'А', 'text' => '']);
-        $this->edit(['action' => 'create', 'project' => 'Б', 'text' => '']);
-        $this->edit(['action' => 'add_task', 'project' => 'Б', 'text' => 'чужая']);
 
         self::assertTrue($this->edit(['action' => 'card', 'project' => 'А', 'text' => 'ключ sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef'])->isError);
-        self::assertTrue($this->edit(['action' => 'task_status', 'project' => 'А', 'task_id' => 1, 'status' => 'doing'])->isError);
         self::assertTrue($this->edit(['action' => 'card', 'text' => 'без проекта'])->isError, 'no project named, none bound to the chat');
         self::assertTrue($this->edit(['action' => 'create', 'project' => 'а', 'text' => ''])->isError);
     }
 
-    public function testContextGivesTheCardTheWritersRelationAndTasksButNothingToVisitors(): void {
+    public function testContextGivesTheCardAndTheWritersRelationButNothingToVisitors(): void {
         $project = $this->projects->create('Меркурий', 'Агент на сервере');
         $this->projects->update($project->id, null, null, 'PHP 8.2');
-        $this->projects->addTask($project->id, 'Память', null, []);
         $this->projects->setRelation($project->id, 1, 'Главный проект, качество важнее сроков');
         $this->projects->setRelation($project->id, 2, 'Чужое отношение');
         $this->projects->activate('telegram', '42', $project->id);
@@ -130,9 +107,7 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('PHP 8.2', $block);
         self::assertStringContainsString('Главный проект', $block);
         self::assertStringNotContainsString('Чужое отношение', $block);
-        self::assertStringContainsString('#1 Память', $block);
-        // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — tasks of a project are not scheduled jobs
-        self::assertStringContainsString('job_manage list', $block, 'the agent knows where the jobs are');
+        self::assertStringNotContainsString('задач', $block, 'a project has no tasks of its own');
         self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::visitor(), null), 'telegram', '42'));
         self::assertSame('', $context->block($this->owner, 'telegram', '43'));
     }
@@ -157,8 +132,8 @@ final class ProjectsTest extends AsyncTestCase {
 
         $list = (new ProjectTool($this->projects, $this->conversations))->execute([], new ToolContext(1, $this->conversation, $this->owner, new NullCancellation()))->content;
 
-        self::assertStringContainsString('Альфа — идёт; цель: Поддержка сайта; открытых задач: 0', $list);
-        self::assertStringContainsString('Бета — на паузе; открытых задач: 0 (проект этого чата)', $list);
+        self::assertStringContainsString('Альфа — идёт; цель: Поддержка сайта', $list);
+        self::assertStringContainsString('Бета — на паузе (проект этого чата)', $list);
     }
 
     public function testANewConversationOfTheChatGetsTheProjectInItsPrompt(): void {

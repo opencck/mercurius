@@ -113,10 +113,6 @@ final class Doctor {
         if ($quiet !== null && preg_match('~^\d{1,2}-\d{1,2}$~', $quiet) !== 1) {
             $out[] = [self::WARN, t('service.doctor.tihie_chasy'), t('service.doctor.quiet_hours_s_do_naprimer')];
         }
-        $digest = $raw('DIGEST_TIME');
-        if ($digest !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digest) !== 1) {
-            $out[] = [self::WARN, t('service.doctor.svodka'), t('service.doctor.digest_time_chch_mm_seychas')];
-        }
         return $out;
     }
 

@@ -48,7 +48,7 @@ final class ConversationAudience {
         if ($meta === null) {
             return [];
         }
-        // spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту — the facts of the chat's active project
+        // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — the facts of the chat's active project
         $project = $this->project === null ? null : ($this->project)($principal, $meta->channel, $meta->chatId, $meta->threadId);
         return Audience::scopes($principal->isOwner(), $principal->id, $meta->channel, $meta->chatId, $this->isPrivate($conversationId), $project);
     }

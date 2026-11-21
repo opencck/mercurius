@@ -46,12 +46,12 @@ final class EvalTest extends AsyncTestCase {
 
     public function testAnActionDoneByTheToolPassesAndTheJudgeIsAveragedIn(): void {
         $agent = new ScriptedLlm([
-            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"add_task","project":"Дом","text":"оплатить интернет","due":"2026-11-25"}')),
-            ScriptedLlm::text('Задача #7 добавлена в «Дом», срок 25 ноября.'),
+            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"card","project":"Дом","text":"Интернет — Ростелеком, оплата до 25 числа."}')),
+            ScriptedLlm::text('Карточка проекта «Дом» обновлена.'),
         ]);
         $judge = new ScriptedLlm([ScriptedLlm::text('{"score": 8, "reason": "по результату инструмента"}')]);
 
-        $result = self::runner($agent, $judge, 'judge/model')->runTask(self::task('action-add-task'), 'agent/model');
+        $result = self::runner($agent, $judge, 'judge/model')->runTask(self::task('action-project-card'), 'agent/model');
 
         self::assertSame([1.0, 0.8, 0.9], [$result['checks'], $result['judge'], $result['score']]);
         self::assertSame(['project_edit'], $result['calls']);
@@ -62,8 +62,8 @@ final class EvalTest extends AsyncTestCase {
     public function testAJudgeOfAnyKindTakesThePlaceOfTheModel(): void {
         // spec: brief/self-improvement.md#границы — the judge may be of any provider
         $agent = new ScriptedLlm([
-            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"add_task","project":"Дом","text":"оплатить интернет","due":"2026-11-25"}')),
-            ScriptedLlm::text('Задача #7 добавлена в «Дом», срок 25 ноября.'),
+            ScriptedLlm::calls(new ToolCall('c1', 'project_edit', '{"action":"card","project":"Дом","text":"Интернет — Ростелеком, оплата до 25 числа."}')),
+            ScriptedLlm::text('Карточка проекта «Дом» обновлена.'),
         ]);
         $judge = new class implements \OpenCCK\App\Eval\EvalJudge {
             /** @var list<list<string>> */
@@ -77,7 +77,7 @@ final class EvalTest extends AsyncTestCase {
         $owner = (new \OpenCCK\Test\Support\InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
         $runner = new EvalRunner($agent, null, null, new \OpenCCK\Test\Support\InMemoryRunRepository(), new \OpenCCK\Test\Support\InMemoryTranscriptRepository(), new \OpenCCK\Test\Support\InMemoryConversationRepository(), new \OpenCCK\Test\Support\InMemoryLlmCallRepository(), $owner, $judge);
 
-        $result = $runner->runTask(self::task('action-add-task'), 'agent/model');
+        $result = $runner->runTask(self::task('action-project-card'), 'agent/model');
 
         self::assertSame([1.0, 0.6, 0.8], [$result['checks'], $result['judge'], $result['score']]);
         self::assertCount(1, $judge->traces);
@@ -86,7 +86,7 @@ final class EvalTest extends AsyncTestCase {
     public function testAnActionClaimedWithoutTheToolFails(): void {
         $agent = new ScriptedLlm([ScriptedLlm::text('Готово — задача добавлена в «Дом».')]);
 
-        $result = self::runner($agent)->runTask(self::task('action-add-task'), 'agent/model');
+        $result = self::runner($agent)->runTask(self::task('action-project-card'), 'agent/model');
 
         self::assertNull($result['judge']);
         self::assertLessThan(0.5, $result['score']);

@@ -97,8 +97,6 @@ if ($contextMemory !== null) {
         return \OpenCCK\App\Agent\RunScheduler::memoryBlocks(\OpenCCK\App\Agent\MemoryFile::parse($contextMemory->read($place)), $memorySettings->fileLimit, 'place');
     });
 }
-$digestTime = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'DIGEST_TIME');
-$digestTime = $digestTime !== null && preg_match('~^([01]\d|2[0-3]):[0-5]\d$~', $digestTime) === 1 ? $digestTime : null;
 // spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner and reports to them
 $participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
 $jobScheduler->useProjects($projectRepository);
@@ -118,7 +116,7 @@ if (!(new \OpenCCK\App\Job\Initiative($jobRepository, $ownerZone))->sync($princi
     $logger->warning('INITIATIVE_SCHEDULE is not a schedule (daily:HH:MM, every:<minutes>, weekly:...)');
 }
 
-// spec: brief/memory.md#проекты-задачи-и-отношение-участника-к-проекту
+// spec: brief/memory.md#проекты-и-отношение-участника-к-проекту
 $projectContext = new ProjectContext($projectRepository);
 // spec: brief/scheduler.md#задания-проекта — a project shows its jobs: the agent changes the one that is there
 $projectContext->useJobs(static fn(int $projectId): array => array_map(static fn(\OpenCCK\Domain\Job\Job $job): string => JobManageTool::line($job, $jobScheduler), $jobRepository->ofProjects([$projectId])));
@@ -156,7 +154,7 @@ $projectTransfers = new \OpenCCK\App\Service\ProjectTransfers(
 $projectLinks = new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkRepository($db);
 // spec: brief/network.md#проект-как-канал-для-агентов — an agent of the network enters a project, listens to it, leaves it
 $projectChannels = new \OpenCCK\App\Peer\ProjectChannels($projectRepository, $projectLinks);
-$projectEditTool = new ProjectEditTool($projectRepository, $conversations, $ownerZone, $forumTopics, $principals, $projectTransfers);
+$projectEditTool = new ProjectEditTool($projectRepository, $conversations, $forumTopics, $principals, $projectTransfers);
 $projectEditTool->useChannels($projectChannels);
 $projectEditTool->useSecrets($vault, $projectLinks);
 $tools->register($projectEditTool);

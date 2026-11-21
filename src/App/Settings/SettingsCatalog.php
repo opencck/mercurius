@@ -118,7 +118,6 @@ final class SettingsCatalog {
         'AGENT_LANGUAGE' => ['agent', self::TEXT, 'settings.about.agent_language'],
         'OWNER_TIMEZONE' => ['time', self::TEXT, 'settings.about.owner_timezone'],
         'QUIET_HOURS' => ['time', self::TEXT, 'settings.about.quiet_hours'],
-        'DIGEST_TIME' => ['time', self::TEXT, 'settings.about.digest_time'],
         'INITIATIVE_SCHEDULE' => ['time', self::TEXT, 'settings.about.initiative_schedule'],
         'INITIATIVE_PER_DAY' => ['time', self::INT, 'settings.about.initiative_per_day'],
         'SELF_REVIEW_SCHEDULE' => ['time', self::TEXT, 'settings.about.self_review_schedule'],

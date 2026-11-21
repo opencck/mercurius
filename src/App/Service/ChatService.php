@@ -404,12 +404,11 @@ final class ChatService implements MessageHandler {
             $this->reply($message, $principal->isOwner() ? Doctor::render($this->doctor->run()) : t(self::OWNER_ONLY));
             return;
         }
-        if (in_array($command, ['/jobs', '/hook', '/digest'], true) && $this->jobs !== null) {
+        if (in_array($command, ['/jobs', '/hook'], true) && $this->jobs !== null) {
             $this->reply($message, match (true) {
                 !$principal->isOwner() => t(self::OWNER_ONLY),
                 $command === '/jobs' => $this->jobs->jobs(),
-                $command === '/hook' => $this->jobs->hook(substr($text, strlen($command))),
-                default => $this->jobs->digest(),
+                default => $this->jobs->hook(substr($text, strlen($command))),
             });
             return;
         }

@@ -6,14 +6,11 @@ namespace OpenCCK\Test\Support;
 
 use DomainException;
 use OpenCCK\Domain\Project\Project;
-use OpenCCK\Domain\Project\ProjectTask;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
 final class InMemoryProjectRepository implements ProjectRepository {
     /** @var array<int, Project> */
     public array $projects = [];
-    /** @var array<int, ProjectTask> */
-    public array $tasks = [];
     /** @var array<string, string> "project:principal" => text */
     public array $relations = [];
     /** @var array<string, int> "channel:chat" => project */
@@ -52,8 +49,7 @@ final class InMemoryProjectRepository implements ProjectRepository {
 
     public function isEmpty(int $projectId): bool {
         $p = $this->projects[$projectId] ?? null;
-        $tasks = array_filter($this->tasks, static fn(ProjectTask $t): bool => $t->projectId === $projectId);
-        return $p !== null && $p->goal === '' && $p->card === '' && $p->skill === '' && $tasks === [];
+        return $p !== null && $p->goal === '' && $p->card === '' && $p->skill === '';
     }
 
     public function absorb(int $projectId, int $emptyId): void {
@@ -152,44 +148,6 @@ final class InMemoryProjectRepository implements ProjectRepository {
             return null;
         }
         return $this->projects[$id] = new Project($p->id, $p->name, $goal ?? $p->goal, $status ?? $p->status, $card ?? $p->card, time(), $p->ownerId, $p->skill);
-    }
-
-    public function addTask(int $projectId, string $title, ?int $parentId, array $profile, ?\DateTimeImmutable $dueAt = null): ProjectTask {
-        $id = count($this->tasks) + 1;
-        return $this->tasks[$id] = new ProjectTask($id, $projectId, $parentId, $title, ProjectTask::OPEN, $profile, null, $dueAt);
-    }
-
-    public function setTaskDue(int $id, ?\DateTimeImmutable $dueAt): ?ProjectTask {
-        $t = $this->tasks[$id] ?? null;
-        if ($t === null) {
-            return null;
-        }
-        return $this->tasks[$id] = new ProjectTask($t->id, $t->projectId, $t->parentId, $t->title, $t->status, $t->profile, $t->result, $dueAt);
-    }
-
-    public function dueTasks(\DateTimeImmutable $until, int $limit): array {
-        $found = array_values(array_filter($this->tasks, function (ProjectTask $t) use ($until): bool {
-            $project = $this->projects[$t->projectId] ?? null;
-            return $t->isOpen() && $t->dueAt !== null && $t->dueAt <= $until && $project !== null && $project->status === Project::ACTIVE && $project->ownerId === null;
-        }));
-        usort($found, static fn(ProjectTask $a, ProjectTask $b): int => [$a->dueAt, $a->id] <=> [$b->dueAt, $b->id]);
-        return array_slice($found, 0, $limit);
-    }
-
-    public function task(int $id): ?ProjectTask {
-        return $this->tasks[$id] ?? null;
-    }
-
-    public function setTaskStatus(int $id, string $status, ?string $result): ?ProjectTask {
-        $t = $this->tasks[$id] ?? null;
-        if ($t === null) {
-            return null;
-        }
-        return $this->tasks[$id] = new ProjectTask($t->id, $t->projectId, $t->parentId, $t->title, $status, $t->profile, $result ?? $t->result, $t->dueAt);
-    }
-
-    public function openTasks(int $projectId, int $limit): array {
-        return array_slice(array_values(array_filter($this->tasks, static fn(ProjectTask $t): bool => $t->projectId === $projectId && $t->isOpen())), 0, $limit);
     }
 
     public function relation(int $projectId, int $principalId): ?string {

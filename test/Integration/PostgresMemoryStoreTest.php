@@ -23,7 +23,7 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
     }
 
     public function testARunTakesTheRecallsMadeForItWithTheVersions(): void {
-        // spec: brief/operations.md#память-в-сводке-и-квитанция-извлечения — a receipt of recall: which run got which version of which fact
+        // spec: brief/operations.md#квитанция-извлечения-памяти — a receipt of recall: which run got which version of which fact
         $fact = $this->store->addFact('owner', \Mercurius\Memory\Domain\Fact::KNOWLEDGE, 'квитанция', ['квитанция'], 0.5, \Mercurius\Memory\Domain\Fact::AGENT, null);
         $this->store->markRecalled($this->conversationId, [$fact->id], [$fact->id => $fact->version]);
         $row = $this->db->execute('SELECT principal_id FROM conversations WHERE id = ?', [$this->conversationId])->fetchRow() ?? [];

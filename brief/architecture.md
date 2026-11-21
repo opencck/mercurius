@@ -38,7 +38,7 @@
   `Model/` — `ModelRouter`, `ModelRoles`, `Context/` — сжатие контекста, `Sandbox/`, `Media/`, `Trace/`.
 - **Канал и команды** (`src/App/Service/`): `ChatService` (сообщения и команды `/…`), `GroupGate`, `VisitorService`,
   `PolicyService`, `OwnerDirectory`, `RoleCatalog`, `SettingsCommands`, `CodexCommands`, `TraceReports`, `Doctor`.
-- **Подсистемы**: `Job/` (`JobScheduler`, `HookReceiver`, `DailyDigest`), `Peer/` (`PeerNetwork`, `A2aServer`, `AgentKeys`,
+- **Подсистемы**: `Job/` (`JobScheduler`, `HookReceiver`, `JobAreas`), `Peer/` (`PeerNetwork`, `A2aServer`, `AgentKeys`,
   `AgentRequests`, `A2aFiles`), `Mcp/` (`McpManager`, `McpTool`, `OsvCheck`), `Skill/` (`SkillLibrary`, `SkillImporter`),
   `Server/` (`ServerConsole`), `Vault/`, `Settings/`, `Improve/` (предложения, заметки к промпту, набор задач), `Eval/`,
   `Export/` (архив и импорт), `Api/` (WebSocket API), `Web/`.
@@ -51,7 +51,7 @@
 | `API\Server` | Один `SocketHttpServer` за Nginx Proxy Manager (сеть `web`): маршруты из `bootstrap/11-http.php` |
 | `TelegramModule` | Вебхук при заданном `APP_URL`, иначе long polling; модули останавливаются в обратном порядке |
 | `AgentModule` | Поднимает незавершённые запуски и ожидающие подтверждения, доставки и фоновые делегирования |
-| `SchedulerModule` | Задания по расписанию и ежедневная сводка |
+| `SchedulerModule` | Задания по расписанию |
 | `MemoryConsolidationModule` | Ночная проверка памяти |
 | `ModelCatalogModule` | Каталоги моделей провайдеров по расписанию |
 | `TraceRetentionModule` | Срок хранения трасс |

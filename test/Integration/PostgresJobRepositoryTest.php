@@ -9,7 +9,6 @@ use Amp\Postgres\PostgresConnection;
 use DateTimeImmutable;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
-use OpenCCK\Infrastructure\Repository\PostgresDigestJournal;
 use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
 use OpenCCK\Test\Support\TestDatabase;
 
@@ -89,11 +88,4 @@ final class PostgresJobRepositoryTest extends AsyncTestCase {
         self::assertNull($this->jobs->create($this->principalId, 'telegram', '42', 'Сводка', 'Пришли', 'every:60', null)->origin);
     }
 
-    public function testOneSummaryADay(): void {
-        $journal = new PostgresDigestJournal($this->db);
-
-        self::assertTrue($journal->claim('2026-11-17'));
-        self::assertFalse($journal->claim('2026-11-17'));
-        self::assertTrue($journal->claim('2026-11-18'));
-    }
 }
