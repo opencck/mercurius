@@ -11,7 +11,7 @@ use OpenCCK\Domain\Repository\JobRepository;
 use UnexpectedValueException;
 
 final class PostgresJobRepository implements JobRepository {
-    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted, thread_id, hook_filter, model_role, project_id";
+    private const COLUMNS = "id, principal_id, channel, chat_id, title, prompt, schedule, extract(epoch FROM next_run_at)::bigint AS next, runs, last_result, pending_report, status, hook_secret, watch_url, watch_hash, origin, trusted, thread_id, hook_filter, model_role, project_id, deliver, deliver_chat, deliver_thread";
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -175,6 +175,10 @@ final class PostgresJobRepository implements JobRepository {
         return $this->db->execute('UPDATE jobs SET hook_filter = ? WHERE id = ? RETURNING id', [$filter, $id])->fetchRow() !== null;
     }
 
+    public function setDelivery(int $id, string $deliver, string $chat, string $thread): bool {
+        return $this->db->execute('UPDATE jobs SET deliver = ?, deliver_chat = ?, deliver_thread = ? WHERE id = ? RETURNING id', [$deliver, $chat, $thread, $id])->fetchRow() !== null;
+    }
+
     public function setModelRole(int $id, string $role): bool {
         return $this->db->execute('UPDATE jobs SET model_role = ? WHERE id = ? RETURNING id', [$role, $id])->fetchRow() !== null;
     }
@@ -198,6 +202,6 @@ final class PostgresJobRepository implements JobRepository {
         $str = static fn(string $k): string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : throw new UnexpectedValueException('Malformed job row: ' . $k);
         $opt = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $next = isset($row['next']) && is_int($row['next']) ? new DateTimeImmutable('@' . $row['next']) : null;
-        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true, $str('thread_id'), $str('hook_filter'), $str('model_role'), isset($row['project_id']) && is_int($row['project_id']) ? $row['project_id'] : null);
+        return new Job($int('id'), $int('principal_id'), $str('channel'), $str('chat_id'), $str('title'), $str('prompt'), $str('schedule'), $next, $int('runs'), $opt('last_result'), $opt('pending_report'), $str('status'), $opt('hook_secret'), $opt('watch_url'), $opt('watch_hash'), $opt('origin'), ($row['trusted'] ?? false) === true, $str('thread_id'), $str('hook_filter'), $str('model_role'), isset($row['project_id']) && is_int($row['project_id']) ? $row['project_id'] : null, $str('deliver'), $str('deliver_chat'), $str('deliver_thread'));
     }
 }

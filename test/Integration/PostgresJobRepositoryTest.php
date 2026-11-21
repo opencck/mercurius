@@ -88,4 +88,16 @@ final class PostgresJobRepositoryTest extends AsyncTestCase {
         self::assertNull($this->jobs->create($this->principalId, 'telegram', '42', 'Сводка', 'Пришли', 'every:60', null)->origin);
     }
 
+    public function testThePlaceOfTheReportIsKeptAndResetToTheDefault(): void {
+        // spec: brief/scheduler.md#место-итога-задания
+        $job = $this->jobs->create($this->principalId, 'telegram', '-100500', 'Курс', 'Узнай', 'every:60', null, threadId: '577');
+        self::assertSame(Job::DELIVER_DEFAULT, $job->deliver);
+
+        self::assertTrue($this->jobs->setDelivery($job->id, Job::DELIVER_CHAT, '-100600', '12'));
+        $found = $this->jobs->find($job->id);
+        self::assertSame([Job::DELIVER_CHAT, '-100600', '12'], [$found?->deliver, $found?->deliverChat, $found?->deliverThread]);
+        $this->jobs->setDelivery($job->id, Job::DELIVER_DEFAULT, '', '');
+        self::assertSame(Job::DELIVER_DEFAULT, $this->jobs->find($job->id)?->deliver);
+    }
+
 }

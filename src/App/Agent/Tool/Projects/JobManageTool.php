@@ -47,7 +47,7 @@ final class JobManageTool implements Tool {
 
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.job_manage.zadaniya_po_raspisaniyu_action_list')
-            . t('tool.job_manage.edit_about') . ' ' . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model') . ' ' . t('tool.job_manage.to_project_about'), [
+            . t('tool.job_manage.edit_about') . ' ' . t('tool.job_manage.pause_priostanovit_resume_vozobnovit_run') . ' ' . t('tool.job_manage.filter_model') . ' ' . t('tool.job_manage.to_project_about') . ' ' . t('tool.job_manage.deliver_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -58,6 +58,9 @@ final class JobManageTool implements Tool {
                 'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 100],
                 'prompt' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::PROMPT_MAX],
                 'schedule' => ['type' => 'string', 'minLength' => 5, 'maxLength' => 60],
+                // spec: brief/scheduler.md#место-итога-задания
+                'deliver' => ['type' => 'string', 'enum' => ['default', 'here', 'private'], 'description' => t('tool.job_manage.deliver')],
+                'participant' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.job_manage.participant')],
             ],
             'additionalProperties' => false,
         ]);
@@ -96,6 +99,12 @@ final class JobManageTool implements Tool {
                     }
                 }
             }
+            // spec: brief/scheduler.md#место-итога-задания — the owner of the agent picks the jobs of a participant or a project
+            $filtered = $this->only($list, $args, $context);
+            if (is_string($filtered)) {
+                return ToolResult::error($filtered);
+            }
+            $list = $filtered;
             $lines = array_map(fn(Job $j): string => self::line($j, $this->scheduler), $list);
             // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a one-off job that ran stays in the list for a day, with its outcome
             foreach ($this->jobs->finished($context->principal->isOwner() ? null : $context->principal->id, $mine, new DateTimeImmutable('-1 day')) as $job) {
@@ -234,8 +243,15 @@ final class JobManageTool implements Tool {
         $prompt = trim(Args::string($args, 'prompt') ?? '');
         $given = trim(Args::string($args, 'schedule') ?? '');
         $project = Args::string($args, 'project');
-        if ($title === '' && $prompt === '' && $given === '' && $project === null) {
+        $deliver = Args::string($args, 'deliver');
+        if ($title === '' && $prompt === '' && $given === '' && $project === null && $deliver === null) {
             return ToolResult::error(t('tool.job_manage.edit_nothing'));
+        }
+        if ($deliver !== null) {
+            $placed = $this->deliverTo($job, $deliver, $context);
+            if ($placed !== null) {
+                return ToolResult::error($placed);
+            }
         }
         $problem = ($prompt === '' ? null : $this->screen->problem($prompt, self::PROMPT_MAX)) ?? ($title === '' ? null : $this->screen->problem($title, 100));
         if ($problem !== null) {
@@ -273,6 +289,93 @@ final class JobManageTool implements Tool {
         return ToolResult::ok(sprintf(t('tool.job_manage.edited'), $edited->id, $edited->title, self::line($edited, $this->scheduler)) . ($moved === null ? '' : "\n" . $moved->content));
     }
 
+    private ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null;
+    private ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null;
+
+    /** spec: brief/scheduler.md#место-итога-задания — the place of the call, and the participants the owner picks by */
+    public function usePlaces(\OpenCCK\Domain\Repository\ConversationRepository $conversations, \OpenCCK\Domain\Repository\PrincipalRepository $principals): void {
+        $this->conversations = $conversations;
+        $this->principals = $principals;
+    }
+
+    /**
+     * Sets where a job reports: as by default, here (the chat or topic of this conversation) or the setter's private
+     * place. Only the setter and the owner of the agent choose it, and "here" is a place they are writing in now.
+     *
+     * ref: references/hermes-agent/cron/jobs.py@e96221fa:L1808-L1832 (create_job, deliver) — origin, local or a named
+     *      chat; here a named chat is only the one the setter writes in, and a public channel is never a place
+     *
+     * @return string|null why not; null — set
+     */
+    private function deliverTo(Job $job, string $deliver, ToolContext $context): ?string {
+        if (!$context->principal->isOwner() && $job->principalId !== $context->principal->id) {
+            return t('tool.job_manage.deliver_setter_only');
+        }
+        if ($deliver === 'default') {
+            $this->jobs->setDelivery($job->id, Job::DELIVER_DEFAULT, '', '');
+            return null;
+        }
+        if ($deliver === 'private') {
+            $this->jobs->setDelivery($job->id, Job::DELIVER_PRIVATE, '', '');
+            return null;
+        }
+        $meta = $this->conversations?->meta($context->conversationId);
+        if ($meta === null || $meta->channel !== \Mercurius\Messenger\Telegram\TelegramChannel::NAME) {
+            return t('tool.job_manage.deliver_here_unknown');
+        }
+        // a private chat of the setter is their private place: a person's private chat and their inbox are one
+        if (!str_starts_with($meta->chatId, '-') && $job->principalId === $context->principal->id) {
+            $this->jobs->setDelivery($job->id, Job::DELIVER_PRIVATE, '', '');
+            return null;
+        }
+        $this->jobs->setDelivery($job->id, Job::DELIVER_CHAT, $meta->chatId, $meta->threadId);
+        return null;
+    }
+
+    /**
+     * The jobs of one participant or one project, for the owner of the agent; anyone else picks by project only.
+     *
+     * @param list<Job> $list
+     * @param array<string, mixed> $args
+     * @return list<Job>|string
+     */
+    private function only(array $list, array $args, ToolContext $context): array|string {
+        $who = trim(Args::string($args, 'participant') ?? '');
+        $name = trim(Args::string($args, 'project') ?? '');
+        if ($who !== '') {
+            if (!$context->principal->isOwner()) {
+                return t('tool.job_manage.participant_owner_only');
+            }
+            $found = $this->participant($who);
+            if ($found === null) {
+                return sprintf(t('tool.job_manage.no_participant'), $who);
+            }
+            $list = array_values(array_filter($list, static fn(Job $j): bool => $j->principalId === $found));
+        }
+        if ($name !== '') {
+            $project = $this->projects?->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($context->principal));
+            if ($project === null) {
+                return sprintf(t('tool.job_manage.project_owner_only'), $name);
+            }
+            $list = array_values(array_filter($list, static fn(Job $j): bool => $j->projectId === $project->id));
+        }
+        return $list;
+    }
+
+    /** A participant by "#id", an id or a name. */
+    private function participant(string $who): ?int {
+        $id = ltrim($who, '#');
+        if (ctype_digit($id)) {
+            return $this->principals?->find((int) $id)?->id;
+        }
+        foreach ($this->principals?->all() ?? [] as $principal) {
+            if (mb_strtolower((string) $principal->displayName) === mb_strtolower($who)) {
+                return $principal->id;
+            }
+        }
+        return null;
+    }
+
     private function runNow(Job $job): ToolResult {
         if ($job->byEvent()) {
             return ToolResult::error(t('tool.job_manage.zadanie_po_sobytiyu_zapuskaetsya_webhook'));
@@ -302,6 +405,6 @@ final class JobManageTool implements Tool {
             $job->status === Job::ACTIVE ? t('tool.job_manage.vklyucheno') : t('tool.job_manage.na_pauze'),
             $job->nextRunAt === null ? '—' : $job->nextRunAt->setTimezone($scheduler->zone($job->principalId))->format('Y-m-d H:i'),
             $job->runs,
-        );
+        ) . (JobScheduler::destination($job) === '' ? '' : ' · ' . JobScheduler::destination($job));
     }
 }

@@ -47,7 +47,15 @@ final class Job {
         public readonly string $modelRole = '',
         /** the project the job belongs to: it runs in the name of the project's owner; null — a job of its participant */
         public readonly ?int $projectId = null,
+        /** where the report goes: '' — the project's topic, else where it was set; 'private' — its setter; 'chat' — $deliverChat */
+        public readonly string $deliver = '',
+        public readonly string $deliverChat = '',
+        public readonly string $deliverThread = '',
     ) {}
+
+    public const DELIVER_DEFAULT = '';
+    public const DELIVER_PRIVATE = 'private';
+    public const DELIVER_CHAT = 'chat';
 
     public function byEvent(): bool {
         return $this->schedule === Schedule::EVENT;

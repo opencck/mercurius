@@ -30,6 +30,9 @@ interface JobRepository {
      */
     public function setProject(int $id, ?int $projectId): bool;
 
+    /** spec: brief/scheduler.md#место-итога-задания — where the report of a job goes */
+    public function setDelivery(int $id, string $deliver, string $chat, string $thread): bool;
+
     /**
      * @param list<int> $projectIds
      * @return list<Job> the jobs of these projects that are not done, newest first

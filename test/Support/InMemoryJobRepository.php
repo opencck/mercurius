@@ -30,6 +30,15 @@ final class InMemoryJobRepository implements JobRepository {
         return true;
     }
 
+    public function setDelivery(int $id, string $deliver, string $chat, string $thread): bool {
+        $j = $this->jobs[$id] ?? null;
+        if ($j === null) {
+            return false;
+        }
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole, $j->projectId, $deliver, $chat, $thread);
+        return true;
+    }
+
     public function setModelRole(int $id, string $role): bool {
         $j = $this->jobs[$id] ?? null;
         if ($j === null) {
@@ -57,7 +66,7 @@ final class InMemoryJobRepository implements JobRepository {
         if ($j === null) {
             return false;
         }
-        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole, $projectId);
+        $this->jobs[$id] = new Job($j->id, $j->principalId, $j->channel, $j->chatId, $j->title, $j->prompt, $j->schedule, $j->nextRunAt, $j->runs, $j->lastResult, $j->pendingReport, $j->status, $j->hookSecret, $j->watchUrl, $j->watchHash, $j->origin, $j->trusted, $j->threadId, $j->hookFilter, $j->modelRole, $projectId, $j->deliver, $j->deliverChat, $j->deliverThread);
         return true;
     }
 
@@ -244,6 +253,9 @@ final class InMemoryJobRepository implements JobRepository {
             $hookFilter ?? $j->hookFilter,
             $modelRole ?? $j->modelRole,
             $j->projectId,
+            $j->deliver,
+            $j->deliverChat,
+            $j->deliverThread,
         );
     }
 }

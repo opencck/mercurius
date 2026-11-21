@@ -458,6 +458,15 @@ final class JobScheduler implements JobRuns {
         return t('job.job_scheduler.itoga_net') . ($final->stopReason?->label() ?? t('job.job_scheduler.zapusk_ne_zakonchen')) . ').';
     }
 
+    /** The place of a job's report in words, when its setter chose one; '' — as by default. */
+    public static function destination(Job $job): string {
+        return match ($job->deliver) {
+            Job::DELIVER_PRIVATE => t('job.deliver.private'),
+            Job::DELIVER_CHAT => sprintf(t('job.deliver.chat'), $job->deliverChat . ($job->deliverThread === '' ? '' : '/' . $job->deliverThread)),
+            default => '',
+        };
+    }
+
     /**
      * The chat and topic a run of a job writes to when it sends something "here": the topic of its project, else the
      * chat the job was set in; null when there is no such chat (the report goes to a participant's inbox).
@@ -471,6 +480,15 @@ final class JobScheduler implements JobRuns {
         $job = preg_match('~^job-(\d+)-\d+$~', $chat, $m) === 1 ? $this->jobs->find((int) $m[1]) : null;
         if ($job === null) {
             return null;
+        }
+        // spec: brief/scheduler.md#место-итога-задания — a place the setter chose wins
+        if ($job->deliver === Job::DELIVER_CHAT && $job->deliverChat !== '') {
+            return [$job->deliverChat, $job->deliverThread === '' ? null : $job->deliverThread];
+        }
+        if ($job->deliver === Job::DELIVER_PRIVATE) {
+            $setter = $this->principals->find($job->principalId);
+            $private = $setter === null || $setter->isAgent() ? null : $this->principals->externalId($setter->id, \Mercurius\Messenger\Telegram\TelegramChannel::NAME);
+            return $private === null ? null : [$private, null];
         }
         try {
             $project = $this->projectOf($job);
@@ -502,13 +520,28 @@ final class JobScheduler implements JobRuns {
         //       an agent set for itself reports to that agent: a chat of the network of agents is not a chat of the channel
         $chatId = $job->chatId;
         $threadId = $job->threadId === '' ? null : $job->threadId;
+        // spec: brief/scheduler.md#место-итога-задания — the setter's private place: a person's chat, an agent's network
+        if ($job->deliver === Job::DELIVER_PRIVATE) {
+            $setter = $this->principals->find($job->principalId);
+            if ($setter === null) {
+                return ['reason' => 'nobody to report to', 'permanent' => true];
+            }
+            if ($this->inbox !== null && ($this->inbox)($setter, $report)) {
+                return null;
+            }
+            $this->logger->warning('Job report was not delivered', ['job' => $job->id, 'reason' => 'the participant is not reachable']);
+            return ['reason' => 'the participant is not reachable now', 'permanent' => false];
+        }
         try {
             $project = $this->projectOf($job);
         } catch (\RuntimeException) {
             return ['reason' => 'the project of the job is gone', 'permanent' => true];
         }
         $topic = $project === null ? null : ($this->projects?->topicsOf($project->id)[0] ?? null);
-        if ($topic !== null) {
+        if ($job->deliver === Job::DELIVER_CHAT && $job->deliverChat !== '') {
+            $chatId = $job->deliverChat;
+            $threadId = $job->deliverThread === '' ? null : $job->deliverThread;
+        } elseif ($topic !== null) {
             $chatId = $topic['chatId'];
             $threadId = $topic['threadId'] === '' ? null : $topic['threadId'];
             // an agent that set the job hears its outcome too: the topic is a chat of people, the agent is not in it

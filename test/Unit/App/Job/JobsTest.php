@@ -210,6 +210,58 @@ description: Отчёт о диске таблицей
         self::assertStringContainsString('BTC = 63 427 $.', implode("\n", $this->stack->channel->texts('send')));
     }
 
+    public function testAJobSetInATopicIsTurnedToThePrivateChatFromThePrivateChatAndBack(): void {
+        // spec: brief/scheduler.md#место-итога-задания
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('первый итог'), ScriptedLlm::text('второй итог'), ScriptedLlm::text('третий итог')]));
+        $told = [];
+        $scheduler->useInbox(function (Principal $to, string $text) use (&$told): bool {
+            $told[] = $text;
+            return true;
+        });
+        $topic = $this->stack->conversations->openConversation($this->owner->id, 'telegram', '-100500', '577');
+        $private = $this->stack->conversations->openConversation($this->owner->id, 'telegram', '42');
+        $manage = new JobManageTool($this->jobs, $scheduler, screen: new ContentScreen());
+        $manage->usePlaces($this->stack->conversations, $this->stack->principals);
+        $job = $this->jobs->create($this->owner->id, 'telegram', '-100500', 'Курс', 'Узнай курс', 'every:30', $this->now, threadId: '577');
+        $inPrivate = new ToolContext(1, $private, $this->owner, new NullCancellation());
+
+        self::assertStringContainsString('Курс', $manage->execute(['action' => 'list'], $inPrivate)->content, 'the private chat sees the job set in the topic');
+        $turned = $manage->execute(['action' => 'edit', 'id' => $job->id, 'deliver' => 'here'], $inPrivate);
+        self::assertFalse($turned->isError, $turned->content);
+        self::assertSame(Job::DELIVER_PRIVATE, $this->jobs->find($job->id)?->deliver, 'here, in the setter\'s private chat, is their private place');
+        self::assertStringContainsString('личное место', $manage->execute(['action' => 'list'], $inPrivate)->content);
+        $scheduler->tick(true);
+        self::assertStringContainsString('первый итог', implode("\n", $told), 'the report came to the private place');
+        self::assertStringNotContainsString('первый итог', implode("\n", $this->stack->channel->texts('send')), 'not into the topic');
+
+        self::assertFalse($manage->execute(['action' => 'edit', 'id' => $job->id, 'deliver' => 'default'], $inPrivate)->isError);
+        $this->now = $this->now->modify('+31 minutes');
+        $scheduler->tick(true);
+        self::assertStringContainsString('второй итог', implode("\n", $this->stack->channel->texts('send')), 'back into the topic it was set in');
+        self::assertContains('577', $this->stack->channel->threads);
+
+        $stranger = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '77', 'Гость')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        self::assertNotNull($stranger);
+        self::assertTrue($manage->execute(['action' => 'edit', 'id' => $job->id, 'deliver' => 'private'], new ToolContext(1, $topic, $stranger, new NullCancellation()))->isError, 'not their job');
+    }
+
+    public function testTheOwnerPicksTheJobsOfOneParticipant(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([]));
+        $anna = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '7', 'Анна')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        self::assertNotNull($anna);
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'Моё', 'п', 'every:30', $this->now);
+        $this->jobs->create($anna->id, 'telegram', '7', 'Аннино', 'п', 'every:30', $this->now);
+        $manage = new JobManageTool($this->jobs, $scheduler);
+        $manage->usePlaces($this->stack->conversations, $this->stack->principals);
+        $owner = new ToolContext(1, 1, $this->owner, new NullCancellation());
+
+        $picked = $manage->execute(['action' => 'list', 'participant' => 'Анна'], $owner)->content;
+
+        self::assertStringContainsString('Аннино', $picked);
+        self::assertStringNotContainsString('Моё', $picked);
+        self::assertTrue($manage->execute(['action' => 'list', 'participant' => 'Анна'], new ToolContext(1, 1, $anna, new NullCancellation()))->isError, 'the owner of the agent only');
+    }
+
     public function testTheNextRunKnowsTheLastResultAndADoneJobStops(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('первый'), ScriptedLlm::text('второй'), ScriptedLlm::text('напоминаю')]));
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Сводка', 'Собери сводку', 'every:30', $this->now);

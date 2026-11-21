@@ -104,9 +104,12 @@ $jobScheduler->useProjects($projectRepository);
 $jobScheduler->useInbox(static fn(Principal $to, string $text): bool => $participantInbox->tell($to, $text));
 $jobText = new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text);
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, $jobText, $runs, $projectRepository));
-$tools->register(new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs, static function (int $jobId) use ($approvals): void {
+$jobManage = new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs, static function (int $jobId) use ($approvals): void {
     $approvals->forgetArea('job:' . $jobId);
-}));
+});
+// spec: brief/scheduler.md#место-итога-задания — a job reports where its setter chose
+$jobManage->usePlaces($conversations, $principals);
+$tools->register($jobManage);
 // spec: brief/scheduler.md#разрешения-задания — a job run is not asked by a card: what it lacked is one list after the run
 $loop->useAreas(new \OpenCCK\App\Job\JobAreas($conversations, $projectRepository));
 $jobScheduler->useNeeds(static function (\OpenCCK\Domain\Job\Job $job) use ($approvals): void {
