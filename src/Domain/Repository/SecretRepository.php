@@ -25,4 +25,7 @@ interface SecretRepository {
     public function all(): array;
 
     public function delete(string $name): bool;
+
+    /** A new value of an existing secret; its author and id stay. False when there is no such secret. */
+    public function replace(string $name, string $kind, string $nonce, string $ciphertext): bool;
 }

@@ -91,7 +91,12 @@ final class Vault {
     }
 
     /** @throws DomainException when the vault is off, the name or kind is wrong, or the name is taken */
-    public function put(string $name, string $kind, #[SensitiveParameter] string $value, Principal $author): int {
+    /**
+     * Keeps a secret. $replace: an existing one with this name gets the new value when the author may read it (spec:
+     * brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a wrong value is fixed by sending it again); without it an
+     * existing name is refused.
+     */
+    public function put(string $name, string $kind, #[SensitiveParameter] string $value, Principal $author, bool $replace = false): int {
         $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
@@ -103,6 +108,14 @@ final class Vault {
             throw new DomainException(t('vault.vault.pustoy_ili_slishkom_dlinnyy_sekret'));
         }
         $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+        $existing = $replace ? $this->secrets->find($name) : null;
+        if ($existing !== null) {
+            if (!$this->mayRead($existing['principal'], $author)) {
+                throw new DomainException(sprintf(t('repository.postgres_secret.sekret_uzhe_est'), $name));
+            }
+            $this->secrets->replace($name, $kind, $nonce, sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key));
+            return $existing['id'];
+        }
         return $this->secrets->store($name, $kind, $nonce, sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key), $author->id);
     }
 

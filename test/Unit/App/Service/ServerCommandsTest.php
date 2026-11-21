@@ -40,6 +40,53 @@ final class ServerCommandsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->transcript->messages, 'nor the transcript');
     }
 
+    public function testTheSameCommandUpdatesASecret(): void {
+        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a wrong value is fixed by sending it again
+        $this->stack->say('/secret web-pass wrong-value-1');
+        $this->stack->say('/secret web-pass right-value-2');
+
+        self::assertSame('right-value-2', $this->vault->reveal('web-pass', new Principal(1, PrincipalKind::Human, Role::owner(), null)));
+        self::assertStringContainsString('Секрет «web-pass» обновлён (пароль)', implode("\n", $this->stack->channel->texts('send')));
+    }
+
+    public function testEveryCommandLineOfAMessageIsItsOwnCommand(): void {
+        // spec: brief/operations.md#команды-в-одном-сообщении — seven secrets in one message are seven secrets
+        $this->stack->say("/secret a-pass value-one-1\n/secret b-pass   value-two-2\n/secret c-pass value-three-3");
+
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        self::assertSame('value-one-1', $this->vault->reveal('a-pass', $owner));
+        self::assertSame('value-two-2', $this->vault->reveal('b-pass', $owner));
+        self::assertSame('value-three-3', $this->vault->reveal('c-pass', $owner));
+        self::assertCount(1, $this->stack->channel->deleted, 'the one message is deleted once');
+        self::assertStringNotContainsString('удалите его сами', implode("\n", $this->stack->channel->texts('send')));
+    }
+
+    public function testLinesWithoutASlashGoToTheAgentAsAMessage(): void {
+        $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Принял.'), ScriptedLlm::text('Принял и этот.')]));
+        $this->stack->useServers(new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository()));
+
+        $this->stack->say("/secret fv-pass first-pass-1\nсохранил тебе пароль от сервера\nкоторый firstvps\nпроверь\n\n/secret birma-pass second-pass-2\nи вот ещё\nсекрет от birma");
+        $this->stack->scheduler->awaitIdle();
+
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        self::assertSame('first-pass-1', $this->vault->reveal('fv-pass', $owner));
+        self::assertSame('second-pass-2', $this->vault->reveal('birma-pass', $owner));
+        $seen = implode("\n", array_map(static fn(array $m): string => $m['message']->content, $this->stack->transcript->messages));
+        self::assertStringContainsString("сохранил тебе пароль от сервера\nкоторый firstvps\nпроверь", $seen);
+        self::assertStringContainsString("и вот ещё\nсекрет от birma", $seen);
+        self::assertStringNotContainsString('first-pass-1', $seen);
+        self::assertStringNotContainsString('second-pass-2', $seen);
+    }
+
+    public function testAPrivateKeyStaysOneCommand(): void {
+        $key = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n/AAAABG5vbmUAAAAEbm9uZQ\n-----END OPENSSH PRIVATE KEY-----";
+        $this->stack->say("/secret srv-key $key\n/secret other-pass other-value-1");
+
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        self::assertSame($key, $this->vault->reveal('srv-key', $owner));
+        self::assertSame('other-value-1', $this->vault->reveal('other-pass', $owner));
+    }
+
     public function testInAGroupTheSecretIsRefusedButStillDeleted(): void {
         $this->stack->sayInGroup('/secret web-pass Sup3r-secret-pass');
 

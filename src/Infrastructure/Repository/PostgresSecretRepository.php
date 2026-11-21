@@ -58,6 +58,13 @@ final class PostgresSecretRepository implements SecretRepository {
         return $found;
     }
 
+    public function replace(string $name, string $kind, string $nonce, string $ciphertext): bool {
+        return $this->db->execute(
+            'UPDATE secrets SET kind = ?, nonce = ?, ciphertext = ? WHERE lower(name) = lower(?) RETURNING id',
+            [$kind, new PostgresByteA($nonce), new PostgresByteA($ciphertext), $name],
+        )->fetchRow() !== null;
+    }
+
     public function delete(string $name): bool {
         return $this->db->execute('DELETE FROM secrets WHERE lower(name) = lower(?) RETURNING id', [$name])->fetchRow() !== null;
     }

@@ -40,6 +40,8 @@ final class ChatService implements MessageHandler {
     public const MEMORY_PRIVATE = 'chat.memory_private';
     public const SECRET_PRIVATE = 'chat.secret_private';
     private const REPORT_LIMIT = 3500;
+    /** @var array<string, true> messages of the update being handled that are already deleted */
+    private array $gone = [];
 
     public function __construct(
         private readonly AccessService $access,
@@ -171,6 +173,7 @@ final class ChatService implements MessageHandler {
     }
 
     public function handle(IncomingMessage $message): void {
+        $this->gone = [];
         if (!$message->isPrivateChat && $this->groups !== null) {
             // spec: brief/channels.md#группа — a group decides who is answered and when
             $routed = $this->groups->route($message);
@@ -201,6 +204,16 @@ final class ChatService implements MessageHandler {
     private function proceed(Principal $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
 
         $text = trim($message->text);
+        if ($message->attachments === [] && $message->repliedAttachments === []) {
+            // spec: brief/operations.md#команды-в-одном-сообщении — every command line is its own command
+            $pieces = CommandBatch::split($text);
+            if (count($pieces) > 1) {
+                foreach ($pieces as $piece) {
+                    $this->proceed($principal, self::withText($message, $piece), $silenceAllowed);
+                }
+                return;
+            }
+        }
         // spec: brief/internet.md#приём — a message with files is not empty: a photo without a caption reaches the agent
         $intake = $this->intake;
         $policies = $this->policies;
@@ -261,7 +274,7 @@ final class ChatService implements MessageHandler {
             } else {
                 $this->reply($message, $this->servers->secret($principal, $argument));
             }
-            if ($carries && !$this->channel->delete($message->chatId, $message->messageId)) {
+            if ($carries && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
@@ -286,7 +299,7 @@ final class ChatService implements MessageHandler {
             } else {
                 $this->reply($message, $this->export->start($message->chatId, null, $argument));
             }
-            if ($argument !== '' && !$this->channel->delete($message->chatId, $message->messageId)) {
+            if ($argument !== '' && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
@@ -302,7 +315,7 @@ final class ChatService implements MessageHandler {
             } else {
                 $this->reply($message, $this->import->start($message->chatId, $argument, $file, $principal->id));
             }
-            if (!in_array(strtolower($argument), ['', 'yes', 'no', 'memory', 'skills'], true) && !$this->channel->delete($message->chatId, $message->messageId)) {
+            if (!in_array(strtolower($argument), ['', 'yes', 'no', 'memory', 'skills'], true) && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
@@ -325,7 +338,7 @@ final class ChatService implements MessageHandler {
                     default => $this->settings->restart(),
                 });
             }
-            if ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$this->channel->delete($message->chatId, $message->messageId)) {
+            if ($command === '/set' && SettingsCommands::carriesSecret($argument) && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s_2'));
             }
             return;
@@ -468,7 +481,7 @@ final class ChatService implements MessageHandler {
             return $message;
         }
         $name = $message->isPrivateChat && $principal->role->may(Power::Secrets) ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
-        $deleted = $this->channel->delete($message->chatId, $message->messageId);
+        $deleted = $this->deleteOnce($message);
         $this->reply($message, sprintf(
             t('service.chat.v_soobschenii_byl_sekret'),
             $deleted ? t('service.chat.ya_udalil_soobschenie_iz_chata') : t('service.chat.udalit_soobschenie_ne_udalos_udalite'),
@@ -476,6 +489,21 @@ final class ChatService implements MessageHandler {
         ));
         $note = $name === null ? '' : sprintf(t('service.chat.soobschenie_soderzhalo_sekret_ono_udalen'), $name);
         return self::withText($message, $masked . $note);
+    }
+
+    /**
+     * Deletes the message from the chat once: several commands of one message that carried secrets delete it together.
+     */
+    private function deleteOnce(IncomingMessage $message): bool {
+        $key = $message->chatId . ':' . $message->messageId;
+        if (isset($this->gone[$key])) {
+            return true;
+        }
+        $deleted = $this->channel->delete($message->chatId, $message->messageId);
+        if ($deleted) {
+            $this->gone[$key] = true;
+        }
+        return $deleted;
     }
 
     /** The same message with another text; everything else, the files included, stays. */

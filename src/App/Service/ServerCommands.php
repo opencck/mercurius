@@ -43,12 +43,14 @@ final class ServerCommands {
         }
         [$name, $value] = $parts;
         $kind = str_starts_with($value, '-----BEGIN') ? 'private_key' : 'password';
+        $existed = $this->vault->id($name) !== null;
         try {
-            $this->vault->put($name, $kind, $value, $principal);
+            // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the same command with a new value updates the secret
+            $this->vault->put($name, $kind, $value, $principal, true);
         } catch (DomainException $e) {
             return $e->getMessage();
         }
-        return sprintf(t('service.server_commands.sekret_sohranen_soobschenie_s_nim'), $name, $kind === 'private_key' ? t('service.server_commands.zakrytyy_klyuch') : t('service.server_commands.parol'));
+        return sprintf(t($existed ? 'service.server_commands.secret_updated' : 'service.server_commands.sekret_sohranen_soobschenie_s_nim'), $name, $kind === 'private_key' ? t('service.server_commands.zakrytyy_klyuch') : t('service.server_commands.parol'));
     }
 
     /**

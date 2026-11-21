@@ -37,6 +37,15 @@ final class InMemorySecretRepository implements SecretRepository {
         return array_values(array_map(static fn(array $s): array => ['id' => $s['id'], 'name' => $s['name'], 'kind' => $s['kind'], 'principal' => $s['principal']], $this->secrets));
     }
 
+    public function replace(string $name, string $kind, string $nonce, string $ciphertext): bool {
+        $secret = $this->find($name);
+        if ($secret === null) {
+            return false;
+        }
+        $this->secrets[$secret['id']] = ['kind' => $kind, 'nonce' => $nonce, 'ciphertext' => $ciphertext] + $secret;
+        return true;
+    }
+
     public function delete(string $name): bool {
         $secret = $this->find($name);
         if ($secret === null) {
