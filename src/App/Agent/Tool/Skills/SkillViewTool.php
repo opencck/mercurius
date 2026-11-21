@@ -42,6 +42,8 @@ final class SkillViewTool implements Tool {
                 'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 64],
                 'project' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.skill.project')],
                 'file_path' => ['type' => 'string', 'maxLength' => 300, 'description' => t('tool.skill_view.file_path')],
+                // spec: brief/skills-mcp.md#скиллы-в-проекте — a member takes a skill of the project or its owner as an archive
+                'export' => ['type' => 'boolean', 'description' => t('tool.skill_view.export')],
             ],
             'additionalProperties' => false,
         ]);
@@ -84,6 +86,13 @@ final class SkillViewTool implements Tool {
                 $lines[] = sprintf('- %s: %s [%s]', $skill, $info['description'], $info['where']);
             }
             return ToolResult::ok($lines === [] ? t('service.skill_commands.skillov_net_poprosite_menya_predlozhit') : implode("\n", $lines));
+        }
+        if (($args['export'] ?? false) === true) {
+            try {
+                return ToolResult::ok(sprintf(t('tool.skill_view.exported'), $name, $this->library->export($context->principal, $project, $name, $context->cancellation)));
+            } catch (\RuntimeException $e) {
+                return ToolResult::error($e->getMessage());
+            }
         }
         $path = Args::string($args, 'file_path');
         $path = $path === null ? null : ltrim(trim($path), './');

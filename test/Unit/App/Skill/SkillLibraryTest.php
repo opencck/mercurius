@@ -362,4 +362,34 @@ description: Отчёт
         self::assertContains('references/structure.md', array_keys($builtin['memory-file']->files ?? []));
         self::assertLessThanOrEqual(\OpenCCK\Domain\Skill\Skill::DESCRIPTION_MAX, mb_strlen($builtin['memory-file']->description ?? ''));
     }
+
+    public function testInAProjectTheSkillsOfItsOwnerComeInsteadOfTheWritersAndAreTakenNotChanged(): void {
+        // spec: brief/skills-mcp.md#скиллы-в-проекте
+        $project = new Project(30, 'Новости', '', Project::ACTIVE, '', time(), 7);
+        $this->sandbox->files[7]['projects/30/.mercurius/skills/digest/SKILL.md'] = self::skill('digest', 'Дайджест проекта');
+        $this->sandbox->files[7]['.mercurius/skills/sources/SKILL.md'] = self::skill('sources', 'Источники Ани');
+        $this->sandbox->files[5]['.mercurius/skills/mine-only/SKILL.md'] = self::skill('mine-only', 'Личный скилл Васи');
+        $library = $this->library();
+        $library->useUsage(new InMemorySkillUsageRepository());
+        $library->useMembers(static fn(Project $p, Principal $who): ?string => $who->id === 5 ? 'write' : null);
+
+        $catalog = $library->catalog($this->user, $project);
+        self::assertArrayHasKey('digest', $catalog);
+        self::assertSame('Источники Ани', $catalog['sources']['description'] ?? null, 'the personal skill of the project\'s owner');
+        self::assertArrayNotHasKey('mine-only', $catalog, 'the writer\'s own skills are not given in the project');
+        self::assertStringContainsString('sources: Источники Ани [владельца проекта]', $library->index($this->user, $project));
+        self::assertNotNull($library->view($this->user, $project, 'sources', null, new NullCancellation()), 'opened from the project');
+        self::assertArrayHasKey('mine-only', $library->catalog($this->user, null), 'outside the project — their own');
+
+        self::assertFalse($library->mark($this->user, $project, 'sources', 'off', true), 'a member does not turn off the owner\'s skill');
+        self::assertStringContainsString('не ваш', (string) $library->remove($this->user, $project, 'sources', static function (): void {}, new NullCancellation()));
+        self::assertTrue($library->mark($this->user, $project, 'digest', 'off', true), 'a skill of the project is changed with write');
+
+        $this->sandbox->outcome = new \OpenCCK\App\Agent\Sandbox\CommandOutcome(0, 'packed', '', false, false, 1);
+        $this->sandbox->files[7]['.mercurius/skill-export-sources.tgz'] = 'ARCHIVE';
+        self::assertSame('exports/skill-sources.tgz', $library->export($this->user, $project, 'sources', new NullCancellation()));
+        self::assertContains('put 5 exports/skill-sources.tgz 7', $this->sandbox->calls, 'the archive lies in the member\'s own sandbox');
+        $this->expectException(\RuntimeException::class);
+        $library->export($this->user, $project, 'skill-creator', new NullCancellation());
+    }
 }

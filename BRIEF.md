@@ -19,7 +19,7 @@
 - [Память](brief/memory.md) — [Память: слои](brief/memory.md#память-слои)
 - [Серверы и сеть](brief/servers.md) — [Серверы и сеть](brief/servers.md#серверы-и-сеть)
 - [Интернет и вложения](brief/internet.md) — [Интернет и браузер](brief/internet.md#интернет-и-браузер), [Входы в браузере и профиль проекта](brief/internet.md#входы-в-браузере-и-профиль-проекта), [Входящие вложения](brief/internet.md#входящие-вложения)
-- [Скиллы, MCP и модули](brief/skills-mcp.md) — [Скиллы и MCP](brief/skills-mcp.md#скиллы-и-mcp), [Модули: сервисы, MCP и скиллы](brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы), [Ящики участников и проектов](brief/skills-mcp.md#ящики-участников-и-проектов)
+- [Скиллы, MCP и модули](brief/skills-mcp.md) — [Скиллы и MCP](brief/skills-mcp.md#скиллы-и-mcp), [Скиллы в проекте](brief/skills-mcp.md#скиллы-в-проекте), [Модули: сервисы, MCP и скиллы](brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы), [Ящики участников и проектов](brief/skills-mcp.md#ящики-участников-и-проектов)
 - [Планировщик и проекты](brief/scheduler.md) — [Планировщик и проекты](brief/scheduler.md#планировщик-и-проекты), [Задания проекта](brief/scheduler.md#задания-проекта)
 - [Каналы](brief/channels.md) — [Telegram: группы, каналы и темы](brief/channels.md#telegram-группы-каналы-и-темы), [Личные сообщения участникам](brief/channels.md#личные-сообщения-участникам)
 - [Сеть агентов](brief/network.md) — [Сеть агентов](brief/network.md#сеть-агентов), [События проекта для агентов](brief/network.md#события-проекта-для-агентов), [Проект как канал для агентов](brief/network.md#проект-как-канал-для-агентов)

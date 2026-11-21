@@ -65,7 +65,7 @@ final class SkillLibrary {
      */
     public function origin(Principal $who, ?Project $project, string $name, Cancellation $cancellation): ?array {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
-        if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->sandbox === null) {
+        if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->sandbox === null || !$this->changeable($who, $project, $skill)) {
             return null;
         }
         $limits = ($this->limitsOf)($skill['owner']);
@@ -112,6 +112,9 @@ final class SkillLibrary {
         if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $edit === null
             || $edit['owner'] !== $skill['owner'] || $edit['dir'] !== $skill['dir']) {
             return sprintf(t('skill.library.no_edit'), $id, $name);
+        }
+        if (!$this->changeable($who, $project, $skill)) {
+            return sprintf(t('skill.library.not_yours'), $name);
         }
         $limits = ($this->limitsOf)($skill['owner']);
         if ($limits === null || $this->sandbox === null) {
@@ -231,7 +234,7 @@ final class SkillLibrary {
     /** Pins a skill (never marked stale) or turns it off (out of the index); false — no such skill or no count. */
     public function mark(Principal $who, ?Project $project, string $name, string $mark, bool $on): bool {
         $skill = $this->catalog($who, $project)[$name] ?? null;
-        if ($skill === null || $this->usage === null) {
+        if ($skill === null || $this->usage === null || !$this->changeable($who, $project, $skill)) {
             return false;
         }
         $place = self::place($skill['owner'], $skill['dir']);
@@ -251,6 +254,9 @@ final class SkillLibrary {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         if ($skill === null) {
             return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
+        }
+        if (!$this->changeable($who, $project, $skill)) {
+            return sprintf(t('skill.library.not_yours'), $name);
         }
         $limits = $skill['owner'] === null ? null : ($this->limitsOf)($skill['owner']);
         if ($skill['dir'] === null || $skill['owner'] === null || $limits === null || $this->sandbox === null) {
@@ -283,7 +289,12 @@ final class SkillLibrary {
     }
 
     /**
-     * The folders a conversation reads, the nearest first: the active project's, then the participant's own.
+     * The folders a conversation reads, the nearest first. In a project: the project's, then the personal ones of the
+     * project's owner — the skills of whoever writes are not given there. Elsewhere: the participant's own.
+     *
+     * spec: brief/skills-mcp.md#скиллы-в-проекте — project → owner of the project → built-in
+     * ref: references/hermes-agent/agent/skill_utils.py@e96221fa:L400-L423 (get_skill_search_roots) — roots by priority,
+     *      the nearer first; here the second root of a project is its owner's folder, not the writer's
      *
      * @return list<array{dir: string, owner: int, label: string}>
      */
@@ -291,15 +302,86 @@ final class SkillLibrary {
         if (!$who->role->may(Power::Skills)) {
             return [];
         }
-        $places = [];
         if ($project !== null && $this->levelOf($project, $who) !== null) {
             $owner = $project->ownerId ?? ($this->ownerId)();
             if ($owner !== null) {
-                $places[] = ['dir' => self::projectDir($project), 'owner' => $owner, 'label' => sprintf(t('skill.library.project'), $project->name)];
+                return [
+                    ['dir' => self::projectDir($project), 'owner' => $owner, 'label' => sprintf(t('skill.library.project'), $project->name)],
+                    ['dir' => self::MINE, 'owner' => $owner, 'label' => $owner === $who->id ? t('skill.library.mine') : t('skill.library.project_owner')],
+                ];
             }
         }
-        $places[] = ['dir' => self::MINE, 'owner' => $who->id, 'label' => t('skill.library.mine')];
-        return $places;
+        return [['dir' => self::MINE, 'owner' => $who->id, 'label' => t('skill.library.mine')]];
+    }
+
+    /**
+     * Whether a participant may change a skill of the catalog: a project's — with the write level; a personal one —
+     * only its holder. Members of a project read their owner's skills but do not change them.
+     *
+     * spec: brief/skills-mcp.md#скиллы-в-проекте
+     *
+     * @param array{description: string, where: string, dir: ?string, owner: ?int} $skill
+     */
+    private function changeable(Principal $who, ?Project $project, array $skill): bool {
+        if ($skill['dir'] === null || $skill['owner'] === null) {
+            return true;
+        }
+        if (str_starts_with($skill['dir'], 'projects/')) {
+            return $project !== null && $this->levelOf($project, $who)?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true;
+        }
+        return $skill['owner'] === $who->id;
+    }
+
+    /** a skill archive given to a participant at most this big */
+    public const EXPORT_BYTES = 20_000_000;
+
+    /**
+     * Packs a skill of this conversation into an archive in the participant's own sandbox: `exports/skill-<name>.tgz`.
+     * A member of a project takes so a skill of the project or of its owner; the agent sends the file with send_file.
+     *
+     * spec: brief/skills-mcp.md#скиллы-в-проекте — a member may take a skill of the project's owner as an archive
+     *
+     * @throws \RuntimeException why there is no archive
+     */
+    public function export(Principal $who, ?Project $project, string $name, Cancellation $cancellation): string {
+        $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
+        if ($skill === null) {
+            throw new \RuntimeException(sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name));
+        }
+        $mine = ($this->limitsOf)($who->id);
+        if ($this->sandbox === null || $mine === null) {
+            throw new \RuntimeException(t('skill.library.no_sandbox'));
+        }
+        if ($skill['dir'] === null || $skill['owner'] === null) {
+            throw new \RuntimeException(sprintf(t('skill.library.builtin_export'), $name));
+        }
+        $limits = ($this->limitsOf)($skill['owner']);
+        if ($limits === null) {
+            throw new \RuntimeException(t('skill.library.no_sandbox'));
+        }
+        // the name comes from the catalog (folder names that passed the check); quotes are dropped all the same
+        $safe = str_replace("'", '', $name);
+        $archive = '.mercurius/skill-export-' . $safe . '.tgz';
+        $packed = $this->sandbox->exec($skill['owner'], $limits, 'skill-export-' . $skill['owner'], sprintf(
+            "mkdir -p .mercurius && tar -czf '%s' -C '%s' '%s' && echo packed",
+            $archive,
+            str_replace("'", '', dirname($skill['dir'])),
+            str_replace("'", '', basename($skill['dir'])),
+        ), '.', 120, $cancellation);
+        if (trim($packed->stdout) !== 'packed') {
+            throw new \RuntimeException(sprintf(t('skill.library.export_failed'), mb_substr(trim($packed->stderr), 0, 200)));
+        }
+        try {
+            $bytes = $this->sandbox->fetch($skill['owner'], $limits, $archive, self::EXPORT_BYTES + 1, $cancellation);
+        } finally {
+            $this->sandbox->exec($skill['owner'], $limits, 'skill-export-clean-' . $skill['owner'], sprintf("rm -f '%s'", $archive), '.', 30, $cancellation);
+        }
+        if (strlen($bytes) > self::EXPORT_BYTES) {
+            throw new \RuntimeException(sprintf(t('skill.library.export_too_big'), intdiv(self::EXPORT_BYTES, 1_000_000)));
+        }
+        $path = 'exports/skill-' . $safe . '.tgz';
+        $this->sandbox->put($who->id, $mine, $path, $bytes, $cancellation);
+        return $path;
     }
 
     /**
