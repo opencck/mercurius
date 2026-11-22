@@ -43,7 +43,24 @@ final class Doctor {
 
     /** @return list<array{string, string, string}> status, what, details */
     public function run(): array {
-        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->outdated(), ...$this->audit(), ...$this->services()];
+        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->outdated(), ...$this->audit(), ...$this->services(), ...$this->botApi()];
+    }
+
+    /**
+     * The local Bot API server answers for the bot: getMe in 10 s. Its root page answers even when it hung.
+     *
+     * spec: brief/channels.md#здоровье-локального-сервера-bot-api
+     *
+     * @return list<array{string, string, string}>
+     */
+    private function botApi(): array {
+        $url = Env::raw($this->env, 'TELEGRAM_API_URL');
+        $token = Env::raw($this->env, 'TELEGRAM_BOT_TOKEN');
+        if ($url === null || $token === null || $this->http === null) {
+            return [];
+        }
+        $up = (new \OpenCCK\Infrastructure\Services\BotApiProbe($this->http, $url, $token))();
+        return [$up ? [self::OK, 'telegram-api', t('service.doctor.otvechaet')] : [self::FAIL, 'telegram-api', t('service.doctor.ne_otvechaet') . 'getMe) — docker compose ps' . t('service.doctor.profile')]];
     }
 
     /**

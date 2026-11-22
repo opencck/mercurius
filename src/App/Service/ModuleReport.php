@@ -21,6 +21,8 @@ final class ModuleReport {
         'media-video' => 'MEDIA_VIDEO_TOKEN',
         'media-docs' => 'MEDIA_DOCS_TOKEN',
         'mail' => 'MAIL_MCP_TOKEN',
+        // spec: brief/channels.md#здоровье-локального-сервера-bot-api — up while the bot answers through it
+        'telegram-api' => 'TELEGRAM_API_URL',
     ];
 
     /**

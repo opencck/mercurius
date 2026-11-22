@@ -64,6 +64,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository $routingDecisions
  * @var OpenCCK\Infrastructure\Config\SandboxSettings $sandboxSettings
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
+ * @var Amp\Http\Client\HttpClient $telegramHttp
  * @var OpenCCK\App\Vault\Vault $vault
  */
 
@@ -81,7 +82,22 @@ $addressGuard = new AddressGuard();
 $tools = new ToolRegistry();
 // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — module services from .env; a tool of a module only while its service is up,
 // checked at start and once a minute
-$serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger);
+// spec: brief/channels.md#здоровье-локального-сервера-bot-api — the local Bot API is a module checked by its bot; after a fall
+//       of two minutes or more the owner hears that buttons and messages of that time may not have arrived
+$serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger, static function (string $module, float $seconds) use ($channel, $ownerDirectory, $logger): void {
+    if ($module !== 'telegram-api' || $seconds < 120) {
+        return;
+    }
+    $logger->notice('The local Bot API is back', ['seconds' => (int) $seconds]);
+    try {
+        $channel->send(new \Mercurius\Messenger\OutgoingMessage($ownerDirectory->chatId(), sprintf(\Mercurius\I18n\t('app.bot_api_back'), max(1, (int) round($seconds / 60.0)))));
+    } catch (\Throwable $e) {
+        $logger->warning('The notice of the Bot API return was not sent', ['error' => $e::class]);
+    }
+});
+if ($telegram->apiUrl !== null) {
+    $serviceModules->probe('telegram-api', (new \OpenCCK\Infrastructure\Services\BotApiProbe($telegramHttp, $telegram->apiUrl, $telegram->token()))(...));
+}
 $serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
 $serviceModules->add(\OpenCCK\Infrastructure\Media\DocsService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_TOKEN'));
 $docsService = new \OpenCCK\Infrastructure\Media\DocsService(HttpClients::create(), $serviceModules);

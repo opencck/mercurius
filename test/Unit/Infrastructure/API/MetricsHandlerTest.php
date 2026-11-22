@@ -83,6 +83,16 @@ final class MetricsHandlerTest extends AsyncTestCase {
         self::assertStringEndsWith("\n", $text);
     }
 
+    public function testEachModuleIsAGaugeOfWhetherItAnswers(): void {
+        // spec: brief/channels.md#здоровье-локального-сервера-bot-api — a hung local Bot API shows on the dashboard
+        $text = (new MetricsText(self::figures(), static fn(): array => ['telegram-api' => false, 'browser' => true]))->render();
+
+        self::assertStringContainsString('# TYPE mercurius_module_up gauge', $text);
+        self::assertStringContainsString('mercurius_module_up{module="telegram-api"} 0', $text);
+        self::assertStringContainsString('mercurius_module_up{module="browser"} 1', $text);
+        self::assertStringNotContainsString('mercurius_module_up', (new MetricsText(self::figures()))->render(), 'no modules, no gauge');
+    }
+
     public function testWorkersPerRunIsAHistogram(): void {
         // spec: brief/operations.md#метрики-prometheus — how many workers a run starts
         $text = (new MetricsText(self::figures()))->render();

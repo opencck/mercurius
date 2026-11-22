@@ -44,6 +44,50 @@ final class ServiceModulesTest extends AsyncTestCase {
         self::assertFalse($gone->up('m'));
     }
 
+    public function testAModuleWithItsOwnCheckIsUpWhileTheCheckPasses(): void {
+        // the local Bot API has no /health: the check asks the bot itself
+        /** @var list<bool> $answers the last check finds none and throws */
+        $answers = [true, false, true];
+        $modules = new ServiceModules(new HttpClient(new FakeHttpClient(), []));
+        $modules->probe('telegram-api', static function () use (&$answers): bool {
+            return array_shift($answers) ?? throw new \RuntimeException('a probe that throws is a module down');
+        });
+        self::assertSame(['telegram-api' => false], $modules->states(), 'not checked yet');
+
+        $seen = [];
+        foreach ([true, false, true, false] as $expected) {
+            $modules->check();
+            $seen[] = $modules->up('telegram-api');
+        }
+        self::assertSame([true, false, true, false], $seen);
+    }
+
+    public function testAModuleThatFellAndCameBackIsReportedWithItsDowntime(): void {
+        // the owner learns why buttons did nothing: the start of the app is not a fall, a fall and a return are
+        $clock = 1000.0;
+        $answers = [true, false, false, true, true];
+        $back = [];
+        $modules = new ServiceModules(
+            new HttpClient(new FakeHttpClient(), []),
+            back: static function (string $name, float $seconds) use (&$back): void {
+                $back[] = [$name, $seconds];
+            },
+            now: static function () use (&$clock): float {
+                return $clock;
+            },
+        );
+        $modules->probe('telegram-api', static function () use (&$answers): bool {
+            return (bool) array_shift($answers);
+        });
+
+        foreach ([0.0, 60.0, 60.0, 300.0, 60.0] as $step) {
+            $clock += $step;
+            $modules->check();
+        }
+
+        self::assertSame([['telegram-api', 360.0]], $back, 'down at the second check, back at the fourth');
+    }
+
     public function testAModuleWithoutATokenIsNotAdded(): void {
         $modules = new ServiceModules(new HttpClient(new FakeHttpClient(), []));
         self::assertFalse($modules->add('m', 'http://m:1', null));

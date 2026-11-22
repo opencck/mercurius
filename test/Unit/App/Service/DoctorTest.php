@@ -34,6 +34,22 @@ final class DoctorTest extends AsyncTestCase {
         }
     }
 
+    public function testTheLocalBotApiIsCheckedByTheBotNotByThePort(): void {
+        // spec: brief/channels.md#здоровье-локального-сервера-bot-api — a hung server answers its root page, not getMe
+        $token = '123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        $env = ['TELEGRAM_BOT_TOKEN' => $token, 'TELEGRAM_API_URL' => 'http://telegram-api:8081'];
+        $alive = new \OpenCCK\Test\Support\FakeHttpClient(['http://telegram-api:8081/bot' . $token . '/getMe' => [200, [], '{"ok":true}']]);
+        $hung = new \OpenCCK\Test\Support\FakeHttpClient(['http://telegram-api:8081/' => [404, [], 'not found']]);
+
+        $up = Doctor::render((new Doctor($env, null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), new \Amp\Http\Client\HttpClient($alive, [])))->run());
+        $down = Doctor::render((new Doctor($env, null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), new \Amp\Http\Client\HttpClient($hung, [])))->run());
+
+        self::assertStringContainsString('✅ telegram-api: отвечает', $up);
+        self::assertStringContainsString('❌ telegram-api:', $down);
+        self::assertStringNotContainsString('AAAAAAAAAAAAAAAA', $up . $down);
+        self::assertStringNotContainsString('telegram-api', self::results(['TELEGRAM_BOT_TOKEN' => $token]), 'the cloud Bot API needs no module');
+    }
+
     public function testABrokenCommandJournalFails(): void {
         // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — doctor checks the chain of the command journal
         $audit = new \OpenCCK\Test\Support\InMemoryCommandAuditRepository();

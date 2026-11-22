@@ -59,6 +59,9 @@ services:
       TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
       TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+      # only for the health check of the image and its watchdog: getMe and the webhook queue (probe.sh)
+      # spec: brief/channels.md#здоровье-локального-сервера-bot-api
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - ./storage/telegram-api:/var/lib/telegram-bot-api
     logging:

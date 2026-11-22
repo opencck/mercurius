@@ -177,6 +177,6 @@ $routes[] = ['GET', '/api/ws', static fn(\Amp\Http\Server\HttpServer $http): \Am
 $routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
 
 // Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.
-$routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db)), $traceSettings->metricsToken())];
+$routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db), $serviceModules->states(...)), $traceSettings->metricsToken())];
 
 $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);

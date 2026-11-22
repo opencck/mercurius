@@ -22,7 +22,11 @@ final class MetricsText {
     /** workers a run may start: none, one, the parallel three, a full delegation and its retries */
     private const WORKER_BOUNDS = [0, 1, 2, 3, 5, 10];
 
-    public function __construct(private readonly MetricsRepository $figures) {}
+    public function __construct(
+        private readonly MetricsRepository $figures,
+        /** @var (\Closure(): array<string, bool>)|null the modules set up and whether each answers now */
+        private readonly ?\Closure $modules = null,
+    ) {}
 
     public function render(): string {
         $out = [];
@@ -80,6 +84,14 @@ final class MetricsText {
         $out[] = self::line('mercurius_workers_per_run_bucket', ['le' => '+Inf'], $workers['count']);
         $out[] = self::line('mercurius_workers_per_run_sum', [], $workers['sum']);
         $out[] = self::line('mercurius_workers_per_run_count', [], $workers['count']);
+        // spec: brief/channels.md#здоровье-локального-сервера-bot-api — whether each module answers, the local Bot API among them
+        $modules = $this->modules === null ? [] : ($this->modules)();
+        if ($modules !== []) {
+            self::head($out, 'mercurius_module_up', 'gauge', 'Whether a module service answers its check now');
+            foreach ($modules as $name => $up) {
+                $out[] = self::line('mercurius_module_up', ['module' => $name], $up ? 1 : 0);
+            }
+        }
         return implode("\n", $out) . "\n";
     }
 
