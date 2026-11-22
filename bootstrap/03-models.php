@@ -60,6 +60,14 @@ $openRouterKey = $llmSettings->openRouterKey();
 $openAiKey = $llmSettings->openAiKey();
 // Model catalog per provider, model roles, the choice of a conversation's model.
 $modelCatalog = new PostgresModelCatalogRepository($db);
+// The subscription waits for /codex login: until then its catalog is not asked for, then it loads at once.
+$modelCatalogModule = new \OpenCCK\Infrastructure\Module\ModelCatalogModule(
+    $catalogSources,
+    $modelCatalog,
+    $logger,
+    toolReliable: $toolReliableSources,
+    connected: $codexAccount === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CHATGPT => $codexAccount->signedIn(...)],
+);
 $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role

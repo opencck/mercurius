@@ -41,6 +41,7 @@ use Mercurius\Memory\App\Proposals;
  * Made by the parts before this one:
  *
  * @var OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount|null $codexAccount
+ * @var OpenCCK\Infrastructure\Module\ModelCatalogModule $modelCatalogModule
  * @var OpenCCK\App\Export\AgentImport $agentImport
  * @var OpenCCK\App\Peer\AgentRequests $agentRequests
  * @var OpenCCK\Infrastructure\Repository\PostgresApprovalRepository $approvalStore
@@ -278,7 +279,7 @@ $exportAgent = static function (string $password, \Amp\Cancellation $cancellatio
 };
 // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — /codex: sign in to the owner's ChatGPT subscription
 if ($codexAccount !== null) {
-    $chat->useCodex(new \OpenCCK\App\Service\CodexCommands($codexAccount, $channel, $logger));
+    $chat->useCodex(new \OpenCCK\App\Service\CodexCommands($codexAccount, $channel, $logger, static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::CHATGPT)));
 }
 $chat->useExport(new \OpenCCK\App\Export\ExportCommands($exportAgent, $channel, $logger));
 // spec: brief/operations.md#экспорт-и-импорт-агента — /import: the archive checked, the current state sealed, then a restart

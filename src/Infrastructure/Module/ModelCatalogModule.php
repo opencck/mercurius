@@ -19,7 +19,8 @@ use function Amp\async;
 /**
  * Keeps the model catalog of every provider in the database: at start when it is older than a day, then once a day.
  * Loading runs in the background, so the agent starts without waiting for the network; a failed load keeps the old
- * catalog.
+ * catalog. A provider the owner has not connected yet is not a failure: it is skipped without a warning or a retry and
+ * loaded when the owner connects it.
  *
  * spec: brief/agent-loop.md#модели — the catalog is loaded daily and at start when older than a day, per provider
  */
@@ -35,6 +36,8 @@ final class ModelCatalogModule implements AppModuleInterface {
     /**
      * @param array<string, Closure(): list<ModelInfo>> $sources provider => loader
      * @param array<string, Closure(): list<string>> $toolReliable provider => the ids of the models that call tools well
+     * @param array<string, Closure(): bool> $connected provider => whether the owner has connected it; a provider
+     *        that waits for the owner (a subscription not signed in) is skipped quietly until {@see reload()}
      */
     public function __construct(
         private readonly array $sources,
@@ -42,6 +45,7 @@ final class ModelCatalogModule implements AppModuleInterface {
         private readonly LoggerInterface $logger,
         private readonly float $interval = self::DAY,
         private readonly array $toolReliable = [],
+        private readonly array $connected = [],
     ) {}
 
     public function start(): void {
@@ -65,6 +69,17 @@ final class ModelCatalogModule implements AppModuleInterface {
         }
     }
 
+    /**
+     * Loads the catalog of a provider now, in the background: right after the owner connects it, so its models can be
+     * chosen at once rather than on the next day.
+     */
+    public function reload(string $provider): void {
+        $fetch = $this->sources[$provider] ?? null;
+        if ($fetch !== null && $this->timer !== null) {
+            $this->loads[] = async($this->load(...), $provider, $fetch);
+        }
+    }
+
     /** Waits for loads in progress; for tests and orderly shutdown. */
     public function idle(): void {
         while ($this->loads !== []) {
@@ -77,6 +92,11 @@ final class ModelCatalogModule implements AppModuleInterface {
     /** @param Closure(): list<ModelInfo> $fetch */
     private function load(string $provider, Closure $fetch): void {
         try {
+            $connected = $this->connected[$provider] ?? null;
+            if ($connected !== null && !$connected()) {
+                $this->logger->debug('Model catalog skipped: the provider is not connected', ['provider' => $provider]);
+                return;
+            }
             $models = $fetch();
             if ($models === []) {
                 $this->logger->warning('Model catalog came empty; the old one stays', ['provider' => $provider]);

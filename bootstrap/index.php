@@ -69,7 +69,7 @@ require __DIR__ . '/11-http.php';
  * @var OpenCCK\App\Peer\A2aServer|null $a2aServer
  * @var OpenCCK\App\Agent\ApprovalService $approvals
  * @var OpenCCK\App\Agent\Delegation\BackgroundDelegations $background
- * @var array<string, Closure(): list<Mercurius\Llm\ModelCatalog\ModelInfo>> $catalogSources
+ * @var ModelCatalogModule $modelCatalogModule
  * @var Mercurius\Messenger\RoutingChannel $channel
  * @var OpenCCK\Infrastructure\Config\Config $config
  * @var Mercurius\Memory\App\Consolidation $consolidation
@@ -84,7 +84,6 @@ require __DIR__ . '/11-http.php';
  * @var OpenCCK\App\Job\JobScheduler $jobScheduler
  * @var Monolog\Logger $logger
  * @var OpenCCK\Infrastructure\Config\MemorySettings $memorySettings
- * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var Mercurius\Messenger\Telegram\UpdateParser $parser
  * @var OpenCCK\App\Peer\PeerNetwork $peerNetwork
  * @var OpenCCK\App\Settings\Restarter $restarter
@@ -92,7 +91,6 @@ require __DIR__ . '/11-http.php';
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var Mercurius\Messenger\Telegram\TelegramApi $telegramApi
- * @var array<string, Closure(): list<string>> $toolReliableSources
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
  * @var OpenCCK\Infrastructure\Repository\PostgresTraceRepository $traces
  * @var Mercurius\Memory\App\LossGuard $lossGuard
@@ -105,7 +103,7 @@ require __DIR__ . '/11-http.php';
     ->addHandler(fn(App $app): Server => new Server($app->getLogger(), $config->httpHost, $config->httpPort, $health, $version, $routes))
     // Before Telegram: modules stop in reverse order, so intake stops first, then runs pause.
     ->addHandler(fn(App $app): AgentModule => new AgentModule($scheduler, $app->getLogger(), $approvals, background: $background, deliveries: new \OpenCCK\App\Agent\DeliveryRecovery($deliveryRepository, $channel, $app->getLogger())))
-    ->addHandler(fn(App $app): ModelCatalogModule => new ModelCatalogModule($catalogSources, $modelCatalog, $app->getLogger(), toolReliable: $toolReliableSources))
+    ->addHandler(fn(App $app): ModelCatalogModule => $modelCatalogModule)
     ->addHandler(fn(App $app): TraceRetentionModule => new TraceRetentionModule($traces, $traceSettings->retentionDays, $app->getLogger()))
     ->addHandler(fn(App $app): MemoryConsolidationModule => new MemoryConsolidationModule($consolidation, $memorySettings->checkHour, $app->getLogger(), $consolidationJournal, $lossGuard, $sleeps))
     ->addHandler(fn(App $app): SchedulerModule => new SchedulerModule($jobScheduler, $jobRepository, $app->getLogger()))

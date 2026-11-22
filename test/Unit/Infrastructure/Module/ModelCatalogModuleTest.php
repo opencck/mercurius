@@ -11,6 +11,8 @@ use Mercurius\Llm\ModelCatalog\ModelInfo;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Infrastructure\Module\ModelCatalogModule;
 use OpenCCK\Test\Support\InMemoryModelStores;
+use OpenCCK\Test\Support\RecordingLogger;
+use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
 
 use function Amp\delay;
@@ -76,6 +78,47 @@ final class ModelCatalogModuleTest extends AsyncTestCase {
         $module->stop();
 
         self::assertNotNull($this->stores->find(ModelRef::parse('a/old')));
+    }
+
+    public function testAProviderNotConnectedIsSkippedQuietly(): void {
+        $logger = new RecordingLogger();
+        $module = new ModelCatalogModule(['chatgpt' => $this->fetch(...)], $this->stores, $logger, connected: ['chatgpt' => static fn(): bool => false]);
+
+        $module->start();
+        $module->idle();
+        $module->stop();
+
+        self::assertSame(0, $this->fetches);
+        self::assertSame([], array_filter($logger->records, static fn(array $r): bool => $r['level'] === LogLevel::WARNING));
+    }
+
+    public function testReloadLoadsTheCatalogOnceTheProviderIsConnected(): void {
+        $connected = false;
+        $module = new ModelCatalogModule(['chatgpt' => $this->fetch(...)], $this->stores, new NullLogger(), connected: ['chatgpt' => static function () use (&$connected): bool {
+            return $connected;
+        }]);
+        $module->start();
+        $module->idle();
+
+        $connected = true;
+        $module->reload('chatgpt');
+        $module->idle();
+        $module->stop();
+
+        self::assertSame(1, $this->fetches);
+        self::assertNotNull($this->stores->find(ModelRef::parse('chatgpt:a/model-1')));
+    }
+
+    public function testReloadOfAnUnknownProviderDoesNothing(): void {
+        $module = new ModelCatalogModule(['openrouter' => $this->fetch(...)], $this->stores, new NullLogger());
+        $this->stores->replace('openrouter', [new ModelInfo('a/old', 'old', 1000, null, null)]);
+        $module->start();
+
+        $module->reload('chatgpt');
+        $module->idle();
+        $module->stop();
+
+        self::assertSame(0, $this->fetches);
     }
 
     public function testTimerReloadsEveryInterval(): void {

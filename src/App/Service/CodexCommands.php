@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Service;
 
+use Closure;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount;
@@ -23,10 +24,12 @@ use function Mercurius\I18n\t;
 final class CodexCommands {
     private bool $waiting = false;
 
+    /** @param (Closure(): void)|null $signedIn called once the sign-in succeeds: the subscription's models load at once */
     public function __construct(
         private readonly CodexAccount $account,
         private readonly Channel $channel,
         private readonly LoggerInterface $logger,
+        private readonly ?Closure $signedIn = null,
     ) {}
 
     public function handle(string $chatId, string $argument): string {
@@ -51,6 +54,9 @@ final class CodexCommands {
         async(function () use ($chatId, $device): void {
             try {
                 $this->account->finish($device['id'], $device['code'], $device['interval']);
+                if ($this->signedIn !== null) {
+                    ($this->signedIn)();
+                }
                 $this->channel->send(new OutgoingMessage($chatId, t('codex.done')));
             } catch (Throwable $e) {
                 $this->logger->warning('ChatGPT sign-in not finished', ['error' => $e::class, 'message' => mb_substr($e->getMessage(), 0, 200)]);
