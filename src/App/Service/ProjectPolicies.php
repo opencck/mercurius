@@ -102,6 +102,9 @@ final class ProjectPolicies {
         }
         $ceiling = $this->ceiling($project);
         $top = self::value($ceiling, $key);
+        if ($key === 'sandbox.memory_bytes' && $top === 0) {
+            $top = null; // the owner has no limit of the address space: any positive one fits under it
+        }
         if ($key === 'daily_spend_usd') {
             // 0 is no cap: only an owner without a cap may give a project none
             if ($value < 0 || ($top > 0 && ($value <= 0 || $value > $top))) {

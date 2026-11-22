@@ -194,7 +194,8 @@ final class ParticipantPolicy {
             self::pick($value, 'disk_bytes', $base->diskBytes),
             self::pick($value, 'processes', $base->processes),
             self::pick($value, 'cpu_seconds', $base->cpuSeconds),
-            self::pick($value, 'memory_bytes', $base->memoryBytes),
+            // 0 is no limit of the address space: what toArray() writes for such sandboxes reads back
+            array_key_exists('memory_bytes', $value) && $value['memory_bytes'] === 0 ? 0 : self::pick($value, 'memory_bytes', $base->memoryBytes),
             self::pick($value, 'concurrent_commands', $base->concurrentCommands),
         );
     }

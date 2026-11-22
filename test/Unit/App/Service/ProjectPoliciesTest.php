@@ -94,6 +94,30 @@ final class ProjectPoliciesTest extends TestCase {
         self::assertContains('ssh_run', $this->rights->of($this->project)->tools ?? []);
     }
 
+    public function testAnOwnerWithoutALimitOfAddressSpaceChangesTheProjectAndSetsOne(): void {
+        // the sandbox of the agent's owner has memory_bytes 0 — no limit of the address space; the first change of the
+        // project's rights starts from them and must not fail on that 0
+        $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 1_000_000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(1_000_000_000, 64, 600, 0, 4));
+        $rights = new ProjectPolicies(
+            new InMemoryProjectPolicyRepository(),
+            $this->projects,
+            $this->principals,
+            $policies,
+            static fn(ParticipantPolicy $p): array => self::TOOLS,
+            new NullLogger(),
+        );
+        $project = $this->projects->create('Сайт', '', null);
+
+        $rights->revoke($project, 'http_request');
+        self::assertNotContains('http_request', $rights->of($project)->tools ?? []);
+        self::assertSame(0, $rights->of($project)->sandbox?->memoryBytes, 'still no limit');
+        $rights->grant($project, 'http_request');
+        self::assertContains('http_request', $rights->of($project)->tools ?? []);
+
+        $rights->limit($project, 'sandbox.memory_bytes', 2_000_000_000);
+        self::assertSame(2_000_000_000, $rights->of($project)->sandbox->memoryBytes, 'an owner without a limit may give the project one');
+    }
+
     public function testWhenTheOwnerLosesAToolTheProjectLosesItAndTheLimitGoesDown(): void {
         $this->rights->limit($this->project, 'token_budget', 150_000);
         $this->policies->update($this->alice, ['tools' => ['read_file'], 'token_budget' => 100_000]);
