@@ -56,6 +56,35 @@ final class SkillLibraryTest extends AsyncTestCase {
         return "---\nname: {$name}\ndescription: {$description}\n---\n\n{$body}";
     }
 
+    /**
+     * The bytes of a zip archive. The archive goes to a path of its own that does not exist yet (CREATE | EXCL): a file
+     * just made by tempnam() may still be held by another process on Windows (an antivirus scan), then open() fails,
+     * and an unopened ZipArchive throws ValueError on addFromString — the test failed now and then with that error.
+     *
+     * @param array<string, string> $files
+     */
+    private static function zip(array $files): string {
+        for ($attempt = 1; ; $attempt++) {
+            $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'mercurius-skill-' . bin2hex(random_bytes(8)) . '.zip';
+            $archive = new \ZipArchive();
+            $opened = $archive->open($path, \ZipArchive::CREATE | \ZipArchive::EXCL);
+            if ($opened === true) {
+                foreach ($files as $name => $content) {
+                    $archive->addFromString($name, $content);
+                }
+                $written = $archive->close();
+                $bytes = $written ? file_get_contents($path) : false;
+                @unlink($path);
+                if (is_string($bytes) && $bytes !== '') {
+                    return $bytes;
+                }
+            }
+            if ($attempt >= 3) {
+                self::fail(sprintf('the test archive was not made: open() gave %s', var_export($opened, true)));
+            }
+        }
+    }
+
     private function library(): SkillLibrary {
         $builtin = BuiltinSkills::load(dirname(__DIR__, 4) . '/skills');
         $builtin['deploy'] = SkillBundle::fromFiles(['SKILL.md' => self::skill('deploy', 'Встроенная выкладка')], 'builtin:deploy', '');
@@ -136,15 +165,10 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertArrayHasKey('.mercurius/skills/mine/SKILL.md', $this->sandbox->files[5] ?? []);
         self::assertTrue($save->execute(['name' => 'leak', 'description' => 'x', 'body' => 'token=ghp_abcdefghijklmnopqrstuvwxyz0123'], $this->context($this->user))->isError, 'no secrets in a skill');
 
-        $zip = tempnam(sys_get_temp_dir(), 'zip');
-        self::assertIsString($zip);
-        $archive = new \ZipArchive();
-        $archive->open($zip, \ZipArchive::OVERWRITE);
-        $archive->addFromString('weekly/SKILL.md', self::skill('weekly-report', 'Недельный отчёт'));
-        $archive->addFromString('weekly/templates/table.md', '| проект |');
-        $archive->close();
-        $this->sandbox->files[1]['inbox/weekly.zip'] = (string) file_get_contents($zip);
-        @unlink($zip);
+        $this->sandbox->files[1]['inbox/weekly.zip'] = self::zip([
+            'weekly/SKILL.md' => self::skill('weekly-report', 'Недельный отчёт'),
+            'weekly/templates/table.md' => '| проект |',
+        ]);
         $import = new SkillImportTool(new SkillImporter([new ArchiveSkillSource(new HttpClient(new FakeHttpClient([]), []))]), $library, $this->projectOf(), $this->sandbox);
         $imported = $import->execute(['path' => 'inbox/weekly.zip'], $this->context($this->owner));
         self::assertFalse($imported->isError, $imported->content);
@@ -203,14 +227,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         $nowhere = $view->execute(['name' => 'nothing-like-it'], $this->context($this->owner));
         self::assertStringNotContainsString('Сайт', $nowhere->content);
 
-        $zip = tempnam(sys_get_temp_dir(), 'zip');
-        self::assertIsString($zip);
-        $archive = new \ZipArchive();
-        $archive->open($zip, \ZipArchive::OVERWRITE);
-        $archive->addFromString('weekly/SKILL.md', self::skill('weekly-report', 'Недельный отчёт'));
-        $archive->close();
-        $this->sandbox->files[1]['inbox/weekly.zip'] = (string) file_get_contents($zip);
-        @unlink($zip);
+        $this->sandbox->files[1]['inbox/weekly.zip'] = self::zip(['weekly/SKILL.md' => self::skill('weekly-report', 'Недельный отчёт')]);
         $import = new SkillImportTool(new SkillImporter([new ArchiveSkillSource(new HttpClient(new FakeHttpClient([]), []))]), $library, $this->projectOf(), $this->sandbox);
         self::assertFalse($import->execute(['path' => 'inbox/weekly.zip', 'project' => 'Сайт'], $this->context($this->owner))->isError);
         self::assertArrayHasKey('projects/12/.mercurius/skills/weekly-report/SKILL.md', $this->sandbox->files[1] ?? []);
