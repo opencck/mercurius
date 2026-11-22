@@ -78,6 +78,7 @@ require __DIR__ . '/11-http.php';
  * @var Mercurius\Messenger\Deduplicator $deduplicator
  * @var OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository $deliveryRepository
  * @var Mercurius\Messenger\ChatDispatcher $dispatcher
+ * @var OpenCCK\App\Service\GroupGate $groupGate
  * @var OpenCCK\App\Service\HealthService $health
  * @var OpenCCK\Infrastructure\Repository\PostgresJobRepository $jobRepository
  * @var OpenCCK\App\Job\JobScheduler $jobScheduler

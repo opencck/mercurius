@@ -54,7 +54,7 @@ final class TelegramModuleTest extends AsyncTestCase {
         };
         $known = null;
         $module = new TelegramModule($api, $settings, new LongPolling($api, new UpdateParser(), $handler), new NullLogger(), function (array $me) use (&$known): void {
-            $known = $me['username'] ?? null;
+            $known = isset($me['username']) && is_string($me['username']) ? $me['username'] : null;
         }, retryBase: 0.01);
 
         $module->start(); // does not throw while Telegram is out of reach
