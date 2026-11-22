@@ -123,6 +123,34 @@ final class A2aServer implements JobRuns {
         $this->channels = $channels;
     }
 
+    private ?\OpenCCK\App\Service\ProjectPolicies $projectRights = null;
+    private ?\OpenCCK\Domain\Repository\ProjectRepository $projectsOfChats = null;
+
+    /** spec: brief/participants.md#права-проекта — a task of an agent in a project runs with the project's rights */
+    public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $rights, \OpenCCK\Domain\Repository\ProjectRepository $projects): void {
+        $this->projectRights = $rights;
+        $this->projectsOfChats = $projects;
+    }
+
+    /**
+     * The rights of the agent's run in this conversation: in a project — the project's, as for a person who writes in
+     * the project's chat (a reader only reads); elsewhere, or without access to the project, — the agent's own.
+     *
+     * spec: brief/participants.md#права-проекта
+     */
+    private function policyIn(Principal $agent, int $conversationId): \OpenCCK\Domain\Agent\ParticipantPolicy {
+        $rights = $this->projectRights;
+        if ($rights !== null) {
+            $meta = $this->conversations->meta($conversationId);
+            $project = $meta === null ? null : $this->projectsOfChats?->active($meta->channel, $meta->chatId, $meta->threadId);
+            $inProject = $project === null ? null : $rights->forRun($project, $agent);
+            if ($inProject !== null) {
+                return $inProject;
+            }
+        }
+        return $this->policies->forPrincipal($agent);
+    }
+
     /**
      * The list of projects of an agent, subscribing and leaving: what joining and leaving a chat is for a person.
      *
@@ -554,7 +582,6 @@ final class A2aServer implements JobRuns {
     }
 
     private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null, ?string $project = null): void {
-        $policy = $this->policies->forPrincipal($agent);
         // spec: brief/network.md#проект-как-канал-для-агентов — a task of an agent runs in its working project (or in the one
         //       it names): the chat of the task is put there before anything looks for the project of the chat
         $misplaced = $this->channels?->place($agent, 'a2a-' . $agent->id . '-' . $contextId, $project);
@@ -564,6 +591,7 @@ final class A2aServer implements JobRuns {
         }
         $conversation = $this->conversations->openConversation($agent->id, self::CHANNEL, 'a2a-' . $agent->id . '-' . $contextId);
         $this->conversations->setMeta($conversation, PromptBuilder::system($agent, ($this->now)()), $this->model);
+        $policy = $this->policyIn($agent, $conversation);
         // spec: brief/network.md#вызов-и-раздача-соседям — the token cap the leader sent is taken as the smaller of the two budgets
         $limits = $tokens === null ? $policy->run : new \OpenCCK\Domain\Agent\RunLimits($policy->run->maxTurns, max(1, min($policy->run->tokenBudget, $tokens)), $policy->run->runTimeout, $policy->run->toolTimeout);
         $run = $this->runs->start($conversation, $agent->id, $this->model, $limits);
@@ -591,7 +619,7 @@ final class A2aServer implements JobRuns {
         $cancel = $this->cancels[$task->id] = new DeferredCancellation();
         async(function () use ($task, $agent, $run, $cancel): void {
             try {
-                $final = $this->loop->run($run, $this->policies->forPrincipal($agent), $agent, new SilentObserver(), $cancel->getCancellation());
+                $final = $this->loop->run($run, $this->policyIn($agent, $run->conversationId), $agent, new SilentObserver(), $cancel->getCancellation());
             } catch (Throwable $e) {
                 $this->logger->error('A2A task failed', ['task' => $task->id, 'error' => $e::class]);
                 $this->peers->updateTask($task->id, A2aTask::FAILED, null, t('peer.a2a_server.vnutrennyaya_oshibka_agenta'));
@@ -688,7 +716,7 @@ final class A2aServer implements JobRuns {
         if ($previous === null) {
             return false;
         }
-        $run = $this->runs->start($previous->conversationId, $agent->id, $this->model, $this->policies->forPrincipal($agent)->run);
+        $run = $this->runs->start($previous->conversationId, $agent->id, $this->model, $this->policyIn($agent, $previous->conversationId)->run);
         if ($run === null) {
             return false;
         }
@@ -733,6 +761,10 @@ final class A2aServer implements JobRuns {
             return self::error($id, self::ERR_TASK_NOT_CANCELABLE, 'task is not cancelable');
         }
         ($this->cancels[$task->id] ?? null)?->cancel();
+        // a run paused for a card has no fiber to cancel: it is stopped, so a later press does not wake it to ask again
+        if ($task->runId !== null) {
+            $this->runs->transition($task->runId, \OpenCCK\Domain\Agent\RunStatus::WaitingApproval, \OpenCCK\Domain\Agent\RunStatus::Stopped);
+        }
         $this->peers->updateTask($task->id, A2aTask::CANCELED, null, t('peer.a2a_server.otmeneno_veduschim_agentom'));
         $canceled = $this->peers->task($task->id) ?? $task;
         return ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->view($canceled)];

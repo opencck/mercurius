@@ -164,6 +164,63 @@ final class ProjectChannelsTest extends AsyncTestCase {
         \Amp\delay(0.02);
     }
 
+    public function testATaskOfAnAgentInAProjectRunsWithTheRightsOfTheProject(): void {
+        // spec: brief/participants.md#права-проекта — a member works with the project's rights, an agent's task as a
+        // person's message in the project's chat; outside the project the agent has its own
+        $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('http_request'));
+        $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('read_file'));
+        $this->stack->policies->update($this->agent, ['tools' => []]);
+        $this->projects->share($this->project->id, $this->agent->id, 'write', null);
+        $rights = new \OpenCCK\App\Service\ProjectPolicies(
+            new \OpenCCK\Test\Support\InMemoryProjectPolicyRepository(),
+            $this->projects,
+            $this->stack->principals,
+            $this->stack->policies,
+            static fn(\OpenCCK\Domain\Agent\ParticipantPolicy $p): array => array_values(array_filter(['http_request', 'read_file'], $p->allowsTool(...))),
+            new NullLogger(),
+        );
+        $server = $this->server();
+        $server->useProjectPolicies($rights, $this->projects);
+        $llm = $this->stack->llm;
+        $send = fn(string $id, array $metadata = []): array => $this->call($server, $this->agent, 'SendMessage', ['message' => ['messageId' => $id, 'contextId' => 'ctx-' . $id, 'parts' => [['kind' => 'text', 'text' => 'Запрос']]] + ($metadata === [] ? [] : ['metadata' => $metadata])]);
+        $tools = static fn(int $i): array => array_map(static fn($d): string => $d->name, $llm->requests[$i]->tools ?? []);
+
+        $send('r1', ['project' => 'Job Hunt']);
+        \Amp\delay(0.05);
+        self::assertContains('http_request', $tools(0), 'in the project: the project\'s rights');
+
+        $rights->revoke($this->project, 'http_request');
+        $send('r2', ['project' => 'Job Hunt']);
+        \Amp\delay(0.05);
+        self::assertNotContains('http_request', $tools(1), 'taken from the project: gone for its member too');
+        self::assertContains('read_file', $tools(1));
+
+        $send('r3');
+        \Amp\delay(0.05);
+        self::assertNotContains('read_file', $tools(2), 'outside the project: the agent\'s own rights');
+    }
+
+    public function testCancellingATaskStopsItsRunThatWaitsForTheOwner(): void {
+        // spec: brief/network.md#вызов-и-раздача-соседям — a canceled task does not go on: its run waiting for a card is
+        // stopped, so a press on the card later does not wake it to ask again
+        $server = $this->server();
+        $sent = $this->call($server, $this->agent, 'SendMessage', ['message' => ['messageId' => 'c1', 'contextId' => 'ctx-c1', 'parts' => [['kind' => 'text', 'text' => 'Долго']]]]);
+        $result = $sent['result'] ?? null;
+        self::assertIsArray($result);
+        /** @var array{id?: string, task?: array{id?: string}} $result */
+        $taskId = $result['id'] ?? ($result['task']['id'] ?? '');
+        $runs = array_filter($this->stack->runs->runs, fn(\OpenCCK\Domain\Agent\Run $r): bool => $r->principalId === $this->agent->id);
+        $run = end($runs);
+        self::assertInstanceOf(\OpenCCK\Domain\Agent\Run::class, $run);
+        $this->stack->runs->setStatus($run->id, RunStatus::WaitingApproval);
+
+        $canceled = $this->call($server, $this->agent, 'CancelTask', ['id' => $taskId]);
+
+        self::assertArrayNotHasKey('error', $canceled);
+        self::assertSame(RunStatus::Stopped, $this->stack->runs->find($run->id)?->status);
+        \Amp\delay(0.02);
+    }
+
     public function testAnAgentEntersAProjectFromItsOwnTask(): void {
         $edit = new ProjectEditTool($this->projects, $this->stack->conversations, principals: $this->stack->principals);
         $edit->useChannels($this->channels);
