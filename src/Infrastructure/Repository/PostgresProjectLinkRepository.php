@@ -43,34 +43,4 @@ final class PostgresProjectLinkRepository implements ProjectLinkRepository {
         }
         return $found;
     }
-
-    public function bindSecret(int $secretId, int $projectId, string $host): void {
-        $this->db->execute(
-            'INSERT INTO project_secrets (secret_id, project_id, host) VALUES (?, ?, ?) ON CONFLICT (secret_id) DO UPDATE SET project_id = EXCLUDED.project_id, host = EXCLUDED.host',
-            [$secretId, $projectId, $host],
-        );
-    }
-
-    public function unbindSecret(int $secretId): bool {
-        return $this->db->execute('DELETE FROM project_secrets WHERE secret_id = ? RETURNING secret_id', [$secretId])->fetchRow() !== null;
-    }
-
-    public function secretBinding(int $secretId): ?array {
-        $row = $this->db->execute('SELECT project_id, host FROM project_secrets WHERE secret_id = ?', [$secretId])->fetchRow();
-        $project = $row['project_id'] ?? null;
-        $host = $row['host'] ?? null;
-        return is_int($project) && is_string($host) ? ['projectId' => $project, 'host' => $host] : null;
-    }
-
-    public function secretsOf(int $projectId): array {
-        $found = [];
-        foreach ($this->db->execute('SELECT secret_id, host FROM project_secrets WHERE project_id = ? ORDER BY secret_id', [$projectId]) as $row) {
-            $secret = $row['secret_id'] ?? null;
-            $host = $row['host'] ?? null;
-            if (is_int($secret) && is_string($host)) {
-                $found[] = ['secretId' => $secret, 'host' => $host];
-            }
-        }
-        return $found;
-    }
 }
