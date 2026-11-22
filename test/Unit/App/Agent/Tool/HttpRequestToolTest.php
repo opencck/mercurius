@@ -132,6 +132,31 @@ final class HttpRequestToolTest extends AsyncTestCase {
         self::assertCount(2, $this->http->requested, 'a request with an unknown secret is not sent');
     }
 
+    public function testASecretGoesIntoTheQueryOfTheAddressButNeverIntoItsHost(): void {
+        // spec: brief/servers.md#секрет-в-http-запросе — a site that takes its password in the address (?password=…)
+        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $vault->put('game-pass', 'token', 'a b&c', $owner);
+        $this->http = new FakeHttpClient([
+            'http://minecraft.example/?password=a%20b%26c' => [200, ['content-type' => 'text/plain'], 'welcome, your password a b&c is right'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault);
+        $call = ['url' => 'http://minecraft.example/?password={{secret:game-pass}}'];
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger($call), 'a request with a secret waits for the owner');
+        self::assertSame('http-secret:game-pass minecraft.example', $tool->grantKey($call));
+        self::assertStringNotContainsString('a b&c', $tool->describe($call), 'the card shows the name, not the value');
+
+        $result = $tool->execute($call, self::context());
+        self::assertSame(['GET http://minecraft.example/?password=a%20b%26c'], $this->http->requested, 'the value is url-encoded in the query');
+        self::assertStringContainsString('welcome', $result->content);
+        self::assertStringNotContainsString('a b&c', $result->content, 'the value never reaches the model');
+
+        $inHost = $tool->execute(['url' => 'http://{{secret:game-pass}}.example/'], self::context());
+        self::assertTrue($inHost->isError, 'a secret in the host is not filled: the grant binds the host');
+        self::assertCount(1, $this->http->requested);
+    }
+
     public function testCookiesOfAHostAreKeptForTheParticipantWithoutShowingThem(): void {
         $this->http = new FakeHttpClient([
             'http://example.com/login' => [200, ['content-type' => 'application/json', 'set-cookie' => '3x-ui=SESSIONVALUE; Path=/; HttpOnly'], '{"success":true}'],

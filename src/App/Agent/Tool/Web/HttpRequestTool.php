@@ -174,7 +174,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         if ($secret !== null) {
             $names[] = $secret;
         }
-        foreach ([Args::string($args, 'body') ?? '', ...array_values(Args::stringMap($args, 'headers'))] as $text) {
+        foreach ([Args::string($args, 'body') ?? '', self::query(Args::string($args, 'url') ?? ''), ...array_values(Args::stringMap($args, 'headers'))] as $text) {
             if (preg_match_all(self::PLACEHOLDER, $text, $found) > 0) {
                 $names = [...$names, ...$found[1]];
             }
@@ -182,6 +182,35 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         $names = array_values(array_unique($names));
         sort($names);
         return $names;
+    }
+
+    /**
+     * The query of an address — the only part of it where a secret may stand: the host stays the one the grant names.
+     *
+     * spec: brief/servers.md#секрет-в-http-запросе
+     */
+    private static function query(string $url): string {
+        $at = strpos($url, '?');
+        if ($at === false) {
+            return '';
+        }
+        $query = substr($url, $at + 1);
+        $hash = strpos($query, '#');
+        return $hash === false ? $query : substr($query, 0, $hash);
+    }
+
+    /**
+     * The address with the secrets of its query put in, url-encoded; null — a secret stands outside the query.
+     *
+     * @param array<string, string> $values
+     */
+    private static function fillUrl(string $url, array $values): ?string {
+        $at = strpos($url, '?');
+        $head = $at === false ? $url : substr($url, 0, $at);
+        if (preg_match(self::PLACEHOLDER, $head) === 1) {
+            return null;
+        }
+        return $at === false ? $url : $head . '?' . self::fill(substr($url, $at + 1), $values, 'application/x-www-form-urlencoded');
     }
 
     /** @param array<string, mixed> $args */
@@ -253,6 +282,12 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         if ($body !== null) {
             $body = self::fill($body, $values, $type);
         }
+        // a site may take its password in the address (?password={{secret:name}}); the host is never filled
+        $filled = self::fillUrl($url, $values);
+        if ($filled === null) {
+            return ToolResult::error(t('tool.http_request.secret_in_host'));
+        }
+        $url = $filled;
         foreach ($headers as $name => $value) {
             $headers[$name] = self::fill($value, $values, '');
         }
