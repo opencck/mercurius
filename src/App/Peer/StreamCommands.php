@@ -17,8 +17,8 @@ use Psr\Log\LoggerInterface;
 use function Mercurius\I18n\t;
 
 /**
- * The owner of the agent gives agents of the network the streams of places: "/stream give <agent>" in a chat or topic
- * gives its stream, "/stream take <agent>" there takes it back, "/streams" lists them, "/stream remove <number>" takes
+ * The owner of the agent gives agents of the network the streams of places: "/stream give <agent>" in a chat, a topic
+ * or the owner's private chat with the bot gives its stream, "/stream take <agent>" there takes it back, "/streams" lists them, "/stream remove <number>" takes
  * one back from anywhere. Taking back ends a subscription at once.
  *
  * spec: brief/network.md#потоки-мест-для-агентов
@@ -48,10 +48,6 @@ final class StreamCommands {
         if ($action !== 'give' && $action !== 'take') {
             return t('peer.streams.usage');
         }
-        // the owner's private chat is nobody else's to hear
-        if ($message->isPrivateChat) {
-            return t('peer.streams.not_private');
-        }
         $agent = $this->agent($rest);
         if ($agent === null) {
             return sprintf(t('peer.streams.no_agent'), $rest);
@@ -68,7 +64,8 @@ final class StreamCommands {
             return t('peer.streams.none');
         }
         $project = $this->projects?->active($message->channel, $message->chatId, $thread);
-        $title = $project !== null ? sprintf(t('peer.streams.title_project'), $project->name) : ($thread === '' ? sprintf(t('peer.streams.title_chat'), $message->chatId) : sprintf(t('peer.streams.title_topic'), $message->chatId, $thread));
+        // the owner's own private chat is the owner's to give: only the owner writes these commands
+        $title = $message->isPrivateChat ? t('peer.streams.title_private') : ($project !== null ? sprintf(t('peer.streams.title_project'), $project->name) : ($thread === '' ? sprintf(t('peer.streams.title_chat'), $message->chatId) : sprintf(t('peer.streams.title_topic'), $message->chatId, $thread)));
         $stream = $this->streams->grant($agent->id, $message->channel, $message->chatId, $thread, $title, $who->id);
         $this->logger->info('Stream of a place given', ['stream' => $stream->id, 'agent' => $agent->id]);
         return sprintf(t('peer.streams.given'), $agent->displayName ?? ('#' . $agent->id), $title, $stream->id);

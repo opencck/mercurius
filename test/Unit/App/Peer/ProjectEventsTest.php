@@ -137,7 +137,24 @@ final class ProjectEventsTest extends AsyncTestCase {
         self::assertStringContainsString('отозван', $commands->handle($this->owner, $inTopic, '/stream', 'take helper'));
         $this->events->finished($this->exchange($this->owner, '-100500', '4', 'после отзыва', 'ответ'));
         self::assertCount(1, $this->pushed(), 'taken back: the subscription ended at once');
+    }
+
+    public function testTheOwnerGivesANeighbourTheStreamOfThePrivateChat(): void {
+        // spec: brief/network.md#потоки-мест-для-агентов
+        $streams = new \OpenCCK\Test\Support\InMemoryPlaceStreamRepository();
+        $this->events->useStreams($streams);
+        $commands = new \OpenCCK\App\Peer\StreamCommands($streams, $this->stack->principals, new \Psr\Log\NullLogger(), $this->projects);
         $private = new \Mercurius\Messenger\IncomingMessage('telegram', '42', '42', 'owner', 'Owner', '/stream give helper', '2', null, true, new \DateTimeImmutable(), '2');
-        self::assertStringContainsString('не выдаётся', $commands->handle($this->owner, $private, '/stream', 'give helper'));
+        self::assertStringContainsString('личка владельца', $commands->handle($this->owner, $private, '/stream', 'give helper'));
+        $streams->setSubscribed($streams->of($this->agent->id)[0]->id, true);
+
+        $this->events->finished($this->exchange($this->owner, '42', '', 'в личке', 'ответ в личке'));
+        $this->events->finished($this->exchange($this->owner, '-100500', '', 'в группе', 'ответ'));
+        $pushed = $this->pushed();
+        self::assertCount(1, $pushed);
+        self::assertSame(['PlaceEvent', 'в личке'], [$pushed[0][1], $pushed[0][2]['text']]);
+
+        self::assertStringContainsString('отозван', $commands->handle($this->owner, $private, '/stream', 'take helper'));
+        self::assertSame([], $streams->of($this->agent->id));
     }
 }
