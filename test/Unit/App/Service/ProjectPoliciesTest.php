@@ -58,6 +58,11 @@ final class ProjectPoliciesTest extends TestCase {
         $this->project = $this->projects->create('Новости', '', $this->alice->id);
     }
 
+    private static function memory(ParticipantPolicy $policy): ?int {
+        $sandbox = $policy->sandbox;
+        return $sandbox === null ? null : $sandbox->memoryBytes;
+    }
+
     private function participant(string $id, string $name): Principal {
         $visitor = $this->principals->createVisitor('telegram', $id, $name);
         return $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? throw new \RuntimeException('no participant');
@@ -110,12 +115,12 @@ final class ProjectPoliciesTest extends TestCase {
 
         $rights->revoke($project, 'http_request');
         self::assertNotContains('http_request', $rights->of($project)->tools ?? []);
-        self::assertSame(0, $rights->of($project)->sandbox?->memoryBytes, 'still no limit');
+        self::assertSame(0, self::memory($rights->of($project)), 'still no limit');
         $rights->grant($project, 'http_request');
         self::assertContains('http_request', $rights->of($project)->tools ?? []);
 
         $rights->limit($project, 'sandbox.memory_bytes', 2_000_000_000);
-        self::assertSame(2_000_000_000, $rights->of($project)->sandbox->memoryBytes, 'an owner without a limit may give the project one');
+        self::assertSame(2_000_000_000, self::memory($rights->of($project)), 'an owner without a limit may give the project one');
     }
 
     public function testWhenTheOwnerLosesAToolTheProjectLosesItAndTheLimitGoesDown(): void {
