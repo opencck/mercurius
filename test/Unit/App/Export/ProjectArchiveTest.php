@@ -45,6 +45,20 @@ final class ProjectArchiveTest extends AsyncTestCase {
         return [$archive, $projects, $policies, $prefs, $approvals, $jobs, $sandbox, $principals, $vault, $links];
     }
 
+    public function testTheExportOfAProjectSaysItPacksTheProjectNotTheAgent(): void {
+        // the first answer named the archive of the whole agent: the owner took it for the wrong command
+        $folder = sys_get_temp_dir() . '/mrcp-' . bin2hex(random_bytes(4));
+        [$archive, $projects, , , , , , $principals] = $this->instance($folder);
+        $projects->create('Новости', 'дайджест');
+        $commands = new \OpenCCK\App\Export\ProjectArchiveCommands($archive, $projects, new \OpenCCK\Test\Support\FakeChannel(), new \Psr\Log\NullLogger(), $folder);
+
+        $reply = $commands->export($principals->owner() ?? self::fail('no owner'), '42', 'Новости long-password-123');
+
+        self::assertStringContainsString('Новости', $reply);
+        self::assertStringNotContainsString('агента', $reply);
+        \Amp\delay(0.05);
+    }
+
     public function testAProjectMovesWithItsCardFolderJobsRightsBansAndClockButNoSecretValues(): void {
         $folder = sys_get_temp_dir() . '/mrcp-' . bin2hex(random_bytes(4));
         [$from, $projects, $policies, $prefs, $approvals, $jobs, $sandbox, $principals, $vault, $links] = $this->instance($folder);

@@ -75,7 +75,7 @@ final class ProjectArchiveCommands {
                 $this->busy = false;
             }
         })->ignore();
-        return t('export.started');
+        return sprintf(t('project.archive.started'), $project->name);
     }
 
     public function import(Principal $who, string $chatId, #[\SensitiveParameter] string $password, ?Attachment $file): string {
