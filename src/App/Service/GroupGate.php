@@ -57,6 +57,13 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $this->bots = $bots;
     }
 
+    /** The bot's name learned later: Telegram was out of reach at start, mentions in groups are seen from now on. */
+    public function knowBotName(string $username): void {
+        if ($username !== '') {
+            $this->botUsername = $username;
+        }
+    }
+
     /** spec: brief/channels.md#группа — bots and visitors the participants of a group asked not to hear */
     public function useIgnores(\OpenCCK\Domain\Repository\GroupIgnoreRepository $ignores): void {
         $this->ignores = $ignores;
@@ -68,7 +75,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
         private readonly string $botId,
-        private readonly ?string $botUsername,
+        private ?string $botUsername,
         private readonly LoggerInterface $logger,
         /** forum topics as projects; null — topics are just threads */
         private readonly ?ForumTopics $forum = null,

@@ -114,6 +114,12 @@ require __DIR__ . '/11-http.php';
         $telegram,
         new LongPolling($telegramApi, $parser, $dispatcher, $deduplicator, $app->getLogger()),
         $app->getLogger(),
+        // Telegram out of reach at start: the bot's name comes with the connection, mentions in groups then work
+        static function (array $me) use ($groupGate): void {
+            if (isset($me['username']) && is_string($me['username'])) {
+                $groupGate->knowBotName($me['username']);
+            }
+        },
     ))
     ->run($restarter);
 

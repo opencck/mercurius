@@ -27,11 +27,11 @@ final class GroupGateTest extends AsyncTestCase {
     private GroupGate $gate;
     private int $id = 100;
 
-    private function stack(ScriptedLlm $llm, float $quiet = 0.0): void {
+    private function stack(ScriptedLlm $llm, float $quiet = 0.0, ?string $botName = 'mrcuribot'): void {
         $this->stack = new AgentStack($llm, quietDebounce: $quiet);
         $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
         $this->groups = new InMemoryGroupRepository();
-        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, 'mrcuribot', new NullLogger(), visitors: $this->stack->visitors);
+        $this->gate = new GroupGate($this->groups, $this->stack->principals, $this->stack->channel, '42', self::BOT, $botName, new NullLogger(), visitors: $this->stack->visitors);
         $this->stack->useGroups($this->gate);
     }
 
@@ -384,6 +384,20 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertStringContainsString('кто оплатит свет? там 1200', $prompt, 'the talk of the group comes as data');
         self::assertStringContainsString('<untrusted-data source="group-chat">', $prompt);
         self::assertStringEndsWith("\n\nсколько за свет?", $prompt, 'the mention is dropped');
+    }
+
+    public function testTheBotNameLearnedAfterStartMakesMentionsHeard(): void {
+        // spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api — Telegram was out of reach at start
+        $this->stack(new ScriptedLlm([ScriptedLlm::text('Да.')]), botName: null);
+        $this->say('первое сообщение');
+        $this->press('gr:' . self::GROUP . ':m');
+
+        $this->say('@mrcuribot, ты тут?');
+        self::assertCount(0, $this->stack->llm->requests, 'the name is not known yet');
+
+        $this->gate->knowBotName('mrcuribot');
+        $this->say('@mrcuribot, ты тут?');
+        self::assertCount(1, $this->stack->llm->requests);
     }
 
     public function testTheAnswerStaysInTheForumTopicOfTheMessage(): void {
