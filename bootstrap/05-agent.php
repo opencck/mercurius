@@ -57,6 +57,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var Amp\Http\Client\HttpClient $modelHttp
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
+ * @var OpenCCK\App\Agent\Model\ModelListEditor $modelListEditor
  * @var OpenCCK\App\Agent\Model\ModelRouter $modelRouter
  * @var string|null $openAiKey
  * @var string|null $openRouterKey
@@ -176,6 +177,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Agents\ParticipantsTool($principals
     return $peerRepository?->keys() ?? [];
 }, $ownerPrivateChat));
 $tools->register(new SetModelRoleTool($modelRoles));
+// spec: brief/models.md#списки-моделей-по-категориям — the agent changes the lists of models at the owner's word
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\ModelListTool($modelListEditor));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);

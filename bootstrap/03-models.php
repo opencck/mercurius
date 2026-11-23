@@ -32,6 +32,7 @@ use OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository;
  * @var Monolog\Logger $logger
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Vault\Vault $vault
+ * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var non-empty-string $version
  */
 
@@ -72,8 +73,14 @@ $llm = new ProviderRouter($clients, $modelCatalog);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
 // spec: brief/models.md#списки-моделей-по-категориям — the agent calls only the models the owner listed
-$modelLists = \OpenCCK\App\Agent\Model\ModelLists::fromEnv($_ENV, $llmSettings->model);
+// spec: brief/models.md#списки-моделей-по-категориям — read live: a list changed in the dialog works at once
+$modelLists = \OpenCCK\App\Agent\Model\ModelLists::live(static fn(string $setting): ?string => $settingsService->current($setting), $llmSettings->model);
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger), $modelLists);
+$modelListEditor = new \OpenCCK\App\Agent\Model\ModelListEditor($settingsService, $modelLists, $modelRoles);
+// a model the owner names for a role joins its list through the editor
+$modelRoles->widenWith(static function (string $role, string $model, \OpenCCK\Domain\Entity\Principal $by) use ($modelListEditor): void {
+    $modelListEditor->change($by, $role, 'add', [$model]);
+});
 $modelRoles->seed();
 $llmCalls = new PostgresLlmCallRepository($db);
 $modelRouter = new ModelRouter(

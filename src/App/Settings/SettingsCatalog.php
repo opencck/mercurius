@@ -64,7 +64,7 @@ final class SettingsCatalog {
      *
      * spec: brief/operations.md#настройки-агента
      */
-    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT'];
+    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT', 'LLM_CHEAP_MODELS', 'LLM_MAIN_MODELS', 'LLM_STRONG_MODELS'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [

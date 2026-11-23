@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Model;
 
+use Closure;
 use InvalidArgumentException;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ModelRole;
@@ -12,7 +13,8 @@ use OpenCCK\Infrastructure\Config\Env;
 /**
  * The models the owner allowed, by category. The agent chooses a model for a task itself, but only among these: a
  * model that is in no list is never called. A new installation has one model — the starting one from the settings —
- * in each of the three text lists and nothing in the others; the owner fills them as the need comes.
+ * in each of the three text lists and nothing in the others; the owner fills them as the need comes. Read live, the
+ * lists follow the settings without a restart.
  *
  * spec: brief/models.md#списки-моделей-по-категориям
  */
@@ -35,14 +37,70 @@ final class ModelLists {
         'sleep' => 'MEMORY_SLEEP_MODELS',
     ];
 
+    /** seconds a live read of the lists is kept: the lists are asked at every choice of a model */
+    public const REREAD = 5.0;
+
+    /** @var (Closure(string): ?string)|null the setting by its name, now; null — the lists are fixed */
+    private ?Closure $read = null;
+    /** @var (Closure(): float)|null */
+    private ?Closure $clock = null;
+    /** @var non-empty-string|null */
+    private ?string $start = null;
+    private float $readAt = -INF;
+
     /**
      * @param array<string, list<ModelRef>> $text the lists of the text categories, by role
      * @param array<string, list<string>> $other the lists of the other categories, as the owner wrote them
      */
     public function __construct(
-        private readonly array $text,
-        private readonly array $other = [],
+        private array $text,
+        private array $other = [],
     ) {}
+
+    /**
+     * Lists read from the settings as they are now, again after REREAD seconds or after forget().
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — a list changed in the dialog works at once
+     *
+     * @param Closure(string): ?string $read
+     * @param non-empty-string $start
+     * @param (Closure(): float)|null $clock
+     */
+    public static function live(Closure $read, string $start, ?Closure $clock = null): self {
+        $lists = new self([], []);
+        $lists->read = $read;
+        $lists->start = $start;
+        $lists->clock = $clock;
+        return $lists;
+    }
+
+    /** A list was just changed: the next question reads the settings again. */
+    public function forget(): void {
+        $this->readAt = -INF;
+    }
+
+    private function fresh(): void {
+        $read = $this->read;
+        $start = $this->start;
+        if ($read === null || $start === null) {
+            return;
+        }
+        $clock = $this->clock;
+        $now = $clock === null ? microtime(true) : $clock();
+        if ($now - $this->readAt < self::REREAD) {
+            return;
+        }
+        $this->readAt = $now;
+        $env = [];
+        foreach ([...array_values(self::TEXT), ...array_values(self::OTHER)] as $setting) {
+            $value = $read($setting);
+            if ($value !== null) {
+                $env[$setting] = $value;
+            }
+        }
+        $all = self::fromEnv($env, $start);
+        [$this->text, $this->other] = [$all->text, $all->other];
+    }
 
     /**
      * @param array<array-key, mixed> $env
@@ -82,11 +140,13 @@ final class ModelLists {
 
     /** @return list<ModelRef> the models of a text category, in the owner's order */
     public function of(string $role): array {
+        $this->fresh();
         return $this->text[$role] ?? [];
     }
 
     /** @return list<string> the models of another category, as written */
     public function other(string $category): array {
+        $this->fresh();
         return $this->other[$category] ?? [];
     }
 

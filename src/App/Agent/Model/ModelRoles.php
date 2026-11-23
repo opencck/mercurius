@@ -175,6 +175,40 @@ final class ModelRoles {
      *
      * @throws DomainException with a message for the model when the change is refused
      */
+    /** @var (\Closure(string, string, Principal): void)|null */
+    private ?\Closure $widen = null;
+
+    /**
+     * A model the owner names for a role joins the list of that role through this; without it a model outside the
+     * list is refused to everyone.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям
+     *
+     * @param \Closure(string, string, Principal): void $widen the role, the model, who asked
+     */
+    public function widenWith(\Closure $widen): void {
+        $this->widen = $widen;
+    }
+
+    /**
+     * Whether a model can play a text role: its provider has a key, the catalog knows it, and it calls tools unless the
+     * role is the cheap one.
+     *
+     * @throws DomainException with what is wrong
+     */
+    public function check(string $role, ModelRef $ref): void {
+        if (!in_array($ref->provider, $this->providers, true)) {
+            throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers)));
+        }
+        $info = $this->catalog->find($ref);
+        if ($info === null) {
+            throw new DomainException(sprintf(t('model.model_roles.modeli_net_v_kataloge_provaydera'), $ref->model, $ref->provider));
+        }
+        if ($role !== ModelRole::CHEAP && !$info->supportsTools()) {
+            throw new DomainException(sprintf(t('model.model_roles.model_ne_vyzyvaet_instrumenty_a'), $ref, $role));
+        }
+    }
+
     public function set(string $role, string $model, string $reason, Principal $by, bool $fix): RoleChange {
         if (!in_array($role, ModelRole::ALL, true)) {
             throw new DomainException(sprintf(t('model.model_roles.net_roli_roli'), $role, implode(', ', ModelRole::ALL)));
@@ -190,20 +224,16 @@ final class ModelRoles {
         } catch (InvalidArgumentException) {
             throw new DomainException(t('model.model_roles.model_ukazyvaetsya_kak_provayder_identif'));
         }
-        if (!in_array($ref->provider, $this->providers, true)) {
-            throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers)));
-        }
-        // spec: brief/models.md#списки-моделей-по-категориям — the agent chooses among the models the owner allowed for the role
+        $this->check($role, $ref);
+        // spec: brief/models.md#списки-моделей-по-категориям — the agent chooses among the models the owner allowed for
+        //       the role; a model the owner names for a role joins its list, from anyone else it is refused
         if ($this->lists !== null && !$this->lists->allows($role, $ref)) {
-            $allowed = implode(', ', array_map(static fn(ModelRef $m): string => (string) $m, $this->lists->of($role)));
-            throw new DomainException(sprintf(t('model.model_roles.not_in_list'), (string) $ref, $role, $allowed === '' ? '—' : $allowed, ModelLists::TEXT[$role] ?? 'LLM_MAIN_MODELS'));
-        }
-        $info = $this->catalog->find($ref);
-        if ($info === null) {
-            throw new DomainException(sprintf(t('model.model_roles.modeli_net_v_kataloge_provaydera'), $ref->model, $ref->provider));
-        }
-        if ($role !== ModelRole::CHEAP && !$info->supportsTools()) {
-            throw new DomainException(sprintf(t('model.model_roles.model_ne_vyzyvaet_instrumenty_a'), $ref, $role));
+            if ($by->isOwner() && $this->widen !== null && isset(ModelLists::TEXT[$role])) {
+                ($this->widen)($role, (string) $ref, $by);
+            } else {
+                $allowed = implode(', ', array_map(static fn(ModelRef $m): string => (string) $m, $this->lists->of($role)));
+                throw new DomainException(sprintf(t('model.model_roles.not_in_list'), (string) $ref, $role, $allowed === '' ? '—' : $allowed, ModelLists::TEXT[$role] ?? 'LLM_MAIN_MODELS'));
+            }
         }
         // read before the write: the conversations to move are those of the old model
         $old = $this->model($role);

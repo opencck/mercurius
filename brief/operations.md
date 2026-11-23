@@ -28,8 +28,10 @@
   Сейчас это `MEMORY_RULES_NOTICE` ([сообщение об изменении правил](memory.md#сообщение-об-изменении-правил)),
   `MEMORY_SLEEP_MODELS` ([судья пары](memory.md#судья-пары)), `MEMORY_SLEEP_TRANSLATE`
   ([ночное обогащение](memory.md#ночное-обогащение)), `MEMORY_SLEEP_AUTO`
-  ([постоянное разрешение](memory.md#постоянное-разрешение)) и `MEMORY_SLEEP_USD`
-  ([потолок ночи в долларах](memory.md#потолок-ночи-в-долларах)).
+  ([постоянное разрешение](memory.md#постоянное-разрешение)), `MEMORY_SLEEP_USD`
+  ([потолок ночи в долларах](memory.md#потолок-ночи-в-долларах)), `CONTEXT_MAX_TOKENS` и `CONTEXT_COMPACT_PERCENT`
+  ([объём беседы и порог сжатия](agent-loop.md#объём-беседы-и-порог-сжатия)), текстовые списки моделей
+  `LLM_CHEAP_MODELS`, `LLM_MAIN_MODELS`, `LLM_STRONG_MODELS` ([списки моделей](models.md#списки-моделей-по-категориям)).
 - **Поиск выбирает агент** из настроенных поставщиков (`web_search`, аргумент `provider`, с описанием каждого); без
   выбора — по порядку `SEARCH_PROVIDERS`.
 
