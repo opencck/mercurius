@@ -122,6 +122,12 @@ final class ChatService implements MessageHandler {
     }
 
     private ?CodexCommands $codex = null;
+    private ?ClaudeCommands $claude = null;
+
+    /** spec: brief/models.md#вход-в-подписку-claude — /claude: the owner's Claude subscription */
+    public function useClaude(ClaudeCommands $claude): void {
+        $this->claude = $claude;
+    }
 
     /** spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — /codex: the owner's ChatGPT subscription */
     public function useCodex(CodexCommands $codex): void {
@@ -327,6 +333,21 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, t(self::SECRET_PRIVATE));
             } else {
                 $this->reply($message, $this->codex->handle($message->chatId, substr($text, strlen($command))));
+            }
+            return;
+        }
+        if ($command === '/claude' && $this->claude !== null) {
+            // the code of a sign-in is a secret: its message leaves the chat, and the command never reaches the history
+            $argument = substr($text, strlen($command));
+            if (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } else {
+                $this->reply($message, $this->claude->handle($argument));
+            }
+            if (ClaudeCommands::carriesSecret($argument) && !$this->deleteOnce($message)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;
         }

@@ -57,6 +57,32 @@ if ($vault->enabled()) {
     $catalogSources[\OpenCCK\Domain\Agent\ModelRef::CHATGPT] = (new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexCatalog($modelHttp, $codexAccount))->fetch(...);
     $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::CHATGPT;
 }
+// spec: brief/models.md#claude-по-подписке — the owner's Claude subscription: claude:<model>, served by the module
+// claude-code (the official Claude Code behind a relay). Without the token of the module there is no provider claude:.
+// The models go into work only when the owner puts them into the lists of the categories: no roles by default.
+$claudeSubscription = null;
+$claudeToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_TOKEN');
+$claudeUrl = rtrim(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_URL') ?? 'http://claude-code:8094', '/');
+// spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — a used-up window takes the provider off the
+// choice until it reopens; the owner hears once per window (who tells him is set with the channel, in bootstrap/10-chat.php)
+$providerPauses = new \OpenCCK\App\Agent\Model\ProviderPauses();
+if ($claudeToken !== null) {
+    $claudeHttp = \OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription::http(
+        static fn(): ?string => \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_OAUTH_TOKEN'),
+        static fn(): string => $settingsService->current('CLAUDE_CODE_EXTRA_USAGE') ?? 'stop',
+        static fn(): string => $settingsService->current('CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT') ?? '',
+    );
+    $claudeSubscription = new \OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription($claudeHttp, $claudeUrl, $claudeToken, $logger);
+    // one try: the service answers a limit with the time it reopens, and a repeat of an overload is the service's own
+    $clients[\OpenCCK\Domain\Agent\ModelRef::CLAUDE] = new \Mercurius\Llm\RetryingClient(
+        new \Mercurius\Llm\Anthropic\AnthropicClient($claudeHttp, $claudeToken, $claudeUrl . '/v1', name: 'Claude subscription'),
+        maxAttempts: 2,
+        onRetry: $onRetry,
+    );
+    $claudeModels = new \Mercurius\Llm\ModelCatalog\AnthropicCatalog($claudeHttp, $claudeToken, new \Mercurius\Llm\ModelCatalog\OpenRouterCatalog($modelHttp), $claudeUrl . '/v1');
+    $catalogSources[\OpenCCK\Domain\Agent\ModelRef::CLAUDE] = (new \OpenCCK\Infrastructure\Llm\Claude\ClaudeCatalog(static fn(): array => $claudeModels->fetch()))->fetch(...);
+    $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::CLAUDE;
+}
 $openRouterKey = $llmSettings->openRouterKey();
 $openAiKey = $llmSettings->openAiKey();
 // Model catalog per provider, model roles, the choice of a conversation's model.
@@ -67,9 +93,12 @@ $modelCatalogModule = new \OpenCCK\Infrastructure\Module\ModelCatalogModule(
     $modelCatalog,
     $logger,
     toolReliable: $toolReliableSources,
-    connected: $codexAccount === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CHATGPT => $codexAccount->signedIn(...)],
+    connected: [
+        ...($codexAccount === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CHATGPT => $codexAccount->signedIn(...)]),
+        ...($claudeSubscription === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CLAUDE => $claudeSubscription->signedIn(...)]),
+    ],
 );
-$llm = new ProviderRouter($clients, $modelCatalog);
+$llm = new ProviderRouter($clients, $modelCatalog, $providerPauses);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
 // spec: brief/models.md#списки-моделей-по-категориям — the agent calls only the models the owner listed

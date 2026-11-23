@@ -46,6 +46,9 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * Made by the parts before this one:
  *
  * @var OpenCCK\App\Settings\SettingsService $settingsService
+ * @var OpenCCK\App\Agent\Model\ProviderPauses $providerPauses
+ * @var string $claudeUrl
+ * @var string|null $claudeToken
  * @var OpenCCK\Infrastructure\Config\AgentSettings $agentSettings
  * @var Mercurius\Messenger\RoutingChannel $channel
  * @var array<string, Mercurius\Llm\LlmClient> $clients
@@ -116,6 +119,8 @@ if ($telegram->apiUrl !== null) {
 }
 $serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
 $serviceModules->add(\OpenCCK\Infrastructure\Media\DocsService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_TOKEN'));
+// spec: brief/models.md#claude-по-подписке — the module of the Claude subscription: its health is the health of the CLI
+$serviceModules->add(\OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription::MODULE, $claudeUrl, $claudeToken);
 $docsService = new \OpenCCK\Infrastructure\Media\DocsService(HttpClients::create(), $serviceModules);
 $tools->withServices($serviceModules->up(...));
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::defer(static function () use ($serviceModules): void {
@@ -329,7 +334,7 @@ $loop = new AgentLoop(
         limitsOf: $contextLimits->of(...),
     ),
     events: $tracer,
-    fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),
+    fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger, $providerPauses),
     spend: new SpendGuard($llmCalls, $agentSettings->dailySpendCap, $agentSettings->monthlySpendCap, $logger),
 );
 // spec: brief/agent-loop.md#инструменты — models that answer in prose are told to act through tools

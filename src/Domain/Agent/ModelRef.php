@@ -23,6 +23,10 @@ final class ModelRef implements Stringable {
     public const BEDROCK = 'bedrock';
     /** the owner's ChatGPT subscription through the Codex backend (sign-in by /codex login, not a key) */
     public const CHATGPT = 'chatgpt';
+    /** the owner's Claude subscription through the module claude-code (sign-in by /claude login, not a key) */
+    public const CLAUDE = 'claude';
+    /** providers of a subscription: no key in .env, a sign-in of the owner, no price per token */
+    public const SUBSCRIPTIONS = [self::CHATGPT, self::CLAUDE];
 
     public function __construct(
         public readonly string $provider,

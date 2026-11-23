@@ -68,7 +68,8 @@ final class MediaSettings {
                 $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
                 $provider = preg_match(self::REF, $ref, $parts) === 1 && !str_ends_with($ref, ':') ? (($parts[1] ?? '') === '' ? ModelRef::OPENROUTER : $parts[1]) : null;
                 $valid = $custom === null
-                    ? $provider !== null && ProviderProfile::of($provider) !== null
+                    // a subscription is a provider too: a category may hold its models
+                    ? $provider !== null && (ProviderProfile::of($provider) !== null || in_array($provider, ModelRef::SUBSCRIPTIONS, true))
                     : preg_match('~^([a-z0-9][a-z0-9_-]{0,31})/(\S+)$~', $custom, $match) === 1 && isset($endpoints[$match[1]]);
                 // pictures are drawn by the image models of OpenRouter (POST /images)
                 if ($kind === 'image' && ($custom !== null || $provider !== ModelRef::OPENROUTER)) {
@@ -77,7 +78,7 @@ final class MediaSettings {
                 if (!$valid) {
                     throw ConfigException::invalid($key, $kind === 'image'
                         ? 'image models of OpenRouter: openrouter:author/slug or author/slug'
-                        : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
+                        : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock, chatgpt, claude), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
                 }
                 $models[$kind][] = $ref;
             }

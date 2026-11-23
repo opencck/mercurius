@@ -20,6 +20,8 @@ final class ModuleReport {
         'browser' => 'BROWSER_TOKEN',
         'media-video' => 'MEDIA_VIDEO_TOKEN',
         'media-docs' => 'MEDIA_DOCS_TOKEN',
+        // spec: brief/models.md#claude-по-подписке — Claude by the owner's subscription
+        'claude-code' => 'CLAUDE_CODE_TOKEN',
         'mail' => 'MAIL_MCP_TOKEN',
         // spec: brief/channels.md#здоровье-локального-сервера-bot-api — up while the bot answers through it
         'telegram-api' => 'TELEGRAM_API_URL',

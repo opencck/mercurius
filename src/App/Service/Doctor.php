@@ -197,6 +197,27 @@ final class Doctor {
         };
     }
 
+    /** What the module of the Claude subscription says of itself: the CLI, the sign-in, the route. */
+    private static function claudeState(string $name, string $body): string {
+        if ($name !== 'claude-code') {
+            return '';
+        }
+        /** @var mixed $data */
+        $data = json_decode($body, true);
+        if (!is_array($data)) {
+            return '';
+        }
+        $parts = [];
+        foreach (['cli', 'auth', 'route'] as $key) {
+            /** @var mixed $value */
+            $value = $data[$key] ?? null;
+            if (is_string($value) && preg_match('~^[A-Za-z0-9._-]{1,32}$~', $value) === 1) {
+                $parts[] = $key . ': ' . $value;
+            }
+        }
+        return $parts === [] ? '' : ' (' . implode(', ', $parts) . ')';
+    }
+
     /** @return list<array{string, string, string}> */
     private function services(): array {
         $out = [];
@@ -206,6 +227,8 @@ final class Doctor {
             // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — modules in their compose profiles
             'media-video' => ['MEDIA_VIDEO_TOKEN', Env::raw($this->env, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091'],
             'media-docs' => ['MEDIA_DOCS_TOKEN', Env::raw($this->env, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092'],
+            // spec: brief/models.md#claude-по-подписке — healthy is the CLI found and new enough; the sign-in and the route are said
+            'claude-code' => ['CLAUDE_CODE_TOKEN', Env::raw($this->env, 'CLAUDE_CODE_URL') ?? 'http://claude-code:8094'],
             'mail-mcp' => ['MAIL_MCP_TOKEN', preg_replace('~/mcp$~', '', Env::raw($this->env, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090') ?? 'http://mail-mcp:8090'],
         ] as $name => [$token, $url]) {
             if (Env::raw($this->env, $token) === null) {
@@ -217,8 +240,8 @@ final class Doctor {
             }
             try {
                 $response = $this->http->request(new Request($url . '/health'), new TimeoutCancellation(5));
-                $response->getBody()->buffer();
-                $out[] = $response->getStatus() === 200 ? [self::OK, $name, t('service.doctor.otvechaet')] : [self::FAIL, $name, t('service.doctor.otvet') . $response->getStatus()];
+                $body = $response->getBody()->buffer(limit: 10_000);
+                $out[] = $response->getStatus() === 200 ? [self::OK, $name, t('service.doctor.otvechaet') . self::claudeState($name, $body)] : [self::FAIL, $name, t('service.doctor.otvet') . $response->getStatus()];
             } catch (Throwable $e) {
                 $out[] = [self::FAIL, $name, t('service.doctor.ne_otvechaet') . $e::class . ') — docker compose ps' . ($name === t('service.doctor.sandbox') ? '' : t('service.doctor.profile'))];
             }

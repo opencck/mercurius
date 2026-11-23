@@ -25,6 +25,7 @@ final class SettingsCatalog {
      * @var array<string, string>
      */
     public const DEFAULTS = [
+        'CLAUDE_CODE_EXTRA_USAGE' => 'stop',
         'LLM_REASONING_EFFORT' => 'low',
         'LLM_MAX_TOKENS' => '4096',
         'LLM_HISTORY_LIMIT' => '40',
@@ -64,7 +65,7 @@ final class SettingsCatalog {
      *
      * spec: brief/operations.md#настройки-агента
      */
-    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT', 'LLM_CHEAP_MODELS', 'LLM_MAIN_MODELS', 'LLM_STRONG_MODELS'];
+    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT', 'LLM_CHEAP_MODELS', 'LLM_MAIN_MODELS', 'LLM_STRONG_MODELS', 'CLAUDE_CODE_EXTRA_USAGE', 'CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
@@ -74,6 +75,11 @@ final class SettingsCatalog {
         'AWS_BEARER_TOKEN_BEDROCK' => ['models', self::SECRET, 'settings.about.aws_bearer_token_bedrock'],
         'BEDROCK_REGION' => ['models', self::TEXT, 'settings.about.bedrock_region'],
         'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
+        // spec: brief/models.md#вход-в-подписку-claude — the token wins over the sign-in; it reaches the module with each request
+        'CLAUDE_CODE_OAUTH_TOKEN' => ['models', self::SECRET, 'settings.about.claude_code_oauth_token'],
+        // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — the owner's word on paid use, read at each call
+        'CLAUDE_CODE_EXTRA_USAGE' => ['models', self::TEXT, 'settings.about.claude_code_extra_usage'],
+        'CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT' => ['models', self::TEXT, 'settings.about.claude_code_extra_usage_reserve_percent'],
         'LLM_MODEL' => ['models', self::TEXT, 'settings.about.llm_model'],
         'LLM_CHEAP_MODEL' => ['models', self::TEXT, 'settings.about.llm_cheap_model'],
         // spec: brief/models.md#списки-моделей-по-категориям — the lists the agent chooses a model from
@@ -166,6 +172,8 @@ final class SettingsCatalog {
             $kind === self::INT && !ctype_digit($value) => $key . t('settings.settings_catalog.tseloe_chislo'),
             $kind === self::FLOAT && !is_numeric($value) => $key . t('settings.settings_catalog.chislo'),
             $kind !== self::SECRET && preg_match('~[\x00-\x1F]~', $value) === 1 => t('settings.settings_catalog.znachenie_v_odnu_stroku'),
+            $key === 'CLAUDE_CODE_EXTRA_USAGE' && !in_array($value, ['stop', 'notify', 'allow'], true) => t('settings.settings_catalog.claude_extra_usage'),
+            $key === 'CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT' && $value !== '' && (!is_numeric($value) || (float) $value <= 0 || (float) $value > 100) => t('settings.settings_catalog.claude_reserve'),
             $key === 'AGENT_LANGUAGE' && !in_array($value, \Mercurius\I18n\Catalogs::LANGUAGES, true)
                 => t('settings.settings_catalog.agent_language_odin_iz') . implode(', ', \Mercurius\I18n\Catalogs::LANGUAGES) . '.',
             default => null,

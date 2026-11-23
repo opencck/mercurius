@@ -14,6 +14,7 @@ use Mercurius\Llm\Role;
 use Mercurius\Llm\StreamEnd;
 use Mercurius\Llm\StreamEvent;
 use Mercurius\Llm\Usage;
+use OpenCCK\App\Agent\Model\ProviderPauses;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\PromptCache;
 use OpenCCK\Domain\Agent\ProviderProfile;
@@ -30,20 +31,51 @@ final class ProviderRouter implements LlmClient {
      * @param array<string, LlmClient> $clients provider => client
      * @param ModelCatalogRepository|null $prices a provider that reports no cost (the OpenAI API) gets an estimate
      *        from catalog prices, so spend reports do not miss it
+     * @param ProviderPauses|null $pauses providers off the choice for a while: a call to one fails at once
      */
-    public function __construct(private readonly array $clients, private readonly ?ModelCatalogRepository $prices = null) {}
+    public function __construct(
+        private readonly array $clients,
+        private readonly ?ModelCatalogRepository $prices = null,
+        private readonly ?ProviderPauses $pauses = null,
+    ) {}
 
     public function complete(ChatRequest $request, ?Cancellation $cancellation = null): ChatResponse {
         [$client, $bare, $ref] = $this->route($request);
-        return $this->settled($client->complete($bare, $cancellation), $ref);
+        try {
+            return $this->settled($client->complete($bare, $cancellation), $ref);
+        } catch (LlmException $e) {
+            throw $this->noted($e, $ref);
+        }
     }
 
     /** @return \Generator<int, StreamEvent, mixed, void> */
     public function stream(ChatRequest $request, ?Cancellation $cancellation = null): iterable {
         [$client, $bare, $ref] = $this->route($request);
-        foreach ($client->stream($bare, $cancellation) as $event) {
-            yield $event instanceof StreamEnd ? new StreamEnd($this->settled($event->response, $ref)) : $event;
+        try {
+            foreach ($client->stream($bare, $cancellation) as $event) {
+                yield $event instanceof StreamEnd ? new StreamEnd($this->settled($event->response, $ref)) : $event;
+            }
+        } catch (LlmException $e) {
+            throw $this->noted($e, $ref);
         }
+    }
+
+    /**
+     * A used-up window of a plan takes the provider off the choice until it reopens; a subscription that lost its
+     * sign-in — until the owner signs in again (it is asked again in ten minutes, in case the sign-in came back).
+     *
+     * spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории
+     */
+    private function noted(LlmException $e, ModelRef $ref): LlmException {
+        if ($this->pauses === null) {
+            return $e;
+        }
+        if ($e->resetsAt !== null) {
+            $this->pauses->pause($ref->provider, $e->resetsAt, ProviderPauses::LIMIT);
+        } elseif ($e->kind === ErrorKind::Auth && in_array($ref->provider, ModelRef::SUBSCRIPTIONS, true)) {
+            $this->pauses->pauseFor($ref->provider, 600, ProviderPauses::SIGN_IN);
+        }
+        return $e;
     }
 
     /**
@@ -62,13 +94,20 @@ final class ProviderRouter implements LlmClient {
         if ($model === $response->model && $usage === $response->usage) {
             return $response;
         }
-        return new ChatResponse($response->text, $response->toolCalls, $response->finishReason, $usage, $model, $response->id, $response->reasoning);
+        return new ChatResponse($response->text, $response->toolCalls, $response->finishReason, $usage, $model, $response->id, $response->reasoning, $response->requestId, $response->refusalCategory, $response->refusalExplanation);
     }
 
     /** @return array{LlmClient, ChatRequest, ModelRef} */
     private function route(ChatRequest $request): array {
         $ref = ModelRef::parse($request->model);
         $client = $this->clients[$ref->provider] ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
+        $pause = $this->pauses?->of($ref->provider);
+        if ($pause !== null) {
+            // no request: the provider would refuse the same way, and a subscription might bill it beyond the plan
+            throw $pause['why'] === ProviderPauses::LIMIT
+                ? new LlmException(ErrorKind::RateLimited, sprintf('%s: the limit of the plan is used up until %s', $ref->provider, gmdate('Y-m-d H:i', $pause['until']) . ' UTC'), 429, null, null, $pause['until'])
+                : new LlmException(ErrorKind::Auth, sprintf('%s: the owner is not signed in to the subscription', $ref->provider), 401);
+        }
         $bare = $ref->model === $request->model ? $request : $request->withModel($ref->model);
         // OpenRouter caches Anthropic prompts only when asked; one top-level field moves the breakpoint along the
         // conversation by itself, a mark on the system prompt keeps it cached when the history changes (a compaction).

@@ -122,6 +122,8 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresTraceRepository $traces
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  * @var OpenCCK\App\Vault\Vault $vault
+ * @var OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription|null $claudeSubscription
+ * @var OpenCCK\App\Agent\Model\ProviderPauses $providerPauses
  * @var non-empty-string $version
  */
 
@@ -282,6 +284,31 @@ $exportAgent = static function (string $password, \Amp\Cancellation $cancellatio
 if ($codexAccount !== null) {
     $chat->useCodex(new \OpenCCK\App\Service\CodexCommands($codexAccount, $channel, $logger, static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::CHATGPT)));
 }
+// spec: brief/models.md#вход-в-подписку-claude — /claude: sign in to the owner's Claude subscription
+if ($claudeSubscription !== null) {
+    $chat->useClaude(new \OpenCCK\App\Service\ClaudeCommands(
+        $claudeSubscription,
+        static fn(): bool => \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_OAUTH_TOKEN') !== null,
+        static fn(): string => $settingsService->current('CLAUDE_CODE_EXTRA_USAGE') ?? 'stop',
+        $providerPauses,
+        $logger,
+        static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::CLAUDE),
+    ));
+}
+// spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — one message to the owner per window of a plan,
+// and one when a subscription lost its sign-in
+$providerPauses->tellWith(static function (string $provider, string $why, int $until) use ($channel, $ownerDirectory, $logger): void {
+    $text = $why === \OpenCCK\App\Agent\Model\ProviderPauses::LIMIT
+        ? sprintf(\Mercurius\I18n\t('models.provider_limit'), $provider, gmdate('Y-m-d H:i', $until) . ' UTC')
+        : sprintf(\Mercurius\I18n\t('models.provider_sign_in'), $provider, $provider === \OpenCCK\Domain\Agent\ModelRef::CLAUDE ? '/claude login' : '/codex login');
+    \Amp\async(static function () use ($channel, $ownerDirectory, $logger, $text): void {
+        try {
+            $channel->send(new \Mercurius\Messenger\OutgoingMessage($ownerDirectory->chatId(), $text));
+        } catch (\Throwable $e) {
+            $logger->warning('The notice of a provider off the choice was not sent', ['error' => $e::class]);
+        }
+    })->ignore();
+});
 $chat->useExport(new \OpenCCK\App\Export\ExportCommands($exportAgent, $channel, $logger));
 // spec: brief/operations.md#экспорт-и-импорт-агента — /import: the archive checked, the current state sealed, then a restart
 $chat->useImport(new \OpenCCK\App\Export\ImportCommands(
