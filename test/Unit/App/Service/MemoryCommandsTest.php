@@ -23,6 +23,7 @@ final class MemoryCommandsTest extends AsyncTestCase {
     private InMemoryMemoryStore $store;
     private Proposals $proposals;
     private ChatService $chat;
+    private \Mercurius\Memory\Infrastructure\InMemoryProbes $probes;
 
     protected function setUp(): void {
         parent::setUp();
@@ -31,7 +32,8 @@ final class MemoryCommandsTest extends AsyncTestCase {
         $analyzer = new TextAnalyzer();
         $this->proposals = new Proposals($this->store, $analyzer, new ContentScreen(), 'k');
         $aliases = new \Mercurius\Memory\App\Aliases(new \Mercurius\Memory\Infrastructure\InMemoryAliasStore(), $analyzer, $this->store, new ContentScreen());
-        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)), null, $aliases);
+        $this->probes = new \Mercurius\Memory\Infrastructure\InMemoryProbes();
+        $commands = new MemoryCommands($this->store, $this->proposals, new MemoryContext($this->store, new Recall($this->store, $analyzer)), null, $aliases, probes: $this->probes);
         $this->chat = new ChatService(new AccessService($this->stack->principals, 'telegram', '42', $this->stack->visitors), $this->stack->conversations, $this->stack->scheduler, $this->stack->channel, memory: $commands);
     }
 
@@ -97,6 +99,27 @@ final class MemoryCommandsTest extends AsyncTestCase {
         $this->chat->handle($this->stack->message('/aliases - 1'));
         $this->chat->handle($this->stack->message('/aliases'));
         self::assertStringContainsString(\Mercurius\I18n\t('app.aliases.none'), $this->lastReply());
+    }
+
+    public function testTheOwnerKeepsProbesOfMemory(): void {
+        // spec: brief/memory.md#пробы-владельца
+        $fact = $this->store->addFact('owner', Fact::KNOWLEDGE, 'Владелец пьёт кофе без сахара', (new TextAnalyzer())->keys('Владелец пьёт кофе без сахара'), 0.8, Fact::OWNER_SAID, null);
+
+        $this->chat->handle($this->stack->message(sprintf('/probe + какой кофе пьёт владелец #%d', $fact->id)));
+        self::assertSame(sprintf(\Mercurius\I18n\t('service.memory_commands.probe_added'), 1, 'какой кофе пьёт владелец', $fact->id), $this->lastReply());
+
+        $this->chat->handle($this->stack->message('/probe + где стоит сервер #999'));
+        self::assertSame(sprintf(\Mercurius\I18n\t('service.memory_commands.probe_no_fact'), 999), $this->lastReply());
+        $this->chat->handle($this->stack->message('/probe + о чём-то другом совсем #' . $fact->id));
+        self::assertStringContainsString(\Mercurius\I18n\t('service.memory_commands.probe_not_found_now'), $this->lastReply(), 'added, with a word that it is not found now');
+
+        $this->chat->handle($this->stack->message('/probe'));
+        self::assertStringContainsString(sprintf('#1 «какой кофе пьёт владелец» → #%d', $fact->id), $this->lastReply());
+
+        $this->chat->handle($this->stack->message('/probe - 1'));
+        self::assertCount(1, $this->probes->all());
+        $this->chat->handle($this->stack->message('/probe - 1'));
+        self::assertSame(sprintf(\Mercurius\I18n\t('service.memory_commands.probe_none_such'), 1), $this->lastReply());
     }
 
     public function testDreamWithoutAModelOfSleepSaysSoAndStillGuards(): void {

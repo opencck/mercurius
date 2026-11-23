@@ -12,6 +12,7 @@ use Mercurius\Memory\App\LossGuard;
 use Mercurius\Memory\App\MemoryContext;
 use Mercurius\Memory\App\Proposals;
 use Mercurius\Memory\Domain\MemoryStore;
+use Mercurius\Memory\Domain\Probes;
 
 use function Mercurius\I18n\t;
 
@@ -36,7 +37,53 @@ final class MemoryCommands {
         private readonly ?LossGuard $guard = null,
         /** @var (\Closure(): bool)|null whether sleep runs: a model is listed for it */
         private readonly ?\Closure $sleeps = null,
+        private readonly ?Probes $probes = null,
     ) {}
+
+    /**
+     * /probe — the owner's probes of memory; /probe + <question> #<fact> — a question memory must always answer with
+     * that fact; /probe - <number> — remove one. The guard asks them every night.
+     *
+     * spec: brief/memory.md#пробы-владельца
+     */
+    public function probe(string $argument): string {
+        if ($this->probes === null) {
+            return t('service.memory_commands.probes_off');
+        }
+        $argument = trim($argument);
+        if ($argument === '') {
+            $lines = [];
+            foreach ($this->probes->all() as $probe) {
+                $lines[] = sprintf('#%d «%s» → #%d', $probe->id, $probe->question, $probe->factId) . ($probe->missing ? t('service.memory_commands.probe_missing_mark') : '');
+            }
+            return ($lines === [] ? t('service.memory_commands.probe_none') : implode("\n", $lines)) . "\n\n" . t('service.memory_commands.probe_help');
+        }
+        if (preg_match('~^-\s*#?(\d+)$~u', $argument, $m) === 1) {
+            return $this->probes->remove((int) $m[1])
+                ? sprintf(t('service.memory_commands.probe_removed'), (int) $m[1])
+                : sprintf(t('service.memory_commands.probe_none_such'), (int) $m[1]);
+        }
+        if (preg_match('~^\+\s*(.+?)\s+#(\d+)$~us', $argument, $m) !== 1) {
+            return t('service.memory_commands.probe_help');
+        }
+        $question = SecretMasker::mask(trim($m[1]));
+        $fact = $this->store->fact((int) $m[2]);
+        if ($fact === null || !$fact->active) {
+            return sprintf(t('service.memory_commands.probe_no_fact'), (int) $m[2]);
+        }
+        if ($question === '' || mb_strlen($question) > Probes::QUESTION_MAX) {
+            return t('service.memory_commands.probe_help');
+        }
+        try {
+            $probe = $this->probes->add($question, $fact->id);
+        } catch (\LengthException) {
+            return sprintf(t('service.memory_commands.probe_full'), Probes::MAX);
+        }
+        $first = array_slice($this->context->search($question, [$fact->scope], self::SEARCH_BUDGET), 0, LossGuard::PROBE_TOP);
+        $found = in_array($fact->id, array_map(static fn(\Mercurius\Memory\Domain\Fact $f): int => $f->id, $first), true);
+        return sprintf(t('service.memory_commands.probe_added'), $probe->id, $probe->question, $fact->id)
+            . ($found ? '' : ' ' . t('service.memory_commands.probe_not_found_now'));
+    }
 
     /**
      * /aliases — the table of words that mean one thing; /aliases + word, word — a group (or words to the group one of

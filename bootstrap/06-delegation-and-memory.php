@@ -253,11 +253,15 @@ $proposals->onForget(static function (Fact $fact) use ($transcript, $experience,
 // spec: brief/memory.md#постоянное-разрешение — edits sleep made by itself: recorded, undoable, not a loss for the guard
 $sleepEdits = new \Mercurius\Memory\Infrastructure\PostgresSleepEdits($db);
 // spec: brief/memory.md#страж-потерь — the guard every night and on command, with or without sleep
+// spec: brief/memory.md#пробы-владельца — and the owner's probes: questions memory must always answer
+$memoryProbes = new \Mercurius\Memory\Infrastructure\PostgresProbes($db);
 $lossGuard = new \Mercurius\Memory\App\LossGuard(
     $memoryStore,
     new \Mercurius\Memory\Infrastructure\PostgresGuardJournal($db),
     static fn(string $text): bool => $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success,
     $sleepEdits,
+    $memoryProbes,
+    $recall,
 );
 // spec: brief/memory.md#постоянное-разрешение — the kinds of edits sleep makes by itself, read at each pass
 $sleepAuto = static function () use ($settingsService): array {
