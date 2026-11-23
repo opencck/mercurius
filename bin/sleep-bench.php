@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Measures the model of sleep with real models: the judge of pairs on the pair sets and the search words on the recall
  * sets of test/Fixtures (search before and after a night of enrichment). Calls are paid; the run stops at the budget.
  *
- *   php bin/sleep-bench.php --models=openrouter:a/b,openrouter:c/d [--part=judge|enrich|all] [--effort=low]
+ *   php bin/sleep-bench.php --models=openrouter:a/b,openrouter:c/d [--part=judge|merge|enrich|all] [--effort=low]
  *                           [--lang=ru,en,zh] [--budget=1.0]
  *
  * Runs where the keys and the route of the agent are: on the server, in the test image.
@@ -134,6 +134,68 @@ foreach ($models as $model) {
                 count(array_filter($over, static fn(array $g): bool => $g[1])) / max(1, count($over)));
         }
         printf("    wrong: %s\n", implode('; ', $wrong));
+    }
+
+    if ($part === 'merge' || $part === 'all') {
+        // spec: brief/memory.md#слияние — the model writes merges of the pairs adding a detail; the next model of the
+        //       list checks them and copies spoiled on purpose: a detail dropped, a negation or a number changed
+        $started = microtime(true);
+        $checker = $models[(array_search($model, $models, true) + 1) % count($models)];
+        $verifier = new LlmSleepJudge($llm, static fn(): array => [$model, $checker], new NullLogger());
+        [$good, $goodKept, $spoiled, $spoiledCaught, $written, $guarded] = [0, 0, 0, 0, 0, 0];
+        $mergeCost = 0.0;
+        foreach ($languages as $language) {
+            /** @var array{pairs: list<array{a: string, b: string, label: string}>} $set */
+            $set = json_decode((string) file_get_contents(PairBench::file($language)), true, 8, JSON_THROW_ON_ERROR);
+            $store = new InMemoryMemoryStore();
+            $analyzer = new TextAnalyzer();
+            $pairs = [];
+            foreach ($set['pairs'] as $p) {
+                if ($p['label'] === 'adds_detail') {
+                    $pairs[] = [
+                        $store->addFact('owner', Fact::KNOWLEDGE, $p['a'], $analyzer->keys($p['a']), 0.8, Fact::OWNER_SAID, null),
+                        $store->addFact('owner', Fact::KNOWLEDGE, $p['b'], $analyzer->keys($p['b']), 0.8, Fact::OWNER_SAID, null),
+                    ];
+                }
+            }
+            if ($spentAll + $mergeCost > $budget || $pairs === []) {
+                continue;
+            }
+            $texts = $verifier->merge($pairs);
+            $merges = [];
+            foreach ($pairs as $i => [$a, $b]) {
+                $text = $texts[$i] ?? null;
+                if ($text === null) {
+                    continue;
+                }
+                $written++;
+                if (\Mercurius\Memory\App\MergeGuard::problem($a, $b, $text) !== null) {
+                    continue;
+                }
+                $guarded++;
+                $merges[] = [$a, $b, $text, true];
+                $merges[] = [$a, $b, $a->text, false];
+                $negated = preg_match('~\d~u', $text) === 1
+                    ? (string) preg_replace_callback('~\d+~u', static fn(array $m): string => (string) ((int) $m[0] + 1), $text, 1)
+                    : (string) preg_replace('~^(\S+\s+)~u', '$1' . ($language === 'en' ? 'never ' : ($language === 'zh' ? '不' : 'не ')), $text, 1);
+                $merges[] = [$a, $b, $negated, false];
+            }
+            $checks = $verifier->verify(array_map(static fn(array $m): array => [$m[0], $m[1], $m[2]], $merges));
+            foreach ($merges as $i => [, , , $right]) {
+                $kept = $checks[$i] ?? null;
+                if ($right) {
+                    $good++;
+                    $goodKept += $kept === true ? 1 : 0;
+                } else {
+                    $spoiled++;
+                    $spoiledCaught += $kept === false ? 1 : 0;
+                }
+            }
+            $mergeCost += $verifier->spent()[2];
+        }
+        $spentAll += $mergeCost;
+        printf("merge (written by %s, checked by %s): written %d, passed the code %d; right texts kept %d of %d; spoiled caught %d of %d; \$%.4f, %.0f s\n",
+            $model, $checker, $written, $guarded, $goodKept, $good, $spoiledCaught, $spoiled, $mergeCost, microtime(true) - $started);
     }
 
     if ($part === 'enrich' || $part === 'all') {

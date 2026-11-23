@@ -303,6 +303,8 @@ $sleepJudge = new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use 
 }, $logger, static fn(): float => (float) ($settingsService->current('MEMORY_SLEEP_USD') ?? '0'));
 $consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $verdictCache, \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION));
 $consolidation->useMerger($sleepJudge);
+// spec: brief/memory.md#слияние — another model of the list checks every merged text; with one model nobody does
+$consolidation->useVerifier($sleepJudge);
 $consolidation->useStandingPermission($sleepAuto, $sleepEdits);
 // spec: brief/memory.md#ночное-обогащение — the same model gives search words; translations only while the owner turned them on
 $consolidation->useEnrichment(new \Mercurius\Memory\App\Enrichment(

@@ -234,6 +234,32 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.model_spent'), 1, 300, 0.002), $report);
     }
 
+    public function testAMergedTextIsCheckedByAnotherModelAndWithOneModelByNobody(): void {
+        // spec: brief/memory.md#слияние
+        $a = $this->add('Сервер pve-01 стоит в Хельсинки');
+        $b = $this->add('У pve-01 128 ГБ памяти');
+        $merged = 'Сервер pve-01 стоит в Хельсинки, у него 128 ГБ памяти';
+        $llm = new ScriptedLlm([
+            new \Mercurius\Llm\LlmException(\Mercurius\Llm\ErrorKind::RateLimited, 'down'),
+            ScriptedLlm::text('{"merged": [{"pair": 1, "text": "' . $merged . '"}]}'),
+            ScriptedLlm::text('{"checks": [{"pair": 1, "kept": true, "lost": []}, {"pair": 2, "kept": false, "lost": ["128 ГБ"]}]}'),
+        ]);
+        $judge = new LlmSleepJudge($llm, static fn(): array => ['openrouter:first/model', 'openrouter:second/model', 'openrouter:third/model'], new NullLogger());
+
+        $judge->merge([[$a, $b]]);
+        $checks = $judge->verify([[$a, $b, $merged], [$a, $b, 'Сервер pve-01 стоит в Хельсинки']]);
+
+        self::assertSame([true, false], $checks);
+        self::assertSame(['openrouter:first/model', 'openrouter:second/model', 'openrouter:first/model'], array_map(static fn($r) => $r->model, $llm->requests), 'the model that wrote the text does not check it');
+        self::assertStringContainsString($merged, $llm->requests[2]->messages[1]->content);
+
+        $single = new ScriptedLlm([ScriptedLlm::text('{"merged": [{"pair": 1, "text": "' . $merged . '"}]}')]);
+        $alone = new LlmSleepJudge($single, static fn(): array => ['openrouter:only/model'], new NullLogger());
+        $alone->merge([[$a, $b]]);
+        self::assertSame([null], $alone->verify([[$a, $b, $merged]]), 'nobody else to check it');
+        self::assertCount(1, $single->requests);
+    }
+
     public function testANightStopsCallingTheModelOnceItsDollarCapIsSpent(): void {
         // spec: brief/memory.md#потолок-ночи-в-долларах
         $a = $this->add('Владелец живёт в Паттайе');
