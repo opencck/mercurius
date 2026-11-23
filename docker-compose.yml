@@ -121,6 +121,38 @@ services:
     networks:
       - internal
 
+  # Optional module claude-code (COMPOSE_PROFILES=claude-code, CLAUDE_CODE_TOKEN, CLAUDE_CODE_URL): Claude by the owner's
+  # subscription — the official Claude Code as a one-shot client of a model call. Its own repository, a submodule. The
+  # sign-in of the CLI lives in storage/claude-code; the container runs as CLAUDE_CODE_UID so that folder stays 700.
+  # spec: brief/models.md#claude-по-подписке
+  claude-code:
+    profiles: ["claude-code"]
+    build:
+      context: services/claude-code
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.330}
+    image: mercurius-claude-code:${APP_VERSION:-dev}
+    restart: unless-stopped
+    user: "${CLAUDE_CODE_UID:-10050}:${CLAUDE_CODE_GID:-10050}"
+    environment:
+      CLAUDE_CODE_TOKEN: ${CLAUDE_CODE_TOKEN:-}
+    volumes:
+      - ./storage/claude-code:/data/claude
+    mem_limit: 2g
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
   # Optional module media-docs (COMPOSE_PROFILES=media-docs, MEDIA_DOCS_TOKEN): the text of office documents and PDF,
   # and new docx, xlsx, pptx; each file is parsed in a child process with limits. Its own repository, a submodule.
   # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы

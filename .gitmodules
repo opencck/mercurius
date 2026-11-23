@@ -96,3 +96,6 @@
 [submodule "services/whisper"]
 	path = services/whisper
 	url = https://github.com/opencck/mercurius-whisper.git
+[submodule "services/claude-code"]
+	path = services/claude-code
+	url = https://github.com/opencck/mercurius-claude-code.git
