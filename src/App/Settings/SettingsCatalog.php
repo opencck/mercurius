@@ -54,6 +54,7 @@ final class SettingsCatalog {
         'MEMORY_RULES_NOTICE' => '0',
         'MEMORY_SLEEP_TRANSLATE' => '0',
         'MEMORY_SLEEP_AUTO' => '',
+        'MEMORY_SLEEP_USD' => '0.10',
     ];
 
     /**
@@ -61,7 +62,7 @@ final class SettingsCatalog {
      *
      * spec: brief/operations.md#настройки-агента
      */
-    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO'];
+    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
@@ -131,6 +132,7 @@ final class SettingsCatalog {
         'MEMORY_SLEEP_MODELS' => ['models', self::TEXT, 'settings.about.memory_sleep_models'],
         'MEMORY_SLEEP_TRANSLATE' => ['memory', self::INT, 'settings.about.memory_sleep_translate'],
         'MEMORY_SLEEP_AUTO' => ['memory', self::TEXT, 'settings.about.memory_sleep_auto'],
+        'MEMORY_SLEEP_USD' => ['memory', self::FLOAT, 'settings.about.memory_sleep_usd'],
         'TRACE_RETENTION_DAYS' => ['traces', self::INT, 'settings.about.trace_retention_days'],
         'SSH_CONFIRM_GROUPS' => ['servers', self::TEXT, 'settings.about.ssh_confirm_groups'],
         'BROWSER_CONFIRM' => ['agent', self::INT, 'settings.about.browser_confirm'],

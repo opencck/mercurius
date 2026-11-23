@@ -234,6 +234,34 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(\Mercurius\I18n\t('app.consolidation.model_spent'), 1, 300, 0.002), $report);
     }
 
+    public function testANightStopsCallingTheModelOnceItsDollarCapIsSpent(): void {
+        // spec: brief/memory.md#потолок-ночи-в-долларах
+        $a = $this->add('Владелец живёт в Паттайе');
+        $b = $this->add('Владелец переехал в Таиланд и живёт в Паттайе');
+        $paid = static fn(string $text): \Mercurius\Llm\ChatResponse => new \Mercurius\Llm\ChatResponse($text, [], \Mercurius\Llm\FinishReason::Stop, new \Mercurius\Llm\Usage(100, 10, costUsd: 0.03), 'test/model', 'gen');
+        $llm = new ScriptedLlm([
+            $paid('{"verdicts": [{"pair": 1, "label": "adds_detail", "confidence": 0.9, "newer": null}]}'),
+            $paid('{"verdicts": []}'),
+        ]);
+        $cap = 0.05;
+        $judge = new LlmSleepJudge($llm, static fn(): array => ['openrouter:first/model'], new NullLogger(), static function () use (&$cap): float {
+            return $cap;
+        });
+
+        $judge->judge([[$a, $b]]);
+        $judge->judge([[$a, $b]]);
+        self::assertCount(2, $llm->requests, 'under the cap the night calls');
+        self::assertSame([null], $judge->merge([[$a, $b]]), 'spent 0.06 of 0.05: no merge');
+        self::assertSame([null], $judge->enrich([$a], false), 'and no search words');
+        self::assertSame([null], $judge->judge([[$a, $b]]));
+        self::assertCount(2, $llm->requests);
+
+        self::assertSame([2, 220, 0.06], array_map(static fn($v) => is_float($v) ? round($v, 4) : $v, $judge->spent()));
+        $cap = 0.0;
+        $judge->judge([[$a, $b]]);
+        self::assertCount(3, $llm->requests, 'a new night starts from zero; 0 means no cap');
+    }
+
     public function testTheModelsAnswerIsReadAndAFailingModelGivesWayToTheNext(): void {
         $a = $this->add('Владелец живёт в Паттайе');
         $b = $this->add('Владелец переехал в Таиланд и живёт в Паттайе');

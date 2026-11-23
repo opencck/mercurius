@@ -22,16 +22,19 @@ use Throwable;
 /**
  * The model of sleep as the judge of pairs of facts: pairs go in batches, one call each, with no tools; the answer is
  * JSON. A model of the owner's list that fails gives way to the next; a night spends at most CALLS calls and DEADLINE
- * seconds. Facts are data, not instructions, and secrets are masked before they leave. The same model writes the text
+ * seconds, and no call starts once the night has spent the owner's cap in dollars. Facts are data, not instructions, and secrets are masked before they leave. The same model writes the text
  * of a merge and the search words of facts: a fact with a secret or too long to send whole is neither merged nor
  * enriched.
  *
  * spec: brief/memory.md#судья-пары
  * spec: brief/memory.md#слияние
  * spec: brief/memory.md#ночное-обогащение
+ * spec: brief/memory.md#потолок-ночи-в-долларах
  * ref: references/hermes-dreaming/README.md@21878d3:L355-L400 (Optional cloud judge) — one question per pair with fixed
  *      answers and a probability; a judge only narrows what the rules found and never adds a pair; a budget of calls
  *      and time a night. Here five answers instead of three: the model also tells a detail added from a replacement
+ * ref: references/claude-cookbooks/managed_agents/CMA_cap_session_spend.ipynb@ce8b262, cell 23 — the spend is checked
+ *      before each step, not after the run; a call's cost is known only when it ends, so the last one may cross the cap
  */
 final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher {
     public const PROMPT_VERSION = '1';
@@ -45,12 +48,26 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher {
     private int $tokens = 0;
     private float $cost = 0.0;
 
-    /** @param Closure(): list<string> $models the owner's list of models of sleep, in order */
+    /**
+     * @param Closure(): list<string> $models the owner's list of models of sleep, in order
+     * @param Closure(): float|null $cap dollars a night may spend, read at each call; 0 or less — no cap
+     */
     public function __construct(
         private readonly LlmClient $llm,
         private readonly Closure $models,
         private readonly LoggerInterface $logger,
+        private readonly ?Closure $cap = null,
     ) {}
+
+    /** The night has spent its cap: no more calls until spent() opens the next one. */
+    private function capped(): bool {
+        $cap = $this->cap === null ? 0.0 : ($this->cap)();
+        if ($cap <= 0.0 || $this->cost < $cap) {
+            return false;
+        }
+        $this->logger->warning('Sleep reached its dollar cap', ['spent' => round($this->cost, 4), 'cap' => $cap]);
+        return true;
+    }
 
     public function judge(array $pairs): array {
         $verdicts = array_fill(0, count($pairs), null);
@@ -58,7 +75,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher {
         $started = microtime(true);
         $calls = 0;
         foreach (array_chunk($pairs, self::BATCH, true) as $batch) {
-            if ($calls >= self::CALLS || microtime(true) - $started > self::DEADLINE || $models === []) {
+            if ($calls >= self::CALLS || microtime(true) - $started > self::DEADLINE || $models === [] || $this->capped()) {
                 break;
             }
             foreach ($models as $n => $model) {
@@ -93,7 +110,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher {
                 $send[$i] = [$keep, $drop];
             }
         }
-        if ($send === []) {
+        if ($send === [] || $this->capped()) {
             return $texts;
         }
         foreach (($this->models)() as $model) {
@@ -115,7 +132,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher {
     public function enrich(array $facts, bool $translate): array {
         $found = array_fill(0, count($facts), null);
         $send = array_filter($facts, self::whole(...));
-        if ($send === []) {
+        if ($send === [] || $this->capped()) {
             return $found;
         }
         $prompt = self::ENRICH_PROMPT . ($translate ? "\n" . self::TRANSLATE : '');

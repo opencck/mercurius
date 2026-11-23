@@ -296,7 +296,7 @@ $sleepJudge = new \OpenCCK\App\Agent\LlmSleepJudge($llm, static function () use 
         }
     }
     return $refs;
-}, $logger);
+}, $logger, static fn(): float => (float) ($settingsService->current('MEMORY_SLEEP_USD') ?? '0'));
 $consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $verdictCache, \OpenCCK\App\Agent\LlmSleepJudge::PROMPT_VERSION));
 $consolidation->useMerger($sleepJudge);
 $consolidation->useStandingPermission($sleepAuto, $sleepEdits);
