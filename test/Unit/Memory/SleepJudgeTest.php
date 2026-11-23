@@ -290,6 +290,18 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertStringContainsString('settings', $llm->requests[0]->messages[0]->content);
     }
 
+    public function testTheModelWritesQuestionsToFactsWithoutTheirSecrets(): void {
+        // spec: brief/memory.md#самопроверка-поиска
+        $a = $this->add('Сервер pve-01 стоит в Хельсинки');
+        $secret = $this->add('Пароль от pve-01: sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef');
+        $llm = new ScriptedLlm([ScriptedLlm::text('{"facts": [{"fact": 1, "questions": ["где размещён гипервизор", 7, ""]}, {"fact": 9, "questions": ["x"]}]}')]);
+        $judge = new LlmSleepJudge($llm, static fn(): array => ['openrouter:first/model'], new NullLogger());
+
+        self::assertSame([[], ['где размещён гипервизор']], $judge->questions([$secret, $a]));
+        self::assertStringNotContainsString('sk-or-v1', $llm->requests[0]->messages[1]->content);
+        self::assertSame('low', $llm->requests[0]->reasoningEffort);
+    }
+
     public function testANightStopsCallingTheModelOnceItsDollarCapIsSpent(): void {
         // spec: brief/memory.md#потолок-ночи-в-долларах
         $a = $this->add('Владелец живёт в Паттайе');

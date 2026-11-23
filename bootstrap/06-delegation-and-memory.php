@@ -318,6 +318,9 @@ $sleepingProjects = static function () use ($projectSleep, &$sleepingRead): arra
     }
     return $sleepingRead[1];
 };
+// spec: brief/memory.md#самопроверка-поиска — questions in other words show whether search finds the facts, before
+//       the words of the night and after
+$consolidation->useFindability(new \Mercurius\Memory\App\Findability($memoryStore, $recall, new \Mercurius\Memory\Infrastructure\PostgresQuestionStore($db), $sleepJudge));
 $consolidation->usePlaces(
     $sleepJudge,
     static fn(string $scope): bool => !str_starts_with($scope, 'project:') || isset($sleepingProjects()[(int) substr($scope, 8)]),
