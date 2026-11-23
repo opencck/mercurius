@@ -35,7 +35,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `0ea2ddf` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
-| [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `81f3a97` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
+| [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `0d23aa5` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 ## Как работать с пакетом
@@ -56,6 +56,8 @@ compose, по умолчанию выключен ([Модули: сервисы
   загруженной модели; faster-whisper на процессоре (`int8`), VAD и отсев галлюцинаций по образцу hermes-agent, пределы
   размера, времени и очереди; ruff, mypy, pytest и CI. В compose — сервис `whisper` в профиле `whisper`, модели — в
   `storage/whisper`; в `bin/update.sh` — сабмодуль `services/whisper`.
+- `whisper` → `0d23aa5`: проверка на сервере x86_64 в `BRIEF.md`; пользователь образа — uid 10060 (10050 занят
+  модулем `claude-code`).
 
 ### 2026-11-23 — Модуль Claude по подписке
 
