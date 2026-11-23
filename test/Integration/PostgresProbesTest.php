@@ -15,6 +15,8 @@ use OpenCCK\Test\Support\TestDatabase;
  * The owner's probes in the database: added in order, marked, removed, never more than the limit.
  *
  * spec: brief/memory.md#пробы-владельца
+ *
+ * @group integration
  */
 final class PostgresProbesTest extends AsyncTestCase {
     private PostgresConnection $db;
