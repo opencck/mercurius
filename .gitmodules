@@ -93,3 +93,6 @@
 [submodule "references/hermes-official-plugins"]
 	path = references/hermes-official-plugins
 	url = https://github.com/NousResearch/hermes-official-plugins.git
+[submodule "services/whisper"]
+	path = services/whisper
+	url = https://github.com/opencck/mercurius-whisper.git

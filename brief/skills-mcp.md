@@ -279,11 +279,15 @@ MCP sampling выключен; внешние источники — тольк�
 | `mercurius-browser` | `services/browser` | `browser` | Chromium — инструмент `browser`; со скриншотом агент смотрит страницу моделью зрения (`question`) |
 | `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API |
 | `mercurius-mail-mcp` | `mcp/mail` | `mail` | почта по MCP |
+| `mercurius-whisper` | `services/whisper` | `whisper` | распознавание речи на своей машине (faster-whisper) с API, совместимым с OpenAI; в разработке — пока только описание |
 
 - **Песочница становится лёгкой:** PHP, Python, Node, Go без библиотек документов и ffmpeg (решение владельца: всё про
   документы — в `media-docs`); нужное агент ставит в песочницу сам.
-- Фото, речь и текст отдельных сервисов не требуют (внешние модели или само приложение); локальное распознавание речи
-  при нужде — `mercurius-media-whisper` с API, совместимым с OpenAI (профиль `media-whisper`), пока не создаём.
+- Фото, речь и текст отдельных сервисов не требуют (внешние модели или само приложение). Локальное распознавание речи —
+  модуль `mercurius-whisper` (решение владельца 2026-11-23, репозиторий создан владельцем; профиль `whisper`): сервис
+  отвечает маршрутом `/v1/audio/transcriptions` OpenAI API, приложение зовёт его как свою модель речи через
+  `MEDIA_ENDPOINTS` и `MEDIA_SPEECH_MODELS=custom:whisper/<модель>` — нового кода в приложении не нужно. Устройство и
+  план — в [`BRIEF.md` модуля](../services/whisper/BRIEF.md).
 - **Встроенные скиллы** — `mercurius-skill-<имя>` в `skills/<имя>/`: при старте попадают в каталог скиллов только для
   чтения, версия — коммит сабмодуля. **MCP** — `mercurius-mcp-<имя>` в `mcp/<имя>/`.
 

@@ -34,6 +34,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
+| [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `7422554` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI; в разработке — пока описание |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
 ## Как работать с пакетом
@@ -47,6 +48,12 @@ compose, по умолчанию выключен ([Модули: сервисы
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-23 — Модуль распознавания речи
+
+- Новый модуль `mercurius-whisper` (`7422554`) в `services/whisper/`: первый коммит — README на трёх языках, LICENSE,
+  `BRIEF.md` с назначением, границами и планом API. Кода и профиля compose ещё нет; в `bin/update.sh` модуль войдёт
+  вместе с сервисом в compose.
 
 ### 2026-11-23 — Списки моделей словами
 
