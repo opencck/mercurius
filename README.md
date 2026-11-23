@@ -44,7 +44,7 @@ API.
    Telegram user id), `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (one is enough), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
    (`openssl rand -hex 24`). Every variable is explained in the file; most settings can be changed later in the dialog.
    Without `APP_URL` the bot uses long polling and needs no public address; with it — a webhook behind your proxy.
-3. `chmod 1777 storage/app storage/browser` — the containers write there as their own users. Then
+3. `chmod 1777 storage/app storage/browser storage/whisper` — the containers write there as their own users. Then
    `docker compose up -d --build`. The app applies database migrations at start; `docker compose ps` shows `app`,
    `postgres` and `sandbox` as `healthy`.
 4. Write to your bot. `/start` lists the commands; `/doctor` checks the installation (keys, migrations, sandbox,
@@ -61,6 +61,7 @@ compose profile, off by default. Turn one on with its submodule, a profile in `C
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: pages, clicks, scripts, screenshots |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | frames and sound of a video for models that do not watch video |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | the text of office documents and PDF; new docx, xlsx, pptx |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | speech to text on this host (faster-whisper); assign it: `MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`, `MEDIA_SPEECH_MODELS=custom:whisper/small`, the token — the vault secret `media-endpoint-whisper` |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | a built-in skill: how the agent keeps a participant's `MEMORY.md` within its limit |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | a built-in skill: how the agent creates and improves its skills (loaded at the start, no service) |
 | [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | mailboxes of the participants over IMAP and SMTP |
@@ -147,7 +148,7 @@ Modules — the browser, media, mail and the local Bot API server — are listed
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | The sandbox executor |
-| `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, telegram-bot-api; mail |
+| `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, whisper, telegram-bot-api; mail |
 | `bin/` | Backup, restore, update and the installation check |
 | `docs/`, `docs/notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |

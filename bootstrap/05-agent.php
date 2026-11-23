@@ -228,6 +228,8 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $logger,
     // the other providers (anthropic, bedrock, codex) look through the text models' clients
     $clients,
+    // an own endpoint inside the host's network (the whisper module) is reached directly, not by the models' route
+    HttpClients::create(null, $logger),
 );
 // spec: brief/operations.md#расход-что-знает-агент — a picture a run looked at counts in the tokens of that run
 $mediaModels->useRuns($runs);

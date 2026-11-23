@@ -52,6 +52,9 @@ final class MediaModels {
      * @param Closure(string): ?string $endpointKey the key of an own endpoint by its name; null — none
      * @param array<string, LlmClient> $clients the text models' clients of the other providers (anthropic, bedrock,
      *                                          codex): a picture goes to such a model through its provider's client
+     * @param HttpClient|null $localHttp a direct client for an own endpoint inside the host's network (a compose
+     *                                   service such as whisper, localhost, a private address): the models'
+     *                                   route (VLESS) does not reach it; null — the models' client for every address
      */
     public function __construct(
         private readonly HttpClient $http,
@@ -62,6 +65,7 @@ final class MediaModels {
         private readonly LlmCallRepository $calls,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly array $clients = [],
+        private readonly ?HttpClient $localHttp = null,
     ) {}
 
     private ?\OpenCCK\Domain\Repository\RunRepository $runs = null;
@@ -175,7 +179,7 @@ final class MediaModels {
             $client = new RetryingClient(match ($base) {
                 // OpenAI takes max_completion_tokens; the other endpoints speak the dialect of OpenRouter
                 self::OPENAI => new OpenAIClient($this->http, (string) $key, transferTimeout: 180.0),
-                default => new OpenRouterClient($this->http, $key ?? 'none', $base, transferTimeout: 180.0),
+                default => new OpenRouterClient($this->clientFor($base), $key ?? 'none', $base, transferTimeout: 180.0),
             }, maxAttempts: 2, baseDelay: 0.5);
         }
         $started = microtime(true);
@@ -216,7 +220,7 @@ final class MediaModels {
         $text = null;
         $data = [];
         try {
-            $response = $this->http->request($request, $call->cancellation);
+            $response = $this->clientFor((string) $request->getUri())->request($request, $call->cancellation);
             $raw = $response->getBody()->buffer($call->cancellation, self::RESPONSE_MAX);
             /** @var mixed $decoded */
             $decoded = json_decode($raw, true, 64);
@@ -276,6 +280,29 @@ final class MediaModels {
         }
         $model = str_starts_with($ref, 'openrouter:') ? substr($ref, 11) : $ref;
         return $this->openRouterKey === null ? sprintf(t('media.models.no_key'), 'OPENROUTER_API_KEY') : [self::OPENROUTER, $model, $this->openRouterKey];
+    }
+
+    /**
+     * The client for an address: the direct one for a host inside the host's network — a name without a dot (a compose
+     * service), localhost, a loopback or private address — and the models' client (its route) for the rest.
+     *
+     * spec: brief/internet.md#модели-вложений — an own endpoint, such as the whisper module
+     */
+    private function clientFor(string $url): HttpClient {
+        if ($this->localHttp === null) {
+            return $this->http;
+        }
+        $host = strtolower(trim((string) parse_url($url, PHP_URL_HOST), '[]'));
+        if ($host === '') {
+            return $this->http;
+        }
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            $public = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+            return $public ? $this->http : $this->localHttp;
+        }
+        return !str_contains($host, '.') || $host === 'localhost' || str_ends_with($host, '.localhost') || str_ends_with($host, '.internal')
+            ? $this->localHttp
+            : $this->http;
     }
 
     /** A value deep in decoded JSON; null — not there. */

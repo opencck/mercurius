@@ -185,7 +185,10 @@
   `/audio/transcriptions` для речи: так работают self-hosted Whisper, vLLM, Ollama и др.): настройка
   `MEDIA_ENDPOINTS` (`whisper=http://whisper:8000/v1,local=http://ollama:11434/v1`), ключ — секрет хранилища
   `media-endpoint-<имя>` (может не быть). Адрес проверяется как адреса инструментов: внутренний — только если владелец
-  его разрешил (`addr:<host>`, как у `http_request`).
+  его разрешил (`addr:<host>`, как у `http_request`). Адрес внутри сети хоста (имя без точки — сервис compose,
+  `localhost`, `*.localhost`, `*.internal`, частный или зарезервированный IP) вызывается напрямую, мимо маршрута моделей
+  (VLESS его не достаёт): так работает модуль `mercurius-whisper` — распознавание речи faster-whisper на своей машине
+  ([модули](skills-mcp.md#модули-сервисы-mcp-и-скиллы)).
 - **Вызовы:** зрение — Chat Completions с частью `image_url` (base64); видео — с частью `video_url` (OpenRouter) —
   модель, которая видео не принимает, в список видео не назначается (проверка по модальностям каталога при `/set`);
   речь — `/audio/transcriptions` (OpenRouter, OpenAI, свой). Через тот же HTTP-клиент, что и модели (VLESS, если задан).

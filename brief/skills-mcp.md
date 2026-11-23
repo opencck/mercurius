@@ -280,15 +280,17 @@ MCP sampling выключен; внешние источники — тольк�
 | `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API |
 | `mercurius-mail-mcp` | `mcp/mail` | `mail` | почта по MCP |
 | `mercurius-claude-code` | `services/claude-code` | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели, провайдер `claude:` ([Claude по подписке](models.md#claude-по-подписке)); в разработке |
-| `mercurius-whisper` | `services/whisper` | `whisper` | распознавание речи на своей машине (faster-whisper) с API, совместимым с OpenAI; в разработке — пока только описание |
+| `mercurius-whisper` | `services/whisper` | `whisper` | распознавание речи на своей машине (faster-whisper) с API, совместимым с OpenAI — своя модель речи `custom:whisper/<модель>` |
 
 - **Песочница становится лёгкой:** PHP, Python, Node, Go без библиотек документов и ffmpeg (решение владельца: всё про
   документы — в `media-docs`); нужное агент ставит в песочницу сам.
 - Фото, речь и текст отдельных сервисов не требуют (внешние модели или само приложение). Локальное распознавание речи —
   модуль `mercurius-whisper` (решение владельца 2026-11-23, репозиторий создан владельцем; профиль `whisper`): сервис
-  отвечает маршрутом `/v1/audio/transcriptions` OpenAI API, приложение зовёт его как свою модель речи через
-  `MEDIA_ENDPOINTS` и `MEDIA_SPEECH_MODELS=custom:whisper/<модель>` — нового кода в приложении не нужно. Устройство и
-  план — в [`BRIEF.md` модуля](../services/whisper/BRIEF.md).
+  на faster-whisper отвечает маршрутом `/v1/audio/transcriptions` OpenAI API, приложение зовёт его как свою модель
+  речи: `MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`, `MEDIA_SPEECH_MODELS=custom:whisper/small`, токен модуля
+  (`WHISPER_TOKEN` в `.env`) — секретом хранилища `media-endpoint-whisper`. В приложении к этому добавлен только прямой
+  вызов адреса внутри сети хоста ([модели вложений](internet.md#модели-вложений)). Модель скачивается при первом
+  запуске в `storage/whisper`. Устройство, пределы и решения — в [`BRIEF.md` модуля](../services/whisper/BRIEF.md).
 - **Встроенные скиллы** — `mercurius-skill-<имя>` в `skills/<имя>/`: при старте попадают в каталог скиллов только для
   чтения, версия — коммит сабмодуля. **MCP** — `mercurius-mcp-<имя>` в `mcp/<имя>/`.
 

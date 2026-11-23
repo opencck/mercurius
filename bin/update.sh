@@ -14,7 +14,7 @@ cd "$(dirname "$0")/.."
 
 # Сабмодули, нужные для работы; референсы (references/) на сервере не нужны.
 MODULES="packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer packages/todo mcp/mail services/browser \
-services/telegram-bot-api services/media-video services/media-docs services/claude-code skills/skill-creator skills/memory-file"
+services/telegram-bot-api services/media-video services/media-docs services/claude-code services/whisper skills/skill-creator skills/memory-file"
 PROJECT="$(grep -E '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2-)"
 PROJECT="${PROJECT:-mercurius}"
 
@@ -27,6 +27,8 @@ git submodule update --init --depth 1 $MODULES
 after="$(git rev-parse --short HEAD)"
 echo "update: $before → $after"
 
+# Модели модуля whisper пишет пользователь его контейнера (uid 10050), как профили браузера — каталог с правами 1777
+chmod 1777 storage/whisper 2>/dev/null || true
 # --wait: до здоровья сервисов с проверкой здоровья; ошибка запуска — ненулевой выход
 docker compose up -d --build --remove-orphans --wait
 docker compose ps
