@@ -133,6 +133,8 @@ services:
         CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.330}
     image: mercurius-claude-code:${APP_VERSION:-dev}
     restart: unless-stopped
+    # a stopped CLI leaves its helper process behind: init reaps it, PHP as the first process would not
+    init: true
     user: "${CLAUDE_CODE_UID:-10050}:${CLAUDE_CODE_GID:-10050}"
     environment:
       CLAUDE_CODE_TOKEN: ${CLAUDE_CODE_TOKEN:-}

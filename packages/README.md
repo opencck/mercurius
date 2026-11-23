@@ -34,7 +34,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `ab16c0b` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
+| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `0ea2ddf` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `7422554` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI; в разработке — пока описание |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
@@ -55,6 +55,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 - Новый модуль `mercurius-claude-code` (`ab16c0b`) в `services/claude-code/`: каркас сервиса — `/health`, вход
   владельца через `claude auth login`, окружение CLI по белому списку, образ с закреплённым Claude Code 2.1.330.
   Профиль compose `claude-code`, каталог входа `storage/claude-code/`. Вызовов модели ещё нет.
+- `mercurius-claude-code` → `0ea2ddf`: один вызов модели. `POST /v1/messages` запускает CLI на один ход за шлюзом
+  допуска (наружу — один запрос на вызов) и отдаёт ответ самого API потоком или сообщением; `GET /v1/models`; токен
+  модуля принимается и в `x-api-key`. Проверено на подставных CLI и API; настоящий CLI — при проверке на сервере.
+  Для проекта: сервису в compose добавлен `init: true` (снятый CLI оставляет дочерний процесс). Провайдера `claude:` в
+  приложении ещё нет.
 
 ### 2026-11-23 — Модуль распознавания речи
 
