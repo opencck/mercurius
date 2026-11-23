@@ -136,7 +136,7 @@ PHP 8.2+、AMPHP v3 / Revolt、[`opencck/server`](https://github.com/opencck)、
 | [`CLAUDE.md`](CLAUDE.md) | 使用 Claude Code 开发的工作规则（俄文） |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | 智能体：入口点、按 opencck 分层组织的代码、数据库迁移、测试 |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | 沙箱执行器 |
-| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、whisper、telegram-bot-api；mail |
+| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、whisper、claude-code、telegram-bot-api；mail |
 | `bin/` | 备份、恢复、更新和安装检查 |
 | `docs/`, `docs/notes/` | 关于构建自主智能体的知识库：文章和笔记 |
 | `references/` | 作为 git 子模块的参考仓库 |
