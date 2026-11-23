@@ -8,6 +8,7 @@ namespace OpenCCK\App\Agent\Context;
  * Token sizes of compaction, all derived from the model's window.
  *
  * spec: brief/agent-loop.md#контекст — threshold 75% of the window, 50% from 512K
+ * spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — a place may hold less than the window and compact at its own percent
  * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L828-L829, L3390-L3391 — summary budget: 20% of
  *      what is compacted, at least 2000 tokens, at most the configured maximum (min(5% of the window, 12000))
  * ref: docs/notes/hermes-agent.md#сжатие-контекста — lean tail: 2.5% of the window, 10–25K tokens; here also at most a
@@ -19,8 +20,19 @@ final class ContextBudget {
         return intdiv(mb_strlen($text), 4);
     }
 
-    public static function threshold(int $window): int {
-        return intdiv($window * ($window >= 512 * 1024 ? 50 : 75), 100);
+    /** @param int|null $percent the place's own percent of the window; null — 75%, 50% from 512K */
+    public static function threshold(int $window, ?int $percent = null): int {
+        return intdiv($window * ($percent ?? ($window >= 512 * 1024 ? 50 : 75)), 100);
+    }
+
+    /**
+     * What a conversation may hold: the model's window, or less when the place set a limit.
+     *
+     * ref: references/hermes-agent/agent/context_compressor.py@e96221fa:L2179-L2189 (_resolve_context_length) — a
+     *      configured context length over the model's own; here it only lowers the window, never raises it
+     */
+    public static function window(int $modelWindow, ?int $limit): int {
+        return $limit !== null && $limit > 0 ? max(1, min($modelWindow, $limit)) : $modelWindow;
     }
 
     /** The context is nearly full: no waiting out a pause after failed summaries. */

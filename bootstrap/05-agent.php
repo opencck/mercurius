@@ -45,6 +45,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 /**
  * Made by the parts before this one:
  *
+ * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var OpenCCK\Infrastructure\Config\AgentSettings $agentSettings
  * @var Mercurius\Messenger\RoutingChannel $channel
  * @var array<string, Mercurius\Llm\LlmClient> $clients
@@ -70,6 +71,20 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
 
 // Agent: runs, tools, scheduler.
 $conversations = new PostgresConversationRepository($db);
+// spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — the limits of a conversation: its project's, its participant's
+//       in a private chat, the agent's; read at each check, a change works at once
+$contextLimitRepository = new \OpenCCK\Infrastructure\Repository\PostgresContextLimitRepository($db);
+$contextProjects = new \OpenCCK\Infrastructure\Repository\PostgresProjectRepository($db);
+$contextLimits = new \OpenCCK\App\Agent\Context\ContextLimits(
+    $contextLimitRepository,
+    $conversations,
+    static fn(\OpenCCK\Domain\Agent\ConversationMeta $meta): ?int => $contextProjects->active($meta->channel, $meta->chatId, $meta->threadId)?->id,
+    static function () use ($settingsService): array {
+        $tokens = (int) ($settingsService->current('CONTEXT_MAX_TOKENS') ?? '0');
+        $percent = (int) ($settingsService->current('CONTEXT_COMPACT_PERCENT') ?? '0');
+        return [$tokens >= \OpenCCK\App\Agent\Context\ContextLimits::MIN_TOKENS ? $tokens : null, $percent >= \OpenCCK\App\Agent\Context\ContextLimits::MIN_PERCENT && $percent <= \OpenCCK\App\Agent\Context\ContextLimits::MAX_PERCENT ? $percent : null];
+    },
+);
 $runs = new PostgresRunRepository($db);
 $runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
 $deliveryRepository = new \OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository($db);
@@ -306,6 +321,7 @@ $loop = new AgentLoop(
         windowOf: $modelRouter->window(...),
         cheapModelOf: $modelRouter->cheapModel(...),
         events: $tracer,
+        limitsOf: $contextLimits->of(...),
     ),
     events: $tracer,
     fallback: new FallbackModels($modelRoles, $modelCatalog, $routingDecisions, $logger),

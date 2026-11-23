@@ -27,6 +27,8 @@ final class MyPreferencesTool implements Tool {
     public function __construct(
         private readonly ParticipantPrefRepository $prefs,
         private readonly ParticipantClock $clock,
+        /** spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — the limits of the context in the participant's private chats */
+        private readonly ?\OpenCCK\Domain\Repository\ContextLimitRepository $limits = null,
     ) {}
 
     public function definition(): ToolDefinition {
@@ -35,6 +37,8 @@ final class MyPreferencesTool implements Tool {
             'properties' => [
                 'timezone' => ['type' => 'string', 'maxLength' => 64, 'description' => t('tool.my_preferences.timezone')],
                 'quiet_hours' => ['type' => 'string', 'maxLength' => 16, 'description' => t('tool.my_preferences.quiet')],
+                'context_tokens' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10_000_000, 'description' => t('tool.my_preferences.context_tokens')],
+                'compact_percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 95, 'description' => t('tool.my_preferences.compact_percent')],
             ],
             'additionalProperties' => false,
         ]);
@@ -84,12 +88,39 @@ final class MyPreferencesTool implements Tool {
         if ($askedZone !== null || $askedQuiet !== null) {
             $this->prefs->save($id, $zone, $quiet);
         }
+        $context = '';
+        if ($this->limits !== null) {
+            [$tokens, $percent] = $this->limits->get(\OpenCCK\Domain\Repository\ContextLimitRepository::PRINCIPAL, $id);
+            $askedTokens = isset($args['context_tokens']) && is_int($args['context_tokens']) ? $args['context_tokens'] : null;
+            $askedPercent = isset($args['compact_percent']) && is_int($args['compact_percent']) ? $args['compact_percent'] : null;
+            if ($askedTokens !== null) {
+                [$tokens, $error] = \OpenCCK\App\Agent\Context\ContextLimits::tokens($askedTokens);
+                if ($error !== null) {
+                    return ToolResult::error($error);
+                }
+            }
+            if ($askedPercent !== null) {
+                [$percent, $error] = \OpenCCK\App\Agent\Context\ContextLimits::percent($askedPercent);
+                if ($error !== null) {
+                    return ToolResult::error($error);
+                }
+            }
+            if ($askedTokens !== null || $askedPercent !== null) {
+                $this->limits->save(\OpenCCK\Domain\Repository\ContextLimitRepository::PRINCIPAL, $id, $tokens, $percent);
+            }
+            $context = "\n" . \OpenCCK\App\Agent\Context\ContextLimits::describe($tokens, $percent);
+        }
         $hours = $this->clock->quiet($id);
-        return ToolResult::ok(sprintf(
+        return ToolResult::ok($context === '' ? sprintf(
             t('tool.my_preferences.now'),
             $this->clock->zone($id)->getName(),
             $hours === null ? t('tool.my_preferences.no_quiet') : sprintf('%d–%d', $hours[0], $hours[1]),
             $zone === null && $quiet === null ? t('tool.my_preferences.defaults') : '',
-        ));
+        ) : sprintf(
+            t('tool.my_preferences.now'),
+            $this->clock->zone($id)->getName(),
+            $hours === null ? t('tool.my_preferences.no_quiet') : sprintf('%d–%d', $hours[0], $hours[1]),
+            $zone === null && $quiet === null ? t('tool.my_preferences.defaults') : '',
+        ) . $context);
     }
 }

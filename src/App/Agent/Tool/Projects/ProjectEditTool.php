@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep', 'context'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
@@ -42,6 +42,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         'timezone' => ProjectLevel::Owner, 'quiet' => ProjectLevel::Owner,
         // spec: brief/memory.md#сон-проекта — any member may ask whether the project sleeps; its owner turns it on or off
         'sleep' => ProjectLevel::Read,
+        // spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — members see the limits of the context, its owner sets them
+        'context' => ProjectLevel::Read,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -62,6 +64,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     private ?\OpenCCK\App\Service\ProjectPolicies $rights = null;
     private ?\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs = null;
     private ?\OpenCCK\Domain\Repository\ProjectSleepRepository $sleep = null;
+    private ?\OpenCCK\Domain\Repository\ContextLimitRepository $limits = null;
     /** @var (\Closure(int): void)|null the jobs of a project count their next runs again by its new clock */
     private ?\Closure $rescheduled = null;
 
@@ -105,6 +108,46 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             $saved['timezone'] ?? t('tool.project_edit.from_env'),
             $saved['quiet'] === null ? t('tool.project_edit.from_env') : ($saved['quiet'] === '' ? '—' : $saved['quiet']),
         ));
+    }
+
+    /** spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия */
+    public function useLimits(\OpenCCK\Domain\Repository\ContextLimitRepository $limits): void {
+        $this->limits = $limits;
+    }
+
+    /**
+     * The limits of the context in the project's conversations: tokens a conversation holds and the percent of them at
+     * which compaction starts. Without them — what is set; 0 — back to the agent's value.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function context(Project $project, ProjectLevel $level, array $args): ToolResult {
+        if ($this->limits === null) {
+            return ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . 'context');
+        }
+        [$tokens, $percent] = $this->limits->get(\OpenCCK\Domain\Repository\ContextLimitRepository::PROJECT, $project->id);
+        $askedTokens = isset($args['tokens']) && is_int($args['tokens']) ? $args['tokens'] : null;
+        $askedPercent = isset($args['percent']) && is_int($args['percent']) ? $args['percent'] : null;
+        if ($askedTokens === null && $askedPercent === null) {
+            return ToolResult::ok(sprintf(t('tool.project_edit.context_now'), $project->name, \OpenCCK\App\Agent\Context\ContextLimits::describe($tokens, $percent)));
+        }
+        if (!$level->atLeast(ProjectLevel::Owner)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.no_right'), $project->name, ProjectLevel::Owner->label(), $level->label()));
+        }
+        if ($askedTokens !== null) {
+            [$tokens, $error] = \OpenCCK\App\Agent\Context\ContextLimits::tokens($askedTokens);
+            if ($error !== null) {
+                return ToolResult::error($error);
+            }
+        }
+        if ($askedPercent !== null) {
+            [$percent, $error] = \OpenCCK\App\Agent\Context\ContextLimits::percent($askedPercent);
+            if ($error !== null) {
+                return ToolResult::error($error);
+            }
+        }
+        $this->limits->save(\OpenCCK\Domain\Repository\ContextLimitRepository::PROJECT, $project->id, $tokens, $percent);
+        return ToolResult::ok(sprintf(t('tool.project_edit.context_set'), $project->name, \OpenCCK\App\Agent\Context\ContextLimits::describe($tokens, $percent)));
     }
 
     /** spec: brief/memory.md#сон-проекта */
@@ -187,7 +230,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.secret_about')
             . ' ' . t('tool.project_edit.rights_about')
             . ' ' . t('tool.project_edit.clock_about')
-            . ' ' . t('tool.project_edit.sleep_about'), [
+            . ' ' . t('tool.project_edit.sleep_about')
+            . ' ' . t('tool.project_edit.context_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -200,6 +244,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'tool' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 128],
                 'limit' => ['type' => 'string', 'enum' => \OpenCCK\App\Service\ProjectPolicies::LIMITS],
                 'value' => ['type' => 'number', 'minimum' => 0],
+                'tokens' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10_000_000],
+                'percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 95],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -288,6 +334,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'rights', 'grant_tool', 'revoke_tool', 'set_limit' => $this->rights($project, $action, $args),
             'timezone', 'quiet' => $this->clock($project, $action, $text),
             'sleep' => $this->sleeps($project, $level, $text),
+            'context' => $this->context($project, $level, $args),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }

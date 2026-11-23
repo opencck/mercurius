@@ -52,6 +52,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Agent\ApprovalService $approvals
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectSleepRepository $projectSleep
+ * @var OpenCCK\Infrastructure\Repository\PostgresContextLimitRepository $contextLimitRepository
  */
 
 // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — jobs by a schedule, run without the owner, reported by the scheduler
@@ -72,7 +73,7 @@ $participantClock = new \OpenCCK\App\Job\ParticipantClock($participantPrefs, $ow
 // spec: brief/scheduler.md#часовой-пояс-проекта — a project keeps its own clock, the environment's by default
 $projectPrefs = new \OpenCCK\Infrastructure\Repository\PostgresProjectPrefRepository($db);
 $participantClock->useProjects($projectPrefs);
-$tools->register(new \OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool($participantPrefs, $participantClock));
+$tools->register(new \OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool($participantPrefs, $participantClock, $contextLimitRepository));
 $jobScheduler = new JobScheduler($jobRepository, $loop, $runs, $transcript, $conversations, $principals, $policies, $tools, $channel, $llmSettings->model, $ownerZone, $quietHours, $logger, tokenBudget: $jobTokens, budget: $proactiveBudget, clock: $participantClock, fetch: static function (string $url) use ($jobWatchHttp, $jobWatchText): string {
     $request = new \Amp\Http\Client\Request($url);
     $request->setTransferTimeout(30);
@@ -181,6 +182,8 @@ $projectEditTool->useRights($projectPolicies);
 $projectEditTool->usePrefs($projectPrefs, $jobScheduler->rescheduleProject(...));
 // spec: brief/memory.md#сон-проекта — the owner of a project turns its sleep on and off
 $projectEditTool->useSleep($projectSleep);
+// spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — the owner of a project sets the limits of its context
+$projectEditTool->useLimits($contextLimitRepository);
 $scheduler->useProjectPolicies($projectPolicies);
 $jobScheduler->useProjectPolicies($projectPolicies);
 $projectTransfers->usePolicies($projectPolicies);

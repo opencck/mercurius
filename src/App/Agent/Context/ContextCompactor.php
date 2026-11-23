@@ -55,6 +55,8 @@ final class ContextCompactor {
      * @param (Closure(): DateTimeImmutable)|null $clock
      * @param (Closure(string): int)|null $windowOf window of a model, from the model catalog
      * @param (Closure(): string)|null $cheapModelOf the model of the cheap role as of now
+     * @param (Closure(int): array{?int, ?int})|null $limitsOf the conversation's own limit of tokens and percent of
+     *        compaction (its project's, its participant's or the agent's); null in either — the default
      */
     public function __construct(
         private readonly LlmClient $llm,
@@ -69,6 +71,7 @@ final class ContextCompactor {
         private readonly ?Closure $windowOf = null,
         private readonly ?Closure $cheapModelOf = null,
         private readonly AgentEvents $events = new NullEvents(),
+        private readonly ?Closure $limitsOf = null,
     ) {
         $this->clock = $clock ?? static fn(): DateTimeImmutable => new DateTimeImmutable();
     }
@@ -80,19 +83,19 @@ final class ContextCompactor {
      * @param positive-int $historyLimit
      */
     public function ensure(Run $run, string $systemPrompt, int $historyLimit, int $estimate, bool $force = false, ?Cancellation $cancellation = null): bool {
-        if (!$force && $estimate < ContextBudget::threshold($this->windowFor($run->model))) {
+        if (!$force && $estimate < $this->threshold($run)) {
             return false;
         }
         $compaction = $this->conversations->compaction($run->conversationId);
         $entries = $this->entries($run, $historyLimit, $compaction->uptoId);
-        $tailStart = self::boundary($entries, ContextBudget::tail($this->windowFor($run->model)));
+        $tailStart = self::boundary($entries, ContextBudget::tail($this->windowOfRun($run)));
         $pruned = $this->prune(array_slice($entries, 0, $tailStart));
         if ($pruned) {
             $this->logger->info('Old tool results pruned', ['run' => $run->id]);
             // The anchor counted the old texts: from now on the estimate goes by characters until the next call.
             $this->runs->settleAuxiliary($run->id, 0, 0);
             $entries = $this->entries($run, $historyLimit, $compaction->uptoId);
-            if (!$force && $this->estimate($systemPrompt, $this->summaryMessage($run->conversationId), $entries) < ContextBudget::threshold($this->windowFor($run->model))) {
+            if (!$force && $this->estimate($systemPrompt, $this->summaryMessage($run->conversationId), $entries) < $this->threshold($run)) {
                 return true;
             }
         }
@@ -103,7 +106,7 @@ final class ContextCompactor {
 
         $now = ($this->clock)();
         $cooling = $compaction->cooldownUntil !== null && $now < $compaction->cooldownUntil;
-        if ($cooling && !$force && $estimate < ContextBudget::critical($this->windowFor($run->model))) {
+        if ($cooling && !$force && $estimate < ContextBudget::critical($this->windowOfRun($run))) {
             return $pruned;
         }
         $body = null;
@@ -115,7 +118,7 @@ final class ContextCompactor {
                     $now->modify(sprintf('+%d seconds', self::BACKOFF[max(0, min($compaction->failures, 2))])),
                 );
                 $this->logger->warning('Context summary failed', ['run' => $run->id, 'failures' => $failures]);
-                if (!$force && $estimate < ContextBudget::critical($this->windowFor($run->model))) {
+                if (!$force && $estimate < ContextBudget::critical($this->windowOfRun($run))) {
                     return $pruned;
                 }
             }
@@ -176,7 +179,7 @@ final class ContextCompactor {
     private function summarise(Run $run, ?string $previous, array $middle, ?Cancellation $cancellation): ?string {
         // Masked whole: the earlier summary may carry what a user typed.
         $text = SecretMasker::mask(($previous === null ? '' : t('context.context_compactor.prezhnee_rezyume_obnovi_ego') . $previous . "\n\n") . t('context.context_compactor.novaya_chast_perepiski') . $this->render($middle));
-        $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->windowFor($run->model));
+        $maxTokens = ContextBudget::summaryTokens(ContextBudget::tokens($text), $this->windowOfRun($run));
         $reserved = ContextBudget::tokens(\Mercurius\I18n\t(SummaryPrompt::SYSTEM) . $text) + $maxTokens;
         if (!$this->runs->reserve($run->id, $reserved)) {
             $this->logger->warning('No budget for a context summary', ['run' => $run->id]);
@@ -287,6 +290,20 @@ final class ContextCompactor {
     }
 
     /** @return positive-int */
+    /** @return array{?int, ?int} */
+    private function limits(Run $run): array {
+        return $this->limitsOf === null ? [null, null] : ($this->limitsOf)($run->conversationId);
+    }
+
+    /** spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия */
+    private function windowOfRun(Run $run): int {
+        return ContextBudget::window($this->windowFor($run->model), $this->limits($run)[0]);
+    }
+
+    private function threshold(Run $run): int {
+        return ContextBudget::threshold($this->windowOfRun($run), $this->limits($run)[1]);
+    }
+
     private function windowFor(?string $model): int {
         $window = $model !== null && $this->windowOf !== null ? ($this->windowOf)($model) : $this->window;
         return max(1, $window);

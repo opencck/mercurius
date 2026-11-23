@@ -67,8 +67,12 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         return new ChatResponse($text, [], FinishReason::Stop, new Usage(0, 10), 'test/model', 'gen');
     }
 
-    private function loop(ScriptedLlm $llm): AgentLoop {
-        $compactor = new ContextCompactor($llm, $this->transcript, $this->conversations, $this->runs, new InMemoryLlmCallRepository(), 4096, 'cheap/model', new NullLogger());
+    /**
+     * @param positive-int $window
+     * @param (\Closure(int): array{?int, ?int})|null $limitsOf
+     */
+    private function loop(ScriptedLlm $llm, int $window = 4096, ?\Closure $limitsOf = null): AgentLoop {
+        $compactor = new ContextCompactor($llm, $this->transcript, $this->conversations, $this->runs, new InMemoryLlmCallRepository(), $window, 'cheap/model', new NullLogger(), limitsOf: $limitsOf);
         return new AgentLoop($llm, $this->runs, $this->transcript, $this->conversations, new InMemoryLlmCallRepository(), $this->registry, new ToolExecutor(), 100, null, 40, compactor: $compactor);
     }
 
@@ -129,6 +133,40 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         self::assertStringContainsString('исходная задача', $texts);
         self::assertStringNotContainsString('думаю думаю', $texts);
         self::assertSame(Role::User, $last->messages[1]->role);
+    }
+
+    public function testTheLimitOfTheConversationCompactsBeforeTheWindowOfTheModelFills(): void {
+        // spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — a place may hold less than the model's window
+        $script = static fn(): ScriptedLlm => new ScriptedLlm([
+            self::call('c1', str_repeat('думаю ', 1000)),
+            self::call('c2'),
+            self::call('c3'),
+            ScriptedLlm::text('резюме середины'),
+            self::answer('готово'),
+        ]);
+        $wide = $script();
+        $this->execute($this->loop($wide, 1_000_000), 'исходная задача');
+        self::assertStringNotContainsString(\Mercurius\I18n\t(SummaryPrompt::HEADER), self::text(self::lastMain($wide)), 'a wide window holds it all');
+
+        $this->conversations->openConversation(1, 'test', '1');
+        $limited = $script();
+        $asked = [];
+        $this->execute($this->loop($limited, 1_000_000, static function (int $conversation) use (&$asked): array {
+            $asked[] = $conversation;
+            return [4096, null];
+        }), 'исходная задача');
+        self::assertStringContainsString(\Mercurius\I18n\t(SummaryPrompt::HEADER), self::text(self::lastMain($limited)));
+        self::assertNotSame([], $asked);
+    }
+
+    public function testThePercentOfTheConversationSetsTheThreshold(): void {
+        // spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия
+        self::assertSame(75_000, \OpenCCK\App\Agent\Context\ContextBudget::threshold(100_000));
+        self::assertSame(300_000, \OpenCCK\App\Agent\Context\ContextBudget::threshold(600_000));
+        self::assertSame(60_000, \OpenCCK\App\Agent\Context\ContextBudget::threshold(100_000, 60));
+        self::assertSame(50_000, \OpenCCK\App\Agent\Context\ContextBudget::window(200_000, 50_000));
+        self::assertSame(200_000, \OpenCCK\App\Agent\Context\ContextBudget::window(200_000, null));
+        self::assertSame(80_000, \OpenCCK\App\Agent\Context\ContextBudget::window(80_000, 100_000), 'never more than the model holds');
     }
 
     public function testResumedRunSeesTheSummary(): void {
