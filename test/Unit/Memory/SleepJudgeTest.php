@@ -272,6 +272,24 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertCount(1, $single->requests);
     }
 
+    public function testTheModelWritesFactsOfAPlaceFromItsTalkAndNothingAboutItself(): void {
+        // spec: brief/memory.md#сон-проекта
+        $known = $this->add('Сервер проекта pve-01 стоит в Хельсинки');
+        $llm = new ScriptedLlm([ScriptedLlm::text('{"facts": [{"text": "Бэкапы проекта лежат в /srv/backup", "words": ["резервные копии", 5]}, {"text": " "}]}')]);
+        $judge = new LlmSleepJudge($llm, static fn(): array => ['openrouter:first/model'], new NullLogger());
+
+        self::assertSame([], $judge->notes('  ', [$known]), 'no talk — no call');
+        self::assertCount(0, $llm->requests);
+        $notes = $judge->notes("user: бэкапы в /srv/backup, пароль sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef\nassistant: понял", [$known]);
+
+        self::assertSame([['Бэкапы проекта лежат в /srv/backup', ['резервные копии']]], $notes);
+        $asked = $llm->requests[0]->messages[1]->content;
+        self::assertStringContainsString($known->text, $asked, 'what the place knows goes with the talk');
+        self::assertStringNotContainsString('sk-or-v1', $asked);
+        // a switch of the agent itself («sleep of the project is on») is not a fact of the project: it was written once
+        self::assertStringContainsString('settings', $llm->requests[0]->messages[0]->content);
+    }
+
     public function testANightStopsCallingTheModelOnceItsDollarCapIsSpent(): void {
         // spec: brief/memory.md#потолок-ночи-в-долларах
         $a = $this->add('Владелец живёт в Паттайе');
