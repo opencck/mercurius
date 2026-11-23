@@ -486,6 +486,30 @@ NormalizedResponse(content, tool_calls, finish_reason, reasoning, usage, provide
 `L144` (`convert_tools_to_anthropic`); сборка запроса — `agent/anthropic_adapter.py@e96221fa:L651`
 (`build_anthropic_kwargs`). Внутрь не заглядывал.
 
+**Режим OAuth: подписка Claude под видом Claude Code** (дочитано 2026-11-23, `agent/anthropic_adapter.py@e96221fa`).
+Когда ключ — токен подписки, адаптер шлёт запросы прямо в API и выдаёт себя за официальный клиент:
+
+- заголовки `user-agent: claude-code/<версия> (external, cli)` и `x-app: cli`, бета-флаги `claude-code-20250219` и
+  `oauth-2025-04-20` (`L239`, `L510-L515`); версия берётся у установленного Claude Code, иначе запасная (`L244`,
+  `L295-L316`) — отставшую версию API отвергает;
+- системный промпт начинается со строки «You are Claude Code, Anthropic's official CLI for Claude.», а «Hermes Agent»
+  и «Nous Research» в тексте заменяются на «Claude Code» и «Anthropic» (`L319`, `L579-L616`,
+  `_apply_claude_code_identity`);
+- имена инструментов переводятся в вид `mcp__<имя>`, а `session_search` и `memory` переименовываются: по словам
+  авторов, классификатор оплаты Anthropic узнаёт по ним стороннее приложение и переводит запрос на платную доплату
+  (`L320-L348`, `L548-L576`).
+
+**Меркурий это не берёт:** это выдача себя за официальный клиент с обходом классификатора оплаты — риск для
+аккаунта владельца, и сами авторы пишут, что такие запросы уже уходят в доплату. Взятый способ — неизменённый
+официальный Claude Code в отдельном сервисе ([конспект плагина](hermes-claude-subscription-directsdk.md)). Из этого
+же файла полезно без OAuth: таблицы моделей по рассуждению и усилию (`L92-L107`, `L173-L231`) и `_thinking_kwargs`
+(`L618-L646`).
+
+**Ядро внешних провайдеров** (PR #117451, нужен плагину подписки; его README называет коммит `118984d7a02f`): в нашем
+коммите оно, судя по коду, есть — `auth_type="external_process"`, поля запуска процесса, `login_args` и
+`external_auth_evidence` в `providers/base.py@e96221fa:L165`, `L220-L234`, `L680`. Проверить по истории нельзя: клон
+сабмодуля неглубокий, коммита `118984d7a02f` в нём нет.
+
 ### Слой 3. Профиль провайдера — данные о конкретном поставщике
 
 `ProviderProfile` (`references/hermes-agent/providers/base.py@e96221fa:L142-L537`) — датакласс с описанием
@@ -1044,7 +1068,8 @@ ShareGPT; в `state.db` не пишут. `trajectory_compressor.py` не чит�
 - `agent/interrupt_control.py` — механика прерывания описана по документации и по местам вызова;
 - стриминг (`_StreamingCall` в `chat_completion_helpers.py`, `agent/stream_delivery.py`) — прочитано только
   решение «стримить или нет»; обработка дельт, сборка вызовов инструментов из потока, сторожа зависания не читались;
-- `agent/anthropic_adapter.py`, `agent/anthropic_message_convert.py` — конвертация в формат Anthropic не читалась;
+- `agent/anthropic_message_convert.py` — конвертация в формат Anthropic не читалась; из
+  `agent/anthropic_adapter.py` прочитан режим OAuth (`L236-L348`, `L505-L616`), сборка запроса — нет;
   `agent/transports/chat_completions.py`, `codex.py`, `bedrock.py` — не открывались;
 - `hermes_cli/runtime_provider.py` и `providers/__init__.py` — разрешение маршрута известно по документации;
 - `agent/agent_init.py` (2,2 тыс. строк) — конструирование агента не читалось; умолчания (`max_iterations`,

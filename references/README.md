@@ -14,6 +14,7 @@
 | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | [hermes-agent/](hermes-agent/) | `main` | `e96221fa` | 2026-11-16 | 2026-11-16 | [hermes-agent](../notes/hermes-agent.md), [память и скиллы](../notes/hermes-agent-memory-skills.md), [шлюз и безопасность](../notes/hermes-agent-gateway-security.md) |
 | [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | [hermes-plugin-holographic/](hermes-plugin-holographic/) | `main` (тег `v0.28.0`) | `4a794f8` | 2026-11-15 | 2026-11-16 | [notes/hermes-plugin-holographic.md](../notes/hermes-plugin-holographic.md) |
 | [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | [hermes-dreaming/](hermes-dreaming/) | `main` (тег `v3.8.6`) | `21878d3` | 2026-11-07 | 2026-11-16 | [notes/hermes-dreaming.md](../notes/hermes-dreaming.md) |
+| [NousResearch/hermes-official-plugins](https://github.com/NousResearch/hermes-official-plugins) | [hermes-official-plugins/](hermes-official-plugins/) | `main` | `269ddcb` | 2026-11-19 | 2026-11-23 | [notes/hermes-claude-subscription-directsdk.md](../docs/notes/hermes-claude-subscription-directsdk.md) (плагин `claude-subscription-directsdk` 0.4.0; остальные плагины не изучались) |
 
 - **Коммит** — версия, на которую указывает сабмодуль; источник истины — `git submodule status`. Таблица должна с ним совпадать.
 - **Проверено** — дата, когда репозиторий последний раз сверяли с upstream (даже если обновлений не было).
@@ -62,6 +63,18 @@
 - Что это значит для проекта: <что перенять, что устарело в наших выводах или коде>
 - Что обновлено у нас: <конспект, BRIEF.md, код, ссылки> / «ничего не требуется»
 ```
+
+### 2026-11-23 — hermes-official-plugins: добавлен на `269ddcb`
+
+- Официальные плагины Hermes (Python), 23 каталога. Подключён сабмодулем на коммите
+  `269ddcbc8598ece2dc5bb82115ac68954bc4024f` от 2026-11-19. Подключён весь репозиторий: отдельный репозиторий плагина
+  подписки архивный и не обновляется.
+- Зачем проекту: плагин `claude-subscription-directsdk` (версия 0.4.0) — образец подключения Claude по подписке через
+  неизменённый официальный Claude Code как одноразовый клиент модели: шлюз допуска, проигрывание истории кадрами,
+  окружение дочернего процесса, лимиты плана, устойчивый префикс кеша.
+- Что обновлено у нас: конспект `docs/notes/hermes-claude-subscription-directsdk.md`; в конспект `hermes-agent`
+  дописан режим OAuth модуля `agent/anthropic_adapter.py` с пометкой «не берём»; строки в `brief/knowledge.md`.
+  Остальные плагины репозитория не читались.
 
 ### 2026-11-16 — hermes-agent: добавлен на `e96221fa`
 
