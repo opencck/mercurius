@@ -302,6 +302,9 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertSame(Verdict::SAME, $verdicts[0]?->label);
         self::assertSame(['openrouter:first/model', 'openrouter:second/model'], array_map(static fn($r) => $r->model, $llm->requests));
         self::assertSame(1, $judge->spent()[0], 'only an answered call counts');
+        // a model that reasons would spend the whole answer on reasoning and leave no JSON
+        self::assertSame(['low', 'low'], array_map(static fn($r) => $r->reasoningEffort, $llm->requests));
+        self::assertGreaterThanOrEqual(2400, $llm->requests[0]->maxTokens);
         self::assertSame([], LlmSleepJudge::verdicts('{"verdicts": [{"pair": 1, "label": "maybe", "confidence": 2}]}', [0]), 'an answer outside the schema is not used');
     }
 }

@@ -45,6 +45,13 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
     public const DEADLINE = 240.0;
     private const TIMEOUT = 60.0;
     private const FACT = 400;
+    /**
+     * Sleep asks for labels and short texts: a model that reasons spends at most a little on it. Without this a reasoning
+     * model used the whole answer on reasoning and gave no JSON; the router drops it for a model that does not reason.
+     */
+    private const EFFORT = 'low';
+    /** tokens of an answer: the JSON of a batch with room for the reasoning a low effort still does */
+    private const ANSWER = 3000;
 
     private int $calls = 0;
     private int $tokens = 0;
@@ -155,7 +162,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
                 $response = $this->llm->complete(new ChatRequest($model, [
                     Message::system(self::VERIFY_PROMPT),
                     Message::user(implode("\n\n", $lines)),
-                ], [], 1200, 0.0), new TimeoutCancellation(self::TIMEOUT));
+                ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
             } catch (Throwable $e) {
                 $this->logger->warning('Sleep merge check failed', ['model' => $model, 'error' => $e::class]);
                 continue;
@@ -212,7 +219,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
                 $response = $this->llm->complete(new ChatRequest($model, [
                     Message::system(self::NOTES_PROMPT),
                     Message::user($ask),
-                ], [], 1500, 0.0), new TimeoutCancellation(self::TIMEOUT));
+                ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
             } catch (Throwable $e) {
                 $this->logger->warning('Sleep notes failed', ['model' => $model, 'error' => $e::class]);
                 continue;
@@ -265,7 +272,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
                 $response = $this->llm->complete(new ChatRequest($model, [
                     Message::system($prompt),
                     Message::user(self::list($send)),
-                ], [], 2400, 0.0), new TimeoutCancellation(self::TIMEOUT));
+                ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
             } catch (Throwable $e) {
                 $this->logger->warning('Sleep enrichment failed', ['model' => $model, 'error' => $e::class]);
                 continue;
@@ -345,7 +352,7 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
             return $this->llm->complete(new ChatRequest($model, [
                 Message::system($prompt),
                 Message::user(self::ask($batch)),
-            ], [], 1200, 0.0), new TimeoutCancellation(self::TIMEOUT));
+            ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
         } catch (Throwable $e) {
             $this->logger->warning('Sleep judge failed', ['model' => $model, 'error' => $e::class]);
             return null;
