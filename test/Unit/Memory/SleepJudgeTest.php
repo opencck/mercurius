@@ -253,6 +253,18 @@ final class SleepJudgeTest extends AsyncTestCase {
         self::assertSame(['openrouter:first/model', 'openrouter:second/model', 'openrouter:first/model'], array_map(static fn($r) => $r->model, $llm->requests), 'the model that wrote the text does not check it');
         self::assertStringContainsString($merged, $llm->requests[2]->messages[1]->content);
 
+        // many merges go in batches, as pairs to the judge: one long answer would not fit the time of a call
+        $batches = new ScriptedLlm([
+            ScriptedLlm::text('{"merged": [{"pair": 1, "text": "' . $merged . '"}]}'),
+            ScriptedLlm::text('{"checks": [' . implode(', ', array_map(static fn(int $n): string => '{"pair": ' . $n . ', "kept": true}', range(1, LlmSleepJudge::BATCH))) . ']}'),
+            ScriptedLlm::text('{"checks": [{"pair": 1, "kept": false}, {"pair": 2, "kept": true}]}'),
+        ]);
+        $many = new LlmSleepJudge($batches, static fn(): array => ['openrouter:first/model', 'openrouter:second/model'], new NullLogger());
+        $many->merge([[$a, $b]]);
+        $checked = $many->verify(array_fill(0, LlmSleepJudge::BATCH + 2, [$a, $b, $merged]));
+        self::assertCount(3, $batches->requests);
+        self::assertSame([...array_fill(0, LlmSleepJudge::BATCH, true), false, true], $checked);
+
         $single = new ScriptedLlm([ScriptedLlm::text('{"merged": [{"pair": 1, "text": "' . $merged . '"}]}')]);
         $alone = new LlmSleepJudge($single, static fn(): array => ['openrouter:only/model'], new NullLogger());
         $alone->merge([[$a, $b]]);

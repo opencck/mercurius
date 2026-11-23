@@ -153,27 +153,41 @@ final class LlmSleepJudge implements SleepJudge, SleepMerger, SleepEnricher, Mer
         if ($merges === [] || $models === [] || $this->capped()) {
             return $checks;
         }
-        $lines = [];
-        foreach ($merges as $n => [$keep, $drop, $text]) {
-            $lines[] = sprintf("%d.\nA: %s\nB: %s\nMerged: %s", $n + 1, self::text($keep), self::text($drop), SecretMasker::mask(str_replace("\n", ' ', $text)));
-        }
-        foreach ($models as $model) {
-            try {
-                $response = $this->llm->complete(new ChatRequest($model, [
-                    Message::system(self::VERIFY_PROMPT),
-                    Message::user(implode("\n\n", $lines)),
-                ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
-            } catch (Throwable $e) {
-                $this->logger->warning('Sleep merge check failed', ['model' => $model, 'error' => $e::class]);
-                continue;
+        // in batches, as pairs go to the judge: the answer of a model that reasons must fit the time of one call
+        foreach (array_chunk($merges, self::BATCH, true) as $batch) {
+            if ($this->capped()) {
+                break;
             }
-            $this->calls++;
-            $this->tokens += $response->usage->inputTokens + $response->usage->outputTokens;
-            $this->cost += $response->usage->costUsd ?? 0.0;
-            foreach (self::checks($response->text, count($merges)) as $i => $kept) {
-                $checks[$i] = $kept;
+            $lines = [];
+            $n = 0;
+            foreach ($batch as [$keep, $drop, $text]) {
+                $lines[] = sprintf("%d.
+A: %s
+B: %s
+Merged: %s", ++$n, self::text($keep), self::text($drop), SecretMasker::mask(str_replace("
+", ' ', $text)));
             }
-            break;
+            $indexes = array_keys($batch);
+            foreach ($models as $model) {
+                try {
+                    $response = $this->llm->complete(new ChatRequest($model, [
+                        Message::system(self::VERIFY_PROMPT),
+                        Message::user(implode("
+
+", $lines)),
+                    ], [], self::ANSWER, 0.0, self::EFFORT), new TimeoutCancellation(self::TIMEOUT));
+                } catch (Throwable $e) {
+                    $this->logger->warning('Sleep merge check failed', ['model' => $model, 'error' => $e::class]);
+                    continue;
+                }
+                $this->calls++;
+                $this->tokens += $response->usage->inputTokens + $response->usage->outputTokens;
+                $this->cost += $response->usage->costUsd ?? 0.0;
+                foreach (self::checks($response->text, count($batch)) as $i => $kept) {
+                    $checks[$indexes[$i]] = $kept;
+                }
+                break;
+            }
         }
         return array_values($checks);
     }
