@@ -279,6 +279,7 @@ MCP sampling выключен; внешние источники — тольк�
 | `mercurius-browser` | `services/browser` | `browser` | Chromium — инструмент `browser`; со скриншотом агент смотрит страницу моделью зрения (`question`) |
 | `mercurius-telegram-bot-api` | `services/telegram-bot-api` | `telegram-api` | свой сервер Bot API |
 | `mercurius-mail-mcp` | `mcp/mail` | `mail` | почта по MCP |
+| `mercurius-claude-code` | `services/claude-code` | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели, провайдер `claude:` ([Claude по подписке](models.md#claude-по-подписке)); в разработке |
 | `mercurius-whisper` | `services/whisper` | `whisper` | распознавание речи на своей машине (faster-whisper) с API, совместимым с OpenAI; в разработке — пока только описание |
 
 - **Песочница становится лёгкой:** PHP, Python, Node, Go без библиотек документов и ffmpeg (решение владельца: всё про
