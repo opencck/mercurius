@@ -34,7 +34,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `0ea2ddf` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
+| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `17861b5` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
@@ -70,6 +70,10 @@ compose, по умолчанию выключен ([Модули: сервисы
   модуля принимается и в `x-api-key`. Проверено на подставных CLI и API; настоящий CLI — при проверке на сервере.
   Для проекта: сервису в compose добавлен `init: true` (снятый CLI оставляет дочерний процесс). Провайдера `claude:` в
   приложении ещё нет.
+- `mercurius-claude-code` → `17861b5`: три исправления после прогона на Linux. Событиям ответа — простой буфер
+  разрешения вместо очереди (оборванный ответ не теряет пришедшее); причина остановки CLI самим сервисом сообщается
+  раньше её следствия; источник отмены «приложение отключилось» живёт, пока идёт поток (раньше его уничтожение
+  отменяло вызов сразу после начала ответа). Для проекта ничего не меняется.
 
 ### 2026-11-23 — Модуль распознавания речи
 
