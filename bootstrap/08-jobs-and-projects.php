@@ -51,6 +51,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\App\Agent\ApprovalService $approvals
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
+ * @var OpenCCK\Infrastructure\Repository\PostgresProjectSleepRepository $projectSleep
  */
 
 // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — jobs by a schedule, run without the owner, reported by the scheduler
@@ -178,6 +179,8 @@ $projectPolicies = new \OpenCCK\App\Service\ProjectPolicies(
 );
 $projectEditTool->useRights($projectPolicies);
 $projectEditTool->usePrefs($projectPrefs, $jobScheduler->rescheduleProject(...));
+// spec: brief/memory.md#сон-проекта — the owner of a project turns its sleep on and off
+$projectEditTool->useSleep($projectSleep);
 $scheduler->useProjectPolicies($projectPolicies);
 $jobScheduler->useProjectPolicies($projectPolicies);
 $projectTransfers->usePolicies($projectPolicies);

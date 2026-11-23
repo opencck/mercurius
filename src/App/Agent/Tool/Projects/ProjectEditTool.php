@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
@@ -40,6 +40,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         'rights' => ProjectLevel::Read, 'grant_tool' => ProjectLevel::Owner, 'revoke_tool' => ProjectLevel::Owner, 'set_limit' => ProjectLevel::Owner,
         // spec: brief/scheduler.md#часовой-пояс-проекта — the clock of the project is its owner's to set
         'timezone' => ProjectLevel::Owner, 'quiet' => ProjectLevel::Owner,
+        // spec: brief/memory.md#сон-проекта — any member may ask whether the project sleeps; its owner turns it on or off
+        'sleep' => ProjectLevel::Read,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
@@ -59,6 +61,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     private ?\OpenCCK\App\Peer\ProjectChannels $channels = null;
     private ?\OpenCCK\App\Service\ProjectPolicies $rights = null;
     private ?\OpenCCK\Domain\Repository\ProjectPrefRepository $prefs = null;
+    private ?\OpenCCK\Domain\Repository\ProjectSleepRepository $sleep = null;
     /** @var (\Closure(int): void)|null the jobs of a project count their next runs again by its new clock */
     private ?\Closure $rescheduled = null;
 
@@ -102,6 +105,33 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             $saved['timezone'] ?? t('tool.project_edit.from_env'),
             $saved['quiet'] === null ? t('tool.project_edit.from_env') : ($saved['quiet'] === '' ? '—' : $saved['quiet']),
         ));
+    }
+
+    /** spec: brief/memory.md#сон-проекта */
+    public function useSleep(\OpenCCK\Domain\Repository\ProjectSleepRepository $sleep): void {
+        $this->sleep = $sleep;
+    }
+
+    /**
+     * Whether the project sleeps; text on or off turns it, which only the owner of the project (or of the agent) does.
+     * Sleep checks and adds to the facts of the project and to nothing else of it.
+     */
+    private function sleeps(Project $project, ProjectLevel $level, string $text): ToolResult {
+        if ($this->sleep === null) {
+            return ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . 'sleep');
+        }
+        $turn = mb_strtolower($text);
+        if ($turn === '') {
+            return ToolResult::ok(sprintf(t($this->sleep->on($project->id) ? 'tool.project_edit.sleep_on' : 'tool.project_edit.sleep_off'), $project->name));
+        }
+        if (!in_array($turn, ['on', 'off'], true)) {
+            return ToolResult::error(t('tool.project_edit.sleep_bad'));
+        }
+        if (!$level->atLeast(ProjectLevel::Owner)) {
+            return ToolResult::error(sprintf(t('tool.project_edit.no_right'), $project->name, ProjectLevel::Owner->label(), $level->label()));
+        }
+        $this->sleep->set($project->id, $turn === 'on');
+        return ToolResult::ok(sprintf(t($turn === 'on' ? 'tool.project_edit.sleep_set_on' : 'tool.project_edit.sleep_set_off'), $project->name));
     }
 
     /** spec: brief/participants.md#права-проекта */
@@ -156,7 +186,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.transfer_about')
             . ' ' . t('tool.project_edit.secret_about')
             . ' ' . t('tool.project_edit.rights_about')
-            . ' ' . t('tool.project_edit.clock_about'), [
+            . ' ' . t('tool.project_edit.clock_about')
+            . ' ' . t('tool.project_edit.sleep_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -256,6 +287,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'transfer' => $this->transfer($project, Args::string($args, 'participant') ?? ''),
             'rights', 'grant_tool', 'revoke_tool', 'set_limit' => $this->rights($project, $action, $args),
             'timezone', 'quiet' => $this->clock($project, $action, $text),
+            'sleep' => $this->sleeps($project, $level, $text),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }

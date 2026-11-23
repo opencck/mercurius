@@ -305,6 +305,30 @@ $consolidation->useJudge(new \Mercurius\Memory\App\CachedJudge($sleepJudge, $ver
 $consolidation->useMerger($sleepJudge);
 // spec: brief/memory.md#слияние — another model of the list checks every merged text; with one model nobody does
 $consolidation->useVerifier($sleepJudge);
+// spec: brief/memory.md#сон-проекта — the model works on the facts of a project only while its sleep is on, and writes
+//       facts of the project from the talk of the day there; its card and files are not touched
+$projectSleep = new \OpenCCK\Infrastructure\Repository\PostgresProjectSleepRepository($db);
+$projectTalk = new \OpenCCK\Infrastructure\Repository\PostgresProjectTalk($db);
+/** @var array{float, array<int, true>} $sleepingRead when the list was read and the projects that sleep */
+$sleepingRead = [0.0, []];
+$sleepingProjects = static function () use ($projectSleep, &$sleepingRead): array {
+    // read once a pass, not once a fact
+    if (microtime(true) - $sleepingRead[0] > 60.0) {
+        $sleepingRead = [microtime(true), array_fill_keys($projectSleep->sleeping(), true)];
+    }
+    return $sleepingRead[1];
+};
+$consolidation->usePlaces(
+    $sleepJudge,
+    static fn(string $scope): bool => !str_starts_with($scope, 'project:') || isset($sleepingProjects()[(int) substr($scope, 8)]),
+    static function () use ($projectSleep, $projectTalk): array {
+        $talk = [];
+        foreach ($projectSleep->sleeping() as $id) {
+            $talk[\Mercurius\Memory\App\Audience::project($id)] = $projectTalk->ofDay($id, 12_000);
+        }
+        return $talk;
+    },
+);
 $consolidation->useStandingPermission($sleepAuto, $sleepEdits);
 // spec: brief/memory.md#ночное-обогащение — the same model gives search words; translations only while the owner turned them on
 $consolidation->useEnrichment(new \Mercurius\Memory\App\Enrichment(
