@@ -46,6 +46,7 @@
 | [vantaige-orchestrator-workers-2026](../docs/notes/vantaige-orchestrator-workers-2026.md) | [статья](../docs/vantaige-orchestrator-workers-2026.md) | Паттерн на примере Claude Code: `.claude/agents/`, изоляция контекста | Пересказ Anthropic; неглубоко, SEO |
 | [glukhov-multi-agent-orchestration-patterns](../docs/notes/glukhov-multi-agent-orchestration-patterns.md) | [статья](../docs/glukhov-multi-agent-orchestration-patterns.md) | Шесть паттернов по схеме «как работает / когда / как ломается», MAST, A2A, шесть диаграмм | Компиляция; цифры без источников, есть внутренние противоречия (перечислены в конспекте) |
 | [compilenrun-agents-orchestrator-workers](../docs/notes/compilenrun-agents-orchestrator-workers.md) | [статья](../docs/compilenrun-agents-orchestrator-workers.md) | Сквозная реализация на Python: Plan → Execute → Review → Synthesize | Учебный материал, лучший по практике на Python; имена моделей и параметры API не проверены |
+| [google-language-models-need-sleep](../docs/notes/google-language-models-need-sleep.md) | [arXiv 2606.03979](https://arxiv.org/abs/2606.03979), [arXiv 2504.13171](https://arxiv.org/abs/2504.13171) | «Сон» моделей: консолидация и «сновидения» Google, Sleep-time Compute Letta; что из них взято в сон памяти и что нет | Первоисточник идеи «проверять правку на задаче»; метод про веса, переносима методика; таблицы пересказаны, статьи не скачаны |
 | — | [заглушка](../docs/plainenglish-langgraph-orchestrator-worker.md) | Built with LangGraph #31 | Не скачана (403), конспекта нет |
 
 ### По вопросам
@@ -55,7 +56,7 @@
 | Как устроить ядро агента: цикл, инструменты, контекст, состояние | [hermes-agent](../docs/notes/hermes-agent.md) |
 | Как устроить канал связи и Telegram-адаптер | [hermes-agent-gateway-security](../docs/notes/hermes-agent-gateway-security.md) |
 | Как устроить память: факты, поиск, доверие, версии, забывание | [hermes-plugin-holographic](../docs/notes/hermes-plugin-holographic.md), [hermes-agent-memory-skills](../docs/notes/hermes-agent-memory-skills.md) |
-| Как консолидировать память в фоне | [hermes-dreaming](../docs/notes/hermes-dreaming.md), [claude-cookbooks](../docs/notes/claude-cookbooks.md) (dreaming с разделением ролей) |
+| Как консолидировать память в фоне | [hermes-dreaming](../docs/notes/hermes-dreaming.md), [claude-cookbooks](../docs/notes/claude-cookbooks.md) (dreaming с разделением ролей), [google-language-models-need-sleep](../docs/notes/google-language-models-need-sleep.md) (проверка правки на задаче, абляции, цена при равном качестве) |
 | Как классифицировать команды и подтверждать опасные действия | [ssh-mcp](../docs/notes/ssh-mcp.md), [hermes-agent-gateway-security](../docs/notes/hermes-agent-gateway-security.md), [claude-cookbooks](../docs/notes/claude-cookbooks.md) (`CMA_gate_human_in_the_loop`) |
 | Как работать с серверами по SSH, в том числе через VLESS | [amphp-ssh](../docs/notes/amphp-ssh.md), [amphp-vless](../docs/notes/amphp-vless.md) |
 | Как устроить скиллы, MCP и самоулучшение | [hermes-agent-memory-skills](../docs/notes/hermes-agent-memory-skills.md), [claude-cookbooks](../docs/notes/claude-cookbooks.md) |
