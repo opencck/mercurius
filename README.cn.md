@@ -53,6 +53,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium：页面、点击、脚本、截图 |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | 为无法观看视频的模型提供视频的帧和声音 |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | 办公文档和 PDF 的文本；新建 docx、xlsx、pptx |
+| [`mercurius-claude-code`](https://github.com/opencck/mercurius-claude-code) | `services/claude-code` | `claude-code` | `CLAUDE_CODE_TOKEN`、`CLAUDE_CODE_UID`、`CLAUDE_CODE_GID` | 通过官方 Claude Code 使用所有者订阅的 Claude：模型 `claude:<模型>`。在所有者私聊中用 `/claude login` 登录（或把 `claude setup-token` 的令牌设为 `CLAUDE_CODE_OAUTH_TOKEN`），然后把模型加入类别列表。除非 `CLAUDE_CODE_EXTRA_USAGE` 允许，否则拒绝套餐外付费 |
 | [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | 在本机把语音转成文字（faster-whisper）；指定方式：`MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`、`MEDIA_SPEECH_MODELS=custom:whisper/small`，令牌是保管库密钥 `media-endpoint-whisper` |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | 内置技能：智能体如何把参与者的 `MEMORY.md` 保持在限额之内 |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | 内置技能：智能体如何创建和改进自己的技能（启动时加载，无服务） |
