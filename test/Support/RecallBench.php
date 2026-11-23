@@ -32,12 +32,14 @@ final class RecallBench {
 
     /**
      * @param list<string>|null $files several sets in one memory: the mixed-language measure
+     * @param (\Closure(InMemoryMemoryStore): void)|null $prepare runs on the memory before the questions: the night of
+     *        sleep that enriched the facts, for the measure before and after
      * @return array{recall: float, mrr: float, answered: int, extra: float, silence: float, quiet: int, kinds: array<string, array{float, int}>}
      *         recall@5 and MRR over questions with an expected fact; extra — facts given beside the expected ones per such
      *         question; silence — the share of questions with nothing expected that got nothing; kinds — recall@5 and the
      *         count by the kind of question (silence counted as its share)
      */
-    public static function measure(float $hrrWeight, string $file, ?array $files = null): array {
+    public static function measure(float $hrrWeight, string $file, ?array $files = null, ?\Closure $prepare = null): array {
         $store = new InMemoryMemoryStore();
         $analyzer = new TextAnalyzer();
         $questions = [];
@@ -55,6 +57,9 @@ final class RecallBench {
                     'kind' => $question['kind'] ?? ($question['expect'] === [] ? 'silence' : 'direct'),
                 ];
             }
+        }
+        if ($prepare !== null) {
+            $prepare($store);
         }
         $recall = new Recall($store, $analyzer, null, $hrrWeight);
         $hits = 0;
