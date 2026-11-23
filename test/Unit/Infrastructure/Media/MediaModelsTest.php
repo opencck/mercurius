@@ -120,6 +120,23 @@ final class MediaModelsTest extends AsyncTestCase {
         self::assertSame('media-speech', $this->calls->calls[0]->purpose);
     }
 
+    public function testAnEndpointInsideTheHostNetworkIsReachedDirectlyAndTheRestByTheModelsRoute(): void {
+        $routed = new FakeHttpClient(['https://openrouter.ai/api/v1/audio/transcriptions' => [200, [], '{"text":"через маршрут"}']]);
+        $direct = new FakeHttpClient([
+            'http://whisper:8000/v1/audio/transcriptions' => [200, [], '{"text":"напрямую"}'],
+            'http://10.0.0.5:9000/v1/audio/transcriptions' => [200, [], '{"text":"частный адрес"}'],
+        ]);
+        $settings = MediaSettings::fromEnv(['MEDIA_ENDPOINTS' => 'whisper=http://whisper:8000/v1,lan=http://10.0.0.5:9000/v1']);
+        $models = new MediaModels(new HttpClient($routed, []), 'or-key', null, $settings, static fn(string $n): ?string => null, new InMemoryLlmCallRepository(), localHttp: new HttpClient($direct, []));
+
+        self::assertSame('напрямую', $models->transcribe('custom:whisper/small', 'OGG', 'v.ogg', self::call())->text);
+        self::assertSame('частный адрес', $models->transcribe('custom:lan/whisper', 'OGG', 'v.ogg', self::call())->text);
+        self::assertSame('через маршрут', $models->transcribe('openrouter:openai/whisper-1', 'OGG', 'v.ogg', self::call())->text);
+        self::assertCount(2, $direct->bodies);
+        self::assertCount(1, $routed->bodies);
+        self::assertArrayNotHasKey('authorization', $direct->headers[0]);
+    }
+
     public function testTheNextModelWhenOneFailsAndEveryReasonWhenAllDo(): void {
         $models = $this->models([
             'https://openrouter.ai/api/v1/chat/completions' => [400, [], '{"error":{"message":"No endpoints found that support image input"}}'],

@@ -41,7 +41,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
    git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
    ```
 2. 将 `.env.example` 复制为 `.env`（权限 `600`）并填写：至少需要 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_ADMIN_ID`（你的 Telegram 用户 id）、`OPENROUTER_API_KEY` 或 `OPENAI_API_KEY`（二选一即可）、`POSTGRES_PASSWORD`、`SANDBOX_TOKEN`（`openssl rand -hex 24`）。每个变量在文件中都有说明；大多数设置之后可以在对话中修改。没有 `APP_URL` 时，机器人使用长轮询，不需要公网地址；有它时则使用位于你的代理之后的 webhook。
-3. `chmod 1777 storage/app storage/browser`——容器以各自的用户身份向这些目录写入。然后执行 `docker compose up -d --build`。应用在启动时执行数据库迁移；`docker compose ps` 应显示 `app`、`postgres` 和 `sandbox` 为 `healthy`。
+3. `chmod 1777 storage/app storage/browser storage/whisper`——容器以各自的用户身份向这些目录写入。然后执行 `docker compose up -d --build`。应用在启动时执行数据库迁移；`docker compose ps` 应显示 `app`、`postgres` 和 `sandbox` 为 `healthy`。
 4. 给你的机器人发消息。`/start` 列出各个命令；`/doctor` 检查安装情况（密钥、迁移、沙箱、模块、webhook、磁盘），并说明需要修复什么。
 
 ### 模块
@@ -53,6 +53,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium：页面、点击、脚本、截图 |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | 为无法观看视频的模型提供视频的帧和声音 |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | 办公文档和 PDF 的文本；新建 docx、xlsx、pptx |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | 在本机把语音转成文字（faster-whisper）；指定方式：`MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`、`MEDIA_SPEECH_MODELS=custom:whisper/small`，令牌是保管库密钥 `media-endpoint-whisper` |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | 内置技能：智能体如何把参与者的 `MEMORY.md` 保持在限额之内 |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | 内置技能：智能体如何创建和改进自己的技能（启动时加载，无服务） |
 | [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | 通过 IMAP 和 SMTP 访问参与者的邮箱 |
@@ -134,7 +135,7 @@ PHP 8.2+、AMPHP v3 / Revolt、[`opencck/server`](https://github.com/opencck)、
 | [`CLAUDE.md`](CLAUDE.md) | 使用 Claude Code 开发的工作规则（俄文） |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | 智能体：入口点、按 opencck 分层组织的代码、数据库迁移、测试 |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | 沙箱执行器 |
-| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、telegram-bot-api；mail |
+| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、whisper、telegram-bot-api；mail |
 | `bin/` | 备份、恢复、更新和安装检查 |
 | `docs/`, `docs/notes/` | 关于构建自主智能体的知识库：文章和笔记 |
 | `references/` | 作为 git 子模块的参考仓库 |

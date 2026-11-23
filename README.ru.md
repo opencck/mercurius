@@ -43,7 +43,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
    (ваш id в Telegram), `OPENROUTER_API_KEY` или `OPENAI_API_KEY` (хватит одного), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
    (`openssl rand -hex 24`). Каждая переменная описана в файле; большинство настроек потом меняются в диалоге. Без
    `APP_URL` бот работает через long polling и публичный адрес не нужен; с ним — через webhook за вашим прокси.
-3. `chmod 1777 storage/app storage/browser` — контейнеры пишут туда от своих пользователей. Затем
+3. `chmod 1777 storage/app storage/browser storage/whisper` — контейнеры пишут туда от своих пользователей. Затем
    `docker compose up -d --build`. Миграции базы применяются при старте; `docker compose ps` показывает `app`,
    `postgres` и `sandbox` в состоянии `healthy`.
 4. Написать боту. `/start` показывает команды; `/doctor` проверяет установку (ключи, миграции, песочницу, модули,
@@ -60,6 +60,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 | [`mercurius-browser`](https://github.com/opencck/mercurius-browser) | `services/browser` | `browser` | `BROWSER_TOKEN` | Chromium: страницы, нажатия, скрипты, скриншоты |
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | кадры и звук видео для моделей, которые видео не смотрят |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | текст офисных документов и PDF; новые docx, xlsx, pptx |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | распознавание речи на своей машине (faster-whisper); назначить: `MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`, `MEDIA_SPEECH_MODELS=custom:whisper/small`, токен — секрет хранилища `media-endpoint-whisper` |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | встроенный скилл: как агент держит `MEMORY.md` участника в пределе |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | встроенный скилл: как агент создаёт и дорабатывает свои скиллы (грузится при старте, без сервиса) |
 | [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовые ящики участников по IMAP и SMTP |
@@ -146,7 +147,7 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`CLAUDE.md`](CLAUDE.md) | Правила работы над проектом с Claude Code |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | Агент: точка входа, код по слоям opencck, миграции базы, тесты |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | Исполнитель песочницы |
-| `services/`, `mcp/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, telegram-bot-api; почта |
+| `services/`, `mcp/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, whisper, telegram-bot-api; почта |
 | `bin/` | Резервная копия, восстановление, обновление и проверка установки |
 | `docs/`, `docs/notes/` | База знаний о построении автономных агентов: статьи и конспекты |
 | `references/` | Референсные репозитории — git-сабмодули |
