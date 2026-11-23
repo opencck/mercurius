@@ -34,7 +34,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `17861b5` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
+| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `6ae1a97` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
@@ -74,6 +74,12 @@ compose, по умолчанию выключен ([Модули: сервисы
   разрешения вместо очереди (оборванный ответ не теряет пришедшее); причина остановки CLI самим сервисом сообщается
   раньше её следствия; источник отмены «приложение отключилось» живёт, пока идёт поток (раньше его уничтожение
   отменяло вызов сразу после начала ответа). Для проекта ничего не меняется.
+- `mercurius-claude-code` → `6ae1a97`: сеть и лимиты. Очередь вызовов (`CLAUDE_CODE_MAX_CONCURRENT`, 529 при
+  переполнении); один маршрут на оба плеча — `VLESS_URI`, иначе `CLAUDE_CODE_PROXY`, иначе напрямую, с собственным
+  CONNECT-прокси для обращений CLI только к хостам Anthropic; состояние лимитов плана и политика доплаты
+  (`X-Claude-Extra-Usage`: `stop` по умолчанию — 429 с временем сброса до запуска CLI); `GET /usage`. Сервис теперь
+  зависит от `mercurius-connectors`. Для проекта: сервису в compose переданы `VLESS_URI`, `CLAUDE_CODE_PROXY` и
+  `CLAUDE_CODE_MAX_CONCURRENT`, переменные описаны в `.env.example`.
 
 ### 2026-11-23 — Модуль распознавания речи
 

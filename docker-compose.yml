@@ -138,6 +138,11 @@ services:
     user: "${CLAUDE_CODE_UID:-10050}:${CLAUDE_CODE_GID:-10050}"
     environment:
       CLAUDE_CODE_TOKEN: ${CLAUDE_CODE_TOKEN:-}
+      CLAUDE_CODE_MAX_CONCURRENT: ${CLAUDE_CODE_MAX_CONCURRENT:-4}
+      # one way out for the request to the API and for what the CLI sends by itself
+      # spec: brief/models.md#сеть-модуля-claude
+      VLESS_URI: ${VLESS_URI:-}
+      CLAUDE_CODE_PROXY: ${CLAUDE_CODE_PROXY:-}
     volumes:
       - ./storage/claude-code:/data/claude
     mem_limit: 2g
