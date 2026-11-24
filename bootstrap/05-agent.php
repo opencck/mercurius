@@ -56,6 +56,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var OpenCCK\Infrastructure\Llm\ProviderRouter $llm
  * @var OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository $llmCalls
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
+ * @var OpenCCK\App\Agent\Model\ModelLists $modelLists
  * @var Monolog\Logger $logger
  * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var Amp\Http\Client\HttpClient $modelHttp
@@ -158,11 +159,25 @@ $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGu
 if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
 }
-if ($webSearch !== null) {
-    $webSearchTool = new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
-    $webSearchTool->useAccounting($llmCalls, $runs);
-    $tools->register($webSearchTool);
-}
+$webSearchTool = new WebSearchTool($webSearch, $searchEach, array_map('\Mercurius\I18n\t', \OpenCCK\Infrastructure\Config\SearchSettings::ABOUT));
+$webSearchTool->useAccounting($llmCalls, $runs);
+// spec: brief/models.md#списки-моделей-по-категориям — the list of the search works at once: the search is built again when
+//      the list changes, and the tool is offered while there is a search
+$webSearchTool->follow(static function () use ($modelLists, $modelHttp, $llmSettings, &$webSearch, &$searchEach): array {
+    /** @var ?string $built the list the search was built for */
+    static $built = null;
+    $list = implode(',', $modelLists->other('search'));
+    if ($built !== null && $built !== $list) {
+        try {
+            [$webSearch, , $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build(['WEB_SEARCH_MODELS' => $list] + $_ENV, $modelHttp, $llmSettings->openRouterKey());
+        } catch (\OpenCCK\Infrastructure\Config\ConfigException) {
+            // settings that do not build: the search of before stays
+        }
+    }
+    $built = $list;
+    return [$webSearch, $searchEach];
+});
+$tools->register($webSearchTool);
 // spec: brief/participants.md#выдача-прав-и-владение — rights are given only in the owner's private chat: the owner's own
 //      chat in Telegram or over the WebSocket API, not a group, a channel, a job or a neighbour's task
 $ownerPrivateChat = static function (int $conversationId) use ($conversations): bool {
@@ -174,6 +189,8 @@ $tools->register(new SetParticipantPolicyTool($principals, $policies, $ownerPriv
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($tools, $policies));
 // spec: brief/internet.md#как-влияют-пользователи — the owner's media models and principles, each participant's own way with files
 $mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
+// spec: brief/models.md#списки-моделей-по-категориям — the lists of media work at once
+$mediaSettings->follow(static fn(string $kind): array => $modelLists->other($kind));
 $mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
 $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaPrefsTool($mediaPrefs));
 /** @var \OpenCCK\Infrastructure\Repository\PostgresPeerRepository|null $peerRepository set below */
@@ -286,10 +303,8 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
 }
 if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
-    // spec: brief/models.md#категории-моделей — the image category: offered only while it has a model
-    if ($mediaSettings->models('image') !== []) {
-        $tools->register(new \OpenCCK\App\Agent\Tool\Files\ImageGenerateTool($sandbox, $mediaModels, $mediaSettings));
-    }
+    // spec: brief/models.md#категории-моделей — the image category: offered only while it has a model (asked at each request)
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\ImageGenerateTool($sandbox, $mediaModels, $mediaSettings));
     // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\DocumentsTool($sandbox, $docsService));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go

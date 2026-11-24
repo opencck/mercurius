@@ -104,6 +104,10 @@ final class ToolRegistry {
         if ($tool instanceof NeedsService && ($this->services === null || !($this->services)($tool->service()))) {
             return false;
         }
+        if ($tool instanceof Available && !$tool->available()) {
+            // spec: brief/models.md#категории-моделей — a tool of an empty category is not offered
+            return false;
+        }
         if ($tool instanceof RequestsAccess) {
             // a worker cannot ask the owner (spec: brief/orchestration.md#часть-1--синхронное-делегирование)
             return $policy->tools !== null && $policy->irreversible;

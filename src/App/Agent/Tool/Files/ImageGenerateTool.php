@@ -31,7 +31,7 @@ use function Mercurius\I18n\t;
  *      send, and the tool is offered only while a backend is there; hermes draws through FAL, here through the image
  *      models of OpenRouter into the sandbox
  */
-final class ImageGenerateTool extends SandboxTool {
+final class ImageGenerateTool extends SandboxTool implements \OpenCCK\App\Agent\Tool\Available {
     public const NAME = 'image_generate';
     private const EXT = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
     private const RU = [
@@ -47,6 +47,11 @@ final class ImageGenerateTool extends SandboxTool {
         private readonly MediaSettings $settings,
     ) {
         parent::__construct($sandbox);
+    }
+
+    /** spec: brief/models.md#категории-моделей — offered only while the image category has a model */
+    public function available(): bool {
+        return $this->settings->models('image') !== [];
     }
 
     public function definition(): ToolDefinition {

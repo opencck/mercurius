@@ -138,7 +138,7 @@ final class ModelListEditTest extends AsyncTestCase {
 
         $vision = $tool->execute(['action' => 'set', 'category' => 'vision', 'models' => ['openrouter:author/eyes']], $owner);
         self::assertFalse($vision->isError, $vision->content);
-        self::assertSame(sprintf(t('settings.settings_service.sohranena_primenitsya_posle_perezapuska'), 'MEDIA_VISION_MODELS'), $vision->content, 'media goes after a restart');
+        self::assertSame(sprintf(t('settings.saved_live'), 'MEDIA_VISION_MODELS'), $vision->content, 'a list of media works at once, like a text one');
         self::assertSame('openrouter:author/eyes', $this->settings->current('MEDIA_VISION_MODELS'));
 
         self::assertFalse($tool->execute(['action' => 'add', 'category' => 'strong', 'models' => ['author/c']], $owner)->isError);

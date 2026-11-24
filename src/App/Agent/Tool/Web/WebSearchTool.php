@@ -23,7 +23,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/participants.md#решения-владельца-о-правах — search through an interface with pluggable providers
  */
-final class WebSearchTool implements Tool, ReadsOutside {
+final class WebSearchTool implements Tool, ReadsOutside, \OpenCCK\App\Agent\Tool\Available {
     public const NAME = 'web_search';
 
     /**
@@ -31,10 +31,37 @@ final class WebSearchTool implements Tool, ReadsOutside {
      * @param array<string, string> $about what each is good for
      */
     public function __construct(
-        private readonly SearchProvider $search,
-        private readonly array $providers = [],
+        private ?SearchProvider $search,
+        private array $providers = [],
         private readonly array $about = [],
     ) {}
+
+    /** @var (\Closure(): array{?SearchProvider, array<string, SearchProvider>})|null */
+    private ?\Closure $live = null;
+
+    /**
+     * From here on the search is taken at each use: the search in order and each provider by name, as the settings
+     * are now. The model of the search is the owner's list, and a list changed in the dialog works without a restart.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — the list of the search works at once
+     *
+     * @param \Closure(): array{?SearchProvider, array<string, SearchProvider>} $live
+     */
+    public function follow(\Closure $live): void {
+        $this->live = $live;
+    }
+
+    private function refresh(): void {
+        if ($this->live !== null) {
+            [$this->search, $this->providers] = ($this->live)();
+        }
+    }
+
+    /** spec: brief/models.md#категории-моделей — the search is offered only while there is one to ask */
+    public function available(): bool {
+        $this->refresh();
+        return $this->search !== null;
+    }
 
     private ?\OpenCCK\Domain\Repository\LlmCallRepository $calls = null;
     private ?\OpenCCK\Domain\Repository\RunRepository $runs = null;
@@ -51,6 +78,7 @@ final class WebSearchTool implements Tool, ReadsOutside {
     }
 
     public function definition(): ToolDefinition {
+        $this->refresh();
         $properties = [
             'query' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 500],
             'results' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 10],
@@ -91,6 +119,7 @@ final class WebSearchTool implements Tool, ReadsOutside {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $limit = max(1, min(10, Args::int($args, 'results') ?? 5));
+        $this->refresh();
         $name = Args::string($args, 'provider');
         $search = $name === null ? $this->search : ($this->providers[$name] ?? null);
         if ($search === null) {

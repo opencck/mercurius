@@ -65,17 +65,7 @@ final class MediaSettings {
             $key = 'MEDIA_' . strtoupper($kind) . '_MODELS';
             $models[$kind] = [];
             foreach (self::list(Env::raw($env, $key)) as $ref) {
-                $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
-                $provider = preg_match(self::REF, $ref, $parts) === 1 && !str_ends_with($ref, ':') ? (($parts[1] ?? '') === '' ? ModelRef::OPENROUTER : $parts[1]) : null;
-                $valid = $custom === null
-                    // a subscription is a provider too: a category may hold its models
-                    ? $provider !== null && (ProviderProfile::of($provider) !== null || in_array($provider, ModelRef::SUBSCRIPTIONS, true))
-                    : preg_match('~^([a-z0-9][a-z0-9_-]{0,31})/(\S+)$~', $custom, $match) === 1 && isset($endpoints[$match[1]]);
-                // pictures are drawn by the image models of OpenRouter (POST /images)
-                if ($kind === 'image' && ($custom !== null || $provider !== ModelRef::OPENROUTER)) {
-                    $valid = false;
-                }
-                if (!$valid) {
+                if (!self::usable($kind, $ref, $endpoints)) {
                     throw ConfigException::invalid($key, $kind === 'image'
                         ? 'image models of OpenRouter: openrouter:author/slug or author/slug'
                         : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock, chatgpt, claude), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
@@ -104,11 +94,47 @@ final class MediaSettings {
     }
 
     /**
+     * Whether a reference can serve the kind: a model of a known provider or of a subscription, or of the owner's own
+     * endpoint; pictures are drawn only by the image models of OpenRouter (POST /images).
+     *
+     * @param array<string, string> $endpoints
+     */
+    private static function usable(string $kind, string $ref, array $endpoints): bool {
+        $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
+        $provider = preg_match(self::REF, $ref, $parts) === 1 && !str_ends_with($ref, ':') ? (($parts[1] ?? '') === '' ? ModelRef::OPENROUTER : $parts[1]) : null;
+        if ($kind === 'image' && ($custom !== null || $provider !== ModelRef::OPENROUTER)) {
+            return false;
+        }
+        return $custom === null
+            // a subscription is a provider too: a category may hold its models
+            ? $provider !== null && (ProviderProfile::of($provider) !== null || in_array($provider, ModelRef::SUBSCRIPTIONS, true))
+            : preg_match('~^([a-z0-9][a-z0-9_-]{0,31})/(\S+)$~', $custom, $match) === 1 && isset($endpoints[$match[1]]);
+    }
+
+    /** @var (\Closure(string): list<string>)|null the lists as they are now, by kind */
+    private ?\Closure $now = null;
+
+    /**
+     * From here on the lists of models are read at each use: a model the owner names in the dialog works without a
+     * restart. A name the kind cannot use is left out, so one slip does not take the whole category away.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — the lists of media work at once
+     *
+     * @param \Closure(string): list<string> $now the kind => its list now
+     */
+    public function follow(\Closure $now): void {
+        $this->now = $now;
+    }
+
+    /**
      * @param 'vision'|'video'|'speech'|'image'|string $kind
      * @return list<string>
      */
     public function models(string $kind): array {
-        return $this->models[$kind] ?? [];
+        if ($this->now === null || !in_array($kind, self::KINDS, true)) {
+            return $this->models[$kind] ?? [];
+        }
+        return array_values(array_filter(($this->now)($kind), fn(string $ref): bool => self::usable($kind, $ref, $this->endpoints)));
     }
 
     /** The owner's principles for the kind, '' — none. */
