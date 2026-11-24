@@ -55,6 +55,11 @@ final class ModelRoles {
         return $this->providers;
     }
 
+    /** @return list<string> the ids of a provider's catalog, at most 40: the catalog of a subscription is short */
+    public function catalogOf(string $provider): array {
+        return array_slice(array_map(static fn(\Mercurius\Llm\ModelCatalog\ModelInfo $m): string => $m->id, $this->catalog->models($provider)), 0, 40);
+    }
+
     public function seed(): void {
         $this->roles->seed(array_map(ModelRef::parse(...), $this->seedTable()), t('model.model_roles.nachalnaya_tablitsa_roley_brief_2026'));
     }
@@ -137,6 +142,70 @@ final class ModelRoles {
     }
 
     /**
+     * The roles as they work now, for a report: the record of a role, or — when the model of the record is no longer
+     * in the list of the role or its provider has no key — the model that answers instead, with a note of what is gone.
+     * The table keeps the old record; a report that printed it named a model that is never called.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — the model of a role is one of its list
+     *
+     * @return array<string, ModelRole>
+     */
+    public function current(): array {
+        $current = [];
+        foreach ($this->roles->all() as $name => $row) {
+            $works = isset(ModelLists::TEXT[$name]) || $this->lists === null ? $this->model($name) : $row->model;
+            $current[$name] = (string) $works === (string) $row->model
+                ? $row
+                : new ModelRole($name, $works, sprintf(t('model.model_roles.choice_gone'), (string) $row->model), ModelRole::SET_BY_LIST);
+        }
+        return $current;
+    }
+
+    /**
+     * The ids of the provider's catalog that are like the one asked for, the closest first: a model is often named
+     * by its words («fable 5.2») while the catalog writes them its own way.
+     *
+     * @return list<string>
+     */
+    private function alike(ModelRef $ref, ?string $provider = null, int $names = 1): array {
+        $words = array_values(array_filter(preg_split('~[^a-z0-9]+~', strtolower($ref->model)) ?: [], static fn(string $w): bool => $w !== ''));
+        $named = array_filter($words, static fn(string $w): bool => strlen($w) >= 3 && !ctype_digit($w));
+        $scores = [];
+        foreach ($this->catalog->models($provider ?? $ref->provider) as $info) {
+            $parts = preg_split('~[^a-z0-9]+~', strtolower($info->id)) ?: [];
+            if (count(array_intersect($named, $parts)) < $names) {
+                continue;
+            }
+            $scores[$info->id] = count(array_intersect($words, $parts));
+        }
+        arsort($scores);
+        return array_slice(array_map('strval', array_keys($scores)), 0, 5);
+    }
+
+    /**
+     * The models of a connected subscription that are the same family as a model paid by the token: an owner who says
+     * «claude sonnet» with a subscription of Claude signed in most likely means the subscription, while a name without
+     * a provider goes to the paid one. Two words of the name must agree (`claude` and `sonnet`), so a subscription is
+     * not offered for every model of its maker.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям
+     *
+     * @return list<string> provider:model, the closest first; empty for a model of a subscription itself
+     */
+    public function bySubscription(ModelRef $ref): array {
+        if (in_array($ref->provider, ModelRef::SUBSCRIPTIONS, true)) {
+            return [];
+        }
+        $found = [];
+        foreach (array_intersect(ModelRef::SUBSCRIPTIONS, $this->providers) as $subscription) {
+            foreach ($this->alike($ref, $subscription, 2) as $id) {
+                $found[] = $subscription . ':' . $id;
+            }
+        }
+        return $found;
+    }
+
+    /**
      * The latest changes of the models of roles, newest first.
      *
      * @return list<array{id: int, role: string, model: ModelRef, reason: string, setBy: string, by: ?int, at: int}>
@@ -202,7 +271,9 @@ final class ModelRoles {
         }
         $info = $this->catalog->find($ref);
         if ($info === null) {
-            throw new DomainException(sprintf(t('model.model_roles.modeli_net_v_kataloge_provaydera'), $ref->model, $ref->provider));
+            $alike = $this->alike($ref);
+            throw new DomainException(sprintf(t('model.model_roles.modeli_net_v_kataloge_provaydera'), $ref->model, $ref->provider)
+                . ($alike === [] ? '' : ' ' . sprintf(t('model.model_roles.alike'), implode(', ', $alike))));
         }
         if ($role !== ModelRole::CHEAP && !$info->supportsTools()) {
             throw new DomainException(sprintf(t('model.model_roles.model_ne_vyzyvaet_instrumenty_a'), $ref, $role));

@@ -104,6 +104,15 @@ final class ModelListEditor {
         }
         $said = $this->settings->set($who, $setting, implode(',', $next));
         $this->lists->forget();
+        if ($text && $action !== 'remove') {
+            // a name without a provider is a model paid by the token; the agent is told when the subscription has the same
+            foreach ($asked as $model) {
+                $same = $this->roles->bySubscription(ModelRef::parse($model));
+                if ($same !== []) {
+                    $said .= "\n" . sprintf(t('model.lists.by_subscription'), $model, implode(', ', $same));
+                }
+            }
+        }
         return $said;
     }
 }

@@ -137,7 +137,15 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
             $list = $category === 'sleep' ? $sleepModels() : $modelLists->other($category);
             $parts[] = sprintf('%s (%s): %s', $category, $setting, implode(', ', $list) ?: '—');
         }
-        return \Mercurius\I18n\t('self.models') . "\n\n" . sprintf(\Mercurius\I18n\t('self.models.now'), "\n- " . implode("\n- ", $parts));
+        // which providers answer now, and what a subscription has: a model the owner names is looked for there first
+        $providers = [];
+        foreach ($modelRoles->providers() as $provider) {
+            $providers[] = in_array($provider, \OpenCCK\Domain\Agent\ModelRef::SUBSCRIPTIONS, true)
+                ? sprintf(\Mercurius\I18n\t('self.models.subscription'), $provider, implode(', ', $modelRoles->catalogOf($provider)) ?: '—')
+                : $provider;
+        }
+        return \Mercurius\I18n\t('self.models') . "\n\n" . sprintf(\Mercurius\I18n\t('self.models.providers'), implode('; ', $providers))
+            . "\n\n" . sprintf(\Mercurius\I18n\t('self.models.now'), "\n- " . implode("\n- ", $parts));
     },
     // spec: brief/skills-mcp.md#ящики-участников-и-проектов — how a mailbox is connected and who confirms sending; whether
     // the tools are there and whether the one who asks may use them is counted at the call

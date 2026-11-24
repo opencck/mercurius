@@ -141,8 +141,8 @@ final class ChatService implements MessageHandler {
             return $roles->rollback((int) ltrim($parts[1] ?? '0', '#'), $who);
         }
         $lines = [];
-        foreach ($roles->all() as $role) {
-            $lines[] = sprintf('%s: %s (%s)', $role->role, $role->model, $role->setBy);
+        foreach ($roles->current() as $role) {
+            $lines[] = sprintf('%s: %s (%s)', $role->role, $role->model, $role->setBy === \OpenCCK\Domain\Agent\ModelRole::SET_BY_LIST ? $role->reason : $role->setBy);
         }
         $history = $roles->history(10);
         $lines[] = '';

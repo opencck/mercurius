@@ -80,6 +80,44 @@ final class ModelListsTest extends TestCase {
         self::assertSame('openrouter:author/a', (string) $narrowed->model('media'), 'there is no media role any more');
     }
 
+    public function testTheReportOfRolesNamesTheModelThatWorksNotTheOneLeftInTheTable(): void {
+        $catalog = new InMemoryModelStores();
+        $catalog->replace('openrouter', array_map(self::info(...), ['author/old', 'author/a', 'author/b']));
+        // the table still holds the model the role had before the owner rewrote its list
+        (new ModelRoles($catalog, $catalog, ['openrouter'], null, ModelLists::fromEnv(['LLM_CHEAP_MODELS' => 'author/old'], 'author/a')))->seed();
+        $roles = new ModelRoles($catalog, $catalog, ['openrouter'], null, ModelLists::fromEnv(['LLM_CHEAP_MODELS' => 'author/a,author/b'], 'author/a'));
+
+        self::assertSame('openrouter:author/old', (string) $roles->all()[ModelRole::CHEAP]->model, 'the record stays for the history');
+        $current = $roles->current();
+        self::assertSame('openrouter:author/a', (string) $current[ModelRole::CHEAP]->model, 'the first of the list works');
+        self::assertSame(ModelRole::SET_BY_LIST, $current[ModelRole::CHEAP]->setBy);
+        self::assertStringContainsString('author/old', $current[ModelRole::CHEAP]->reason, 'and the report says which choice is gone');
+        self::assertSame('openrouter:author/a', (string) $current[ModelRole::MAIN]->model);
+        self::assertSame(ModelRole::SET_BY_SEED, $current[ModelRole::MAIN]->setBy, 'a choice still in its list is shown as it is');
+    }
+
+    public function testAModelOutsideTheCatalogIsRefusedWithTheNamesThatAreLikeIt(): void {
+        $catalog = new InMemoryModelStores();
+        $catalog->replace('claude', array_map(self::info(...), ['claude-opus-5-5', 'claude-fable-5-2', 'claude-fable-5-1', 'claude-haiku-5-5']));
+        $roles = new ModelRoles($catalog, $catalog, ['claude'], null, null);
+
+        try {
+            $roles->check(ModelRole::STRONG, ModelRef::parse('claude:fable-5.2'));
+            self::fail('a model the catalog does not know was accepted');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('claude-fable-5-2', $e->getMessage());
+            self::assertStringContainsString('claude-fable-5-1', $e->getMessage());
+            self::assertStringNotContainsString('claude-haiku', $e->getMessage(), 'only what is like the name asked for');
+            self::assertLessThan(strpos($e->getMessage(), 'claude-fable-5-1'), strpos($e->getMessage(), 'claude-fable-5-2'), 'the closest first');
+        }
+        try {
+            $roles->check(ModelRole::STRONG, ModelRef::parse('claude:zzz'));
+            self::fail('a model the catalog does not know was accepted');
+        } catch (DomainException $e) {
+            self::assertStringNotContainsString('claude-', $e->getMessage(), 'nothing alike — nothing is suggested');
+        }
+    }
+
     private static function info(string $id): ModelInfo {
         return new ModelInfo($id, $id, 100000, 0.000001, 0.000002, ['text'], ['text'], ['tools'], 4096);
     }

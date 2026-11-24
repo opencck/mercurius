@@ -21,6 +21,8 @@ final class ModelRole {
     public const SET_BY_AGENT = 'agent';
     /** fixed by the owner: nobody else changes it */
     public const SET_BY_OWNER = 'owner';
+    /** not a record: the first model of the role's list answers, because the recorded choice is gone from the list */
+    public const SET_BY_LIST = 'list';
 
     public function __construct(
         public readonly string $role,

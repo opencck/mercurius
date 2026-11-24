@@ -70,6 +70,21 @@ final class ModelListEditTest extends AsyncTestCase {
         $this->now += ModelLists::REREAD + 1.0;
     }
 
+    public function testAPaidModelIsAddedWithAWordAboutTheSameOneByTheSubscription(): void {
+        $this->catalog->replace('openrouter', [self::info('author/a'), self::info('anthropic/claude-sonnet-4.5'), self::info('z-ai/glm-5.3-flash')]);
+        $this->catalog->replace('claude', [self::info('claude-opus-5-5'), self::info('claude-sonnet-5-5'), self::info('claude-haiku-5-5')]);
+        $roles = new ModelRoles($this->catalog, $this->catalog, ['openrouter', 'claude'], null, $this->lists);
+        $editor = new ModelListEditor($this->settings, $this->lists, $roles);
+
+        $said = $editor->change($this->owner, ModelRole::CHEAP, 'add', ['anthropic/claude-sonnet-4.5']);
+        self::assertStringContainsString(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $said, 'the model the agent named is added all the same');
+        self::assertStringContainsString('claude:claude-sonnet-5-5', $said, 'and the agent learns the subscription has the same model');
+        self::assertStringNotContainsString('claude-opus', $said);
+
+        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $editor->change($this->owner, ModelRole::CHEAP, 'add', ['z-ai/glm-5.3-flash']), 'nothing to say about a model the subscription has not');
+        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $editor->change($this->owner, ModelRole::CHEAP, 'add', ['claude:claude-sonnet-5-5']), 'nor about the model of the subscription itself');
+    }
+
     public function testATextListWorksAtOnceWithoutARestart(): void {
         self::assertSame(['openrouter:author/a'], array_map('strval', $this->lists->of(ModelRole::MAIN)));
 

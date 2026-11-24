@@ -96,7 +96,8 @@ final class SetModelRoleTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Too
             return ToolResult::error($e->getMessage());
         }
         $lines = [];
-        foreach ($this->roles->all() as $role) {
+        // the models that work now: a record whose model left the list of its role is not what answers
+        foreach ($this->roles->current() as $role) {
             $lines[] = sprintf('%s: %s (%s; %s)', $role->role, $role->model, $role->setBy, $role->reason);
         }
         return ToolResult::ok(t('tool.set_model_role.roli_modeley') . implode("\n", $lines) . "\n" . sprintf(t('tool.set_model_role.moved'), $change->moved));
