@@ -90,7 +90,7 @@ final class TelegramSettings {
 
     /**
      * TELEGRAM_PROXY: vless — the VLESS_URI of the models; else an http(s), socks5 or socks5h URI. Empty — the proxy
-     * of the installation (DEFAULT_PROXY), and directly when that one is empty too.
+     * of the installation (DEFAULT_PROXY), and directly when that one is empty too; the word direct — directly.
      * spec: brief/channels.md#telegram-прокси-и-локальный-сервер-bot-api
      *
      * @param array<array-key, mixed> $env
@@ -99,7 +99,8 @@ final class TelegramSettings {
     private static function parseRoute(array $env): ?string {
         $name = Env::raw($env, 'TELEGRAM_PROXY') === null ? 'DEFAULT_PROXY' : 'TELEGRAM_PROXY';
         $proxy = Env::raw($env, $name);
-        if ($proxy === null) {
+        // the word direct in TELEGRAM_PROXY keeps Telegram off the proxy of the installation
+        if ($proxy === null || ($name === 'TELEGRAM_PROXY' && strtolower($proxy) === 'direct')) {
             return null;
         }
         if ($name === 'DEFAULT_PROXY') {
@@ -112,7 +113,7 @@ final class TelegramSettings {
             return Env::raw($env, 'VLESS_URI') ?? throw ConfigException::invalid('TELEGRAM_PROXY', 'vless with VLESS_URI set');
         }
         if (preg_match('#^(https?|socks5h?)://[^\s/]+$#i', $proxy) !== 1) {
-            throw ConfigException::invalid('TELEGRAM_PROXY', 'vless, or a proxy like socks5h://user:pass@host:1080 or http://host:3128');
+            throw ConfigException::invalid('TELEGRAM_PROXY', 'vless, direct, or a proxy like socks5h://user:pass@host:1080 or http://host:3128');
         }
         return $proxy;
     }

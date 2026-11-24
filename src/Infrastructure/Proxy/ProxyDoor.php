@@ -47,7 +47,10 @@ final class ProxyDoor {
     private const HEAD_BYTES = 16384;
     private const NEGOTIATION_SECONDS = 15.0;
     private const CONNECT_SECONDS = 20.0;
-    private const HOP_BY_HOP = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'upgrade'];
+    /** `max-forwards` goes too: with it a proxy on the way answers instead of the site */
+    private const HOP_BY_HOP = ['connection', 'keep-alive', 'max-forwards', 'proxy-authenticate', 'proxy-authorization', 'proxy-connection', 'te', 'trailer', 'upgrade'];
+    /** the methods of a plain request the door carries */
+    private const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
     /** @var list<ResourceServerSocket> */
     private array $servers = [];
@@ -130,7 +133,8 @@ final class ProxyDoor {
         }
 
         $uri = preg_match('~^([A-Z]{1,16}) (http://\S+) HTTP/1\.[01]$~', $first, $match) === 1 ? parse_url($match[2]) : false;
-        if (!is_array($uri) || !isset($uri['host'])) {
+        // TRACE is answered by a proxy itself with the request it got: that would give back the login of the owner's proxy
+        if (!is_array($uri) || !isset($uri['host']) || !in_array($match[1], self::METHODS, true)) {
             $client->write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\nThis is a proxy: CONNECT host:port, or a request in absolute form.\n");
             return;
         }

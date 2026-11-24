@@ -12,7 +12,8 @@ use function Mercurius\I18n\t;
 /**
  * Where the door of the installation's way out leads and whether it is open. With VLESS_URI the door is the VLESS
  * tunnel; else it leads to the owner's proxy: SANDBOX_PROXY, or DEFAULT_PROXY when that one is empty; none of the
- * three — there is no door, and a command in the sandbox goes out directly, as it always could.
+ * three — there is no door, and a command in the sandbox goes out directly, as it always could. The word direct in
+ * SANDBOX_PROXY means the same whatever else is set: the agent is told there is no door.
  *
  * spec: brief/agent-loop.md#прокси-для-команд-песочницы
  */
@@ -20,6 +21,8 @@ final class DoorSettings {
     /** the doors as a command in the sandbox reaches them: the name of the service in the network of the sandbox */
     public const HTTP = 'http://vless-proxy:8080';
     public const SOCKS = 'socks5h://vless-proxy:1080';
+    /** SANDBOX_PROXY with this word: no door for the sandbox, whatever the installation has */
+    public const DIRECT = 'direct';
 
     /**
      * The proxy behind the door when the installation has no VLESS; null — none is set.
@@ -32,6 +35,9 @@ final class DoorSettings {
             $proxy = Env::raw($env, $name);
             if ($proxy === null) {
                 continue;
+            }
+            if ($name === 'SANDBOX_PROXY' && strtolower($proxy) === self::DIRECT) {
+                return null;
             }
             if (preg_match('#^(http|socks5h?)://[^\s/]+$#i', $proxy) !== 1) {
                 throw ConfigException::invalid($name, 'a proxy like socks5h://user:pass@host:1080 or http://host:3128');
@@ -61,6 +67,9 @@ final class DoorSettings {
      */
     public static function open(array $env): bool {
         try {
+            if (strtolower(Env::raw($env, 'SANDBOX_PROXY') ?? '') === self::DIRECT) {
+                return false;
+            }
             return Env::raw($env, 'VLESS_URI') !== null || self::proxy($env) !== null;
         } catch (ConfigException) {
             // a proxy that cannot be read: the door does not start with it

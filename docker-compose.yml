@@ -277,10 +277,10 @@ services:
     tmpfs:
       - /tmp:size=16m
     # Healthy is a door that opens a connection: a CONNECT through it gets 200 only once the route reached the site
-    # (502 otherwise). Without a route the service only waits and is healthy.
+    # (502 otherwise). Without a route (or with SANDBOX_PROXY=direct and no VLESS) the service only waits and is healthy.
     # ref: references/amphp-vless/src/Server/HttpProxyServer.php@065417f:L185-L209 — 200 after the tunnel, 502 before
     healthcheck:
-      test: ["CMD-SHELL", "[ -z \"$$VLESS_URI$$SANDBOX_PROXY$$DEFAULT_PROXY\" ] || php -r '$$s = @fsockopen(\"127.0.0.1\", 8080, $$e, $$m, 5); if (!$$s) { exit(1); } stream_set_timeout($$s, 20); fwrite($$s, \"CONNECT cloudflare.com:443 HTTP/1.1\r\nHost: cloudflare.com:443\r\n\r\n\"); exit(str_starts_with((string) fgets($$s), \"HTTP/1.1 200\") ? 0 : 1);'"]
+      test: ["CMD-SHELL", "{ [ -z \"$$VLESS_URI\" ] && { [ \"$$(printf %s \"$$SANDBOX_PROXY\" | tr A-Z a-z)\" = direct ] || [ -z \"$$SANDBOX_PROXY$$DEFAULT_PROXY\" ]; }; } || php -r '$$s = @fsockopen(\"127.0.0.1\", 8080, $$e, $$m, 5); if (!$$s) { exit(1); } stream_set_timeout($$s, 20); fwrite($$s, \"CONNECT cloudflare.com:443 HTTP/1.1\r\nHost: cloudflare.com:443\r\n\r\n\"); exit(str_starts_with((string) fgets($$s), \"HTTP/1.1 200\") ? 0 : 1);'"]
       interval: 60s
       timeout: 30s
       start_period: 20s

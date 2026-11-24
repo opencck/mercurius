@@ -106,6 +106,16 @@ final class ProxyDoorTest extends AsyncTestCase {
         self::assertStringContainsString("Proxy-Authorization: Basic b3duZXI6cGFzcw==\r\n", $this->seen[0], 'the login of the owner, not what the client sent');
         self::assertStringNotContainsString('Y2xpZW50', $this->seen[0]);
         self::assertStringContainsString("Connection: close\r\n", $this->seen[0]);
+
+        // a proxy answers TRACE itself with the request it got, the login of the owner in it: the door does not carry it
+        $client = connect($door->http('127.0.0.1:0'));
+        $client->write("TRACE http://far.example/ HTTP/1.1\r\nHost: far.example\r\nMax-Forwards: 0\r\n\r\n");
+        self::assertStringStartsWith('HTTP/1.1 400 ', buffer($client));
+        self::assertCount(1, $this->seen, 'nothing reached the proxy');
+        $client = connect($door->http('127.0.0.1:0'));
+        $client->write("OPTIONS http://far.example/ HTTP/1.1\r\nHost: far.example\r\nMax-Forwards: 0\r\n\r\n");
+        buffer($client);
+        self::assertStringNotContainsStringIgnoringCase('max-forwards', $this->seen[1], 'and no request stops at a proxy on the way');
         $door->stop();
     }
 

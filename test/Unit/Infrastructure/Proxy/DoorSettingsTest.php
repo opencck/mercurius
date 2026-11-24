@@ -53,5 +53,7 @@ final class DoorSettingsTest extends TestCase {
         self::assertTrue(DoorSettings::open(['DEFAULT_PROXY' => 'http://all.example:3128']));
         self::assertTrue(DoorSettings::open(['SANDBOX_PROXY' => 'socks5://box.example:1080']));
         self::assertFalse(DoorSettings::open(['SANDBOX_PROXY' => 'nonsense']));
+        self::assertFalse(DoorSettings::open(['SANDBOX_PROXY' => 'direct', 'VLESS_URI' => 'vless://id@vpn.example:443?security=tls', 'DEFAULT_PROXY' => 'http://all.example:3128']), 'the word direct: no door for the sandbox');
+        self::assertNull(DoorSettings::proxy(['SANDBOX_PROXY' => 'Direct', 'DEFAULT_PROXY' => 'http://all.example:3128']), 'and the default proxy is not taken instead');
     }
 }

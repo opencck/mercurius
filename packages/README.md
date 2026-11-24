@@ -30,11 +30,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 |--------|---------|--------|-----------|---------|------------|
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `a43658e` | 2026-11-21 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `589ffc3` | 2026-11-21 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `36e47a1` | 2026-11-24 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `7f3dc5f` | 2026-11-24 | `browser` | Chromium под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `ee43c6c` | 2026-11-23 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
+| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `db55fe5` | 2026-11-24 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
 
@@ -49,6 +49,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-24 — Слово direct у браузера и модуля Claude
+
+- `browser` `36e47a1` → `7f3dc5f`: `BROWSER_PROXY=direct` — напрямую мимо маршрутов установки, и VLESS тоже.
+- `claude-code` `ee43c6c` → `db55fe5`: то же для `CLAUDE_CODE_PROXY=direct`.
 
 ### 2026-11-24 — Тексты о моделях подписки и выбывшем выборе роли
 

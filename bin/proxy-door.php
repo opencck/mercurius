@@ -31,8 +31,10 @@ try {
     $proxy = DoorSettings::proxy(getenv());
     if ($proxy === null) {
         // the door never dials a site directly: that would hide a direct connection behind the word "proxy"
-        fwrite(STDERR, "No proxy for the door: set SANDBOX_PROXY or DEFAULT_PROXY.\n");
-        exit(1);
+        // nothing to open (or SANDBOX_PROXY says direct): wait, so the service does not restart in a loop
+        fwrite(STDERR, "No proxy for the door: it stays closed.\n");
+        trapSignal([SIGINT, SIGTERM]);
+        exit(0);
     }
     $route = Route::parse($proxy);
     // an HTTP proxy gets plain requests as they are: such proxies commonly tunnel only to 443

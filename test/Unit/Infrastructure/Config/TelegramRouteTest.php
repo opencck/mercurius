@@ -33,6 +33,8 @@ final class TelegramRouteTest extends TestCase {
         self::assertSame('http://all.example:3128', self::settings($default)->route());
         self::assertSame('socks5h://tg.example:1080', self::settings($default + ['TELEGRAM_PROXY' => 'socks5h://tg.example:1080'])->route(), 'its own proxy wins');
         self::assertSame('vless://id@vpn.example:443?security=tls', self::settings($default + ['TELEGRAM_PROXY' => 'vless', 'VLESS_URI' => 'vless://id@vpn.example:443?security=tls'])->route());
+        self::assertNull(self::settings($default + ['TELEGRAM_PROXY' => 'direct'])->route(), 'the word direct keeps Telegram off the default proxy');
+        self::assertNull(self::settings(['TELEGRAM_PROXY' => 'Direct'])->route());
         try {
             self::settings(['DEFAULT_PROXY' => 'vless']);
             self::fail('the default is a proxy, not a word');
