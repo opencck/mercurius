@@ -10,7 +10,9 @@ declare(strict_types=1);
  * spec: brief/agent-loop.md#прокси-для-команд-песочницы
  */
 
+use Mercurius\Connectors\Route;
 use Mercurius\Connectors\RouteFactory;
+use Mercurius\Connectors\RouteType;
 use OpenCCK\Infrastructure\Proxy\DoorSettings;
 use OpenCCK\Infrastructure\Proxy\ProxyDoor;
 use Psr\Log\AbstractLogger;
@@ -32,7 +34,15 @@ try {
         fwrite(STDERR, "No proxy for the door: set SANDBOX_PROXY or DEFAULT_PROXY.\n");
         exit(1);
     }
-    $door = new ProxyDoor(RouteFactory::fromUri($proxy), $logger);
+    $route = Route::parse($proxy);
+    // an HTTP proxy gets plain requests as they are: such proxies commonly tunnel only to 443
+    $http = $route->type() === RouteType::Http;
+    $door = new ProxyDoor(
+        RouteFactory::fromRoute($route),
+        $logger,
+        $http ? $route->authority() : null,
+        $http && $route->username() !== null ? 'Basic ' . base64_encode($route->username() . ':' . (string) $route->password()) : null,
+    );
 } catch (Throwable $e) {
     // the message of a route error is written by the connectors without the secret part of the address
     fwrite(STDERR, 'The door cannot start: ' . $e->getMessage() . "\n");

@@ -96,6 +96,19 @@ final class ProxyDoorTest extends AsyncTestCase {
         self::assertStringNotContainsStringIgnoringCase('proxy-', $this->seen[0], 'what was said to the proxy stays with the proxy');
     }
 
+    public function testAPlainRequestGoesToAnHttpProxyAsItIs(): void {
+        // the site of the test stands for the owner's HTTP proxy
+        $door = new ProxyDoor(socketConnector(), new NullLogger(), '127.0.0.1:' . $this->sitePort(), 'Basic b3duZXI6cGFzcw==');
+        $client = connect($door->http('127.0.0.1:0'));
+        $client->write("GET http://far.example/page?x=1 HTTP/1.1\r\nHost: far.example\r\nProxy-Authorization: Basic Y2xpZW50\r\nAccept: */*\r\n\r\n");
+
+        self::assertStringStartsWith('echo:GET http://far.example/page?x=1 HTTP/1.1', buffer($client));
+        self::assertStringContainsString("Proxy-Authorization: Basic b3duZXI6cGFzcw==\r\n", $this->seen[0], 'the login of the owner, not what the client sent');
+        self::assertStringNotContainsString('Y2xpZW50', $this->seen[0]);
+        self::assertStringContainsString("Connection: close\r\n", $this->seen[0]);
+        $door->stop();
+    }
+
     public function testAnUnreachableSiteIsABadGateway(): void {
         $client = connect($this->door->http('127.0.0.1:0'));
         $client->write("CONNECT 127.0.0.1:9 HTTP/1.1\r\n\r\n");

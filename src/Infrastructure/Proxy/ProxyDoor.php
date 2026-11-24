@@ -13,10 +13,12 @@ use Amp\Socket\SocketConnector;
 use Amp\TimeoutCancellation;
 use Closure;
 use Psr\Log\LoggerInterface;
+use SensitiveParameter;
 use Throwable;
 
 use function Amp\async;
 use function Amp\ByteStream\pipe;
+use function Amp\Socket\connect;
 use function Amp\Socket\listen;
 
 /**
@@ -27,6 +29,9 @@ use function Amp\Socket\listen;
  *
  * With VLESS the same door is the `vless-proxy` of rekryt/amphp-vless; this one serves a route that is not VLESS,
  * which those servers do not take.
+ *
+ * When the route is an HTTP proxy, its address (`$httpProxy`, host:port) and its `Proxy-Authorization` are given too:
+ * a plain `http://` request is then handed to that proxy as it is, because such proxies commonly tunnel only to 443.
  *
  * spec: brief/agent-loop.md#прокси-для-команд-песочницы
  * ref: references/amphp-vless/src/Server/HttpProxyServer.php@065417f:L185-L290 (tunnel, forward) — 200 only after the
@@ -51,6 +56,9 @@ final class ProxyDoor {
     public function __construct(
         private readonly SocketConnector $route,
         private readonly LoggerInterface $logger,
+        private readonly ?string $httpProxy = null,
+        #[SensitiveParameter]
+        private readonly ?string $proxyAuthorization = null,
     ) {}
 
     /** Starts the HTTP door (CONNECT and plain requests in absolute form) and gives the address it listens on. */
@@ -126,12 +134,18 @@ final class ProxyDoor {
             $client->write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\nThis is a proxy: CONNECT host:port, or a request in absolute form.\n");
             return;
         }
-        $remote = $this->dial(trim($uri['host'], '[]'), $uri['port'] ?? 80);
+        if ($this->httpProxy !== null) {
+            // the owner's HTTP proxy takes the request in absolute form itself, with its own login
+            $remote = $this->proxy();
+            $request = sprintf("%s %s HTTP/1.1\r\n", $match[1], $match[2]) . ($this->proxyAuthorization === null ? '' : 'Proxy-Authorization: ' . $this->proxyAuthorization . "\r\n");
+        } else {
+            $remote = $this->dial(trim($uri['host'], '[]'), $uri['port'] ?? 80);
+            $request = sprintf("%s %s HTTP/1.1\r\n", $match[1], ($uri['path'] ?? '/') . (isset($uri['query']) ? '?' . $uri['query'] : ''));
+        }
         if ($remote === null) {
             $client->write("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
             return;
         }
-        $request = sprintf("%s %s HTTP/1.1\r\n", $match[1], ($uri['path'] ?? '/') . (isset($uri['query']) ? '?' . $uri['query'] : ''));
         foreach ($lines as $line) {
             $name = strtolower(trim((string) strstr($line, ':', true)));
             if ($name !== '' && !in_array($name, self::HOP_BY_HOP, true)) {
@@ -210,6 +224,16 @@ final class ProxyDoor {
         } catch (Throwable $e) {
             // the name of a site is no secret; the message of a route may carry its address, so only the class
             $this->logger->warning('proxy door: the route did not open a connection', ['host' => $host, 'port' => $port, 'error' => $e::class]);
+            return null;
+        }
+    }
+
+    /** Opens a connection to the owner's HTTP proxy itself; null — it is not reachable. */
+    private function proxy(): ?Socket {
+        try {
+            return connect('tcp://' . (string) $this->httpProxy, (new ConnectContext())->withConnectTimeout(self::CONNECT_SECONDS), new TimeoutCancellation(self::CONNECT_SECONDS));
+        } catch (Throwable $e) {
+            $this->logger->warning('proxy door: the proxy is not reachable', ['error' => $e::class]);
             return null;
         }
     }
