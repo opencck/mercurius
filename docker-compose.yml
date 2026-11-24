@@ -58,7 +58,7 @@ services:
     environment:
       TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
-      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-${DEFAULT_PROXY:-}}
       # only for the health check of the image and its watchdog: getMe and the webhook queue (probe.sh)
       # spec: brief/channels.md#здоровье-локального-сервера-bot-api
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -142,7 +142,7 @@ services:
       # one way out for the request to the API and for what the CLI sends by itself
       # spec: brief/models.md#сеть-модуля-claude
       VLESS_URI: ${VLESS_URI:-}
-      CLAUDE_CODE_PROXY: ${CLAUDE_CODE_PROXY:-}
+      CLAUDE_CODE_PROXY: ${CLAUDE_CODE_PROXY:-${DEFAULT_PROXY:-}}
     volumes:
       - ./storage/claude-code:/data/claude
     mem_limit: 2g
@@ -235,11 +235,12 @@ services:
     environment:
       BROWSER_TOKEN: ${BROWSER_TOKEN:-}
       # the way out: the VLESS tunnel of the installation (vless-proxy below) when VLESS_URI is set, else BROWSER_PROXY
+      # or, when that one is empty, DEFAULT_PROXY
       # (socks5://, socks5h://, http://, with user:password if needed), else directly
       # spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер
       BROWSER_VIA_VLESS: ${VLESS_URI:+1}
       BROWSER_VLESS_PROXY: http://vless-proxy:8080
-      BROWSER_PROXY: ${BROWSER_PROXY:-}
+      BROWSER_PROXY: ${BROWSER_PROXY:-${DEFAULT_PROXY:-}}
     volumes:
       - ./storage/browser:/profiles
     shm_size: 512m
@@ -254,30 +255,32 @@ services:
     networks:
       - browser
 
-  # The VLESS tunnel for the browser: Chromium speaks only HTTP and SOCKS proxies, so vless-proxy of rekryt/amphp-vless
-  # (already in the image of the app) opens an HTTP door to the tunnel in the network of the browser. The password is
-  # the token of the browser; without VLESS_URI the service only waits, and the browser goes its other way.
+  # The door to the installation's way out for what cannot take a route by itself: an HTTP proxy on 8080 and a SOCKS5
+  # proxy on 1080. Chromium speaks only HTTP and SOCKS proxies, and a command in the sandbox may want the VPN: with
+  # VLESS_URI the door is the vless-proxy of rekryt/amphp-vless (already in the image of the app); else it leads to
+  # SANDBOX_PROXY or DEFAULT_PROXY (bin/proxy-door.php), and the browser goes its own way; with none it only waits.
+  # No login: the door listens only in the networks of the browser and of the sandbox, and never dials a site directly.
+  # spec: brief/agent-loop.md#прокси-для-команд-песочницы
   # spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер
   vless-proxy:
-    profiles: ["browser"]
     image: mercurius-app:${APP_VERSION:-dev}
     restart: unless-stopped
-    entrypoint: ["sh", "-c", "if [ -z \"$$VLESS_URI\" ]; then exec sleep infinity; fi; exec php vendor/bin/vless-proxy --http=0.0.0.0:8080 --quiet"]
+    entrypoint: ["sh", "-c", "if [ -n \"$$VLESS_URI\" ]; then exec php vendor/bin/vless-proxy --http=0.0.0.0:8080 --socks=0.0.0.0:1080 --quiet; fi; if [ -n \"$$SANDBOX_PROXY$$DEFAULT_PROXY\" ]; then exec php bin/proxy-door.php; fi; exec sleep infinity"]
     environment:
       VLESS_URI: ${VLESS_URI:-}
-      VLESS_PROXY_USER: browser
-      VLESS_PROXY_PASSWORD: ${BROWSER_TOKEN:-}
+      SANDBOX_PROXY: ${SANDBOX_PROXY:-}
+      DEFAULT_PROXY: ${DEFAULT_PROXY:-}
     mem_limit: 256m
     pids_limit: 256
     read_only: true
     # PHP keeps its lock files in /tmp
     tmpfs:
       - /tmp:size=16m
-    # Healthy is a tunnel that opens: a CONNECT through the door gets 200 only once the VLESS server reached the site
-    # (502 otherwise). Without VLESS_URI the service only waits and is healthy.
+    # Healthy is a door that opens a connection: a CONNECT through it gets 200 only once the route reached the site
+    # (502 otherwise). Without a route the service only waits and is healthy.
     # ref: references/amphp-vless/src/Server/HttpProxyServer.php@065417f:L185-L209 — 200 after the tunnel, 502 before
     healthcheck:
-      test: ["CMD-SHELL", "[ -z \"$$VLESS_URI\" ] || php -r '$$s = @fsockopen(\"127.0.0.1\", 8080, $$e, $$m, 5); if (!$$s) { exit(1); } stream_set_timeout($$s, 20); fwrite($$s, \"CONNECT cloudflare.com:443 HTTP/1.1\r\nHost: cloudflare.com:443\r\nProxy-Authorization: Basic \" . base64_encode(\"browser:\" . getenv(\"VLESS_PROXY_PASSWORD\")) . \"\r\n\r\n\"); exit(str_starts_with((string) fgets($$s), \"HTTP/1.1 200\") ? 0 : 1);'"]
+      test: ["CMD-SHELL", "[ -z \"$$VLESS_URI$$SANDBOX_PROXY$$DEFAULT_PROXY\" ] || php -r '$$s = @fsockopen(\"127.0.0.1\", 8080, $$e, $$m, 5); if (!$$s) { exit(1); } stream_set_timeout($$s, 20); fwrite($$s, \"CONNECT cloudflare.com:443 HTTP/1.1\r\nHost: cloudflare.com:443\r\n\r\n\"); exit(str_starts_with((string) fgets($$s), \"HTTP/1.1 200\") ? 0 : 1);'"]
       interval: 60s
       timeout: 30s
       start_period: 20s
@@ -291,6 +294,7 @@ services:
         max-file: "3"
     networks:
       - browser
+      - sandbox
 
   postgres:
     # pinned by digest, as the base of the app image

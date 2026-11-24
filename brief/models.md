@@ -310,7 +310,7 @@ Responses). Вход — `/codex login` в личном чате владель�
 #### Сеть модуля Claude
 
 Решение владельца 2026-11-23: один маршрут на оба плеча. Порядок выбора: `VLESS_URI` → `CLAUDE_CODE_PROXY`
-(`http://…`, `socks5h://…`, как у `TELEGRAM_PROXY`) → напрямую.
+(`http://…`, `socks5h://…`, как у `TELEGRAM_PROXY`; пуст — [`DEFAULT_PROXY`](agent-loop.md#прокси-по-умолчанию)) → напрямую.
 
 - Шлюз допуска открывает соединение с `api.anthropic.com` через маршрут; TLS кончается у Anthropic, токен подписки до
   прокси не доходит.

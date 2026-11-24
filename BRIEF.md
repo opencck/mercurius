@@ -12,7 +12,7 @@
 
 - [Требования](brief/requirements.md) — [Цель](brief/requirements.md#цель), [Меркурий: требования](brief/requirements.md#меркурий-требования)
 - [Устройство и соглашения](brief/architecture.md) — [Устройство приложения на opencck](brief/architecture.md#устройство-приложения-на-opencck), [Структура репозитория](brief/architecture.md#структура-репозитория), [Соглашения](brief/architecture.md#соглашения)
-- [Агентский цикл](brief/agent-loop.md) — [Агентский цикл и харнесс](brief/agent-loop.md#агентский-цикл-и-харнесс), [Знания агента о себе](brief/agent-loop.md#знания-агента-о-себе)
+- [Агентский цикл](brief/agent-loop.md) — [Агентский цикл и харнесс](brief/agent-loop.md#агентский-цикл-и-харнесс), [Прокси для команд песочницы](brief/agent-loop.md#прокси-для-команд-песочницы), [Знания агента о себе](brief/agent-loop.md#знания-агента-о-себе)
 - [Модели](brief/models.md) — [Выбор моделей под задачу](brief/models.md#выбор-моделей-под-задачу), [Списки моделей по категориям](brief/models.md#списки-моделей-по-категориям), [Провайдеры и подписки](brief/models.md#провайдеры-и-подписки), [Claude по подписке](brief/models.md#claude-по-подписке)
 - [Самоулучшение](brief/self-improvement.md) — [Самоулучшение](brief/self-improvement.md#самоулучшение): границы, разбор трасс, предложения, заметки к промпту, ворота
 - [Оркестратор и воркеры](brief/orchestration.md) — [Оркестратор и воркеры](brief/orchestration.md#оркестратор-и-воркеры)

@@ -27,6 +27,20 @@ final class TelegramRouteTest extends TestCase {
         self::assertSame(20_000_000, $telegram->fileLimit, 'the cloud gives a bot files up to 20 MB');
     }
 
+    public function testTheDefaultProxyWhenTelegramHasNoneOfItsOwn(): void {
+        $default = ['DEFAULT_PROXY' => 'http://all.example:3128'];
+
+        self::assertSame('http://all.example:3128', self::settings($default)->route());
+        self::assertSame('socks5h://tg.example:1080', self::settings($default + ['TELEGRAM_PROXY' => 'socks5h://tg.example:1080'])->route(), 'its own proxy wins');
+        self::assertSame('vless://id@vpn.example:443?security=tls', self::settings($default + ['TELEGRAM_PROXY' => 'vless', 'VLESS_URI' => 'vless://id@vpn.example:443?security=tls'])->route());
+        try {
+            self::settings(['DEFAULT_PROXY' => 'vless']);
+            self::fail('the default is a proxy, not a word');
+        } catch (ConfigException $e) {
+            self::assertStringContainsString('DEFAULT_PROXY', $e->getMessage());
+        }
+    }
+
     public function testAProxyOrVless(): void {
         self::assertSame('socks5h://user:pass@proxy.example:1080', self::settings(['TELEGRAM_PROXY' => 'socks5h://user:pass@proxy.example:1080'])->route());
         self::assertSame('http://10.0.0.2:3128', self::settings(['TELEGRAM_PROXY' => 'http://10.0.0.2:3128'])->route());

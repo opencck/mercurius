@@ -42,7 +42,7 @@ COPY bootstrap ./bootstrap
 COPY src ./src
 COPY migrations ./migrations
 COPY skills ./skills
-COPY bin/doctor.php ./bin/doctor.php
+COPY bin/doctor.php bin/proxy-door.php ./bin/
 # the names of the settings that go into the archive of the agent
 COPY .env.example ./
 

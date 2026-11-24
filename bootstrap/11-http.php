@@ -158,6 +158,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'jobs' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.jobs'),
     // spec: brief/orchestration.md#этапы-и-план — how long work is kept: the plan and the workers
     'work' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.work'),
+    // spec: brief/agent-loop.md#прокси-для-команд-песочницы — whether the door is open and where it leads, as of now
+    'proxy' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \OpenCCK\Infrastructure\Proxy\DoorSettings::about($_ENV),
 ]));
 
 // spec: brief/operations.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
