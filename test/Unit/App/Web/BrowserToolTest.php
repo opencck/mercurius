@@ -143,6 +143,24 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertStringContainsString('"direction":"bottom"', $http->bodies[1]);
     }
 
+    public function testTypingTakesTheTextEvenWhenItIsWrittenAsValueAndNeverTypesNothingBySlip(): void {
+        // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — type needs its text
+        $page = json_encode(['url' => 'https://example.com/login', 'title' => 'Login', 'text' => 'ok', 'elements' => ['[5] input:text s_arinin']], JSON_THROW_ON_ERROR);
+        $http = new FakeHttpClient(['http://browser:3000/type' => [200, ['content-type' => 'application/json'], $page]]);
+        $tool = $this->tool($http);
+
+        self::assertFalse($tool->execute(['action' => 'type', 'ref' => 5, 'value' => 's_arinin', 'submit' => true], self::context())->isError);
+        self::assertStringContainsString('"text":"s_arinin"', $http->bodies[0], 'the text written as value is the text');
+        self::assertFalse($tool->execute(['action' => 'type', 'ref' => 5, 'text' => ''], self::context())->isError, 'an empty text clears a field');
+        self::assertStringContainsString('"text":""', $http->bodies[1]);
+
+        $none = $tool->execute(['action' => 'type', 'ref' => 5, 'submit' => true], self::context());
+        self::assertTrue($none->isError);
+        self::assertStringContainsString('text', $none->content);
+        self::assertTrue($tool->execute(['action' => 'select', 'ref' => 1], self::context())->isError);
+        self::assertCount(2, $http->bodies, 'nothing was sent to the page without its text');
+    }
+
     public function testARefusalAndAScreenshot(): void {
         $http = new FakeHttpClient([
             'http://browser:3000/navigate' => [403, [], '{"error":"адрес запрещён: внутренний адрес"}'],

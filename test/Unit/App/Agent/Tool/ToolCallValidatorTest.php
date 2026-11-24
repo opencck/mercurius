@@ -77,6 +77,16 @@ final class ToolCallValidatorTest extends TestCase {
         self::assertStringStartsWith('Неизвестный инструмент «secret»', (string) $outcome->calls[0]->error);
     }
 
+    public function testAParticipantWhoMayAskForToolsIsToldToAskInsteadOfCallingAgain(): void {
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('request_tool'));
+        $registry->register(new FakeTool('self_info'));
+        $outcome = (new ToolCallValidator($registry))->validate([new ToolCall('c1', 'self_info', '{}')], new ParticipantPolicy(['request_tool'], new RunLimits(30, 1000, 900, 120), null, true));
+
+        self::assertStringContainsString('request_tool (tool, reason)', (string) $outcome->calls[0]->error);
+        self::assertStringStartsWith('Неизвестный инструмент «self_info»', (string) $outcome->calls[0]->error, 'whether the tool exists is still not said');
+    }
+
     public function testMixedBatchKeepsValidCalls(): void {
         $outcome = $this->validator->validate([new ToolCall('c1', 'nope', '{}'), new ToolCall('c2', 'read', '{"q":"x"}')], $this->policy());
 

@@ -64,6 +64,10 @@ final class Recipients {
             $principals->all(),
             static fn(Principal $p): bool => ($agents || $p->kind === PrincipalKind::Human) && $p->status === PrincipalStatus::Active,
         ));
+        // a participant as the agent itself shows them — «#2 · Имя» in lists, «Имя (#2)» in refusals — is that number
+        if (preg_match('~^#(\d{1,10})(?:\D|$)~u', $to, $shown) === 1 || preg_match('~\(#(\d{1,10})\)$~u', $to, $shown) === 1) {
+            $to = $shown[1];
+        }
         $key = mb_strtolower(ltrim($to, '@#'));
         if (in_array($key, ['owner', 'владелец', 'владельцу'], true)) {
             $owner = array_values(array_filter($people, static fn(Principal $p): bool => $p->role === Role::owner()));

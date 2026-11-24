@@ -106,6 +106,16 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertSame('Как дела? (ещё раз)', array_values($this->relays->relays)[0]->question);
     }
 
+    public function testAPersonIsFoundTheWayTheAgentShowsThem(): void {
+        $this->stack(new ScriptedLlm([]));
+        $conversation = $this->stack->conversations->openConversation(1, 'telegram', '42', '');
+
+        foreach (['#' . $this->roman->id . ' · Roman', 'Roman (#' . $this->roman->id . ')', '#' . $this->roman->id] as $to) {
+            self::assertFalse($this->tool->execute(['to' => $to, 'text' => 'x'], $this->context($conversation))->isError, $to);
+        }
+        self::assertCount(3, $this->sentTo('77'));
+    }
+
     public function testANameMatchingSeveralPeopleIsAskedAgain(): void {
         $this->stack(new ScriptedLlm([]));
         $conversation = $this->stack->conversations->openConversation(1, 'telegram', '42', '');

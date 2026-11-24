@@ -363,7 +363,9 @@ final class AgentLoop {
         $state->silenceAfterActions = false;
         // spec: brief/agent-loop.md#знания-агента-о-себе — "no such ability" about itself only after self_info: a weak model
         //      answered "I cannot pass ownership" without looking, while /owner exists
-        if (!$state->selfCheckRetried && self::deniesAbility($text) && $this->registry->get(self::SELF_INFO) !== null && !$this->called($state->run->id, self::SELF_INFO)) {
+        //      Only when the one who asks may call self_info: a reminder to call a tool that is not given ended the run
+        //      in refused calls
+        if (!$state->selfCheckRetried && self::deniesAbility($text) && $this->registry->allows($state->policy, self::SELF_INFO) && $this->registry->get(self::SELF_INFO) !== null && !$this->called($state->run->id, self::SELF_INFO)) {
             $state->selfCheckRetried = true;
             $state->selfCheck = $text;
             $state->partial = '';

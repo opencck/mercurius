@@ -182,7 +182,11 @@ final class ToolCallValidator {
             t('tool.tool_call_validator.neizvestnyy_instrument'),
             mb_substr($name, 0, 64),
             $names === [] ? t('tool.tool_call_validator.instrumenty_seychas_nedostupny') : t('tool.tool_call_validator.dostupny') . implode(', ', $names) . '.',
-        );
+        )
+            // a participant with few tools: the way to the one that is missing is to ask the owner, not to call it again.
+            // Whether the named tool exists is not said: that is for the owner's card
+            // spec: brief/network.md#участник-просит-инструмент
+            . (in_array('request_tool', $names, true) ? t('tool.tool_call_validator.ask_owner') : '');
     }
 
 

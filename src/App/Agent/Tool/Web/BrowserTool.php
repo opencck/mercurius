@@ -237,6 +237,15 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         return 120;
     }
 
+    /**
+     * A string argument as it was written; null — it was not given. An empty text is a text: it clears a field.
+     *
+     * @param array<string, mixed> $args
+     */
+    private static function given(array $args, string $name): ?string {
+        return isset($args[$name]) && is_string($args[$name]) ? $args[$name] : null;
+    }
+
     public function execute(array $args, ToolContext $context): ToolResult {
         $action = Args::string($args, 'action') ?? '';
         $profile = $this->profileOf(Args::string($args, 'profile') ?? 'main', $context);
@@ -246,8 +255,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                     // the owner allowed this internal host: the browser lets it in for this page
                     + ($context->approved && ($internal = $this->internalHost($args)) !== null ? ['allow' => [$internal]] : []),
                 'click' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
-                'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => Args::string($args, 'text') ?? '', 'submit' => ($args['submit'] ?? false) === true],
-                'select' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'value' => Args::string($args, 'value') ?? ''],
+                // a model that writes the text as `value` (the parameter of select) means the text: typing an empty string
+                // instead left the page as it was, and the unchanged page looked like a tool that does not work
+                'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => self::given($args, 'text') ?? self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.type_no_text')), 'submit' => ($args['submit'] ?? false) === true],
+                'select' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'value' => self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.select_no_value'))],
                 'scroll' => ['profile' => $profile, 'direction' => Args::string($args, 'direction') ?? 'down'],
                 'script' => [
                     'profile' => $profile,

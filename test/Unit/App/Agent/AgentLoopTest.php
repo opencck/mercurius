@@ -288,6 +288,20 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertNotEmpty($nudged, 'the second call carries the reminder');
     }
 
+    public function testADenialIsNotSentToSelfInfoWhenTheParticipantHasNoSuchTool(): void {
+        // spec: brief/agent-loop.md#знания-агента-о-себе — the reminder points only to a tool the one who asks may call
+        $self = new FakeTool('self_info');
+        $this->registry->register($self);
+        $this->registry->register(new FakeTool('search'));
+        $llm = new ScriptedLlm([ScriptedLlm::text('Не могу посмотреть это фото.')]);
+        $run = $this->start('что на фото?');
+
+        $this->loop($llm)->run($run, new ParticipantPolicy(['search'], $run->limits, null, true), $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame('Не могу посмотреть это фото.', $this->observer->final, 'the answer goes out as it is');
+        self::assertCount(1, $llm->requests, 'and the model is not asked to call a tool it does not have');
+    }
+
     public function testTheWordsOfARealDenialAreCaught(): void {
         // answers that went out without a look in self_info
         $self = new FakeTool('self_info');
