@@ -336,10 +336,13 @@ final class ChatService implements MessageHandler {
             }
             return;
         }
-        if ($command === '/claude' && $this->claude !== null) {
-            // the code of a sign-in is a secret: its message leaves the chat, and the command never reaches the history
+        if ($command === '/claude') {
+            // the code of a sign-in is a secret: its message leaves the chat, and the command never reaches the history —
+            // also where the module is not switched on, so a code sent there does not go to the model as text
             $argument = substr($text, strlen($command));
-            if (!$principal->isOwner()) {
+            if ($this->claude === null) {
+                $this->reply($message, t('claude.module_off'));
+            } elseif (!$principal->isOwner()) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, t(self::SECRET_PRIVATE));

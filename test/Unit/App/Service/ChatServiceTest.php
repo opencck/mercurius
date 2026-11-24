@@ -39,6 +39,16 @@ final class ChatServiceTest extends AsyncTestCase {
         self::assertSame([], $stack->llm->requests);
     }
 
+    public function testACodeForClaudeNeverReachesTheModelWhereTheModuleIsOff(): void {
+        $stack = new AgentStack();
+        $stack->say('/claude code secret-sign-in-code');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame([\Mercurius\I18n\t('claude.module_off')], $stack->channel->texts('send'));
+        self::assertSame([], $stack->llm->requests);
+        self::assertCount(1, $stack->channel->deleted, 'the message with the code leaves the chat');
+    }
+
     public function testNewCommandStartsAFreshConversation(): void {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('один'), ScriptedLlm::text('два')]));
         $stack->say('первый');
