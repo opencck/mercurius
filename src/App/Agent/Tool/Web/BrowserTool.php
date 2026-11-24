@@ -67,6 +67,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
          */
         private readonly ?\Closure $holderOf = null,
         private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        /** the vault a password is typed from by its name; null — only a text is typed */
+        private readonly ?\OpenCCK\App\Vault\Vault $vault = null,
     ) {}
 
     /**
@@ -119,6 +121,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 'x' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 4000, 'description' => t('tool.browser.point')],
                 'y' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 4000],
                 'text' => ['type' => 'string', 'maxLength' => 5000],
+                'secret' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.browser.secret')],
                 'submit' => ['type' => 'boolean'],
                 'value' => ['type' => 'string', 'maxLength' => 200, 'description' => t('tool.browser.value')],
                 'direction' => ['type' => 'string', 'enum' => ['down', 'up', 'top', 'bottom']],
@@ -140,7 +143,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
             // spec: brief/decisions.md#принятые-владельцем-риски — clicks and sending forms go without a card unless the owner
             //       turned confirmations on (BROWSER_CONFIRM): an accepted risk of the owner
             'click' => $this->confirm || isset($args[self::HOLDER]) ? DangerClass::Irreversible : DangerClass::Write,
-            'type' => ($args['submit'] ?? false) === true && ($this->confirm || isset($args[self::HOLDER])) ? DangerClass::Irreversible : DangerClass::Write,
+            // spec: brief/internet.md#пароль-из-хранилища-в-браузере — a secret goes to a site only after the owner's card
+            'type' => self::given($args, 'secret') !== null || (($args['submit'] ?? false) === true && ($this->confirm || isset($args[self::HOLDER]))) ? DangerClass::Irreversible : DangerClass::Write,
             // picking in a list fills a form, it sends nothing: a write like typing without submit
             'select' => DangerClass::Write,
             'close' => DangerClass::Write,
@@ -158,6 +162,11 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
             return $sha === null || $site === null || self::scriptMode(Args::string($args, 'path') ?? '') !== 'act'
                 ? null : 'browser-script:' . $site . ':' . substr($sha, 0, 16);
         }
+        if (Args::string($args, 'action') === 'type' && ($secret = self::given($args, 'secret')) !== null) {
+            // granted for good: this secret on this site, as http_request binds a secret to a host
+            $site = strtolower(Args::string($args, 'site') ?? '');
+            return preg_match(self::SITE, $site) === 1 ? sprintf('browser-secret:%s %s', $secret, $site) : null;
+        }
         if (Args::string($args, 'action') !== 'open') {
             return null;
         }
@@ -169,6 +178,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         $action = Args::string($args, 'action') ?? '';
         if ($action === 'script') {
             return sprintf(t('tool.browser.script_describe'), Args::string($args, 'path') ?? '', Args::string($args, 'site') ?? '');
+        }
+        if ($action === 'type' && ($secret = self::given($args, 'secret')) !== null) {
+            return sprintf(t('tool.browser.secret_describe'), $secret, Args::string($args, 'site') ?? '');
         }
         $internal = $action === 'open' ? $this->internalHost($args) : null;
         return 'browser ' . $action . ' ' . mb_substr(Args::string($args, 'url') ?? (string) (Args::int($args, 'ref') ?? ''), 0, 300)
@@ -248,6 +260,32 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         return isset($args[$name]) && is_string($args[$name]) ? $args[$name] : null;
     }
 
+    /**
+     * The value of the secret a call types, or null when it types a text. The secret is typed only on the site the
+     * owner's card named: the page open now is asked first, and another site gets nothing — a page that talked the
+     * model into typing a password elsewhere is refused here.
+     *
+     * spec: brief/internet.md#пароль-из-хранилища-в-браузере
+     *
+     * @param array<string, mixed> $args
+     */
+    private function secretFor(array $args, string $profile, ToolContext $context): ?string {
+        $name = self::given($args, 'secret');
+        if ($name === null) {
+            return null;
+        }
+        $site = strtolower(Args::string($args, 'site') ?? '');
+        if ($this->vault === null || preg_match(self::SITE, $site) !== 1) {
+            throw new RuntimeException(t('tool.browser.secret_no_site'));
+        }
+        $page = $this->browser->call('read', ['profile' => $profile], $context->cancellation);
+        $host = strtolower((string) parse_url(self::str($page, 'url'), PHP_URL_HOST));
+        if ($host !== $site && !str_ends_with($host, '.' . $site)) {
+            throw new RuntimeException(sprintf(t('tool.browser.secret_other_site'), $host === '' ? '—' : $host, $site));
+        }
+        return $this->vault->reveal($name, $context->principal) ?? throw new RuntimeException(sprintf(t('tool.browser.secret_missing'), $name));
+    }
+
     public function execute(array $args, ToolContext $context): ToolResult {
         $action = Args::string($args, 'action') ?? '';
         $profile = $this->profileOf(Args::string($args, 'profile') ?? 'main', $context);
@@ -262,7 +300,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                     : ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
                 // a model that writes the text as `value` (the parameter of select) means the text: typing an empty string
                 // instead left the page as it was, and the unchanged page looked like a tool that does not work
-                'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => self::given($args, 'text') ?? self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.type_no_text')), 'submit' => ($args['submit'] ?? false) === true],
+                'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => $this->secretFor($args, $profile, $context) ?? self::given($args, 'text') ?? self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.type_no_text')), 'submit' => ($args['submit'] ?? false) === true],
                 'select' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'value' => self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.select_no_value'))],
                 'scroll' => ['profile' => $profile, 'direction' => Args::string($args, 'direction') ?? 'down'],
                 'script' => [

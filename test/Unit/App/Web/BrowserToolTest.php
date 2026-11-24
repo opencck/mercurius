@@ -129,6 +129,42 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertSame(3, $sent[1]['ref'] ?? null);
     }
 
+    public function testAPasswordIsTypedFromTheVaultOnlyOnTheSiteTheCardNamed(): void {
+        // spec: brief/internet.md#пароль-из-хранилища-в-браузере
+        $principals = new \OpenCCK\Test\Support\InMemoryPrincipalRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Owner');
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $vault->put('site-login', 'password', 'correct-horse-battery', $owner);
+        $page = json_encode(['url' => 'https://accounts.example.com/signin', 'title' => 'Sign in', 'text' => 'Password', 'elements' => ['[2] input']], JSON_THROW_ON_ERROR);
+        $http = new FakeHttpClient([
+            'http://browser:3000/read' => [200, ['content-type' => 'application/json'], $page],
+            'http://browser:3000/type' => [200, ['content-type' => 'application/json'], $page],
+        ]);
+        $tool = new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), new FakeChannel(), '42', vault: $vault);
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $owner, new \Amp\NullCancellation(), approved: true);
+        $call = ['action' => 'type', 'ref' => 2, 'secret' => 'site-login', 'site' => 'example.com', 'submit' => true];
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger($call), 'a secret goes to a site only after the card');
+        self::assertSame('browser-secret:site-login example.com', $tool->grantKey($call));
+        self::assertStringContainsString('example.com', $tool->describe($call));
+
+        $typed = $tool->execute($call, $context);
+        self::assertFalse($typed->isError, $typed->content);
+        $last = end($http->bodies);
+        self::assertIsString($last);
+        $sent = json_decode($last, true, 8, JSON_THROW_ON_ERROR);
+        self::assertIsArray($sent);
+        self::assertSame('correct-horse-battery', $sent['text'] ?? null, 'the value is put in by the code');
+        self::assertStringNotContainsString('correct-horse-battery', $typed->content);
+
+        $before = count($http->bodies);
+        $elsewhere = $tool->execute(['site' => 'evil.test'] + $call, $context);
+        self::assertTrue($elsewhere->isError, 'another site than the open page gets nothing');
+        self::assertCount($before + 1, $http->bodies, 'the page was asked, nothing was typed');
+        self::assertTrue($tool->execute(['secret' => 'no-such'] + $call, $context)->isError);
+        self::assertTrue($tool->execute(array_diff_key($call, ['site' => 1]), $context)->isError);
+    }
+
     public function testAPageComesBackWithItsElements(): void {
         $page = json_encode(['url' => 'https://example.com/', 'title' => 'Example', 'text' => "Hello\nkey=sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef", 'elements' => ['[1] a More → https://iana.org']], JSON_THROW_ON_ERROR);
         $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], $page]]);

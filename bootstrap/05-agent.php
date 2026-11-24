@@ -305,6 +305,8 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
             return $project->ownerId ?? $principals->owner()?->id;
         },
         $principals,
+        // spec: brief/internet.md#пароль-из-хранилища-в-браузере — a password is typed from the vault by its name
+        $vault,
     ));
 }
 if ($sandbox !== null) {
