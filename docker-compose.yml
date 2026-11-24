@@ -270,6 +270,9 @@ services:
     mem_limit: 256m
     pids_limit: 256
     read_only: true
+    # PHP keeps its lock files in /tmp
+    tmpfs:
+      - /tmp:size=16m
     security_opt:
       - no-new-privileges:true
     logging:
