@@ -221,6 +221,10 @@ final class SendMessageToolTest extends AsyncTestCase {
             ['chat' => '-100500', 'thread' => '13', 'label' => 'DoorotarTV / Youtube', 'names' => ['Youtube']],
             ['chat' => '-100700', 'thread' => null, 'label' => 'Команда', 'names' => []],
         ]);
+        $noted = [];
+        $places->useRecorder(static function (string $chat, ?string $thread, string $what, Principal $by) use (&$noted): void {
+            $noted[] = [$chat, $thread, $what, $by->displayName];
+        });
         $tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram', null, null, $places);
 
         self::assertSame(DangerClass::Irreversible, $tool->danger(['to' => 'DoorotarTV', 'text' => 'hello world']), 'everyone there reads it: the owner sees it first');
@@ -240,6 +244,8 @@ final class SendMessageToolTest extends AsyncTestCase {
         $guest = new ToolContext(2, 1, $this->roman, new NullCancellation(), approved: true);
         $tool->execute(['to' => 'Команда', 'text' => 'привет'], $guest);
         self::assertStringContainsString('Roman', $this->sentTo('-100700')[0], 'a request of someone else is shown as theirs');
+
+        self::assertSame([['-100500', null, 'hello world', 'Сергей Иванов'], ['-100500', '13', 'в тему', 'Сергей Иванов'], ['-100700', null, 'привет', 'Roman']], $noted, 'what was sent is written into the conversation of the place');
 
         $unknown = $tool->execute(['to' => 'Нет такой', 'text' => 'x'], $this->context(1));
         self::assertTrue($unknown->isError);

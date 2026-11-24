@@ -118,6 +118,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         if (!$sent->success) {
             return ToolResult::error(sprintf(t('tool.send_file.not_sent'), $name, $sent->error ?? ''));
         }
+        $this->recipients?->sent($to, sprintf(t('tool.send_message.with_files'), $name) . ($caption === '' ? '' : ' — ' . $caption), $context->principal);
         return ToolResult::ok(sprintf(t('tool.send_file.sent_as'), $name, strlen($bytes), $kind->value));
     }
 }

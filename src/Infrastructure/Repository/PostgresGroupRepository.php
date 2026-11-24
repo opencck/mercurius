@@ -31,6 +31,18 @@ final class PostgresGroupRepository implements GroupRepository {
         return $row === null ? null : self::group($row);
     }
 
+    public function move(string $channel, string $fromChatId, string $toChatId): ?Group {
+        $row = $this->db->execute(
+            'WITH old AS (DELETE FROM chat_groups WHERE channel = ? AND chat_id = ? RETURNING channel, title, status, mode, daily_tokens)
+             INSERT INTO chat_groups (channel, chat_id, title, status, mode, daily_tokens)
+             SELECT channel, ?, title, status, mode, daily_tokens FROM old
+             ON CONFLICT (channel, chat_id) DO UPDATE SET status = EXCLUDED.status, mode = EXCLUDED.mode, daily_tokens = EXCLUDED.daily_tokens
+             RETURNING channel, chat_id, title, status, mode, forum, daily_tokens',
+            [$channel, $fromChatId, $toChatId],
+        )->fetchRow();
+        return $row === null ? null : self::group($row);
+    }
+
     public function all(): array {
         $found = [];
         foreach ($this->db->query('SELECT channel, chat_id, title, status, mode, forum, daily_tokens FROM chat_groups ORDER BY created_at') as $row) {

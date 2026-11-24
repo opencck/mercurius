@@ -46,6 +46,16 @@ final class InMemoryGroupRepository implements GroupRepository {
         return $this->groups[$channel . ':' . $chatId] = new Group($g->channel, $g->chatId, $g->title, $g->status, $g->mode, $g->forum, $tokens);
     }
 
+    public function move(string $channel, string $fromChatId, string $toChatId): ?Group {
+        $g = $this->groups[$channel . ':' . $fromChatId] ?? null;
+        if ($g === null) {
+            return null;
+        }
+        unset($this->groups[$channel . ':' . $fromChatId]);
+        $now = $this->groups[$channel . ':' . $toChatId] ?? null;
+        return $this->groups[$channel . ':' . $toChatId] = new Group($channel, $toChatId, $now->title ?? $g->title, $g->status, $g->mode, $now->forum ?? false, $g->dailyTokens);
+    }
+
     public function all(): array {
         return array_values($this->groups);
     }

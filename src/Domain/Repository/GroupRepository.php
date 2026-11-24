@@ -20,6 +20,12 @@ interface GroupRepository {
     /** @return list<Group> */
     public function all(): array;
 
+    /**
+     * The group got a new number (Telegram turned it into a supergroup): the owner's decision, the mode and the limit
+     * go to the new number, the record under the old one is gone. Nothing happens when the old one is not known.
+     */
+    public function move(string $channel, string $fromChatId, string $toChatId): ?Group;
+
     /** Records whether the group is a forum (Telegram says so with every message). */
     public function setForum(string $channel, string $chatId, bool $forum): void;
 

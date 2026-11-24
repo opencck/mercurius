@@ -60,6 +60,31 @@ final class Recipients {
         $this->places = $places;
     }
 
+    /** @var (\Closure(string, ?string, string, Principal): void)|null */
+    private ?\Closure $recorder = null;
+
+    /**
+     * What is sent to a place is written into the conversation of that place, so the agent there knows what it said.
+     *
+     * spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
+     *
+     * @param \Closure(string, ?string, string, Principal): void $recorder chat, topic, what was sent, who asked
+     */
+    public function useRecorder(\Closure $recorder): void {
+        $this->recorder = $recorder;
+    }
+
+    /** Records what went to the place the name points to; a person or this chat is not a place — nothing is written. */
+    public function sent(?string $to, string $what, Principal $by): void {
+        if ($this->recorder === null || $to === null || trim($to) === '' || $this->find($to) instanceof Principal) {
+            return;
+        }
+        $place = $this->place($to);
+        if (is_array($place)) {
+            ($this->recorder)($place['chat'], $place['thread'], $what, $by);
+        }
+    }
+
     /**
      * The labels of the places a message may go to.
      *

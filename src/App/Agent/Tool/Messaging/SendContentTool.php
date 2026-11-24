@@ -97,6 +97,9 @@ final class SendContentTool implements Tool, GrantKeyed {
         if (is_string($sent)) {
             return ToolResult::error($sent);
         }
+        if ($sent->success) {
+            $this->recipients->sent(Args::string($args, 'to'), $kind . ': ' . (Args::string($args, 'title') ?? Args::string($args, 'question') ?? ''), $context->principal);
+        }
         return $sent->success
             ? ToolResult::ok(sprintf(t('tool.send_content.sent'), $kind))
             : ToolResult::error(sprintf(t('tool.send_content.not_sent'), $kind, $sent->error ?? ''));

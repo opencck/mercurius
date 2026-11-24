@@ -102,6 +102,20 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         /** @var mixed $chat */
         $chat = $message->raw['chat'] ?? null;
         $forum = is_array($chat) && ($chat['is_forum'] ?? false) === true;
+        // spec: brief/channels.md#как-сделано-группы — a group turned into a supergroup is the same group under a new number
+        /** @var mixed $movedFrom */
+        $movedFrom = $message->raw['migrate_from_chat_id'] ?? null;
+        /** @var mixed $movedTo */
+        $movedTo = $message->raw['migrate_to_chat_id'] ?? null;
+        if (is_int($movedFrom) || is_int($movedTo)) {
+            $old = is_int($movedFrom) ? (string) $movedFrom : $message->chatId;
+            $new = is_int($movedTo) ? (string) $movedTo : $message->chatId;
+            if ($this->groups->move($message->channel, $old, $new) !== null) {
+                $this->talk->forget($message->channel, $old);
+                $this->logger->notice('Group moved to a new number', ['from' => $old, 'to' => $new]);
+            }
+            return null;
+        }
         $group = $this->groups->find($message->channel, $message->chatId);
         if ($group === null) {
             $title = self::title($message);

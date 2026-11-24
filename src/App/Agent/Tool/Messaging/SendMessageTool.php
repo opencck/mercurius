@@ -180,6 +180,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
                 return ToolResult::error(sprintf(t('tool.send_file.not_sent'), $file['name'], $attached->error ?? ''));
             }
         }
+        $this->places?->sent($place['label'], $files === [] ? $text : $text . "\n" . sprintf(t('tool.send_message.with_files'), implode(', ', array_column($files, 'name'))), $context->principal);
         return ToolResult::ok(sprintf(t('tool.send_message.sent_place'), $place['label']));
     }
 

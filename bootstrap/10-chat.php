@@ -189,11 +189,19 @@ $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepo
 $recipients->usePlaces(static function () use ($groupRepository, $projectRepository): array {
     $places = [];
     $titles = [];
-    foreach ($groupRepository->all() as $group) {
-        if ($group->channel === TelegramChannel::NAME && $group->status === \OpenCCK\Domain\Group\Group::APPROVED) {
-            $titles[$group->chatId] = $group->title;
-            $places[] = ['chat' => $group->chatId, 'thread' => null, 'label' => $group->title, 'names' => []];
+    $groups = array_values(array_filter($groupRepository->all(), static fn(\OpenCCK\Domain\Group\Group $g): bool => $g->channel === TelegramChannel::NAME && $g->status === \OpenCCK\Domain\Group\Group::APPROVED));
+    $supers = array_map(static fn(\OpenCCK\Domain\Group\Group $g): string => $g->title, array_filter($groups, static fn(\OpenCCK\Domain\Group\Group $g): bool => str_starts_with($g->chatId, '-100')));
+    $count = array_count_values(array_map(static fn(\OpenCCK\Domain\Group\Group $g): string => mb_strtolower($g->title), $groups));
+    foreach ($groups as $group) {
+        // a group Telegram turned into a supergroup stays in the list under its old number: it cannot be written
+        // to any more, the supergroup of the same title is the place
+        if (!str_starts_with($group->chatId, '-100') && in_array($group->title, $supers, true)) {
+            continue;
         }
+        $titles[$group->chatId] = $group->title;
+        // two groups of one title are told apart by the end of their number
+        $label = ($count[mb_strtolower($group->title)] ?? 1) > 1 && !in_array($group->title, $supers, true) ? $group->title . ' (' . substr($group->chatId, -4) . ')' : $group->title;
+        $places[] = ['chat' => $group->chatId, 'thread' => null, 'label' => $label, 'names' => []];
     }
     foreach ($projectRepository->all(200) as $project) {
         foreach ($projectRepository->topicsOf($project->id) as $topic) {
@@ -204,6 +212,14 @@ $recipients->usePlaces(static function () use ($groupRepository, $projectReposit
         }
     }
     return $places;
+});
+// what the agent sent to a place on a request from another chat is a note in the conversation of that place
+$recipients->useRecorder(static function (string $chat, ?string $thread, string $what, \OpenCCK\Domain\Entity\Principal $by) use ($conversations, $transcript): void {
+    $transcript->appendUser(
+        $conversations->openConversation($by->id, TelegramChannel::NAME, $chat, $thread ?? ''),
+        null,
+        sprintf(\Mercurius\I18n\t('tool.send_message.place_note'), $by->displayName ?? '#' . $by->id, mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($what), 0, 2000)),
+    );
 });
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork, $recipients));
 // spec: brief/operations.md#второй-канал-websocket-api — keys of participants for the WebSocket API

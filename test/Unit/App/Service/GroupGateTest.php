@@ -496,4 +496,21 @@ final class GroupGateTest extends AsyncTestCase {
         $prompt = array_slice($this->stack->llm->requests[0]->messages ?? [], -1)[0]->content ?? '';
         self::assertStringContainsString('photo-9.jpg', $prompt, 'in the free mode the agent is a full participant: it sees the photo');
     }
+
+    public function testAGroupTurnedIntoASupergroupKeepsTheOwnersDecision(): void {
+        // spec: brief/channels.md#как-сделано-группы
+        $groups = new \OpenCCK\Test\Support\InMemoryGroupRepository();
+        $groups->create('telegram', '-555', 'Дом');
+        $groups->decide('telegram', '-555', \OpenCCK\Domain\Group\Group::APPROVED, \OpenCCK\Domain\Group\Group::FREE);
+        $groups->create('telegram', '-100777', 'Дом');
+
+        $moved = $groups->move('telegram', '-555', '-100777');
+
+        self::assertNotNull($moved);
+        self::assertSame(\OpenCCK\Domain\Group\Group::APPROVED, $moved->status);
+        self::assertSame(\OpenCCK\Domain\Group\Group::FREE, $moved->mode);
+        self::assertNull($groups->find('telegram', '-555'), 'the record under the old number is gone');
+        self::assertCount(1, $groups->all());
+        self::assertNull($groups->move('telegram', '-555', '-100777'), 'a group that is not known moves nothing');
+    }
 }
