@@ -743,6 +743,26 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertStringContainsString('Успел узнать', $this->observer->final ?? '');
     }
 
+    public function testAToolRepeatedForTheSameAnswerIsNotOfferedAgain(): void {
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания
+        $this->registry->register(new FakeTool('t'));
+        $this->registry->register(new FakeTool('other'));
+        $script = [];
+        for ($i = 1; $i <= 3; $i++) {
+            $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 't', '{"q":"same"}'));
+        }
+        $script[] = ScriptedLlm::text('Отвечаю по тому, что есть.');
+        $llm = new ScriptedLlm($script);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::Answered, $run->stopReason);
+        $offered = static fn(int $call): array => array_map(static fn(\Mercurius\Llm\ToolDefinition $tool): string => $tool->name, $llm->requests[$call]->tools);
+        self::assertContains('t', $offered(2), 'two repeats are not a loop yet');
+        self::assertNotContains('t', $offered(3), 'the third one takes the tool away');
+        self::assertContains('other', $offered(3), 'the other tools stay');
+    }
+
     public function testTheSameCallWrittenSeveralTimesInOneAnswerIsNotALoop(): void {
         // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a model that writes one call five times in an
         //       answer slipped once: the call runs once, the copies are answered, the run goes on

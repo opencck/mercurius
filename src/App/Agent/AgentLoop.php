@@ -284,6 +284,10 @@ final class AgentLoop {
         }
         $left = ($state->run->limits->runTimeout * 1000 - $this->elapsedMs($state)) / 1000;
         $tools = $this->registry->definitions($state->policy);
+        if ($state->withheld !== []) {
+            // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a tool the model repeats is taken away
+            $tools = array_values(array_filter($tools, static fn(\Mercurius\Llm\ToolDefinition $tool): bool => !isset($state->withheld[$tool->name])));
+        }
         if ($this->toolSearch !== null) {
             $tools = $this->toolSearch->assemble($tools, $state->model ?? $state->run->model);
         }

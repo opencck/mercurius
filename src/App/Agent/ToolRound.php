@@ -190,6 +190,12 @@ final class ToolRound {
                 }
                 $halted = $halted || $verdict === GuardVerdict::Halt;
                 $warn = $warn || $verdict === GuardVerdict::Warn;
+                // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a tool asked the same thing a third
+                //       time has nothing new to say: it is not offered again, the model answers by what it has. A tool that
+                //       watches the outside world stays — its unchanged answer may change
+                if ($verdict !== GuardVerdict::Ok && !LoopGuard::isPoll($call->call->name)) {
+                    $state->withheld[$call->call->name] = true;
+                }
                 // spec: brief/agent-loop.md#контекст — the same long result again is a reference to the first
                 if (!$result->isError && mb_strlen($result->content) >= self::SAME_RESULT_MIN) {
                     $hash = hash('sha256', $result->content);

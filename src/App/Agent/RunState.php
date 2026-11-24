@@ -55,6 +55,12 @@ final class RunState {
     public bool $switched = false;
     /** @var array<string, string> the hash of a long result => the call that gave it first in this run */
     public array $seenResults = [];
+    /**
+     * Tools the model keeps calling with the same arguments for the same answer: not offered again in this run.
+     *
+     * @var array<string, true>
+     */
+    public array $withheld = [];
     /** the last model call failed with this kind */
     public ?\Mercurius\Llm\ErrorKind $lastError = null;
     /** clock value up to which active time is saved */
