@@ -116,6 +116,8 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
                 'url' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 2048],
                 'ref' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200],
+                'x' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 4000, 'description' => t('tool.browser.point')],
+                'y' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 4000],
                 'text' => ['type' => 'string', 'maxLength' => 5000],
                 'submit' => ['type' => 'boolean'],
                 'value' => ['type' => 'string', 'maxLength' => 200, 'description' => t('tool.browser.value')],
@@ -254,7 +256,10 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 'open' => ['profile' => $profile, 'url' => Args::string($args, 'url') ?? '']
                     // the owner allowed this internal host: the browser lets it in for this page
                     + ($context->approved && ($internal = $this->internalHost($args)) !== null ? ['allow' => [$internal]] : []),
-                'click' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
+                // spec: brief/internet.md#проверка-я-не-робот-и-капча — a point of the screenshot, where a person said to press
+                'click' => Args::int($args, 'x') !== null && Args::int($args, 'y') !== null
+                    ? ['profile' => $profile, 'x' => Args::int($args, 'x'), 'y' => Args::int($args, 'y')]
+                    : ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0],
                 // a model that writes the text as `value` (the parameter of select) means the text: typing an empty string
                 // instead left the page as it was, and the unchanged page looked like a tool that does not work
                 'type' => ['profile' => $profile, 'ref' => Args::int($args, 'ref') ?? 0, 'text' => self::given($args, 'text') ?? self::given($args, 'value') ?? throw new RuntimeException(t('tool.browser.type_no_text')), 'submit' => ($args['submit'] ?? false) === true],

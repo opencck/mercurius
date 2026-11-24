@@ -112,6 +112,23 @@ final class BrowserToolTest extends AsyncTestCase {
         self::assertSame(DangerClass::Write, $careful->danger(['action' => 'type', 'ref' => 1, 'text' => 'x']));
     }
 
+    public function testAClickGoesToAPointOfTheScreenshotWhenThePlaceHasNoNumber(): void {
+        // spec: brief/internet.md#проверка-я-не-робот-и-капча
+        $page = json_encode(['url' => 'https://example.com/', 'title' => 'Check', 'text' => 'ok', 'elements' => []], JSON_THROW_ON_ERROR);
+        $http = new FakeHttpClient(['http://browser:3000/click' => [200, ['content-type' => 'application/json'], $page]]);
+        $tool = $this->tool($http);
+
+        self::assertFalse($tool->execute(['action' => 'click', 'x' => 412, 'y' => 305], self::context())->isError);
+        self::assertFalse($tool->execute(['action' => 'click', 'ref' => 3], self::context())->isError);
+
+        $sent = array_map(static fn(string $body): mixed => json_decode($body, true, 8, JSON_THROW_ON_ERROR), $http->bodies);
+        self::assertIsArray($sent[0]);
+        self::assertSame([412, 305], [$sent[0]['x'] ?? null, $sent[0]['y'] ?? null]);
+        self::assertArrayNotHasKey('ref', $sent[0]);
+        self::assertIsArray($sent[1]);
+        self::assertSame(3, $sent[1]['ref'] ?? null);
+    }
+
     public function testAPageComesBackWithItsElements(): void {
         $page = json_encode(['url' => 'https://example.com/', 'title' => 'Example', 'text' => "Hello\nkey=sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef", 'elements' => ['[1] a More → https://iana.org']], JSON_THROW_ON_ERROR);
         $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], $page]]);
