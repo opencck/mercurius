@@ -23,6 +23,8 @@ use function Mercurius\I18n\t;
 final class GitHubSkillSource implements SkillSource {
     private const API = 'https://api.github.com/repos/';
     private const RAW = 'https://raw.githubusercontent.com/';
+    /** How many skills of a set the answer names */
+    private const NESTED_MAX = 40;
 
     /** @param int $maxFiles the owner's cap on the files of a skill (SKILL_MAX_FILES); 0 — none */
     public function __construct(private readonly HttpClient $http, private readonly int $maxFiles = 0) {}
@@ -65,12 +67,40 @@ final class GitHubSkillSource implements SkillSource {
                 $paths[] = $path;
             }
         }
+        $nested = self::nested($paths, $prefix);
+        if ($nested !== []) {
+            // a set of skills, not a skill: nothing is downloaded, the answer names where the skills are
+            $base = sprintf('https://github.com/%s/tree/%s/%s', $repo, $ref, $prefix);
+            throw new InvalidArgumentException(sprintf(t('skill.import.nested'), implode(', ', array_map(static fn(string $at): string => $base . $at, $nested))));
+        }
         SkillBundle::checkCount(count($paths), $this->maxFiles);
         $files = [];
         foreach ($paths as $path) {
             $files[substr($path, strlen($prefix))] = $this->body(self::RAW . $repo . '/' . $sha . '/' . implode('/', array_map('rawurlencode', explode('/', $path))), $cancellation);
         }
         return SkillBundle::fromFiles($files, sprintf('https://github.com/%s/tree/%s%s', $repo, $sha, $dir === '' ? '' : '/' . $dir), $sha, $this->maxFiles);
+    }
+
+    /**
+     * The directories under the prefix that are skills, when the prefix itself is not one: a repository often holds a
+     * set of skills (skills/<name>/SKILL.md), and the answer names them instead of a bare refusal.
+     *
+     * @param list<string> $paths files of the tree
+     * @return list<string> directories relative to the prefix; empty when the prefix is a skill or holds none
+     */
+    public static function nested(array $paths, string $prefix): array {
+        $found = [];
+        foreach ($paths as $path) {
+            $inside = substr($path, strlen($prefix));
+            if ($inside === 'SKILL.md') {
+                return [];
+            }
+            if (str_ends_with($inside, '/SKILL.md')) {
+                $found[] = substr($inside, 0, -strlen('/SKILL.md'));
+            }
+        }
+        sort($found);
+        return array_slice($found, 0, self::NESTED_MAX);
     }
 
     /** @return array{string, string, string}|null owner/repo, ref, directory */

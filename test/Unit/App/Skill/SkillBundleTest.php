@@ -82,4 +82,13 @@ final class SkillBundleTest extends TestCase {
         self::assertTrue(SkillGuard::blocks($findings), 'a critical finding blocks the import');
         self::assertSame([], SkillGuard::scan(SkillBundle::fromFiles(['SKILL.md' => self::SKILL, 'scripts/ok.py' => "print(1)\n"], 'test', '')));
     }
+
+    public function testARepositoryOfSkillsNamesThem(): void {
+        // spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — a set of skills is answered with where the skills are
+        $paths = ['README.md', 'skills/yt-seo/SKILL.md', 'skills/yt-seo/tool.py', 'skills/yt-audit/SKILL.md', 'templates/voice.md'];
+        self::assertSame(['skills/yt-audit', 'skills/yt-seo'], \OpenCCK\App\Skill\GitHubSkillSource::nested($paths, ''));
+        self::assertSame(['yt-audit', 'yt-seo'], \OpenCCK\App\Skill\GitHubSkillSource::nested(array_slice($paths, 1, 3), 'skills/'));
+        self::assertSame([], \OpenCCK\App\Skill\GitHubSkillSource::nested(['skills/yt-seo/SKILL.md', 'skills/yt-seo/sub/SKILL.md'], 'skills/yt-seo/'), 'a skill is a skill even with another inside');
+        self::assertSame([], \OpenCCK\App\Skill\GitHubSkillSource::nested(['README.md'], ''));
+    }
 }

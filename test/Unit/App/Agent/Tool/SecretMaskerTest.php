@@ -131,4 +131,14 @@ final class SecretMaskerTest extends TestCase {
             self::assertStringNotContainsString('abc123def', SecretMasker::mask($line), $line);
         }
     }
+
+    public function testAPinIsAWordOfItsOwn(): void {
+        // spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — "pin" inside "Skipping" names no secret
+        foreach (["print(f'Skipping {ch}: only {len(vids)} videos (need 4+)')", 'Shipping cost: 12 USD', 'spinner: dots'] as $line) {
+            self::assertSame($line, SecretMasker::mask($line), $line);
+        }
+        foreach (['PIN: 4821', 'pin code = 4821', 'пин-код: 4821'] as $line) {
+            self::assertStringNotContainsString('4821', SecretMasker::mask($line), $line);
+        }
+    }
 }
