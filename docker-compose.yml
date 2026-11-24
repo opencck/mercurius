@@ -234,10 +234,42 @@ services:
     restart: unless-stopped
     environment:
       BROWSER_TOKEN: ${BROWSER_TOKEN:-}
+      # the way out: the VLESS tunnel of the installation (vless-proxy below) when VLESS_URI is set, else BROWSER_PROXY
+      # (socks5://, socks5h://, http://, with user:password if needed), else directly
+      # spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер
+      BROWSER_VIA_VLESS: ${VLESS_URI:+1}
+      BROWSER_VLESS_PROXY: http://vless-proxy:8080
+      BROWSER_PROXY: ${BROWSER_PROXY:-}
     volumes:
       - ./storage/browser:/profiles
     shm_size: 512m
     mem_limit: 1536m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - browser
+
+  # The VLESS tunnel for the browser: Chromium speaks only HTTP and SOCKS proxies, so vless-proxy of rekryt/amphp-vless
+  # (already in the image of the app) opens an HTTP door to the tunnel in the network of the browser. The password is
+  # the token of the browser; without VLESS_URI the service only waits, and the browser goes its other way.
+  # spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер
+  vless-proxy:
+    profiles: ["browser"]
+    image: mercurius-app:${APP_VERSION:-dev}
+    restart: unless-stopped
+    entrypoint: ["sh", "-c", "if [ -z \"$$VLESS_URI\" ]; then exec sleep infinity; fi; exec php vendor/bin/vless-proxy --http=0.0.0.0:8080 --quiet"]
+    environment:
+      VLESS_URI: ${VLESS_URI:-}
+      VLESS_PROXY_USER: browser
+      VLESS_PROXY_PASSWORD: ${BROWSER_TOKEN:-}
+    mem_limit: 256m
+    pids_limit: 256
+    read_only: true
     security_opt:
       - no-new-privileges:true
     logging:
