@@ -162,9 +162,8 @@ services:
 
   # Optional module whisper (module mercurius-whisper in services/whisper, COMPOSE_PROFILES=whisper, WHISPER_TOKEN):
   # speech to text on this host, faster-whisper behind an OpenAI-compatible /v1/audio/transcriptions — voice messages
-  # go to no provider and spend no tokens. The model is downloaded once to storage/whisper. The agent calls it as a
-  # model of its own: MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1, MEDIA_SPEECH_MODELS=custom:whisper/small, the
-  # token — the vault secret media-endpoint-whisper.
+  # go to no provider and spend no tokens. The model is downloaded once to storage/whisper. The profile and the token
+  # are all it takes: while the module answers and MEDIA_SPEECH_MODELS is empty, the agent recognises speech by it.
   # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
   whisper:
     profiles: ["whisper"]

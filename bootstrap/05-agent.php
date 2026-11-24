@@ -120,6 +120,9 @@ if ($telegram->apiUrl !== null) {
 }
 $serviceModules->add(\OpenCCK\Infrastructure\Media\VideoService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_URL') ?? 'http://media-video:8091', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_VIDEO_TOKEN'));
 $serviceModules->add(\OpenCCK\Infrastructure\Media\DocsService::MODULE, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MEDIA_DOCS_TOKEN'));
+// spec: brief/internet.md#модуль-whisper-без-настройки — speech recognition on this host: used while it answers
+$whisperToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WHISPER_TOKEN');
+$serviceModules->add(\OpenCCK\Infrastructure\Config\MediaSettings::WHISPER, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WHISPER_URL') ?? 'http://whisper:8000', $whisperToken);
 // spec: brief/models.md#claude-по-подписке — the module of the Claude subscription: its health is the health of the CLI
 $serviceModules->add(\OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription::MODULE, $claudeUrl, $claudeToken);
 $docsService = new \OpenCCK\Infrastructure\Media\DocsService(HttpClients::create(), $serviceModules);
@@ -189,6 +192,7 @@ $tools->register(new SetParticipantPolicyTool($principals, $policies, $ownerPriv
 $tools->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($tools, $policies));
 // spec: brief/internet.md#как-влияют-пользователи — the owner's media models and principles, each participant's own way with files
 $mediaSettings = \OpenCCK\Infrastructure\Config\MediaSettings::fromEnv($_ENV);
+$mediaSettings->useLocal(static fn(): bool => $serviceModules->up(\OpenCCK\Infrastructure\Config\MediaSettings::WHISPER));
 // spec: brief/models.md#списки-моделей-по-категориям — the lists of media work at once
 $mediaSettings->follow(static fn(string $kind): array => $modelLists->other($kind));
 $mediaPrefs = new \OpenCCK\App\Agent\Media\MediaPrefs(new \OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository($db), $mediaSettings);
@@ -242,9 +246,11 @@ $mediaModels = new \OpenCCK\Infrastructure\Media\MediaModels(
     $openRouterKey,
     $openAiKey,
     $mediaSettings,
-    static function (string $name) use ($vault, $ownerDirectory): ?string {
+    static function (string $name) use ($vault, $ownerDirectory, $whisperToken): ?string {
         $owner = $ownerDirectory->principal();
-        return $owner === null ? null : $vault->reveal('media-endpoint-' . $name, $owner);
+        $secret = $owner === null ? null : $vault->reveal('media-endpoint-' . $name, $owner);
+        // the module of this installation is asked with its own token from .env; a secret the owner stored comes first
+        return $secret ?? ($name === \OpenCCK\Infrastructure\Config\MediaSettings::WHISPER ? $whisperToken : null);
     },
     $llmCalls,
     $logger,

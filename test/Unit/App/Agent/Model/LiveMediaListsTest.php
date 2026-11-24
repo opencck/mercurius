@@ -63,4 +63,31 @@ final class LiveMediaListsTest extends TestCase {
         self::assertSame(['web_search'], $registry->names($policy), 'a model is named: the tool is there at once');
         self::assertTrue((new WebSearchTool($provider))->available(), 'a search given at the start is always there');
     }
+
+    public function testTheWhisperModuleIsUsedWhileItAnswersAndNoModelOfSpeechIsNamed(): void {
+        // spec: brief/internet.md#модуль-whisper-без-настройки
+        self::assertSame([], MediaSettings::fromEnv([])->models('speech'), 'no module: no speech');
+
+        $settings = MediaSettings::fromEnv(['WHISPER_TOKEN' => 'a-token-of-the-module', 'WHISPER_MODEL' => 'turbo']);
+        self::assertSame('http://whisper:8000/v1', $settings->endpoints['whisper'], 'the module is an endpoint by itself');
+        self::assertSame([], $settings->models('speech'), 'set up but not known to answer');
+
+        $up = false;
+        $settings->useLocal(static function () use (&$up): bool {
+            return $up;
+        });
+        self::assertSame([], $settings->models('speech'), 'the module is down: nothing recognises speech');
+        $up = true;
+        self::assertSame(['custom:whisper/turbo'], $settings->models('speech'), 'the module answers: speech is recognised by it');
+        self::assertSame([], $settings->models('vision'), 'only speech');
+
+        $named = ['openrouter:author/ears'];
+        $settings->follow(static function (string $kind) use (&$named): array {
+            return $kind === 'speech' ? $named : [];
+        });
+        self::assertSame(['openrouter:author/ears'], $settings->models('speech'), 'a model the owner named comes first');
+        $named = [];
+        self::assertSame(['custom:whisper/turbo'], $settings->models('speech'));
+        self::assertSame('http://my:1/v1', MediaSettings::fromEnv(['WHISPER_TOKEN' => 't', 'MEDIA_ENDPOINTS' => 'whisper=http://my:1/v1'])->endpoints['whisper'], 'an address the owner gave stays');
+    }
 }

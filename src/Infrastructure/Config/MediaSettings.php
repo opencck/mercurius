@@ -53,6 +53,13 @@ final class MediaSettings {
             }
             $endpoints[$name] = rtrim($url, '/');
         }
+        // spec: brief/internet.md#модуль-whisper-без-настройки — the whisper module of this installation is an endpoint
+        //      by itself: its token in .env is all the owner sets
+        $local = null;
+        if (Env::raw($env, 'WHISPER_TOKEN') !== null) {
+            $endpoints[self::WHISPER] ??= rtrim(Env::raw($env, 'WHISPER_URL') ?? 'http://whisper:8000', '/') . '/v1';
+            $local = 'custom:' . self::WHISPER . '/' . (Env::raw($env, 'WHISPER_MODEL') ?? 'small');
+        }
         $models = [];
         $rules = [];
         foreach (self::KINDS as $kind) {
@@ -82,7 +89,7 @@ final class MediaSettings {
         if ($text < 1000) {
             throw ConfigException::invalid('MEDIA_TEXT_LIMIT', 'at least 1000 characters');
         }
-        return new self(
+        $settings = new self(
             $models,
             $rules,
             $endpoints,
@@ -91,6 +98,34 @@ final class MediaSettings {
             $text,
             Env::positiveInt($env, 'MEDIA_INBOX_DAYS', 30, 3650),
         );
+        $settings->localSpeech = $local;
+        return $settings;
+    }
+
+    /** The endpoint and module name of speech recognition on this host */
+    public const WHISPER = 'whisper';
+
+    /** The model of the whisper module of this installation; null — the module is not set up */
+    private ?string $localSpeech = null;
+
+    /** @var (\Closure(): bool)|null whether the whisper module answers now */
+    private ?\Closure $localUp = null;
+
+    /**
+     * A module that runs is used: while the whisper module answers and the owner named no model of speech, speech is
+     * recognised by it — on this host, for no tokens. A list the owner fills comes first.
+     *
+     * spec: brief/internet.md#модуль-whisper-без-настройки
+     *
+     * @param \Closure(): bool $up
+     */
+    public function useLocal(\Closure $up): void {
+        $this->localUp = $up;
+    }
+
+    /** The model of the local whisper module while it answers; null — there is none now. */
+    public function localSpeech(): ?string {
+        return $this->localSpeech !== null && $this->localUp !== null && ($this->localUp)() ? $this->localSpeech : null;
     }
 
     /**
@@ -131,10 +166,14 @@ final class MediaSettings {
      * @return list<string>
      */
     public function models(string $kind): array {
-        if ($this->now === null || !in_array($kind, self::KINDS, true)) {
-            return $this->models[$kind] ?? [];
+        $named = $this->now === null || !in_array($kind, self::KINDS, true)
+            ? $this->models[$kind] ?? []
+            : array_values(array_filter(($this->now)($kind), fn(string $ref): bool => self::usable($kind, $ref, $this->endpoints)));
+        if ($named === [] && $kind === 'speech') {
+            $local = $this->localSpeech();
+            return $local === null ? [] : [$local];
         }
-        return array_values(array_filter(($this->now)($kind), fn(string $ref): bool => self::usable($kind, $ref, $this->endpoints)));
+        return $named;
     }
 
     /** The owner's principles for the kind, '' — none. */

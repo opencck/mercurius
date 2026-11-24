@@ -39,6 +39,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Services\ServiceModules $serviceModules
+ * @var OpenCCK\Infrastructure\Config\MediaSettings $mediaSettings
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
  * @var Mercurius\Memory\App\Aliases $memoryAliases
@@ -111,13 +112,16 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
         }
         return \Mercurius\I18n\t('self.tools') . "\n" . implode("\n", $lines);
     },
-    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules, $tools, $sleepModels, $settingsService, $sleepAuto): string {
+    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules, $tools, $sleepModels, $settingsService, $sleepAuto, $mediaSettings): string {
         $states = $serviceModules->states();
         // the mail module is an MCP server: it is set up when its token is, and up while its tools are registered
         if (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null) {
             $states['mail'] = $tools->get('mcp_mail_mail_list') !== null;
         }
+        $speech = $mediaSettings->localSpeech();
         return \Mercurius\I18n\t('self.modules') . "\n" . implode("\n", \OpenCCK\App\Service\ModuleReport::lines($states))
+            // spec: brief/internet.md#модуль-whisper-без-настройки — what the running module gives, said at the call
+            . ($speech === null ? '' : "\n" . sprintf(\Mercurius\I18n\t('self.modules.whisper'), $speech, implode(', ', $mediaSettings->models('speech'))))
             // spec: brief/memory.md#страж-потерь — sleep runs while a model is listed for it; the guard always
             . "\n" . ($sleepModels() === [] ? \Mercurius\I18n\t('self.modules.sleep_off') : sprintf(\Mercurius\I18n\t('self.modules.sleep_on'), implode(', ', $sleepModels()))
                 . ' ' . \Mercurius\I18n\t($settingsService->current('MEMORY_SLEEP_TRANSLATE') === '1' ? 'self.modules.sleep_translate_on' : 'self.modules.sleep_translate_off')
