@@ -99,6 +99,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var array{host: string, port: int<1, 65535>, user: string, password: string, name: string} $postgresAccess
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  * @var OpenCCK\App\Service\ProjectTransfers $projectTransfers
  * @var OpenCCK\App\Improve\PromptNotes $promptNotes
@@ -183,7 +184,28 @@ $groupGate->useIgnores($groupIgnores);
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\GroupIgnoreTool($groupIgnores, $conversations, $groupRepository));
 // spec: brief/channels.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
-$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork));
+// spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе — the places a message may go to: the groups the owner
+//      approved and the chats and topics of projects there
+$recipients->usePlaces(static function () use ($groupRepository, $projectRepository): array {
+    $places = [];
+    $titles = [];
+    foreach ($groupRepository->all() as $group) {
+        if ($group->channel === TelegramChannel::NAME && $group->status === \OpenCCK\Domain\Group\Group::APPROVED) {
+            $titles[$group->chatId] = $group->title;
+            $places[] = ['chat' => $group->chatId, 'thread' => null, 'label' => $group->title, 'names' => []];
+        }
+    }
+    foreach ($projectRepository->all(200) as $project) {
+        foreach ($projectRepository->topicsOf($project->id) as $topic) {
+            if ($topic['channel'] !== TelegramChannel::NAME || !isset($titles[$topic['chatId']]) || $topic['threadId'] === '') {
+                continue;
+            }
+            $places[] = ['chat' => $topic['chatId'], 'thread' => $topic['threadId'], 'label' => $titles[$topic['chatId']] . ' / ' . $project->name, 'names' => [$project->name]];
+        }
+    }
+    return $places;
+});
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendMessageTool($principals, $channel, $messageRelays, TelegramChannel::NAME, $sandbox, $peerNetwork, $recipients));
 // spec: brief/operations.md#второй-канал-websocket-api — keys of participants for the WebSocket API
 $apiKeys = new \OpenCCK\App\Api\ApiKeys(new \OpenCCK\Infrastructure\Repository\PostgresApiKeyRepository($db), $principals);
 $chat = new ChatService(

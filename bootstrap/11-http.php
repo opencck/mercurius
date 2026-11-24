@@ -36,6 +36,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var Monolog\Logger $logger
  * @var Mercurius\Messenger\Telegram\UpdateParser $parser
  * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Services\ServiceModules $serviceModules
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
@@ -91,9 +92,12 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     // spec: brief/network.md#события-проекта-для-агентов — the agents of a project learn what is said in its chats
     // spec: brief/network.md#потоки-мест-для-агентов — and the streams of places the owner gives to agents
     'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events') . \Mercurius\I18n\t('self.streams'),
-    'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config): string {
+    'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config, $recipients): string {
         $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);
-        return sprintf(\Mercurius\I18n\t('self.channels'), is_string($host) ? 'wss://' . $host . '/api/ws' : '—');
+        $places = $recipients->places();
+        return sprintf(\Mercurius\I18n\t('self.channels'), is_string($host) ? 'wss://' . $host . '/api/ws' : '—')
+            // spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе — the places are counted at the call
+            . "\n\n" . ($places === [] ? \Mercurius\I18n\t('self.channels.no_places') : sprintf(\Mercurius\I18n\t('self.channels.places'), implode('; ', $places)));
     },
     'commands' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t(ChatService::GREETING),
     'tools' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($tools): string {

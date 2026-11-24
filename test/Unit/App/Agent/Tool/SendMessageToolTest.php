@@ -211,4 +211,41 @@ final class SendMessageToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute(['to' => 'Roman', 'text' => 'x', 'files' => ['none.png']], $context)->isError, 'a missing file stops the message before anything goes');
         self::assertCount(1, $this->sentTo('77'));
     }
+
+    public function testAMessageGoesToAnApprovedGroupOrATopicOfAProjectOnARequest(): void {
+        // spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
+        $this->stack(new ScriptedLlm([]));
+        $places = new \OpenCCK\App\Agent\Tool\Messaging\Recipients($this->stack->principals, 'telegram');
+        $places->usePlaces(static fn(): array => [
+            ['chat' => '-100500', 'thread' => null, 'label' => 'DoorotarTV', 'names' => []],
+            ['chat' => '-100500', 'thread' => '13', 'label' => 'DoorotarTV / Youtube', 'names' => ['Youtube']],
+            ['chat' => '-100700', 'thread' => null, 'label' => 'Команда', 'names' => []],
+        ]);
+        $tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram', null, null, $places);
+
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['to' => 'DoorotarTV', 'text' => 'hello world']), 'everyone there reads it: the owner sees it first');
+        self::assertSame('message:place:-100500', $tool->grantKey(['to' => 'группа DoorotarTV', 'text' => 'x']));
+        self::assertSame('message:place:-100500:13', $tool->grantKey(['to' => 'проект Youtube', 'text' => 'x']));
+        self::assertStringContainsString('DoorotarTV', $tool->describe(['to' => 'doorotartv', 'text' => 'hello world']));
+        self::assertSame('message:' . $this->roman->id, $tool->grantKey(['to' => 'Roman', 'text' => 'x']), 'a person stays a person');
+
+        $sent = $tool->execute(['to' => 'DoorotarTV', 'text' => 'hello world'], $this->context(1));
+        self::assertFalse($sent->isError, $sent->content);
+        self::assertSame(['hello world'], $this->sentTo('-100500'), 'the owner speaks in their own name, with no header');
+        self::assertSame([], $this->relays->relays, 'nobody\'s answer is waited for: the group answers in the group');
+
+        $topic = $tool->execute(['to' => 'Youtube', 'text' => 'в тему'], $this->context(1));
+        self::assertFalse($topic->isError, $topic->content);
+
+        $guest = new ToolContext(2, 1, $this->roman, new NullCancellation(), approved: true);
+        $tool->execute(['to' => 'Команда', 'text' => 'привет'], $guest);
+        self::assertStringContainsString('Roman', $this->sentTo('-100700')[0], 'a request of someone else is shown as theirs');
+
+        $unknown = $tool->execute(['to' => 'Нет такой', 'text' => 'x'], $this->context(1));
+        self::assertTrue($unknown->isError);
+        self::assertStringContainsString('DoorotarTV', $unknown->content, 'the refusal names the places');
+        $several = $tool->execute(['to' => 'Doorotar', 'text' => 'x'], $this->context(1));
+        self::assertTrue($several->isError);
+        self::assertStringContainsString('DoorotarTV / Youtube', $several->content);
+    }
 }

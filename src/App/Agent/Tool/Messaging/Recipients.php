@@ -16,11 +16,13 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
 use function Mercurius\I18n\t;
 
 /**
- * Where a message, a file or other content goes: this chat (and its topic), or the private chat of a participant named
- * by "owner", an #id or a name. To this chat or to the owner it is an answer; to anyone else it waits for the owner's
- * card and can be granted per person.
+ * Where a message, a file or other content goes: this chat (and its topic), the private chat of a participant named
+ * by "owner", an #id or a name, or a place — a group the owner approved, or the chat or topic of a project. To this
+ * chat or to the owner it is an answer; to anyone else and to a place it waits for the owner's card and can be granted
+ * per person or per place.
  *
  * spec: brief/channels.md#личные-сообщения-участникам
+ * spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
  */
 final class Recipients {
     /** @var (\Closure(\OpenCCK\Domain\Agent\ConversationMeta): (array{string, ?string}|null))|null */
@@ -42,6 +44,60 @@ final class Recipients {
      */
     public function useHome(\Closure $home): void {
         $this->home = $home;
+    }
+
+    /** @var (\Closure(): list<array{chat: string, thread: ?string, label: string, names: list<string>}>)|null */
+    private ?\Closure $places = null;
+
+    /**
+     * The places a message may go to besides people: asked at each call, so a group approved a minute ago is there.
+     *
+     * spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
+     *
+     * @param \Closure(): list<array{chat: string, thread: ?string, label: string, names: list<string>}> $places
+     */
+    public function usePlaces(\Closure $places): void {
+        $this->places = $places;
+    }
+
+    /**
+     * The labels of the places a message may go to.
+     *
+     * @return list<string>
+     */
+    public function places(): array {
+        return $this->places === null ? [] : array_values(array_unique(array_map(static fn(array $p): string => $p['label'], ($this->places)())));
+    }
+
+    /**
+     * The place the name points to: by its label or one of its names, exact first, then a part.
+     *
+     * @return array{chat: string, thread: ?string, label: string}|string|null the place; why it is not clear which; null — no such place
+     */
+    public function place(?string $to): array|string|null {
+        $key = mb_strtolower(trim((string) preg_replace('~^\s*(?:group|группа|группу|project|проект|тема|тему|topic)\s*[:\s]\s*~iu', '', $to ?? ''), " \t\n\r\0\x0B@#«»\"'"));
+        if ($this->places === null || $key === '') {
+            return null;
+        }
+        $all = ($this->places)();
+        $names = static fn(string $label, array $more): array => array_map(mb_strtolower(...), array_values([$label, ...array_filter($more, is_string(...))]));
+        $found = array_values(array_filter($all, static fn(array $p): bool => in_array($key, $names($p['label'], $p['names']), true)));
+        if ($found === []) {
+            $found = array_values(array_filter($all, static fn(array $p): bool => array_filter($names($p['label'], $p['names']), static fn(string $n): bool => str_contains($n, $key)) !== []));
+        }
+        // one place under several names is one place
+        $unique = [];
+        foreach ($found as $p) {
+            $unique[$p['chat'] . ':' . ($p['thread'] ?? '')] ??= $p;
+        }
+        if ($unique === []) {
+            return null;
+        }
+        if (count($unique) > 1) {
+            return sprintf(t('tool.send_message.place_ambiguous'), $to ?? '', implode('; ', array_map(static fn(array $p): string => $p['label'], array_values($unique))));
+        }
+        $p = array_values($unique)[0];
+        return ['chat' => $p['chat'], 'thread' => $p['thread'], 'label' => $p['label']];
     }
 
     /** The active person the name points to; the text — why there is none. */
@@ -111,7 +167,11 @@ final class Recipients {
         }
         $person = $this->find($to);
         if (is_string($person)) {
-            return $person;
+            $place = $this->place($to);
+            if ($place === null) {
+                return $this->places() === [] ? $person : $person . ' ' . sprintf(t('tool.send_message.places'), implode('; ', $this->places()));
+            }
+            return is_string($place) ? $place : [$place['chat'], $place['thread']];
         }
         $chat = $this->principals->externalId($person->id, $this->channel);
         return $chat === null ? sprintf(t('tool.send_message.no_chat'), $person->displayName ?? '#' . $person->id) : [$chat, null];
@@ -130,7 +190,11 @@ final class Recipients {
             return null;
         }
         $person = $this->find($to);
-        return $person instanceof Principal && $person->role !== Role::owner() ? 'message:' . $person->id : null;
+        if (is_string($person)) {
+            $place = $this->place($to);
+            return is_array($place) ? 'message:place:' . $place['chat'] . ($place['thread'] === null ? '' : ':' . $place['thread']) : null;
+        }
+        return $person->role !== Role::owner() ? 'message:' . $person->id : null;
     }
 
     public function name(?string $to): string {
@@ -138,6 +202,10 @@ final class Recipients {
             return t('tool.send_content.this_chat');
         }
         $person = $this->find($to);
-        return $person instanceof Principal ? ($person->displayName ?? '#' . $person->id) : $to;
+        if (is_string($person)) {
+            $place = $this->place($to);
+            return is_array($place) ? $place['label'] : $to;
+        }
+        return $person->displayName ?? '#' . $person->id;
     }
 }

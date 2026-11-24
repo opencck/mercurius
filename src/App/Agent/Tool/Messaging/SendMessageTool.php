@@ -47,6 +47,8 @@ final class SendMessageTool implements Tool, GrantKeyed {
         private readonly ?\OpenCCK\App\Agent\Sandbox\Sandbox $sandbox = null,
         /** another agent — a neighbour or one connected here — is written to over A2A; null — people only */
         private readonly ?\OpenCCK\App\Peer\PeerNetwork $network = null,
+        /** knows the places besides people: approved groups, chats and topics of projects; null — people only */
+        private readonly ?Recipients $places = null,
     ) {}
 
     /** Files at most per message, and their size in all. */
@@ -78,11 +80,18 @@ final class SendMessageTool implements Tool, GrantKeyed {
 
     public function grantKey(array $args): ?string {
         $recipient = $this->recipient($args);
-        return $recipient instanceof Principal && $recipient->role !== Role::owner() ? 'message:' . $recipient->id : null;
+        if (is_string($recipient)) {
+            return $this->agent($args) === null ? $this->places?->grantKey(Args::string($args, 'to')) : null;
+        }
+        return $recipient->role !== Role::owner() ? 'message:' . $recipient->id : null;
     }
 
     public function describe(array $args): string {
         $recipient = $this->recipient($args);
+        $place = is_string($recipient) && $this->agent($args) === null ? $this->places?->place(Args::string($args, 'to')) : null;
+        if (is_array($place)) {
+            return sprintf(t('tool.send_message.describe_place'), $place['label'], mb_substr(Args::string($args, 'text') ?? '', 0, 500));
+        }
         $name = $recipient instanceof Principal ? ($recipient->displayName ?? '#' . $recipient->id) : (Args::string($args, 'to') ?? '');
         return sprintf(t('tool.send_message.describe'), $name, mb_substr(Args::string($args, 'text') ?? '', 0, 500));
     }
@@ -113,7 +122,12 @@ final class SendMessageTool implements Tool, GrantKeyed {
         }
         $recipient = $this->recipient($args);
         if (is_string($recipient)) {
-            return ToolResult::error($recipient);
+            $place = $this->places?->place(Args::string($args, 'to'));
+            if (is_array($place)) {
+                return $this->toPlace($place, Args::string($args, 'text') ?? '', $files, $context);
+            }
+            $known = $this->places?->places() ?? [];
+            return ToolResult::error($place ?? ($known === [] ? $recipient : $recipient . ' ' . sprintf(t('tool.send_message.places'), implode('; ', $known))));
         }
         $chatId = $this->principals->externalId($recipient->id, $this->channelName);
         if ($chatId === null) {
@@ -140,6 +154,33 @@ final class SendMessageTool implements Tool, GrantKeyed {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }
         return ToolResult::ok(sprintf(t($waits ? 'tool.send_message.sent_waiting' : 'tool.send_message.sent'), $recipient->displayName ?? '#' . $recipient->id));
+    }
+
+    /**
+     * A message into a group or a topic: everyone there reads it, so nobody's answer is waited for — what people say
+     * there comes as the messages of that chat. The owner speaks through the agent in their own name; a request of
+     * anyone else is shown as theirs.
+     *
+     * spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
+     *
+     * @param array{chat: string, thread: ?string, label: string} $place
+     * @param list<array{name: string, bytes: string}> $files
+     */
+    private function toPlace(array $place, string $text, array $files, ToolContext $context): ToolResult {
+        $shown = $context->principal->role === Role::owner()
+            ? $text
+            : sprintf(t('tool.send_message.header'), $context->principal->displayName ?? '#' . $context->principal->id) . $text;
+        $sent = $this->channel->send(new OutgoingMessage($place['chat'], $shown, threadId: $place['thread']));
+        if (!$sent->success) {
+            return ToolResult::error(sprintf(t('tool.send_message.place_not_sent'), $place['label'], $sent->error ?? ''));
+        }
+        foreach ($files as $file) {
+            $attached = $this->channel->sendFile($place['chat'], $file['name'], $file['bytes'], null, $place['thread']);
+            if (!$attached->success) {
+                return ToolResult::error(sprintf(t('tool.send_file.not_sent'), $file['name'], $attached->error ?? ''));
+            }
+        }
+        return ToolResult::ok(sprintf(t('tool.send_message.sent_place'), $place['label']));
     }
 
     /**
