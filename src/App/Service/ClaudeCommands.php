@@ -76,7 +76,7 @@ final class ClaudeCommands {
             $lines[] = $usage === null ? t('claude.usage_unknown') : self::usage($usage);
         }
         $lines[] = sprintf(t('claude.extra_usage_policy'), ($this->extraUsage)());
-        $pause = $this->pauses->of(ModelRef::CLAUDE);
+        $pause = $this->pauses->anyOf(ModelRef::CLAUDE);
         if ($pause !== null) {
             $lines[] = sprintf(t($pause['why'] === ProviderPauses::LIMIT ? 'claude.paused_limit' : 'claude.paused_sign_in'), gmdate('Y-m-d H:i', $pause['until']) . ' UTC');
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Agent\Model;
 
 use Closure;
+use OpenCCK\Domain\Agent\ModelRef;
 use Throwable;
 
 /**
@@ -20,7 +21,7 @@ final class ProviderPauses {
     public const LIMIT = 'limit';
     public const SIGN_IN = 'sign_in';
 
-    /** @var array<string, array{until: int, why: string}> */
+    /** @var array<string, array{until: int, why: string, word: string}> by provider or by model */
     private array $paused = [];
     /** @var array<string, true> the windows the owner has heard of: provider|why|until */
     private array $told = [];
@@ -28,12 +29,15 @@ final class ProviderPauses {
     private readonly Closure $clock;
 
     /**
-     * @param ?Closure(string, string, int): void $notify tells the owner: provider, why (LIMIT or SIGN_IN), until
+     * @param ?Closure(string, string, int): void $notify tells the owner: provider or model, why (LIMIT or SIGN_IN), until
      * @param ?Closure(): int $clock
+     * @param ?Closure(string): string $word the owner's word on paid use for a provider: a pause by a limit stands only
+     *        while that word is what it was — a word that allows more lifts it at once
      */
     public function __construct(
         private ?Closure $notify = null,
         ?Closure $clock = null,
+        private readonly ?Closure $word = null,
     ) {
         $this->clock = $clock ?? static fn(): int => time();
     }
@@ -47,11 +51,15 @@ final class ProviderPauses {
         $this->notify = $notify;
     }
 
+    /**
+     * @param string $provider a provider (a lost sign-in) or a model "provider:model" (a used-up window: plans have
+     *        windows per model, so the other models of the subscription go on)
+     */
     public function pause(string $provider, int $until, string $why): void {
         if ($until <= ($this->clock)()) {
             return;
         }
-        $this->paused[$provider] = ['until' => $until, 'why' => $why];
+        $this->paused[$provider] = ['until' => $until, 'why' => $why, 'word' => $this->wordOf($provider)];
         $key = $provider . '|' . $why . '|' . ($why === self::LIMIT ? (string) $until : '');
         if (isset($this->told[$key]) || $this->notify === null) {
             return;
@@ -82,17 +90,41 @@ final class ProviderPauses {
         }
     }
 
-    /** @return ?array{until: int, why: string} the pause that stands now */
+    /** @return ?array{until: int, why: string} the pause that stands now for a provider or a model */
     public function of(string $provider): ?array {
         $pause = $this->paused[$provider] ?? null;
-        if ($pause !== null && $pause['until'] <= ($this->clock)()) {
+        if ($pause === null) {
+            return null;
+        }
+        if ($pause['until'] <= ($this->clock)() || ($pause['why'] === self::LIMIT && $pause['word'] !== $this->wordOf($provider))) {
             unset($this->paused[$provider]);
             return null;
         }
-        return $pause;
+        return ['until' => $pause['until'], 'why' => $pause['why']];
     }
 
     public function paused(string $provider): bool {
         return $this->of($provider) !== null;
+    }
+
+    /** @return ?array{until: int, why: string} the pause of the model or of its provider */
+    public function blocking(ModelRef $model): ?array {
+        return $this->of((string) $model) ?? $this->of($model->provider);
+    }
+
+    /** @return ?array{until: int, why: string} the pause of a model of the provider, if any: what /claude shows */
+    public function anyOf(string $provider): ?array {
+        $found = $this->of($provider);
+        foreach (array_keys($this->paused) as $key) {
+            if ($found === null && str_starts_with($key, $provider . ':')) {
+                $found = $this->of($key);
+            }
+        }
+        return $found;
+    }
+
+    private function wordOf(string $key): string {
+        $provider = explode(':', $key, 2)[0];
+        return $this->word === null ? '' : ($this->word)($provider);
     }
 }

@@ -65,7 +65,9 @@ $claudeToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_TOKEN
 $claudeUrl = rtrim(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_URL') ?? 'http://claude-code:8094', '/');
 // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — a used-up window takes the provider off the
 // choice until it reopens; the owner hears once per window (who tells him is set with the channel, in bootstrap/10-chat.php)
-$providerPauses = new \OpenCCK\App\Agent\Model\ProviderPauses();
+$providerPauses = new \OpenCCK\App\Agent\Model\ProviderPauses(null, null, static fn(string $provider): string => $provider === \OpenCCK\Domain\Agent\ModelRef::CLAUDE
+    ? ($settingsService->current('CLAUDE_CODE_EXTRA_USAGE') ?? 'stop') . '|' . ($settingsService->current('CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT') ?? '')
+    : '');
 if ($claudeToken !== null) {
     $claudeHttp = \OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription::http(
         static fn(): ?string => \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'CLAUDE_CODE_OAUTH_TOKEN'),

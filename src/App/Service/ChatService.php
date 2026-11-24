@@ -250,7 +250,8 @@ final class ChatService implements MessageHandler {
             return;
         }
         $original = $message;
-        $command = $text === '' ? '' : strtolower(explode(' ', $text, 2)[0]);
+        // a command ends at any white space: "/claude\tcode" is the command /claude
+        $command = $text === '' ? '' : strtolower((preg_split('~\s~u', $text, 2) ?: [''])[0]);
         if ($command === '/start') {
             $this->reply($message, t(self::GREETING));
             return;
@@ -336,10 +337,10 @@ final class ChatService implements MessageHandler {
             }
             return;
         }
-        if ($command === '/claude') {
+        if ($command === '/claude' || str_starts_with($command, '/claude@')) {
             // the code of a sign-in is a secret: its message leaves the chat, and the command never reaches the history —
             // also where the module is not switched on, so a code sent there does not go to the model as text
-            $argument = substr($text, strlen($command));
+            $argument = (preg_split('~\s~u', $text, 2) ?: [])[1] ?? '';
             if ($this->claude === null) {
                 $this->reply($message, t('claude.module_off'));
             } elseif (!$principal->isOwner()) {

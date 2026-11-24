@@ -51,7 +51,7 @@ final class FallbackModels {
         $providers = $this->roles->providers();
         $next = null;
         $why = '';
-        if ($this->pauses?->paused($ref->provider) === true) {
+        if ($this->pauses?->blocking($ref) !== null) {
             [$next, $why] = $this->sameCategory($ref);
             if ($next === null) {
                 $this->logger->notice('A model off the choice has no other model in its category', ['model' => (string) $ref]);
@@ -71,7 +71,7 @@ final class FallbackModels {
         if ($next === null) {
             $main = $this->roles->model(ModelRole::MAIN);
             $strong = $this->roles->model(ModelRole::STRONG);
-            $serves = fn(ModelRef $model): bool => (string) $model !== (string) $ref && $this->pauses?->paused($model->provider) !== true;
+            $serves = fn(ModelRef $model): bool => (string) $model !== (string) $ref && $this->pauses?->blocking($model) === null;
             [$next, $why] = $serves($main) ? [$main, t('model.fallback_models.rol_main')] : ($serves($strong) ? [$strong, t('model.fallback_models.rol_strong')] : [null, '']);
         }
         if ($next === null) {
@@ -89,13 +89,14 @@ final class FallbackModels {
 
     /** @return array{?ModelRef, string} the next model of the list that holds the failed one, and why */
     private function sameCategory(ModelRef $ref): array {
-        foreach ([ModelRole::CHEAP, ModelRole::MAIN, ModelRole::STRONG] as $role) {
+        // the lists of the conversation's own models first: a run is main or strong far more often than cheap
+        foreach ([ModelRole::MAIN, ModelRole::STRONG, ModelRole::CHEAP] as $role) {
             $list = $this->roles->listOf($role);
             if (!in_array((string) $ref, array_map('strval', $list), true)) {
                 continue;
             }
             foreach ($list as $model) {
-                if ((string) $model !== (string) $ref && $this->pauses?->paused($model->provider) !== true && $this->catalog->find($model) !== null) {
+                if ((string) $model !== (string) $ref && $this->pauses?->blocking($model) === null && $this->catalog->find($model) !== null) {
                     return [$model, sprintf(t('model.fallback_models.same_category'), $role)];
                 }
             }

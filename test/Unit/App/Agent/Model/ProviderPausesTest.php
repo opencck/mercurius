@@ -62,7 +62,7 @@ final class ProviderPausesTest extends AsyncTestCase {
             self::assertSame([ErrorKind::RateLimited, self::RESET], [$e->kind, $e->resetsAt]);
         }
         self::assertCount(1, $claude->requests, 'the second call sent nothing');
-        self::assertSame([['claude', ProviderPauses::LIMIT, self::RESET]], $this->told);
+        self::assertSame([['claude:claude-sonnet-5-5', ProviderPauses::LIMIT, self::RESET]], $this->told);
 
         $this->now = self::RESET;
         self::assertSame('after the reset', $router->complete($request)->text);
@@ -88,6 +88,26 @@ final class ProviderPausesTest extends AsyncTestCase {
         self::assertFalse($pauses->paused('claude'));
     }
 
+    public function testAWindowPausesItsModelAndAWordThatAllowsMoreLiftsIt(): void {
+        $word = 'stop|';
+        $pauses = new ProviderPauses(null, fn(): int => $this->now, static function (string $provider) use (&$word): string {
+            return $word;
+        });
+        $router = new ProviderRouter(['claude' => new ScriptedLlm([self::limit(), ScriptedLlm::text('sonnet works'), ScriptedLlm::text('opus again')])], null, $pauses);
+        try {
+            $router->complete(new ChatRequest('claude:claude-opus-5-5', [Message::user('hi')]));
+        } catch (LlmException) {
+        }
+
+        self::assertNotNull($pauses->blocking(new ModelRef('claude', 'claude-opus-5-5')));
+        self::assertSame('sonnet works', $router->complete(new ChatRequest('claude:claude-sonnet-5-5', [Message::user('hi')]))->text, 'a window of one model does not stop the others');
+        self::assertSame(ProviderPauses::LIMIT, $pauses->anyOf('claude')['why'] ?? null);
+
+        $word = 'allow|';
+        self::assertNull($pauses->blocking(new ModelRef('claude', 'claude-opus-5-5')), 'the owner allowed paid use: the pause is gone at once');
+        self::assertSame('opus again', $router->complete(new ChatRequest('claude:claude-opus-5-5', [Message::user('hi')]))->text);
+    }
+
     public function testTheRunMovesOnlyWithinTheListOfTheCategory(): void {
         $stores = new InMemoryModelStores();
         $stores->replace('claude', [new ModelInfo('claude-sonnet-5-5', 'Sonnet', 1_000_000, 0.0, 0.0)]);
@@ -101,10 +121,10 @@ final class ProviderPausesTest extends AsyncTestCase {
         $pauses = $this->pauses();
         $fallback = new FallbackModels($roles, $stores, $stores, new NullLogger(), $pauses);
 
-        $pauses->pause('claude', self::RESET, ProviderPauses::LIMIT);
+        $pauses->pause('claude:claude-sonnet-5-5', self::RESET, ProviderPauses::LIMIT);
 
         self::assertSame('openrouter:z-ai/glm-5.3-flash', $fallback->next('claude:claude-sonnet-5-5', 1), 'the next model of the main list, not the strong role');
-        self::assertStringContainsString('main', $stores->decisions[0]->reason, 'the cheap list holds no other model: the next list that holds it is used');
+        self::assertStringContainsString('main', $stores->decisions[0]->reason, 'the list of the conversation models comes first');
         $only = new FallbackModels(new ModelRoles($stores, $stores, ['openrouter', 'claude'], null, new ModelLists([
             ModelRole::CHEAP => [new ModelRef('claude', 'claude-sonnet-5-5')],
             ModelRole::MAIN => [new ModelRef('openrouter', 'z-ai/glm-5.3-flash')],

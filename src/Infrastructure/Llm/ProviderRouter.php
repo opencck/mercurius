@@ -71,7 +71,8 @@ final class ProviderRouter implements LlmClient {
             return $e;
         }
         if ($e->resetsAt !== null) {
-            $this->pauses->pause($ref->provider, $e->resetsAt, ProviderPauses::LIMIT);
+            // a window may be the model's own (a week of Opus): the other models of the provider go on
+            $this->pauses->pause((string) $ref, $e->resetsAt, ProviderPauses::LIMIT);
         } elseif ($e->kind === ErrorKind::Auth && in_array($ref->provider, ModelRef::SUBSCRIPTIONS, true)) {
             $this->pauses->pauseFor($ref->provider, 600, ProviderPauses::SIGN_IN);
         }
@@ -101,7 +102,7 @@ final class ProviderRouter implements LlmClient {
     private function route(ChatRequest $request): array {
         $ref = ModelRef::parse($request->model);
         $client = $this->clients[$ref->provider] ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
-        $pause = $this->pauses?->of($ref->provider);
+        $pause = $this->pauses?->blocking($ref);
         if ($pause !== null) {
             // no request: the provider would refuse the same way, and a subscription might bill it beyond the plan
             throw $pause['why'] === ProviderPauses::LIMIT
