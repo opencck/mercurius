@@ -33,14 +33,21 @@ final class InMemoryMcpInstallRepository implements McpInstallRepository {
     public function setRevision(string $name, string $revision, string $toolsHash, array $classes, array $entry): void {
         $i = $this->installs[$name] ?? null;
         if ($i !== null) {
-            $this->installs[$name] = new McpInstall($i->id, $i->name, $i->source, $i->installedBy, $revision, $i->revision, $toolsHash, $classes, $entry, $i->latest);
+            $this->installs[$name] = new McpInstall($i->id, $i->name, $i->source, $i->installedBy, $revision, $i->revision, $toolsHash, $classes, $entry, $i->latest, $i->steps);
         }
     }
 
     public function setLatest(string $name, ?string $latest): void {
         $i = $this->installs[$name] ?? null;
         if ($i !== null) {
-            $this->installs[$name] = new McpInstall($i->id, $i->name, $i->source, $i->installedBy, $i->revision, $i->previous, $i->toolsHash, $i->classes, $i->entry, $latest);
+            $this->installs[$name] = new McpInstall($i->id, $i->name, $i->source, $i->installedBy, $i->revision, $i->previous, $i->toolsHash, $i->classes, $i->entry, $latest, $i->steps);
+        }
+    }
+
+    public function setSteps(string $name, array $steps): void {
+        $i = $this->installs[$name] ?? null;
+        if ($i !== null) {
+            $this->installs[$name] = new McpInstall($i->id, $i->name, $i->source, $i->installedBy, $i->revision, $i->previous, $i->toolsHash, $i->classes, $i->entry, $i->latest, $steps);
         }
     }
 

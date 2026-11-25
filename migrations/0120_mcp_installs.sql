@@ -6,3 +6,5 @@ ALTER TABLE mcp_installs ADD COLUMN installed_by integer;
 ALTER TABLE mcp_installs ADD COLUMN previous text;
 ALTER TABLE mcp_installs ADD COLUMN entry jsonb;
 ALTER TABLE mcp_installs ADD COLUMN latest text;
+-- the steps of the approved plan: an update runs them again on the new revision
+ALTER TABLE mcp_installs ADD COLUMN steps jsonb NOT NULL DEFAULT '[]';

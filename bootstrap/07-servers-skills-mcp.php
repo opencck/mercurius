@@ -293,16 +293,8 @@ if ($sandbox !== null) {
     //       trial start and the approval of the set; the entry goes into the context that asked for it
     $mcpInstalls = new \OpenCCK\Infrastructure\Repository\PostgresMcpInstallRepository($db);
     $osvCheck = new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger);
-    // the tools of an entry that runs installed code get the classes its approver set; a tool not in the set is irreversible
-    $mcpManager->useInstalls(static function (\OpenCCK\Domain\Mcp\McpServer $server, string $tool) use ($mcpInstalls): ?string {
-        if (preg_match('~/workspace/mcp/([a-z0-9_]+)/~', $server->url, $m) !== 1) {
-            return null;
-        }
-        $install = $mcpInstalls->find($m[1]);
-        return $install === null ? null : ($install->classes[$tool] ?? 'irreversible');
-    });
     /** @psalm-suppress PossiblyNullReference the sandbox is on here, and with it the stdio client */
-    $tools->register(new \OpenCCK\App\Mcp\McpInstallTool(new \OpenCCK\App\Mcp\McpInstaller(
+    $mcpInstaller = new \OpenCCK\App\Mcp\McpInstaller(
         $mcpInstalls,
         new \OpenCCK\App\Mcp\McpSources($sandbox),
         $sandbox,
@@ -313,7 +305,36 @@ if ($sandbox !== null) {
             return $mcpFiles->approve($context, $entry->name, $by, substr($entry->hash(), 0, 12));
         },
         static fn(array $packages): ?string => $osvCheck->packages($packages, new \Amp\TimeoutCancellation(30)),
-    ), $sandbox));
+    );
+    $tools->register(new \OpenCCK\App\Mcp\McpInstallTool($mcpInstaller, $sandbox));
+    $tools->register(new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller));
+    // the tools of an entry that runs installed code get the classes its approver set (a tool not in the set is
+    // irreversible), and such an entry runs only in a context the install is allowed to
+    $installOf = static fn(\OpenCCK\Domain\Mcp\McpServer $server): ?string => preg_match('~/workspace/mcp/([a-z0-9_]+)/~', $server->url, $m) === 1 ? $m[1] : null;
+    $mcpManager->useInstalls(
+        static function (\OpenCCK\Domain\Mcp\McpServer $server, string $tool) use ($mcpInstalls, $installOf): ?string {
+            $name = $installOf($server);
+            $install = $name === null ? null : $mcpInstalls->find($name);
+            return $install === null ? null : ($install->classes[$tool] ?? 'irreversible');
+        },
+        static function (\OpenCCK\Domain\Mcp\McpServer $server) use ($mcpInstaller, $installOf): bool {
+            $name = $installOf($server);
+            return $name === null || $server->context === '' || $mcpInstaller->allowedIn($name, $server->context);
+        },
+    );
+    // spec: brief/skills-mcp.md#установка-и-обновление — new revisions are looked for once a day; nothing updates by itself
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(86400, static function () use ($mcpInstaller, $principals, $channel, $logger): void {
+        try {
+            foreach ($mcpInstaller->checkUpdates() as [$by, $name, $revision]) {
+                $chat = $principals->externalId($by, $channel->name());
+                if ($chat !== null) {
+                    $channel->send(new \Mercurius\Messenger\OutgoingMessage($chat, sprintf(\Mercurius\I18n\t('mcp.install.new_revision'), $name, $revision)));
+                }
+            }
+        } catch (\Throwable $e) {
+            $logger->warning('MCP revisions were not checked', ['error' => $e::class]);
+        }
+    }));
     $mcpContexts = static function () use ($principals, $skillProjects): array {
         $contexts = ['owners'];
         foreach ($principals->all() as $member) {

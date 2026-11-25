@@ -441,6 +441,20 @@ final class McpTest extends AsyncTestCase {
         self::assertSame(DangerClass::Write, $this->registry->get('mcp_everything_drop', $this->inOwnersChat())?->danger([]));
     }
 
+    /** spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — an install runs only where it is allowed */
+    public function testAnInstalledMcpDoesNotRunInAContextItIsNotAllowedTo(): void {
+        $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();
+        $client = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(new HttpClient(new FakeHttpClient(), [])), new \OpenCCK\Infrastructure\Mcp\StdioMcpClient($streams, new \OpenCCK\Domain\Agent\SandboxLimits(1, 1, 1, 1, 1)));
+        $manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(): Member => $this->owner, static function (string $t): void {}, new NullLogger(), stdio: true);
+        $manager->useInstalls(static fn(McpServer $server, string $tool): string => 'read', static fn(McpServer $server): bool => $server->context === 'member:1');
+        $manager->add('project:5', 'everything', "stdio:node '/workspace/mcp/everything/current/index.js'", null);
+
+        $answer = $manager->approve('project:5', 'everything', new NullCancellation());
+
+        self::assertStringContainsString('project:5', $answer);
+        self::assertSame([], $streams->spawned, 'its code never ran there');
+    }
+
     public function testAPackageWithMalwareIsNotApproved(): void {
         // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the check of MCP packages before /mcp on
         $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();

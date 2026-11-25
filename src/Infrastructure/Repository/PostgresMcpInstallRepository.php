@@ -13,7 +13,7 @@ use UnexpectedValueException;
 
 /** spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — installed MCP servers */
 final class PostgresMcpInstallRepository implements McpInstallRepository {
-    private const COLUMNS = 'id, name, source, installed_by, revision, previous, tools_hash, tool_classes::text AS classes, entry::text AS entry, latest';
+    private const COLUMNS = 'id, name, source, installed_by, revision, previous, tools_hash, tool_classes::text AS classes, entry::text AS entry, latest, steps::text AS steps';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -44,6 +44,10 @@ final class PostgresMcpInstallRepository implements McpInstallRepository {
             'UPDATE mcp_installs SET previous = revision, revision = ?, tools_hash = ?, tool_classes = ?::jsonb, entry = ?::jsonb WHERE name = ?',
             [$revision, $toolsHash, self::json($classes), self::json($entry), $name],
         );
+    }
+
+    public function setSteps(string $name, array $steps): void {
+        $this->db->execute('UPDATE mcp_installs SET steps = ?::jsonb WHERE name = ?', [json_encode($steps, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $name]);
     }
 
     public function setLatest(string $name, ?string $latest): void {
@@ -95,6 +99,13 @@ final class PostgresMcpInstallRepository implements McpInstallRepository {
         $entry = json_decode($text('entry') ?? 'null', true);
         /** @psalm-suppress MixedAssignment */
         $by = $row['installed_by'] ?? null;
-        return new McpInstall($id, $name, $source, is_int($by) ? $by : 0, $text('revision'), $text('previous'), $text('tools_hash'), $classes, is_array($entry) ? $entry : null, $text('latest'));
+        $steps = [];
+        /** @psalm-suppress MixedAssignment the stored steps are any JSON; only strings are taken */
+        foreach ((array) json_decode($text('steps') ?? '[]', true) as $step) {
+            if (is_string($step)) {
+                $steps[] = $step;
+            }
+        }
+        return new McpInstall($id, $name, $source, is_int($by) ? $by : 0, $text('revision'), $text('previous'), $text('tools_hash'), $classes, is_array($entry) ? $entry : null, $text('latest'), $steps);
     }
 }

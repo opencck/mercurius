@@ -32,6 +32,8 @@ abstract class McpInstallStoreContract extends TestCase {
         self::assertSame(['read_it' => 'read', 'write_it' => 'irreversible'], $found->classes);
         self::assertSame(['command' => 'node'], $found->entry);
 
+        $store->setSteps('alpha_mcp', ['npm ci', 'npm run build']);
+        self::assertSame(['npm ci', 'npm run build'], $store->find('alpha_mcp')?->steps);
         $store->setLatest('alpha_mcp', 'r3');
         self::assertSame('r3', $store->find('alpha_mcp')?->latest);
         self::assertTrue($store->remove('alpha_mcp'));

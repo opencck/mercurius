@@ -168,4 +168,93 @@ final class McpInstallerTest extends AsyncTestCase {
         self::assertNull($this->installs->find('ssh_mcp')?->revision);
         self::assertStringNotContainsString('REV', $installer->fetch($other, 'ssh_mcp', 'https://github.com/evil/x', null));
     }
+
+    private function approved(McpInstaller $installer): void {
+        $this->fetched($installer);
+        $installer->install($this->owner, 'member:7', 'ssh_mcp', ['npm ci'], self::entry());
+        $installer->approve($this->owner, 'ssh_mcp', 'hints');
+        $this->sandbox->calls = [];
+    }
+
+    /** spec: brief/skills-mcp.md#установка-и-обновление — a new revision with the same set switches; the plan is kept */
+    public function testAnUpdateWithTheSameToolsSwitchesToTheNewRevision(): void {
+        $installer = $this->installer();
+        $this->approved($installer);
+        $this->sandbox->outcomes = [
+            new CommandOutcome(0, '', '', false, false, 1),
+            new CommandOutcome(0, "REV 999999999999
+", '', false, false, 1),
+        ];
+
+        $answer = $installer->update($this->owner, 'ssh_mcp');
+
+        $install = $this->installs->find('ssh_mcp');
+        self::assertNotNull($install);
+        self::assertSame(['999999999999', '0123456789ab'], [$install->revision, $install->previous]);
+        self::assertSame(['exec' => 'irreversible', 'list_hosts' => 'read'], $install->classes, 'the approved classes stay');
+        self::assertStringContainsString('npm ci', implode("
+", $this->sandbox->calls), 'the kept steps ran again');
+        self::assertStringContainsString("ln -sfn 'releases/999999999999' current", implode("
+", $this->sandbox->calls));
+        self::assertStringContainsString('999999999999', $answer);
+    }
+
+    public function testAnUpdateThatChangesTheToolsWaitsForAnApproval(): void {
+        $installer = $this->installer();
+        $this->approved($installer);
+        $this->tools[] = ['name' => 'rm_rf', 'description' => 'Removes', 'schema' => ['type' => 'object'], 'annotations' => []];
+        $this->sandbox->outcomes = [
+            new CommandOutcome(0, '', '', false, false, 1),
+            new CommandOutcome(0, "REV 999999999999
+", '', false, false, 1),
+        ];
+
+        $answer = $installer->update($this->owner, 'ssh_mcp');
+
+        self::assertSame('0123456789ab', $this->installs->find('ssh_mcp')?->revision, 'not switched');
+        self::assertStringContainsString('rm_rf', $answer);
+        self::assertStringContainsString('approve', $answer);
+    }
+
+    public function testARollbackGoesBackToThePreviousRevision(): void {
+        $installer = $this->installer();
+        $this->approved($installer);
+        $this->sandbox->outcomes = [new CommandOutcome(0, '', '', false, false, 1), new CommandOutcome(0, "REV 999999999999
+", '', false, false, 1)];
+        $installer->update($this->owner, 'ssh_mcp');
+        $this->sandbox->calls = [];
+
+        $installer->rollback($this->owner, 'ssh_mcp');
+
+        self::assertSame(['0123456789ab', '999999999999'], [$this->installs->find('ssh_mcp')?->revision, $this->installs->find('ssh_mcp')?->previous]);
+        self::assertStringContainsString("ln -sfn 'releases/0123456789ab' current", implode("
+", $this->sandbox->calls));
+    }
+
+    public function testRemovingTakesTheCodeAndTheLinkAway(): void {
+        $installer = $this->installer();
+        $this->approved($installer);
+
+        $installer->remove($this->owner, 'ssh_mcp');
+
+        self::assertNull($this->installs->find('ssh_mcp'));
+        $calls = implode("
+", $this->sandbox->calls);
+        self::assertStringContainsString("rm -f 'mcp/ssh_mcp'", $calls);
+        self::assertStringContainsString('rm -rf releases current', $calls);
+    }
+
+    public function testTheDailyCheckMarksANewRevisionAndSaysSo(): void {
+        $installer = $this->installer();
+        $this->approved($installer);
+        $this->sandbox->outcome = new CommandOutcome(0, "999999999999aaaa	HEAD
+", '', false, false, 1);
+
+        $news = $installer->checkUpdates();
+
+        self::assertSame('999999999999', $this->installs->find('ssh_mcp')?->latest);
+        self::assertSame([[7, 'ssh_mcp', '999999999999']], $news);
+        self::assertSame([], $installer->checkUpdates(), 'said once');
+    }
 }
+

@@ -24,6 +24,9 @@ interface McpInstallRepository {
      */
     public function setRevision(string $name, string $revision, string $toolsHash, array $classes, array $entry): void;
 
+    /** @param list<string> $steps the steps of the approved plan */
+    public function setSteps(string $name, array $steps): void;
+
     /** The newest revision the source has, as the daily check saw it. */
     public function setLatest(string $name, ?string $latest): void;
 

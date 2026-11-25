@@ -38,7 +38,7 @@ final class McpInstaller {
     private const STEP_MAX = 1000;
     private const STEPS_SECONDS = 600;
 
-    /** @var array<string, array{context: string, revision: string, entry: array<string, mixed>, tools: list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>, by: int}> */
+    /** @var array<string, array{context: string, revision: string, entry: array<string, mixed>, tools: list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>, by: int, steps: list<string>, update: bool}> */
     private array $pending = [];
 
     /**
@@ -119,6 +119,183 @@ final class McpInstaller {
         if ($verdict !== null) {
             return $verdict;
         }
+        $failed = $this->runSteps($install, $revision, $steps);
+        if ($failed !== null) {
+            return $failed;
+        }
+        $tools = $this->tryStart($install, $rendered);
+        if (is_string($tools)) {
+            return $tools;
+        }
+        $this->pending[$name] = ['context' => $context, 'revision' => $revision, 'entry' => self::placed($entry, $install->path() . '/current'), 'tools' => $tools, 'by' => $who->id, 'steps' => $steps, 'update' => false];
+        return $this->toApprove($name, $revision, $tools);
+    }
+
+    /**
+     * A new revision of the source next to the one in use: the kept steps again, a trial start, and the same set of
+     * tools switches at once with its approved classes; another set waits for an approval.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     */
+    public function update(Member $who, string $name): string {
+        $install = $this->installs->find($name);
+        if ($install === null || $install->revision === null || $install->entry === null) {
+            return sprintf(t('mcp.install.not_installed'), $name);
+        }
+        if (!$this->mayChange($who, $install)) {
+            return sprintf(t('mcp.install.not_yours'), $name);
+        }
+        if (!str_starts_with($install->source, 'https://')) {
+            return sprintf(t('mcp.install.update_archive'), $name);
+        }
+        try {
+            $fetched = $this->sources->fromGit($install, $install->source);
+        } catch (DomainException $e) {
+            return $e->getMessage();
+        }
+        $this->installs->setLatest($name, $fetched->revision);
+        if ($fetched->revision === $install->revision) {
+            return sprintf(t('mcp.install.up_to_date'), $name, $install->revision);
+        }
+        $failed = $this->runSteps($install, $fetched->revision, $install->steps);
+        if ($failed !== null) {
+            return $failed;
+        }
+        try {
+            $trial = McpEntry::fromArray($name, self::moved($install->entry, $install->path() . '/current', $install->path() . '/releases/' . $fetched->revision));
+        } catch (InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
+        $rendered = ($this->render)($trial, 'member:' . $install->installedBy);
+        if ($rendered->missing !== []) {
+            return sprintf(t('mcp.install.secrets_missing'), implode(', ', $rendered->missing), 'member:' . $install->installedBy);
+        }
+        $tools = $this->tryStart($install, $rendered);
+        if (is_string($tools)) {
+            return $tools;
+        }
+        if ($install->toolsHash !== null && hash_equals($install->toolsHash, self::setHash($tools))) {
+            $switched = $this->switchTo($install, $fetched->revision);
+            if ($switched !== null) {
+                return $switched;
+            }
+            $this->installs->setRevision($name, $fetched->revision, $install->toolsHash, $install->classes, $install->entry);
+            return sprintf(t('mcp.install.updated'), $name, $install->revision, $fetched->revision);
+        }
+        /** @var array<string, mixed> $entry */
+        $entry = $install->entry;
+        $this->pending[$name] = ['context' => 'member:' . $install->installedBy, 'revision' => $fetched->revision, 'entry' => $entry, 'tools' => $tools, 'by' => $who->id, 'steps' => $install->steps, 'update' => true];
+        return t('mcp.install.update_changed') . "\n" . $this->toApprove($name, $fetched->revision, $tools);
+    }
+
+    /** Back to the revision before: its folder stays next to the current one. */
+    public function rollback(Member $who, string $name): string {
+        $install = $this->installs->find($name);
+        if ($install === null || $install->previous === null || $install->entry === null || $install->toolsHash === null) {
+            return sprintf(t('mcp.install.no_previous'), $name);
+        }
+        if (!$this->mayChange($who, $install)) {
+            return sprintf(t('mcp.install.not_yours'), $name);
+        }
+        $switched = $this->switchTo($install, $install->previous);
+        if ($switched !== null) {
+            return $switched;
+        }
+        $this->installs->setRevision($name, $install->previous, $install->toolsHash, $install->classes, $install->entry);
+        return sprintf(t('mcp.install.rolled_back'), $name, $install->previous);
+    }
+
+    /** The code, the link and the record go; entries that still name it fail with their reason. */
+    public function remove(Member $who, string $name): string {
+        $install = $this->installs->find($name);
+        if ($install === null) {
+            return sprintf(t('mcp.install.not_installed'), $name);
+        }
+        if (!$this->mayChange($who, $install)) {
+            return sprintf(t('mcp.install.not_yours'), $name);
+        }
+        try {
+            $this->sandbox->exec(0, McpSources::limits(), 'mcp-install', 'rm -f ' . self::quote('mcp/' . $name), '.', 30, new NullCancellation());
+            $this->sandbox->exec($install->holder(), McpSources::limits(), 'mcp-install', 'rm -rf releases current', '.', 120, new NullCancellation());
+        } catch (SandboxFailure $e) {
+            return $e->getMessage();
+        }
+        $this->installs->remove($name);
+        unset($this->pending[$name]);
+        return sprintf(t('mcp.install.removed'), $name);
+    }
+
+    /**
+     * The daily look at the sources: a new revision is marked and said once; nothing updates by itself.
+     *
+     * @return list<array{int, string, string}> installer, name, the new revision
+     */
+    public function checkUpdates(): array {
+        $news = [];
+        foreach ($this->installs->all() as $install) {
+            if ($install->revision === null || !str_starts_with($install->source, 'https://')) {
+                continue;
+            }
+            try {
+                $outcome = $this->sandbox->exec($install->holder(), McpSources::limits(), 'mcp-install', 'git ls-remote -- ' . self::quote($install->source) . ' HEAD', '.', 60, new NullCancellation());
+            } catch (SandboxFailure) {
+                continue;
+            }
+            if ($outcome->exitCode !== 0 || preg_match('~^([0-9a-f]{12})[0-9a-f]*\s+HEAD~m', $outcome->stdout, $m) !== 1) {
+                continue;
+            }
+            if ($m[1] === $install->revision || $m[1] === $install->latest) {
+                continue;
+            }
+            $this->installs->setLatest($install->name, $m[1]);
+            $news[] = [$install->installedBy, $install->name, $m[1]];
+        }
+        return $news;
+    }
+
+    /**
+     * Allows an installed MCP to another context, or takes it back.
+     */
+    public function allow(Member $who, string $name, string $context, bool $allowed): string {
+        $install = $this->installs->find($name);
+        if ($install === null) {
+            return sprintf(t('mcp.install.not_installed'), $name);
+        }
+        if (!$this->mayChange($who, $install)) {
+            return sprintf(t('mcp.install.not_yours'), $name);
+        }
+        if (preg_match('~^(owners|member:\d+|project:\d+)$~', $context) !== 1) {
+            return t('mcp.install.bad_context');
+        }
+        $this->installs->allow($name, $context, $allowed);
+        return sprintf(t($allowed ? 'mcp.install.allowed' : 'mcp.install.disallowed'), $name, $context);
+    }
+
+    /** The installs with their revisions, for the list. */
+    public function list(): string {
+        $lines = [];
+        foreach ($this->installs->all() as $install) {
+            $contexts = $this->installs->contexts($install->name);
+            $lines[] = sprintf(t('mcp.install.line'), $install->name, $install->revision ?? '—', $install->source, $install->installedBy)
+                . ($install->latest !== null && $install->latest !== $install->revision ? sprintf(t('mcp.install.line_update'), $install->latest) : '')
+                . ($contexts === [] ? '' : sprintf(t('mcp.install.line_allowed'), implode(', ', $contexts)));
+        }
+        return $lines === [] ? t('mcp.install.none') : implode("\n", $lines);
+    }
+
+    /**
+     * Whether an entry may run an install in a context: its installer's own, the shared one, or one it was allowed to.
+     */
+    public function allowedIn(string $name, string $context): bool {
+        $install = $this->installs->find($name);
+        return $install === null || $context === 'owners' || $context === 'member:' . $install->installedBy || in_array($context, $this->installs->contexts($name), true);
+    }
+
+    /**
+     * @param list<string> $steps
+     * @return string|null why the steps failed; null — they passed
+     */
+    private function runSteps(McpInstall $install, string $revision, array $steps): ?string {
         try {
             $outcome = $this->sandbox->exec(
                 $install->holder(),
@@ -135,20 +312,66 @@ final class McpInstaller {
         if ($outcome->exitCode !== 0 || $outcome->timedOut) {
             return sprintf(t('mcp.install.steps_failed'), SecretMasker::mask(trim(mb_substr($outcome->stderr . "\n" . $outcome->stdout, -1500))));
         }
-        $server = (new McpServer(0, $name, 'stdio:', null, McpServer::ACTIVE, null, context: 'install'))
+        return null;
+    }
+
+    /**
+     * @return list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>|string
+     *         the tools, or why the start failed
+     */
+    private function tryStart(McpInstall $install, McpRendered $rendered): array|string {
+        $server = (new McpServer(0, $install->name, 'stdio:', null, McpServer::ACTIVE, null, context: 'install'))
             ->withEndpoint($rendered->address, [], $rendered->env, hash('sha256', $rendered->address));
         try {
-            $tools = ($this->trial)($install->holder(), $server);
+            return ($this->trial)($install->holder(), $server);
         } catch (RuntimeException | DomainException $e) {
             return sprintf(t('mcp.install.trial_failed'), McpManager::hide($e->getMessage(), $rendered->values));
         }
-        $this->pending[$name] = ['context' => $context, 'revision' => $revision, 'entry' => self::placed($entry, $install->path() . '/current'), 'tools' => $tools, 'by' => $who->id];
+    }
+
+    /** @param list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $tools */
+    private function toApprove(string $name, string $revision, array $tools): string {
         $lines = [];
         foreach ($tools as $tool) {
             $hint = ($tool['annotations']['readOnlyHint'] ?? null) === true ? t('mcp.install.hint_read') : (($tool['annotations']['destructiveHint'] ?? null) === false ? t('mcp.install.hint_write') : '');
             $lines[] = '• ' . $tool['name'] . $hint . ' — ' . mb_substr(McpManager::clean($tool['description']), 0, 200);
         }
         return sprintf(t('mcp.install.tried'), $name, $revision, count($tools)) . "\n" . implode("\n", $lines) . "\n\n" . sprintf(t('mcp.install.approve_how'), $name);
+    }
+
+    /** @return string|null why the switch failed */
+    private function switchTo(McpInstall $install, string $revision): ?string {
+        try {
+            $this->sandbox->exec($install->holder(), McpSources::limits(), 'mcp-install', 'ln -sfn ' . self::quote('releases/' . $revision) . ' current', '.', 30, new NullCancellation());
+        } catch (SandboxFailure $e) {
+            return $e->getMessage();
+        }
+        return null;
+    }
+
+    /** @param list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $tools */
+    private static function setHash(array $tools): string {
+        $names = array_column($tools, 'name');
+        sort($names);
+        return hash('sha256', implode("\n", $names));
+    }
+
+    /**
+     * The entry with one folder of the code put in for another.
+     *
+     * @param array<array-key, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function moved(array $entry, string $from, string $to): array {
+        $back = [];
+        /** @psalm-suppress MixedAssignment the entry is any JSON; McpEntry checks it */
+        foreach ($entry as $key => $value) {
+            if (is_string($key)) {
+                /** @psalm-suppress MixedAssignment */
+                $back[$key] = is_string($value) ? str_replace($from, self::DIR, $value) : (is_array($value) ? array_map(static fn(mixed $v): mixed => is_string($v) ? str_replace($from, self::DIR, $v) : $v, $value) : $value);
+            }
+        }
+        return self::placed($back, $to);
     }
 
     /**
@@ -171,14 +394,20 @@ final class McpInstaller {
         }
         try {
             $entry = McpEntry::fromArray($name, $pending['entry']);
-            $this->sandbox->exec($install->holder(), McpSources::limits(), 'mcp-install', 'ln -sfn ' . self::quote('releases/' . $pending['revision']) . ' current', '.', 30, new NullCancellation());
-        } catch (InvalidArgumentException | SandboxFailure $e) {
+        } catch (InvalidArgumentException $e) {
             return $e->getMessage();
         }
-        $names = array_column($pending['tools'], 'name');
-        sort($names);
-        $this->installs->setRevision($name, $pending['revision'], hash('sha256', implode("\n", $names)), $classes, $entry->toArray());
+        $switched = $this->switchTo($install, $pending['revision']);
+        if ($switched !== null) {
+            return $switched;
+        }
+        $this->installs->setRevision($name, $pending['revision'], self::setHash($pending['tools']), $classes, $entry->toArray());
+        $this->installs->setSteps($name, $pending['steps']);
         unset($this->pending[$name]);
+        if ($pending['update']) {
+            // the entry is the same: the connections take the new set at their next listing
+            return sprintf(t('mcp.install.updated'), $name, $install->revision ?? '—', $pending['revision']);
+        }
         try {
             $answer = ($this->persist)($pending['context'], $entry, $who);
         } catch (Throwable $e) {

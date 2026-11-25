@@ -95,10 +95,15 @@ final class McpManager {
      * spec: brief/skills-mcp.md#установка-и-обновление — the tools of an installed MCP get the classes its approver set
      *
      * @param Closure(McpServer, string): ?string $classOf read, write or irreversible; null — not an installed MCP
+     * @param (Closure(McpServer): bool)|null $allowedIn whether the installed code may run in the connection's context
      */
-    public function useInstalls(Closure $classOf): void {
+    public function useInstalls(Closure $classOf, ?Closure $allowedIn = null): void {
         $this->installs = $classOf;
+        $this->allowedIn = $allowedIn;
     }
+
+    /** @var (Closure(McpServer): bool)|null whether a connection may run the installed code it names in its context */
+    private ?Closure $allowedIn = null;
 
     /**
      * The contexts whose connections come from a .mcp.json: there a server runs only by an approved entry.
@@ -516,6 +521,10 @@ final class McpManager {
         //       by the address of its approved entry; nothing else of it reaches the network or starts a command
         if (!$approve && $server->approvedHash === null && $server->context !== '' && $this->filed !== null && ($this->filed)($server->context)) {
             throw new DomainException(sprintf(t('mcp.mcp_manager.not_approved'), $server->name));
+        }
+        // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — installed code runs only where allowed
+        if ($this->allowedIn !== null && !($this->allowedIn)($server)) {
+            throw new DomainException(sprintf(t('mcp.install.not_allowed'), $server->name, $server->context));
         }
         [$target, $token, $values] = $this->endpoint($server);
         try {

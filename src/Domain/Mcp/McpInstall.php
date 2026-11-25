@@ -19,6 +19,7 @@ final class McpInstall {
     /**
      * @param array<string, string> $classes tool => read|write|irreversible, as the approver set them
      * @param array<array-key, mixed>|null $entry the entry of .mcp.json the install approved
+     * @param list<string> $steps the steps of the approved plan
      */
     public function __construct(
         public readonly int $id,
@@ -31,6 +32,7 @@ final class McpInstall {
         public readonly array $classes = [],
         public readonly ?array $entry = null,
         public readonly ?string $latest = null,
+        public readonly array $steps = [],
     ) {}
 
     public function holder(): int {

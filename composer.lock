@@ -2896,7 +2896,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/i18n",
-                "reference": "6353cf62794acd3139b203fec2001917beff9d49"
+                "reference": "1b0beefb7af108451a6d1dc3e7ad1c640c0bd52a"
             },
             "require": {
                 "ext-mbstring": "*",
