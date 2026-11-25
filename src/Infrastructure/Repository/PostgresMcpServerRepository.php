@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — connections in contexts, with their state
  */
 final class PostgresMcpServerRepository implements McpServerRepository {
-    private const COLUMNS = 'id, context, name, url, secret, state, tools_hash, reason, tools_include, tools_exclude, extract(epoch FROM next_try)::float8 AS next_try, entry_hash';
+    private const COLUMNS = 'id, context, name, url, secret, state, tools_hash, reason, tools_include, tools_exclude, extract(epoch FROM next_try)::float8 AS next_try, entry_hash, entry::text AS entry';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -71,11 +71,11 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         return $row === null ? null : self::server($row);
     }
 
-    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by): ?McpServer {
+    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer {
         $row = $this->db->execute(
-            'UPDATE mcp_connections SET entry_hash = ?, approved_by = ?, approved_at = CASE WHEN ?::text IS NULL THEN NULL ELSE now() END
+            'UPDATE mcp_connections SET entry_hash = ?, approved_by = ?, approved_at = CASE WHEN ?::text IS NULL THEN NULL ELSE now() END, entry = ?::jsonb
              WHERE context = ? AND name = ? RETURNING ' . self::COLUMNS,
-            [$entryHash, $by, $entryHash, $context, $name],
+            [$entryHash, $by, $entryHash, $entry === null ? null : json_encode($entry, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $context, $name],
         )->fetchRow();
         return $row === null ? null : self::server($row);
     }
@@ -108,6 +108,17 @@ final class PostgresMcpServerRepository implements McpServerRepository {
             context: (string) $str('context'),
             nextTry: self::seconds($row['next_try'] ?? null),
             approvedHash: $str('entry_hash'),
+            entry: self::entry($str('entry')),
         );
+    }
+
+    /** @return array<array-key, mixed>|null */
+    private static function entry(?string $json): ?array {
+        if ($json === null) {
+            return null;
+        }
+        /** @psalm-suppress MixedAssignment the stored entry is any JSON; McpEntry checks it when it is used */
+        $entry = json_decode($json, true);
+        return is_array($entry) ? $entry : null;
     }
 }

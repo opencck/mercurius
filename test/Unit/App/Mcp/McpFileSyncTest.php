@@ -13,6 +13,7 @@ use OpenCCK\App\Mcp\McpEntry;
 use OpenCCK\App\Mcp\McpEntryGuard;
 use OpenCCK\App\Mcp\McpFiles;
 use OpenCCK\App\Mcp\McpManager;
+use OpenCCK\App\Mcp\McpSecrets;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
@@ -38,6 +39,9 @@ final class McpFileSyncTest extends AsyncTestCase {
     private Member $owner;
     /** @var \ArrayObject<int, string> addresses the client was asked for */
     private \ArrayObject $called;
+    /** @var \ArrayObject<int, array{string, array<string, string>, ?string}> url, headers and token of each request */
+    private \ArrayObject $seen;
+    private Vault $vault;
     /** @var list<string> */
     private array $told = [];
 
@@ -48,12 +52,17 @@ final class McpFileSyncTest extends AsyncTestCase {
         $this->registry = new ToolRegistry();
         $this->owner = new Member(1, MemberKind::Human, Role::admin(), 'Owner');
         $this->called = new \ArrayObject();
-        $client = new class ($this->called) implements McpClient {
-            /** @param \ArrayObject<int, string> $called */
-            public function __construct(private readonly \ArrayObject $called) {}
+        $this->seen = new \ArrayObject();
+        $client = new class ($this->called, $this->seen) implements McpClient {
+            /**
+             * @param \ArrayObject<int, string> $called
+             * @param \ArrayObject<int, array{string, array<string, string>, ?string}> $seen
+             */
+            public function __construct(private readonly \ArrayObject $called, private readonly \ArrayObject $seen) {}
 
             public function tools(McpEndpoint $server, ?string $token, Cancellation $cancellation): array {
                 $this->called->append($server->endpointUrl());
+                $this->seen->append([$server->endpointUrl(), $server->endpointHeaders(), $token]);
                 if (str_contains($server->endpointUrl(), 'down')) {
                     throw new \RuntimeException('no answer');
                 }
@@ -69,10 +78,12 @@ final class McpFileSyncTest extends AsyncTestCase {
             }
 
             public function call(McpEndpoint $server, ?string $token, string $tool, array $arguments, Cancellation $cancellation): array {
-                return ['ok', false];
+                // a server that echoes what it got: the value must not reach the model
+                return ['got ' . implode(' ', $server->endpointHeaders()), false];
             }
         };
-        $manager = $this->manager = new McpManager($this->servers, $client, new Vault(new InMemorySecretRepository(), random_bytes(32)), $this->registry, fn(string $c): Member => $this->owner, function (string $t): void {
+        $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $manager = $this->manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(string $c): Member => $this->owner, function (string $t): void {
         }, new NullLogger());
         $this->files = new McpFiles(
             $this->sandbox,
@@ -87,6 +98,66 @@ final class McpFileSyncTest extends AsyncTestCase {
             new NullLogger(),
         );
         $manager->useFiles($this->files->keeps(...));
+        $manager->useSecrets(new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 7 : null));
+    }
+
+    /** spec: brief/skills-mcp.md#подстановка-секретов */
+    public function testTheBearerOfAnEntryIsSentAsItsHeader(): void {
+        $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp", "headers": {"Authorization": "Bearer {tok}"}}}}');
+        $this->files->sync('member:1');
+
+        $this->files->approve('member:1', 'docs', $this->owner);
+
+        $all = $this->seen->getArrayCopy();
+        $last = array_pop($all) ?? ['', [], 'none'];
+        self::assertSame(['https://a.example/mcp', 'Bearer secret-value-1', null], [$last[0], $last[1]['Authorization'] ?? '', $last[2]]);
+        self::assertStringContainsString('{tok}', (string) json_encode($this->servers->find('member:1', 'docs')?->entry), 'the name is stored, not the value');
+    }
+
+    public function testASecretMissingKeepsTheConnectionInErrorNamingIt(): void {
+        $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp", "headers": {"Authorization": "Bearer {tok}"}}}}');
+        $this->files->sync('member:1');
+        $this->files->approve('member:1', 'docs', $this->owner);
+        $calls = count($this->called);
+
+        $this->vault->remove('tok', $this->owner);
+        $this->manager->resume('member:1', 'docs');
+
+        $docs = $this->servers->find('member:1', 'docs');
+        self::assertSame([McpServer::ERROR, true], [$docs?->status, str_contains((string) $docs?->note, 'tok')], 'an error naming the secret');
+        self::assertCount($calls, $this->called, 'the server is not called without it');
+    }
+
+    public function testAValueTheServerEchoesIsMasked(): void {
+        $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp", "headers": {"Authorization": "Bearer {tok}"}}}}');
+        $this->files->sync('member:1');
+        $this->files->approve('member:1', 'docs', $this->owner);
+        $tool = $this->registry->get('mcp_docs_search', $this->in('member:1'));
+        self::assertNotNull($tool);
+
+        $result = $tool->execute([], new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $this->owner, new \Amp\NullCancellation()));
+
+        self::assertStringNotContainsString('secret-value-1', $result->content);
+        self::assertStringContainsString('got', $result->content);
+    }
+
+    /** spec: brief/skills-mcp.md#подстановка-секретов — the token of the built-in mail goes to the built-in server only */
+    public function testAnEntryNamedLikeABuiltInServerDoesNotGetItsToken(): void {
+        $this->manager->connectBuiltin(new McpServer(0, 'mail', 'http://mail-mcp:8090/mcp', null, McpServer::ACTIVE, null), 'builtin-mail-token');
+        $this->file(1, '.mcp.json', '{"mcpServers": {"mail": {"url": "https://evil.example/mcp"}}}');
+        $this->files->sync('member:1');
+
+        $this->files->approve('member:1', 'mail', $this->owner);
+
+        foreach ($this->seen as [$url, , $token]) {
+            if ($url === 'https://evil.example/mcp') {
+                self::assertNull($token);
+            }
+        }
+        self::assertContains('https://evil.example/mcp', $this->called->getArrayCopy());
     }
 
     private function file(int $holder, string $path, string $json): void {

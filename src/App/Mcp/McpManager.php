@@ -42,6 +42,7 @@ final class McpManager {
     /** @var array<string, list<string>> connection key => tool names taken in its context at the last sync */
     private array $taken = [];
 
+    private ?McpSecrets $secrets = null;
     /** @var (Closure(string): bool)|null contexts whose connections come from a .mcp.json */
     private ?Closure $filed = null;
 
@@ -88,6 +89,11 @@ final class McpManager {
      */
     public function useFiles(Closure $filed): void {
         $this->filed = $filed;
+    }
+
+    /** Puts the secrets an approved entry names into it at each start and call. */
+    public function useSecrets(McpSecrets $secrets): void {
+        $this->secrets = $secrets;
     }
 
     public function useOsv(OsvCheck $osv): void {
@@ -333,10 +339,12 @@ final class McpManager {
      */
     public function resources(?string $context, string $name, Cancellation $cancellation): array {
         $server = $this->connectedServer($context, $name);
+        $values = [];
         try {
-            $list = $this->client->resources($server, $this->token($server), $cancellation);
+            [$target, $token, $values] = $this->endpoint($server);
+            $list = $this->client->resources($target, $token, $cancellation);
         } catch (RuntimeException $e) {
-            throw new DomainException($e->getMessage());
+            throw new DomainException(self::hide($e->getMessage(), $values));
         }
         return array_map(static fn(array $r): array => [
             'uri' => $r['uri'],
@@ -349,12 +357,14 @@ final class McpManager {
     /** @throws DomainException */
     public function readResource(?string $context, string $name, string $uri, Cancellation $cancellation): string {
         $server = $this->connectedServer($context, $name);
+        $values = [];
         try {
-            $text = $this->client->readResource($server, $this->token($server), $uri, $cancellation);
+            [$target, $token, $values] = $this->endpoint($server);
+            $text = $this->client->readResource($target, $token, $uri, $cancellation);
         } catch (RuntimeException $e) {
-            throw new DomainException($e->getMessage());
+            throw new DomainException(self::hide($e->getMessage(), $values));
         }
-        return mb_substr(self::clean($text), 0, self::RESOURCE_MAX);
+        return mb_substr(self::hide(self::clean($text), $values), 0, self::RESOURCE_MAX);
     }
 
     /**
@@ -454,17 +464,11 @@ final class McpManager {
         if (!$approve && $server->approvedHash === null && $server->context !== '' && $this->filed !== null && ($this->filed)($server->context)) {
             throw new DomainException(sprintf(t('mcp.mcp_manager.not_approved'), $server->name));
         }
-        $token = $this->token($server);
-        // spec: brief/skills-mcp.md#подстановка-секретов — a secret named but not there: the connection fails naming it
-        // ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L602-L616 (_require_rendered_remote) — a remote
-        //      server is not called with its credential missing (a sure 401 read as a bad key); here a local one neither
-        if ($token === null && $server->secret !== null && !isset($this->builtin[$server->name])) {
-            throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), explode(':', $server->secret, 2)[0], $server->name));
-        }
+        [$target, $token, $values] = $this->endpoint($server);
         try {
-            $tools = $this->client->tools($server, $token, $cancellation);
+            $tools = $this->client->tools($target, $token, $cancellation);
         } catch (RuntimeException $e) {
-            throw new DomainException($e->getMessage());
+            throw new DomainException(self::hide($e->getMessage(), $values));
         }
         $cleaned = [];
         foreach ($tools as $tool) {
@@ -497,7 +501,7 @@ final class McpManager {
                 continue;
             }
             try {
-                $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): ?string => $this->token($server), $this->breaker);
+                $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): array => $this->endpoint($server), $this->breaker);
                 if ($this->sandbox !== null && $this->zone !== null) {
                     $mcpTool->useSandbox($this->sandbox, $this->zone);
                 }
@@ -545,8 +549,54 @@ final class McpManager {
         unset($this->registered[$key]);
     }
 
+    /**
+     * The connection as a start or a call sees it, the token and the values to mask. A built-in server and a connection
+     * kept before entries were stored go by the token of the vault; an approved entry goes with the secrets it names
+     * put in from the layers of its context.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов — a secret named but not there: the connection fails naming it
+     * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L602-L621 (_require_rendered_remote) — a remote
+     *      server is not called with its credential missing (a sure 401 read as a bad key); here a local one neither
+     *
+     * @return array{McpServer, ?string, list<string>}
+     * @throws DomainException
+     */
+    private function endpoint(McpServer $server): array {
+        if ($server->context === '' || $server->entry === null || $this->secrets === null) {
+            $token = $this->token($server);
+            if ($token === null && $server->secret !== null && $server->context !== '') {
+                throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), explode(':', $server->secret, 2)[0], $server->name));
+            }
+            return [$server, $token, []];
+        }
+        try {
+            $entry = McpEntry::fromArray($server->name, $server->entry);
+        } catch (\InvalidArgumentException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        $rendered = $this->secrets->render($entry, $server->context);
+        if ($rendered->missing !== []) {
+            throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), implode(', ', $rendered->missing), $server->name));
+        }
+        return [$server->withEndpoint($rendered->address, $rendered->headers, $rendered->env, $rendered->hash), null, $rendered->values];
+    }
+
+    /**
+     * A text from a server with the values put into its entry masked: a server may echo what it got.
+     *
+     * @param list<string> $values
+     */
+    public static function hide(string $text, #[\SensitiveParameter] array $values): string {
+        $values = array_filter($values, static fn(string $v): bool => strlen($v) >= 4);
+        // the longest first: a value inside another is not left half-shown
+        usort($values, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
+        return $values === [] ? $text : str_replace($values, '***', $text);
+    }
+
     private function token(McpServer $server): ?string {
-        if (isset($this->builtin[$server->name])) {
+        // spec: brief/skills-mcp.md#подстановка-секретов — the token of a built-in server goes to it alone, never to a
+        //       connection of a context that took its name
+        if ($server->context === '' && isset($this->builtin[$server->name])) {
             return $this->builtin[$server->name];
         }
         if ($server->secret === null) {

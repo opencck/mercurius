@@ -39,7 +39,8 @@ interface McpServerRepository {
     /**
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the approved entry is kept by its hash and who approved it
      */
-    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by): ?McpServer;
+    /** @param array<array-key, mixed>|null $entry the approved entry itself, kept to call the server by it */
+    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer;
 
     /** @param string|null $include null — every tool; '' — none */
     public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer;

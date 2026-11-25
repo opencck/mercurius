@@ -140,7 +140,7 @@ final class McpCommands {
             throw new DomainException($e->getMessage());
         }
         // an entry that cannot run is kept waiting and says why
-        return $entry->problem() ?? (new McpEntryGuard())->problem($entry) ?? sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $name, $name);
+        return (new McpEntryGuard())->problem($entry) ?? sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $name, $name);
     }
 
     private function list(string $context): string {

@@ -181,10 +181,10 @@ final class McpFiles {
 
     /** @return bool whether the entry waits for approval */
     private function reconcile(string $context, McpEntry $entry, ?McpServer $server): bool {
-        $problem = $entry->problem() ?? $this->guard->problem($entry);
+        $problem = $this->guard->problem($entry);
         if ($server === null) {
             // a new entry is kept with its address and waits: nothing of it is called before the approval
-            [$url, $secret] = $entry->connection();
+            [$url, $secret] = [$entry->address(), null];
             $server = $this->servers->add($context, $entry->name, $url, $secret);
         }
         if ($problem !== null) {
@@ -196,7 +196,7 @@ final class McpFiles {
             $this->wait($context, $server, $server->approvedHash === null ? '' : t('mcp.files.changed'));
             return !$entry->disabled;
         }
-        [$url, $secret] = $entry->connection();
+        [$url, $secret] = [$entry->address(), null];
         if ($server->url !== $url || $server->secret !== $secret) {
             // the approved entry is the address: a connection kept before files had it written otherwise
             $server = $this->servers->setAddress($context, $entry->name, $url, $secret) ?? $server;
@@ -248,7 +248,7 @@ final class McpFiles {
         foreach ($entries as $name => $entry) {
             $server = $connections[$name];
             if ($server->toolsHash !== null && $server->approvedHash === null && $server->status !== McpServer::PENDING) {
-                $this->servers->setApproval($context, $name, $entry->hash(), null);
+                $this->servers->setApproval($context, $name, $entry->hash(), null, $entry->toArray());
             }
         }
         $this->logger->notice('Connections written to .mcp.json', ['context' => $context, 'count' => count($entries)]);
@@ -306,7 +306,7 @@ final class McpFiles {
         if ($file === null || $entry === null) {
             return $file?->bad[$name] ?? sprintf(t('mcp.files.no_entry'), $name);
         }
-        $problem = $entry->problem() ?? $this->guard->problem($entry);
+        $problem = $this->guard->problem($entry);
         if ($problem !== null) {
             return $problem;
         }
@@ -316,15 +316,18 @@ final class McpFiles {
             $servers[$name] = $entry;
             $this->write($context, $servers);
         }
-        [$url, $secret] = $entry->connection();
+        [$url, $secret] = [$entry->address(), null];
         $server = $this->servers->find($context, $name) ?? $this->servers->add($context, $name, $url, $secret);
         if ($server->url !== $url || $server->secret !== $secret) {
             $this->servers->setAddress($context, $name, $url, $secret);
         }
+        // the entry being approved is what the trial calls, its secrets put in; its hash is not approved until it
+        // worked, so nothing else calls it meanwhile
+        $this->servers->setApproval($context, $name, null, null, $entry->toArray());
         $answer = $this->manager->approve($context, $name, new TimeoutCancellation(60));
         $after = $this->servers->find($context, $name);
         if ($after !== null && in_array($after->status, [McpServer::CONNECTED, McpServer::NAMES], true)) {
-            $this->servers->setApproval($context, $name, $entry->hash(), $by->id);
+            $this->servers->setApproval($context, $name, $entry->hash(), $by->id, $entry->toArray());
         } elseif ($after !== null) {
             $this->servers->setApproval($context, $name, null, null);
             $this->manager->hold($context, $name, McpServer::PENDING, mb_substr($answer, 0, 300));

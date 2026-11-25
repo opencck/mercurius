@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Mcp;
 
+use Closure;
 use InvalidArgumentException;
 use OpenCCK\Domain\Mcp\McpServer;
 
@@ -18,15 +19,13 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/hermes_cli/mcp_config.py@e96221fa:L683-L692 — an entry of hermes is the same url/headers
  *      or command/args/env; its tools.include/exclude and enabled live in the entry. Here the format is Claude Code's
  *      (owner's decision): the switch is `disabled`, the filters of tools stay in the store and are not approved again
- * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L158-L159 (_ENV_VAR_PATTERN) — ${NAME}; a bare {NAME} is
- *      taken too, as the spec writes secrets
+ * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L158-L159 (_ENV_VAR_PATTERN), L571-L600
+ *      (_interpolate_env_vars) — ${NAME} in every string of the entry; a bare {NAME} is taken too, as the spec writes
+ *      secrets. hermes keeps an unset name as it is; here it is named as missing and the server is not called
  */
 final class McpEntry {
-    /** a secret named in a value: {name} or ${name}; a colon is not in a name — it parts the name from a variable */
-    private const SECRET = '~^\$?\{([A-Za-z0-9_.-]{1,64})\}$~';
-    private const BEARER = '~^Bearer \$?\{([A-Za-z0-9_.-]{1,64})\}$~';
-    /** anything like a secret, a colon too: such a value waits, it is not passed as it is */
-    private const ANY_SECRET = '~\$?\{[A-Za-z0-9_.:-]{1,64}\}~';
+    /** a secret named in a value: {NAME} or ${NAME}, the name as /secret keeps it */
+    private const PLACEHOLDER = '~\$?\{([\p{L}\p{N}][\p{L}\p{N}._-]{0,63})\}~u';
     /** a command is one word: a program or a path, nothing a shell would read otherwise */
     private const COMMAND = '~^[A-Za-z0-9_./@+-]{1,200}$~';
 
@@ -118,58 +117,100 @@ final class McpEntry {
     }
 
     /**
-     * What keeps the entry from running now; null — nothing. Until secrets are put in by their binding to an MCP, a
-     * secret is taken from the vault of the context's owner in two places only: the bearer token of a server by url
-     * and one variable of a local one.
+     * The names of secrets the entry asks for, in the order they first appear: url, headers, args, env. The command is
+     * one word without braces, so it never names one.
      *
      * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @return list<string>
      */
-    public function problem(): ?string {
-        $secrets = 0;
-        foreach ([...$this->args, ...($this->command === null ? [] : [$this->command]), ...($this->url === null ? [] : [$this->url])] as $value) {
-            if (preg_match(self::ANY_SECRET, $value) === 1) {
-                return sprintf(t('mcp.file.secret_later'), $this->name);
+    public function placeholders(): array {
+        $names = [];
+        foreach ([...($this->url === null ? [] : [$this->url]), ...array_values($this->headers), ...$this->args, ...array_values($this->env)] as $value) {
+            preg_match_all(self::PLACEHOLDER, $value, $m);
+            foreach ($m[1] as $name) {
+                $names[mb_strtolower($name)] ??= $name;
             }
         }
-        foreach ($this->headers as $header => $value) {
-            if (preg_match(self::ANY_SECRET, $value) === 1 && (strtolower($header) !== 'authorization' || preg_match(self::BEARER, $value) !== 1)) {
-                return sprintf(t('mcp.file.secret_later'), $this->name);
+        return array_values($names);
+    }
+
+    /** A secret in the arguments is seen by other processes of the sandbox in the list of processes: the card warns. */
+    public function secretsInArgs(): bool {
+        foreach ($this->args as $arg) {
+            if (preg_match(self::PLACEHOLDER, $arg) === 1) {
+                return true;
             }
         }
-        foreach ($this->env as $value) {
-            if (preg_match(self::ANY_SECRET, $value) === 1) {
-                if (preg_match(self::SECRET, $value) !== 1 || ++$secrets > 1) {
-                    return sprintf(t('mcp.file.secret_later'), $this->name);
-                }
-            }
-        }
-        return null;
+        return false;
+    }
+
+    /** The address as the file writes it, names of secrets and not their values: for lists and the card. */
+    public function address(): string {
+        return $this->url ?? self::commandLine((string) $this->command, $this->args);
     }
 
     /**
-     * The address and the secret of the connection: an http(s) url, or `stdio:<command and args>`; the secret as the
-     * connection names it (`name`, or `name:VARIABLE` for a local server).
+     * The entry with the secrets put in: the address (an url, or `stdio:` and the command line), the headers and the
+     * environment. A name with no value is left as it is and listed in `missing`; the caller does not call the server
+     * then.
      *
-     * @return array{string, ?string}
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L602-L621 (_require_rendered_remote) — a name left
+     *      unput fails before the call, naming it; here for a local server too
+     *
+     * @param Closure(string): ?string $value the value of a name, null — none
      */
-    public function connection(): array {
-        if ($this->url !== null) {
-            $secret = null;
-            foreach ($this->headers as $header => $value) {
-                if (strtolower($header) === 'authorization' && preg_match(self::BEARER, $value, $m) === 1) {
-                    $secret = $m[1];
-                }
-            }
-            return [$this->url, $secret];
+    public function render(Closure $value): McpRendered {
+        $values = [];
+        $missing = [];
+        $headers = [];
+        foreach ($this->headers as $header => $text) {
+            $headers[$header] = self::put($text, $value, $values, $missing);
         }
-        // the command runs in the Linux sandbox: POSIX quoting, whatever the platform of the application; the command
-        // itself is one word of safe characters and goes as it is (the lookup of its package in OSV reads it so)
-        $command = 'stdio:' . (string) $this->command . implode('', array_map(static fn(string $a): string => " '" . str_replace("'", "'\''", $a) . "'", $this->args));
-        foreach ($this->env as $variable => $value) {
-            if (preg_match(self::SECRET, $value, $m) === 1) {
-                return [$command, $m[1] . ':' . $variable];
-            }
+        $env = [];
+        foreach ($this->env as $variable => $text) {
+            $env[$variable] = self::put($text, $value, $values, $missing);
         }
-        return [$command, null];
+        $args = [];
+        foreach ($this->args as $text) {
+            $args[] = self::put($text, $value, $values, $missing);
+        }
+        $address = $this->url !== null ? self::put($this->url, $value, $values, $missing) : self::commandLine((string) $this->command, $args);
+        $hash = hash('sha256', json_encode([$address, $headers, $env], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return new McpRendered($address, $headers, $env, array_values(array_unique($values)), array_values($missing), $hash);
+    }
+
+    /**
+     * One value of the entry with its names put in; a name with no value stays and is listed.
+     *
+     * @param Closure(string): ?string $value
+     * @param list<string> $values
+     * @param array<string, string> $missing
+     */
+    private static function put(string $text, Closure $value, array &$values, array &$missing): string {
+        if (preg_match_all(self::PLACEHOLDER, $text, $m, PREG_SET_ORDER) === 0) {
+            return $text;
+        }
+        foreach ($m as [$whole, $name]) {
+            $found = $value($name);
+            if ($found === null || $found === '') {
+                $missing[mb_strtolower($name)] ??= $name;
+                continue;
+            }
+            $values[] = $found;
+            $text = str_replace($whole, $found, $text);
+        }
+        return $text;
+    }
+
+    /**
+     * `stdio:` and the command line: the command is one word of safe characters and goes as it is (the lookup of its
+     * package in OSV reads it so); every argument is quoted for the shell of the Linux sandbox, whatever the platform.
+     *
+     * @param list<string> $args
+     */
+    private static function commandLine(string $command, array $args): string {
+        return 'stdio:' . $command . implode('', array_map(static fn(string $a): string => " '" . str_replace("'", "'\\''", $a) . "'", $args));
     }
 }

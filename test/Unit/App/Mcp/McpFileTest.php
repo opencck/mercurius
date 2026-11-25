@@ -25,9 +25,10 @@ final class McpFileTest extends TestCase {
 
         self::assertSame([], $file->errors);
         self::assertSame(['vuetify', 'ssh_prod', 'github', 'old'], array_keys($file->entries));
-        self::assertSame(['https://mcp.vuetifyjs.com/mcp', null], $file->entries['vuetify']->connection());
-        self::assertSame(["stdio:npx '-y' 'ssh-mcp' '--' '--host=10.0.0.1'", 'prod-password:SSH_MCP_PASSWORD'], $file->entries['ssh_prod']->connection());
-        self::assertSame(['https://api.example.com/mcp', 'gh-token'], $file->entries['github']->connection());
+        self::assertSame('https://mcp.vuetifyjs.com/mcp', $file->entries['vuetify']->address());
+        self::assertSame("stdio:npx '-y' 'ssh-mcp' '--' '--host=10.0.0.1'", $file->entries['ssh_prod']->address());
+        self::assertSame(['prod-password'], $file->entries['ssh_prod']->placeholders());
+        self::assertSame(['gh-token'], $file->entries['github']->placeholders());
         self::assertTrue($file->entries['old']->disabled);
     }
 
@@ -50,11 +51,35 @@ final class McpFileTest extends TestCase {
         self::assertNotSame([], McpFile::parse('{not json')->errors);
     }
 
-    public function testASecretOnlyWhereItCanBeUsedBeforeStageFour(): void {
-        $inArgs = McpEntry::fromArray('x', ['command' => 'node', 'args' => ['--token={tok}']]);
+    /** spec: brief/skills-mcp.md#подстановка-секретов — a name in braces anywhere but the command */
+    public function testSecretsArePutInEverywhereAndQuotedInTheCommand(): void {
+        $entry = McpEntry::fromArray('x', [
+            'command' => 'node',
+            'args' => ['--token={tok}', '${Другой}', '{"json":1}'],
+            'env' => ['TOKEN' => '{tok}', 'PLAIN' => 'value'],
+        ]);
+        $values = ['tok' => "it's", 'другой' => 'b c'];
 
-        self::assertNotNull($inArgs->problem(), 'a secret in args waits for the substitution of secrets');
-        self::assertNull(McpEntry::fromArray('x', ['command' => 'node', 'env' => ['TOKEN' => '{tok}']])->problem());
+        $rendered = $entry->render(static fn(string $name): ?string => $values[mb_strtolower($name)] ?? null);
+
+        self::assertSame(['tok', 'Другой'], $entry->placeholders());
+        self::assertTrue($entry->secretsInArgs());
+        self::assertSame("stdio:node '--token=it'\''s' 'b c' '{\"json\":1}'", $rendered->address);
+        self::assertSame(['TOKEN' => "it's", 'PLAIN' => 'value'], $rendered->env);
+        self::assertSame([], $rendered->missing);
+        self::assertSame(["it's", 'b c'], $rendered->values);
+        self::assertFalse(McpEntry::fromArray('x', ['command' => 'node', 'env' => ['T' => '{tok}']])->secretsInArgs());
+    }
+
+    public function testAMissingNameIsNamedAndTheUrlAndHeadersArePutIn(): void {
+        $entry = McpEntry::fromArray('x', ['url' => 'https://a.example/mcp?key={key}', 'headers' => ['Authorization' => 'Bearer {tok}', 'X-Other' => '{gone}']]);
+
+        $rendered = $entry->render(static fn(string $name): ?string => ['key' => 'k1', 'tok' => 't1'][$name] ?? null);
+
+        self::assertSame('https://a.example/mcp?key=k1', $rendered->address);
+        self::assertSame(['Authorization' => 'Bearer t1'], array_intersect_key($rendered->headers, ['Authorization' => true]));
+        self::assertSame(['gone'], $rendered->missing);
+        self::assertNotSame($rendered->hash, $entry->render(static fn(string $name): ?string => ['key' => 'k2', 'tok' => 't1'][$name] ?? null)->hash, 'another value is another process');
     }
 
     public function testTheFileIsWrittenBackInItsFormat(): void {
@@ -98,13 +123,9 @@ final class McpFileTest extends TestCase {
             } catch (\InvalidArgumentException) {
             }
         }
-        self::assertSame("stdio:/usr/bin/node 'a b'", McpEntry::fromArray('x', ['command' => '/usr/bin/node', 'args' => ['a b']])->connection()[0]);
+        self::assertSame("stdio:/usr/bin/node 'a b'", McpEntry::fromArray('x', ['command' => '/usr/bin/node', 'args' => ['a b']])->address());
     }
 
-    public function testASecretNameHasNoColon(): void {
-        self::assertNotNull(McpEntry::fromArray('x', ['url' => 'https://a.example/mcp', 'headers' => ['Authorization' => 'Bearer {a:VAR}']])->problem());
-        self::assertNotNull(McpEntry::fromArray('x', ['command' => 'node', 'env' => ['T' => '{a:b}']])->problem());
-    }
 
     public function testABrokenFileIsToldFromAnEmptyOne(): void {
         foreach (['', '{}', '[1]', '{not json', '{"mcpServers": 5}'] as $text) {

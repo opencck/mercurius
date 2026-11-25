@@ -27,8 +27,12 @@ use function Mercurius\I18n\t;
 /**
  * MCP over stdio of a process in the sandbox. The server's url is `stdio:<command>`; the process runs as a sandbox user
  * of its own (PRINCIPAL_BASE + the server's id), not the owner's, so the owner's commands cannot read its environment.
- * The token goes into the environment variable named after the secret (`secret:VARIABLE`, MCP_TOKEN by default).
- * One process serves every request to the server; it is started at the first one and again after it ended.
+ * A connection of an entry starts with the environment of the entry, its secrets put in; a connection kept before
+ * entries were stored puts its token into the variable named after the secret (`secret:VARIABLE`, MCP_TOKEN by
+ * default). One process serves every request to the server; it is started at the first one, again after it ended, and
+ * again when the entry with its secrets put in is another (a secret changed).
+ *
+ * spec: brief/skills-mcp.md#подстановка-секретов — another value of a secret is another process
  *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — stdio servers in the sandbox, not in `app`
  * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L199-L221 (_build_safe_env) — a filtered environment
@@ -45,6 +49,8 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
     private array $sessions = [];
     /** @var array<string, Future<StdioSession>> starts in progress */
     private array $opening = [];
+    /** @var array<string, string> by server name: what the running process was started with */
+    private array $started = [];
 
     /** @param (Closure(string): void)|null $onToolsChanged a server said its tools changed */
     public function __construct(
@@ -76,7 +82,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
             throw new \RuntimeException('stdio needs a registered server');
         }
         $session = $this->sessions[$server->key()] ?? null;
-        if ($session !== null && $session->alive()) {
+        if ($session !== null && $session->alive() && ($this->started[$server->key()] ?? '') === self::startedWith($server)) {
             return $session;
         }
         // concurrent first requests start one process
@@ -107,7 +113,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
     private function open(McpServer $server, ?string $token): StdioSession {
         $this->forget($server->key());
         $command = trim(substr($server->url, strlen(self::PREFIX)));
-        $env = $token === null ? [] : [self::envName($server->secret) => $token];
+        $env = $server->renderedHash !== null ? $server->env : ($token === null ? [] : [self::envName($server->secret) => $token]);
         $principal = self::PRINCIPAL_BASE + $server->id;
         try {
             $id = $this->sandbox->spawn($principal, $this->limits, $command, $env, new TimeoutCancellation(60));
@@ -123,6 +129,12 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
             throw $e;
         }
         $this->logger->info('MCP stdio server started', ['server' => $server->key()]);
+        $this->started[$server->key()] = self::startedWith($server);
         return $this->sessions[$server->key()] = $session;
+    }
+
+    /** What tells one start from another: the entry with its secrets put in, or the command of an older connection. */
+    private static function startedWith(McpServer $server): string {
+        return $server->renderedHash ?? $server->url;
     }
 }

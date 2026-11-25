@@ -51,6 +51,20 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
         public readonly ?float $nextTry = null,
         /** the hash of the .mcp.json entry that was approved; null — none was */
         public readonly ?string $approvedHash = null,
+        /**
+         * The approved entry itself: the server is called by it, with the secrets it names put in at the call.
+         *
+         * @var array<array-key, mixed>|null
+         */
+        public readonly ?array $entry = null,
+        /**
+         * The environment of a local server with its secrets put in: of one start, never stored.
+         *
+         * @var array<string, string>
+         */
+        public readonly array $env = [],
+        /** the hash of the entry with its secrets put in: another value is another process */
+        public readonly ?string $renderedHash = null,
     ) {}
 
     /** The connection inside the application: its context and name; a built-in server — its name. */
@@ -65,7 +79,7 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
 
     /** The same connection in another state. */
     public function withState(string $state, string $reason = '', ?float $nextTry = null): self {
-        return new self($this->id, $this->name, $this->url, $this->secret, $state, $this->toolsHash, $reason, $this->headers, $this->include, $this->exclude, $this->context, $nextTry, $this->approvedHash);
+        return new self($this->id, $this->name, $this->url, $this->secret, $state, $this->toolsHash, $reason, $this->headers, $this->include, $this->exclude, $this->context, $nextTry, $this->approvedHash, $this->entry, $this->env, $this->renderedHash);
     }
 
     /**
@@ -97,7 +111,26 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
      * @param array<non-empty-string, string> $headers
      */
     public function withHeaders(#[\SensitiveParameter] array $headers): self {
-        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude, $this->context, $this->nextTry, $this->approvedHash);
+        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude, $this->context, $this->nextTry, $this->approvedHash, $this->entry, $this->env, $this->renderedHash);
+    }
+
+    /**
+     * The same connection as one start or call sees it: the address, headers and environment of its approved entry
+     * with the secrets put in.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @param array<string, string> $headers
+     * @param array<string, string> $env
+     */
+    public function withEndpoint(#[\SensitiveParameter] string $url, #[\SensitiveParameter] array $headers, #[\SensitiveParameter] array $env, string $hash): self {
+        $sent = [];
+        foreach ($headers as $header => $value) {
+            if ($header !== '') {
+                $sent[$header] = $value;
+            }
+        }
+        return new self($this->id, $this->name, $url, null, $this->status, $this->toolsHash, $this->note, $sent, $this->include, $this->exclude, $this->context, $this->nextTry, $this->approvedHash, $this->entry, $env, $hash);
     }
 
     public function endpointName(): string {

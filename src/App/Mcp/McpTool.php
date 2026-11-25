@@ -28,7 +28,8 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
     /**
      * @param array<array-key, mixed> $schema
      * @param array<array-key, mixed> $annotations
-     * @param Closure(): ?string $token the server's bearer token, from the vault, at call time
+     * @param Closure(): (string|null|array{McpServer, ?string, list<string>}) $token at call time: the bearer token of a
+     *        built-in server, or the connection with its secrets put in, the token and the values to mask
      */
     public function __construct(
         private readonly McpServer $server,
@@ -238,7 +239,6 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
      * @param array<non-empty-string, string>|null $headers null — the headers of the server
      */
     public function executeWith(array $args, ToolContext $context, #[\SensitiveParameter] ?array $headers): ToolResult {
-        $server = $headers === null ? $this->server : $this->server->withHeaders($headers);
         $refusal = $this->breaker->refusal($this->server->key());
         if ($refusal !== null) {
             return ToolResult::error($refusal);
@@ -250,20 +250,27 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
             }
             $args['files'] = $files;
         }
+        $values = [];
         try {
-            $answer = $this->client->call($server, ($this->token)(), $this->remoteName, $args, $context->cancellation);
+            /** @var string|null|array{McpServer, ?string, list<string>} $endpoint */
+            $endpoint = ($this->token)();
+            [$server, $token, $values] = is_array($endpoint) ? $endpoint : [$this->server, $endpoint, []];
+            $server = $headers === null ? $server : $server->withHeaders($headers);
+            $answer = $this->client->call($server, $token, $this->remoteName, $args, $context->cancellation);
             [$text, $error] = $answer;
             $returned = $answer[2] ?? [];
+        } catch (\DomainException $e) {
+            return ToolResult::error(McpManager::hide($e->getMessage(), $values));
         } catch (RuntimeException $e) {
             $this->breaker->failed($this->server->key(), false);
-            return ToolResult::error($e->getMessage());
+            return ToolResult::error(McpManager::hide($e->getMessage(), $values));
         }
         if ($error) {
             $this->breaker->failed($this->server->key(), true);
         } else {
             $this->breaker->succeeded($this->server->key());
         }
-        $text = SecretMasker::mask(McpManager::clean($text));
+        $text = SecretMasker::mask(McpManager::hide(McpManager::clean($text), $values));
         $kept = $returned === [] ? '' : $this->keep($returned, $context);
         $text = $kept === '' ? $text : trim($text . "\n" . $kept);
         return $error ? ToolResult::error($text === '' ? t('mcp.mcp_tool.instrument_mcp_soobschil_ob_oshibke') : $text) : ToolResult::ok($text === '' ? t('mcp.mcp_tool.pusto') : $text);
