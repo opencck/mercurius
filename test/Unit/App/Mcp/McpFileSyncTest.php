@@ -42,6 +42,7 @@ final class McpFileSyncTest extends AsyncTestCase {
     /** @var \ArrayObject<int, array{string, array<string, string>, ?string}> url, headers and token of each request */
     private \ArrayObject $seen;
     private Vault $vault;
+    private McpClient $client;
     private \OpenCCK\Test\Support\FakeChannel $channel;
     private ?\OpenCCK\App\Mcp\McpEntryCards $cards = null;
     /** @var list<string> */
@@ -87,6 +88,7 @@ final class McpFileSyncTest extends AsyncTestCase {
                 return ['got ' . implode(' ', $server->endpointHeaders()), false];
             }
         };
+        $this->client = $client;
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $manager = $this->manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(string $c): Member => $this->owner, function (string $t): void {
         }, new NullLogger());
@@ -131,6 +133,23 @@ final class McpFileSyncTest extends AsyncTestCase {
 
     private function press(string $data, string $who): void {
         $this->cards?->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'c' . mt_rand(), '42', $who, null, '1', $data, 'u' . mt_rand()));
+    }
+
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — an entry approved from its file starts from the cache */
+    public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"local": {"command": "npx", "args": ["-y", "some-mcp"]}}}');
+        $this->files->sync('member:1');
+        $this->files->approve('member:1', 'local', $this->owner);
+        self::assertSame(McpServer::CONNECTED, $this->servers->find('member:1', 'local')?->status);
+        $calls = count($this->called);
+
+        $registry = new ToolRegistry();
+        $restarted = new McpManager($this->servers, $this->client, $this->vault, $registry, fn(string $c): Member => $this->owner, static function (string $t): void {}, new NullLogger());
+        $restarted->useFiles($this->files->keeps(...));
+        $restarted->connectAll();
+
+        self::assertCount($calls, $this->called, 'no listing, no process');
+        self::assertNotNull($registry->get('mcp_local_search', $this->in('member:1')));
     }
 
     /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a refused login is not tried again */

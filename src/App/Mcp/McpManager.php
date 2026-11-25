@@ -604,8 +604,18 @@ final class McpManager {
         return $server->context !== '' && str_starts_with($server->url, 'stdio:');
     }
 
-    /** What the kept tools were listed by: the approved entry, or the command of a connection without one. */
+    /**
+     * What the kept tools were listed by: the hash of the stored entry (the same while it is being approved and after),
+     * or the command of a connection without one.
+     */
     private static function listedBy(McpServer $server): string {
+        if ($server->entry !== null) {
+            try {
+                return McpEntry::fromArray($server->name, $server->entry)->hash();
+            } catch (\InvalidArgumentException) {
+                // a stored entry that no longer reads: the command stands for it
+            }
+        }
         return $server->approvedHash ?? $server->url;
     }
 
