@@ -35,7 +35,7 @@ final class PostgresSecretRepository implements SecretRepository {
     }
 
     public function find(string $name): ?array {
-        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM secrets WHERE lower(name) = lower(?) AND project_id IS NULL', [$name])->fetchRow();
+        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM secrets WHERE lower(name) = lower(?) AND project_id IS NULL AND NOT agent', [$name])->fetchRow();
         return $row === null ? null : self::secret($row);
     }
 
@@ -46,7 +46,7 @@ final class PostgresSecretRepository implements SecretRepository {
 
     public function all(): array {
         $found = [];
-        foreach ($this->db->query('SELECT id, name, kind, principal_id FROM secrets WHERE project_id IS NULL ORDER BY lower(name)') as $row) {
+        foreach ($this->db->query('SELECT id, name, kind, principal_id FROM secrets WHERE project_id IS NULL AND NOT agent ORDER BY lower(name)') as $row) {
             $id = $row['id'] ?? null;
             $name = $row['name'] ?? null;
             $kind = $row['kind'] ?? null;
@@ -60,13 +60,13 @@ final class PostgresSecretRepository implements SecretRepository {
 
     public function replace(string $name, string $kind, string $nonce, string $ciphertext): bool {
         return $this->db->execute(
-            'UPDATE secrets SET kind = ?, nonce = ?, ciphertext = ? WHERE lower(name) = lower(?) AND project_id IS NULL RETURNING id',
+            'UPDATE secrets SET kind = ?, nonce = ?, ciphertext = ? WHERE lower(name) = lower(?) AND project_id IS NULL AND NOT agent RETURNING id',
             [$kind, new PostgresByteA($nonce), new PostgresByteA($ciphertext), $name],
         )->fetchRow() !== null;
     }
 
     public function delete(string $name): bool {
-        return $this->db->execute('DELETE FROM secrets WHERE lower(name) = lower(?) AND project_id IS NULL RETURNING id', [$name])->fetchRow() !== null;
+        return $this->db->execute('DELETE FROM secrets WHERE lower(name) = lower(?) AND project_id IS NULL AND NOT agent RETURNING id', [$name])->fetchRow() !== null;
     }
 
     public function storeIn(int $projectId, string $site, string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int {
@@ -139,5 +139,46 @@ final class PostgresSecretRepository implements SecretRepository {
             'ciphertext' => (string) base64_decode(str_replace("\n", '', $ciphertext), true),
             'principal' => isset($row['principal_id']) && is_int($row['principal_id']) ? $row['principal_id'] : null,
         ];
+    }
+
+    public function findAgent(string $name): ?array {
+        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM secrets WHERE lower(name) = lower(?) AND agent', [$name])->fetchRow();
+        return $row === null ? null : self::secret($row);
+    }
+
+    public function storeAgent(string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int {
+        try {
+            $row = $this->db->execute(
+                'INSERT INTO secrets (name, kind, nonce, ciphertext, principal_id, agent) VALUES (?, ?, ?, ?, ?, true) RETURNING id',
+                [$name, $kind, new PostgresByteA($nonce), new PostgresByteA($ciphertext), $principalId],
+            )->fetchRow();
+        } catch (SqlQueryError) {
+            throw new DomainException(sprintf(t('repository.postgres_secret.sekret_uzhe_est'), $name));
+        }
+        $id = $row['id'] ?? null;
+        return is_int($id) ? $id : throw new UnexpectedValueException('Secret was not stored');
+    }
+
+    public function replaceAgent(string $name, string $kind, string $nonce, string $ciphertext): bool {
+        return $this->db->execute(
+            'UPDATE secrets SET kind = ?, nonce = ?, ciphertext = ? WHERE lower(name) = lower(?) AND agent RETURNING id',
+            [$kind, new PostgresByteA($nonce), new PostgresByteA($ciphertext), $name],
+        )->fetchRow() !== null;
+    }
+
+    public function deleteAgent(string $name): bool {
+        return $this->db->execute('DELETE FROM secrets WHERE lower(name) = lower(?) AND agent RETURNING id', [$name])->fetchRow() !== null;
+    }
+
+    public function ofAgent(): array {
+        $found = [];
+        foreach ($this->db->query('SELECT name, kind FROM secrets WHERE agent ORDER BY lower(name)') as $row) {
+            $name = $row['name'] ?? null;
+            $kind = $row['kind'] ?? null;
+            if (is_string($name) && is_string($kind)) {
+                $found[] = ['name' => $name, 'kind' => $kind];
+            }
+        }
+        return $found;
     }
 }

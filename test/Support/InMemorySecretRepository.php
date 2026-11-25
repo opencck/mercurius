@@ -103,4 +103,47 @@ final class InMemorySecretRepository implements SecretRepository {
         unset($this->projectSecrets[$secret['id']]);
         return true;
     }
+
+    /** @var array<int, array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}> */
+    public array $agentSecrets = [];
+
+    public function findAgent(string $name): ?array {
+        foreach ($this->agentSecrets as $secret) {
+            if (mb_strtolower($secret['name']) === mb_strtolower($name)) {
+                return $secret;
+            }
+        }
+        return null;
+    }
+
+    public function storeAgent(string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int {
+        if ($this->findAgent($name) !== null) {
+            throw new DomainException(sprintf('Секрет «%s» уже есть.', $name));
+        }
+        $id = 5000 + count($this->agentSecrets) + 1;
+        $this->agentSecrets[$id] = ['id' => $id, 'name' => $name, 'kind' => $kind, 'nonce' => $nonce, 'ciphertext' => $ciphertext, 'principal' => $principalId];
+        return $id;
+    }
+
+    public function replaceAgent(string $name, string $kind, string $nonce, string $ciphertext): bool {
+        $secret = $this->findAgent($name);
+        if ($secret === null) {
+            return false;
+        }
+        $this->agentSecrets[$secret['id']] = ['kind' => $kind, 'nonce' => $nonce, 'ciphertext' => $ciphertext] + $secret;
+        return true;
+    }
+
+    public function deleteAgent(string $name): bool {
+        $secret = $this->findAgent($name);
+        if ($secret === null) {
+            return false;
+        }
+        unset($this->agentSecrets[$secret['id']]);
+        return true;
+    }
+
+    public function ofAgent(): array {
+        return array_values(array_map(static fn(array $s): array => ['name' => $s['name'], 'kind' => $s['kind']], $this->agentSecrets));
+    }
 }

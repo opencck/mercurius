@@ -21,6 +21,10 @@ use function Mercurius\I18n\t;
  */
 final class Vault {
     public const KINDS = ['password', 'private_key', 'token'];
+    /** where a value named in an entry of .mcp.json came from: the narrowest layer of the context that has the name */
+    public const LAYER_PROJECT = 'project';
+    public const LAYER_OWNER = 'owner';
+    public const LAYER_AGENT = 'agent';
     public const NAME_PATTERN = '~^[\p{L}\p{N}][\p{L}\p{N}._-]{0,63}$~u';
     public const VALUE_MAX = 16_384;
 
@@ -88,16 +92,7 @@ final class Vault {
      * @throws DomainException when the vault is off, the name, site or value is wrong
      */
     public function putProject(int $projectId, string $name, string $site, #[SensitiveParameter] string $value, Member $author): bool {
-        $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
-        if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
-        }
-        if ($value === '' || strlen($value) > self::VALUE_MAX) {
-            throw new DomainException(t('vault.vault.pustoy_ili_slishkom_dlinnyy_sekret'));
-        }
-        $kind = str_starts_with($value, '-----BEGIN') ? 'private_key' : 'password';
-        $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        $cipher = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key);
+        [$kind, $nonce, $cipher] = $this->seal($name, $value);
         if ($this->secrets->findIn($name, $projectId) !== null) {
             $this->secrets->replaceIn($name, $projectId, $site, $kind, $nonce, $cipher);
             return true;
@@ -109,6 +104,77 @@ final class Vault {
     /** @return list<array{name: string, kind: string, site: string}> the names and sites of a project's secrets, never values */
     public function projectNames(int $projectId): array {
         return $this->secrets->ofProject($projectId);
+    }
+
+    /**
+     * Keeps a secret of the agent, the widest layer; the same name again takes the new value. True when it was there
+     * before. The caller has checked that the author is an owner of the agent.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @throws DomainException when the vault is off, the name or value is wrong
+     */
+    public function putAgent(string $name, #[SensitiveParameter] string $value, Member $author): bool {
+        [$kind, $nonce, $cipher] = $this->seal($name, $value);
+        if ($this->secrets->replaceAgent($name, $kind, $nonce, $cipher)) {
+            return true;
+        }
+        $this->secrets->storeAgent($name, $kind, $nonce, $cipher, $author->id);
+        return false;
+    }
+
+    /** @return list<array{name: string, kind: string}> the names of the agent's secrets, never values */
+    public function agentNames(): array {
+        return $this->secrets->ofAgent();
+    }
+
+    public function removeAgent(string $name): bool {
+        return $this->secrets->deleteAgent($name);
+    }
+
+    /**
+     * The value an entry of .mcp.json gets by a name, from the narrowest layer of its context that has it: the
+     * project, the owner of the context (of the project, or the member of a personal context), the agent. Null — no
+     * layer has it. Only code that calls the server asks; the value is remembered for masking.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @return array{string, string}|null the value and its layer
+     */
+    public function layered(string $name, ?int $projectId, int $ownerId): ?array {
+        $project = $projectId === null ? null : $this->decrypt($this->secrets->findIn($name, $projectId));
+        if ($project !== null && $project !== '') {
+            return [(string) self::known($project), self::LAYER_PROJECT];
+        }
+        $personal = $this->secrets->find($name);
+        $owned = $personal !== null && $personal['principal'] === $ownerId ? $this->decrypt($personal) : null;
+        if ($owned !== null && $owned !== '') {
+            return [(string) self::known($owned), self::LAYER_OWNER];
+        }
+        $agent = $this->decrypt($this->secrets->findAgent($name));
+        if ($agent !== null && $agent !== '') {
+            return [(string) self::known($agent), self::LAYER_AGENT];
+        }
+        return null;
+    }
+
+    /**
+     * The kind, nonce and ciphertext of a value under a name.
+     *
+     * @return array{string, string, string}
+     * @throws DomainException
+     */
+    private function seal(string $name, #[SensitiveParameter] string $value): array {
+        $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
+        if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+            throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
+        }
+        if ($value === '' || strlen($value) > self::VALUE_MAX) {
+            throw new DomainException(t('vault.vault.pustoy_ili_slishkom_dlinnyy_sekret'));
+        }
+        $kind = str_starts_with($value, '-----BEGIN') ? 'private_key' : 'password';
+        $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+        return [$kind, $nonce, sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($value, mb_strtolower($name), $nonce, $key)];
     }
 
     public function removeProject(string $name, int $projectId): bool {

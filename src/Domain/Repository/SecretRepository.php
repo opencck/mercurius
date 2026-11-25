@@ -45,4 +45,22 @@ interface SecretRepository {
     public function replaceIn(string $name, int $projectId, string $site, string $kind, string $nonce, string $ciphertext): bool;
 
     public function deleteIn(string $name, int $projectId): bool;
+
+    /**
+     * Secrets of the agent: the widest layer, kept by the owners of the agent; an agent secret and a personal one may
+     * share a name.
+     *
+     * @return array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null
+     */
+    public function findAgent(string $name): ?array;
+
+    /** @throws DomainException when an agent secret with this name exists */
+    public function storeAgent(string $name, string $kind, string $nonce, string $ciphertext, ?int $principalId): int;
+
+    public function replaceAgent(string $name, string $kind, string $nonce, string $ciphertext): bool;
+
+    public function deleteAgent(string $name): bool;
+
+    /** @return list<array{name: string, kind: string}> */
+    public function ofAgent(): array;
 }
