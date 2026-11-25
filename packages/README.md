@@ -30,7 +30,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 |--------|---------|--------|-----------|---------|------------|
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `a43658e` | 2026-11-21 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `589ffc3` | 2026-11-21 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `3d5c7a6` | 2026-11-25 | `browser` | Chromium с окном под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `8018656` | 2026-11-25 | `browser` | Chromium с окном под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
@@ -51,6 +51,9 @@ compose, по умолчанию выключен ([Модули: сервисы
 ## Журнал
 
 ### 2026-11-25 — Браузер с окном
+
+- `mercurius-browser` `3d5c7a6` → `8018656`: замок профиля прошлого запуска снимается перед стартом — браузер с окном
+  на нём висел, и сохранённые профили не открывались после перезапуска контейнера.
 
 - `mercurius-browser` `61c656f` → `3d5c7a6`: номера получают и элементы с нажимаемыми ролями ARIA (пункт меню,
   вкладка, вариант, флажок).
