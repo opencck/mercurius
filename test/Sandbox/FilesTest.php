@@ -79,10 +79,14 @@ final class FilesTest extends SandboxTestCase {
         self::assertSame('5000002', trim($this->sh(7, 'stat -c %s large')->stdout));
     }
 
-    public function testNewFilesAreOwnerOnly(): void {
+    /** spec: brief/agent-loop.md#раскладка-каталогов — a new file is the member's and, by ACL, the owners' area's only */
+    public function testNewFilesAreTheMembersAndTheOwnersOnly(): void {
         $this->files->write(7, self::limits(), 'private.txt', 'x');
 
-        self::assertSame('600', trim($this->sh(7, 'stat -c %a private.txt')->stdout));
+        $acl = $this->sh(7, 'getfacl -cp private.txt')->stdout;
+        self::assertStringContainsString('other::---', $acl, 'nobody else');
+        self::assertStringContainsString('user:19999:rw', $acl, 'the owners\' area');
+        self::assertSame(1, preg_match_all('~^user:\d+:~m', $acl), 'no other named user');
     }
 
     public function testPathOutsideHomeIsRefused(): void {
