@@ -237,7 +237,7 @@ $chat = new ChatService(
     new ProjectCommands($projectRepository),
     $serverCommands = new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
-    new McpCommands($mcpManager, $mcpServers, $mcpFiles),
+    new McpCommands($mcpManager, $mcpServers, $mcpFiles, static fn(int $project): ?int => $skillProjects->find($project)?->ownerId),
     new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
     // spec: brief/operations.md#как-сделано-поставка — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...), $mcpServers->all(...)),

@@ -19,9 +19,10 @@ use function Mercurius\I18n\t;
 
 /**
  * The .mcp.json of a context and its connections. The file lies in the sandbox, where a command of the agent or a
- * member of the project may rewrite it, so an entry is a request: it runs only while its hash is the approved one. A
- * new or changed entry waits for approval, an entry the guard refuses is an error, an entry turned off or taken out
- * stops its connection. Commands write the file themselves and the reading follows at once.
+ * member of the project may rewrite it, so an entry is a request: a server is called only by the address of an entry
+ * whose hash is the approved one. A new, changed or refused entry waits, with no network and no command; an entry
+ * turned off or taken out stops its connection; a file that cannot be read changes nothing. Commands write the file
+ * themselves and the reading follows at once.
  *
  * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
  * ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L660-L687 (_filter_suspicious_mcp_servers) — the entry
@@ -64,8 +65,16 @@ final class McpFiles {
         return null;
     }
 
-    /** The file of the context; null — no file there (or no sandbox to read it from). */
-    public function read(string $context): ?McpFile {
+    /** Whether the context keeps its connections in a file: then they run only by an approved entry. */
+    public function keeps(string $context): bool {
+        $at = $this->where($context);
+        return $at !== null && ($this->limitsOf)($at[0]) !== null;
+    }
+
+    /**
+     * The file of the context: null — there is none; false — there is one, but it was not read.
+     */
+    private function load(string $context): McpFile|false|null {
         $at = $this->where($context);
         $limits = $at === null ? null : ($this->limitsOf)($at[0]);
         if ($at === null || $limits === null) {
@@ -74,18 +83,43 @@ final class McpFiles {
         try {
             return McpFile::parse($this->sandbox->fetch($at[0], $limits, $at[1], McpFile::MAX_BYTES, new TimeoutCancellation(15)));
         } catch (Throwable) {
-            return null;
         }
+        // not fetched: a file that is not in its folder is missing, one that is there was not read
+        try {
+            $folder = dirname($at[1]);
+            foreach ($this->sandbox->list($at[0], $limits, $folder, 1, new TimeoutCancellation(15)) as $item) {
+                if ($item['path'] === McpFile::NAME) {
+                    return false;
+                }
+            }
+        } catch (Throwable) {
+            // no folder yet (a project not set up): no file in it either
+        }
+        return null;
     }
 
-    /** @param array<string, McpEntry> $entries */
-    private function write(string $context, array $entries): void {
+    /**
+     * The file for a command to change; refused when it is there but not read, so a command never writes over what it
+     * did not see. Null — there is no file yet.
+     *
+     * @throws InvalidArgumentException
+     */
+    private function readable(string $context): ?McpFile {
+        $file = $this->load($context);
+        if ($file === false || $file?->broken === true) {
+            throw new InvalidArgumentException(t('mcp.files.unreadable'));
+        }
+        return $file;
+    }
+
+    /** @param array<array-key, mixed> $servers */
+    private function write(string $context, array $servers): void {
         $at = $this->where($context);
         $limits = $at === null ? null : ($this->limitsOf)($at[0]);
         if ($at === null || $limits === null) {
             throw new InvalidArgumentException(t('mcp.files.no_place'));
         }
-        $this->sandbox->write($at[0], $limits, $at[1], McpFile::render($entries), new TimeoutCancellation(15));
+        $this->sandbox->write($at[0], $limits, $at[1], McpFile::render($servers), new TimeoutCancellation(15));
     }
 
     /**
@@ -94,20 +128,24 @@ final class McpFiles {
      * @return list<string> names of the entries that wait for approval
      */
     public function sync(string $context): array {
-        $at = $this->where($context);
-        if ($at === null || ($this->limitsOf)($at[0]) === null) {
+        if (!$this->keeps($context)) {
             // no folder to keep a file in (no sandbox for this member): the connections stay as they are
             return [];
         }
-        $file = $this->read($context);
+        $file = $this->load($context);
         $connections = [];
         foreach ($this->servers->inContext($context) as $server) {
             $connections[$server->name] = $server;
         }
         if ($file === null) {
-            if ($connections !== [] && $this->where($context) !== null) {
+            if ($connections !== []) {
                 $this->adopt($context, $connections);
             }
+            return [];
+        }
+        if ($file === false || $file->broken) {
+            // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a file not read says nothing of its entries
+            $this->logger->notice('A .mcp.json is not read; its connections stay as they are', ['context' => $context, 'errors' => $file === false ? [] : $file->errors]);
             return [];
         }
         foreach ($file->errors as $error) {
@@ -125,6 +163,14 @@ final class McpFiles {
                 $this->logger->warning('A .mcp.json entry was not brought in', ['context' => $context, 'entry' => $name, 'error' => $e::class]);
             }
         }
+        foreach ($file->bad as $name => $why) {
+            // an entry spoiled in the file stops its connection and keeps it, with why: fixed, it is the same entry
+            $server = $connections[$name] ?? null;
+            unset($connections[$name]);
+            if ($server !== null) {
+                $this->wait($context, $server, $why);
+            }
+        }
         foreach (array_keys($connections) as $name) {
             // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry taken out of the file turns it off
             $this->manager->remove($context, $name);
@@ -135,31 +181,31 @@ final class McpFiles {
 
     /** @return bool whether the entry waits for approval */
     private function reconcile(string $context, McpEntry $entry, ?McpServer $server): bool {
-        [$url, $secret] = $entry->connection();
         $problem = $entry->problem() ?? $this->guard->problem($entry);
         if ($server === null) {
-            // the entry was checked when it was read: the connection is kept even if it cannot run, with why
+            // a new entry is kept with its address and waits: nothing of it is called before the approval
+            [$url, $secret] = $entry->connection();
             $server = $this->servers->add($context, $entry->name, $url, $secret);
-        } elseif ($server->url !== $url || $server->secret !== $secret) {
-            $server = $this->servers->setAddress($context, $entry->name, $url, $secret) ?? $server;
         }
         if ($problem !== null) {
-            if ($server->status !== McpServer::ERROR || $server->note !== $problem) {
-                $this->manager->hold($context, $entry->name, McpServer::ERROR, $problem);
-            }
+            $this->wait($context, $server, $problem);
             return false;
+        }
+        if ($server->approvedHash === null || !hash_equals($server->approvedHash, $entry->hash())) {
+            // the address stays the approved one until the new entry is approved
+            $this->wait($context, $server, $server->approvedHash === null ? '' : t('mcp.files.changed'));
+            return !$entry->disabled;
+        }
+        [$url, $secret] = $entry->connection();
+        if ($server->url !== $url || $server->secret !== $secret) {
+            // the approved entry is the address: a connection kept before files had it written otherwise
+            $server = $this->servers->setAddress($context, $entry->name, $url, $secret) ?? $server;
         }
         if ($entry->disabled) {
             if ($server->status !== McpServer::DISABLED) {
                 $this->manager->disable($context, $entry->name, t('mcp.files.off_in_file'));
             }
             return false;
-        }
-        if ($server->approvedHash === null || !hash_equals($server->approvedHash, $entry->hash())) {
-            if ($server->status !== McpServer::PENDING) {
-                $this->manager->hold($context, $entry->name, McpServer::PENDING, $server->approvedHash === null ? '' : t('mcp.files.changed'));
-            }
-            return true;
         }
         // approved and as it was: on again, a clash of names tried again, an error left to its next try
         // (a changed set of tools waits for /mcp on, as before)
@@ -171,15 +217,27 @@ final class McpFiles {
         return false;
     }
 
+    /** The connection waits with why: its tools out, nothing of it called. */
+    private function wait(string $context, McpServer $server, string $why): void {
+        if ($server->status !== McpServer::PENDING || $server->note !== $why) {
+            $this->manager->hold($context, $server->name, McpServer::PENDING, $why);
+        }
+    }
+
     /**
-     * Connections kept before files existed: written to the context's file once, approved as they were.
+     * Connections kept before files existed: written to the context's file, and those approved by the old way (an
+     * approved set of tools, no entry yet) approved as they were. A connection that waited keeps waiting.
      *
      * @param array<string, McpServer> $connections
      */
     private function adopt(string $context, array $connections): void {
         $entries = [];
         foreach ($connections as $name => $server) {
-            $entries[$name] = self::entryOf($server);
+            try {
+                $entries[$name] = self::entryOf($server);
+            } catch (InvalidArgumentException $e) {
+                $this->logger->warning('A connection cannot be written as a .mcp.json entry', ['context' => $context, 'server' => $name, 'error' => $e->getMessage()]);
+            }
         }
         try {
             $this->write($context, $entries);
@@ -187,14 +245,16 @@ final class McpFiles {
             $this->logger->warning('Connections were not written to .mcp.json', ['context' => $context, 'error' => $e::class]);
             return;
         }
-        foreach ($connections as $name => $server) {
-            if ($server->status !== McpServer::PENDING) {
-                $this->servers->setApproval($context, $name, $entries[$name]->hash(), null);
+        foreach ($entries as $name => $entry) {
+            $server = $connections[$name];
+            if ($server->toolsHash !== null && $server->approvedHash === null && $server->status !== McpServer::PENDING) {
+                $this->servers->setApproval($context, $name, $entry->hash(), null);
             }
         }
         $this->logger->notice('Connections written to .mcp.json', ['context' => $context, 'count' => count($entries)]);
     }
 
+    /** @throws InvalidArgumentException */
     private static function entryOf(McpServer $server): McpEntry {
         $disabled = $server->status === McpServer::DISABLED;
         if (str_starts_with($server->url, 'stdio:')) {
@@ -231,50 +291,82 @@ final class McpFiles {
     }
 
     /**
-     * Approves the entry the file holds now: its hash becomes the approved one, then its tools are listed and registered.
+     * Approves the entry the file holds now, read once: the connection takes its address, its tools are listed, and
+     * only when that worked its hash becomes the approved one. A refusal (a package with an advisory, no answer, a
+     * secret missing) leaves nothing approved: the connection waits, with why.
      *
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the hash of the approved entry and who approved it
      */
     public function approve(string $context, string $name, Member $by): string {
-        $entry = $this->read($context)->entries[$name] ?? null;
-        if ($entry === null) {
-            return sprintf(t('mcp.files.no_entry'), $name);
+        $file = $this->load($context);
+        if ($file === false || $file?->broken === true) {
+            return t('mcp.files.unreadable');
+        }
+        $entry = $file?->entries[$name] ?? null;
+        if ($file === null || $entry === null) {
+            return $file?->bad[$name] ?? sprintf(t('mcp.files.no_entry'), $name);
         }
         $problem = $entry->problem() ?? $this->guard->problem($entry);
         if ($problem !== null) {
             return $problem;
         }
         if ($entry->disabled) {
-            $this->put($context, $entry->withDisabled(false));
+            $entry = $entry->withDisabled(false);
+            $servers = $file->servers;
+            $servers[$name] = $entry;
+            $this->write($context, $servers);
         }
-        $this->sync($context);
-        $this->servers->setApproval($context, $name, $entry->hash(), $by->id);
-        return $this->manager->approve($context, $name, new TimeoutCancellation(60));
+        [$url, $secret] = $entry->connection();
+        $server = $this->servers->find($context, $name) ?? $this->servers->add($context, $name, $url, $secret);
+        if ($server->url !== $url || $server->secret !== $secret) {
+            $this->servers->setAddress($context, $name, $url, $secret);
+        }
+        $answer = $this->manager->approve($context, $name, new TimeoutCancellation(60));
+        $after = $this->servers->find($context, $name);
+        if ($after !== null && in_array($after->status, [McpServer::CONNECTED, McpServer::NAMES], true)) {
+            $this->servers->setApproval($context, $name, $entry->hash(), $by->id);
+        } elseif ($after !== null) {
+            $this->servers->setApproval($context, $name, null, null);
+            $this->manager->hold($context, $name, McpServer::PENDING, mb_substr($answer, 0, 300));
+        }
+        return $answer;
     }
 
-    /** Adds or replaces an entry of the context's file and reads the file again. */
+    /**
+     * Adds or replaces an entry of the context's file and reads the file again.
+     *
+     * @throws InvalidArgumentException the file is there but was not read, or there is no place for it
+     */
     public function put(string $context, McpEntry $entry): void {
-        $entries = $this->read($context)->entries ?? [];
-        $entries[$entry->name] = $entry;
-        $this->write($context, $entries);
+        $servers = $this->readable($context)->servers ?? [];
+        $servers[$entry->name] = $entry;
+        $this->write($context, $servers);
         $this->sync($context);
     }
 
-    /** Takes an entry out of the context's file and reads the file again; false — there was none. */
+    /**
+     * Takes an entry out of the context's file and reads the file again; false — there was none.
+     *
+     * @throws InvalidArgumentException
+     */
     public function drop(string $context, string $name): bool {
-        $entries = $this->read($context)->entries ?? [];
-        if (!isset($entries[$name])) {
+        $servers = $this->readable($context)->servers ?? [];
+        if (!array_key_exists($name, $servers)) {
             return false;
         }
-        unset($entries[$name]);
-        $this->write($context, $entries);
+        unset($servers[$name]);
+        $this->write($context, $servers);
         $this->sync($context);
         return true;
     }
 
-    /** Turns an entry of the context's file off or on and reads the file again; false — there is none. */
+    /**
+     * Turns an entry of the context's file off or on and reads the file again; false — there is none.
+     *
+     * @throws InvalidArgumentException
+     */
     public function switch(string $context, string $name, bool $on): bool {
-        $entry = $this->read($context)->entries[$name] ?? null;
+        $entry = $this->readable($context)?->entries[$name] ?? null;
         if ($entry === null) {
             return false;
         }

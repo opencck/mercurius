@@ -166,8 +166,16 @@ $mcpManager = new McpManager(
     $mcpClient,
     $vault,
     $tools,
-    // spec: brief/skills-mcp.md#подстановка-секретов — the token of a member's connection is that member's secret; others — the first owner's until secrets are bound to MCP
-    static function (string $context) use ($principals, $ownerDirectory): ?Member {
+    // spec: brief/skills-mcp.md#подстановка-секретов — the token of a member's connection is that member's secret, of a
+    //       project's — its owner's; others — the first owner's until secrets are bound to MCP
+    static function (string $context) use ($principals, $ownerDirectory, $skillProjects): ?Member {
+        if (preg_match('~^project:(\d+)$~', $context, $m) === 1) {
+            $owner = $skillProjects->find((int) $m[1])?->ownerId;
+            if ($owner === null) {
+                return $ownerDirectory->principal();
+            }
+            $context = 'member:' . $owner;
+        }
         if (!str_starts_with($context, 'member:')) {
             return $ownerDirectory->principal();
         }
@@ -219,13 +227,28 @@ if ($sandbox !== null) {
         }
         return $contexts;
     };
-    $syncMcpFiles = static function () use ($mcpFiles, $mcpContexts, $logger): void {
+    // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — there a server runs only by its approved entry
+    $mcpManager->useFiles($mcpFiles->keeps(...));
+    // a slow sandbox may hold a pass past the next minute: passes never overlap, and one context failing stops no other
+    /** @var \ArrayObject<string, true> $mcpSyncing */
+    $mcpSyncing = new \ArrayObject();
+    $syncMcpFiles = static function () use ($mcpFiles, $mcpContexts, $mcpSyncing, $logger): void {
+        if (isset($mcpSyncing['on'])) {
+            return;
+        }
+        $mcpSyncing['on'] = true;
         try {
             foreach ($mcpContexts() as $context) {
-                $mcpFiles->sync($context);
+                try {
+                    $mcpFiles->sync($context);
+                } catch (\Throwable $e) {
+                    $logger->warning('A .mcp.json was not read', ['context' => $context, 'error' => $e::class]);
+                }
             }
         } catch (\Throwable $e) {
             $logger->warning('MCP files were not read', ['error' => $e::class]);
+        } finally {
+            unset($mcpSyncing['on']);
         }
     };
     \Revolt\EventLoop::defer(static function () use ($syncMcpFiles, $mcpManager): void {

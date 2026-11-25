@@ -22,9 +22,13 @@ use function Mercurius\I18n\t;
  *      taken too, as the spec writes secrets
  */
 final class McpEntry {
-    /** a secret named in a value: {name} or ${name} */
-    private const SECRET = '~^\$?\{([A-Za-z0-9_.:-]{1,64})\}$~';
+    /** a secret named in a value: {name} or ${name}; a colon is not in a name — it parts the name from a variable */
+    private const SECRET = '~^\$?\{([A-Za-z0-9_.-]{1,64})\}$~';
+    private const BEARER = '~^Bearer \$?\{([A-Za-z0-9_.-]{1,64})\}$~';
+    /** anything like a secret, a colon too: such a value waits, it is not passed as it is */
     private const ANY_SECRET = '~\$?\{[A-Za-z0-9_.:-]{1,64}\}~';
+    /** a command is one word: a program or a path, nothing a shell would read otherwise */
+    private const COMMAND = '~^[A-Za-z0-9_./@+-]{1,200}$~';
 
     /**
      * @param array<string, string> $headers
@@ -57,7 +61,7 @@ final class McpEntry {
         if (is_string($url) && preg_match('~^https?://\S+$~', $url) !== 1) {
             throw new InvalidArgumentException(sprintf(t('mcp.file.bad_url'), $name));
         }
-        if (is_string($command) && (trim($command) === '' || preg_match('~[\x00-\x1F]~', $command) === 1)) {
+        if (is_string($command) && preg_match(self::COMMAND, $command) !== 1) {
             throw new InvalidArgumentException(sprintf(t('mcp.file.bad_command'), $name));
         }
         return new self(
@@ -128,7 +132,7 @@ final class McpEntry {
             }
         }
         foreach ($this->headers as $header => $value) {
-            if (preg_match(self::ANY_SECRET, $value) === 1 && (strtolower($header) !== 'authorization' || preg_match('~^Bearer \$?\{[A-Za-z0-9_.:-]{1,64}\}$~', $value) !== 1)) {
+            if (preg_match(self::ANY_SECRET, $value) === 1 && (strtolower($header) !== 'authorization' || preg_match(self::BEARER, $value) !== 1)) {
                 return sprintf(t('mcp.file.secret_later'), $this->name);
             }
         }
@@ -152,13 +156,14 @@ final class McpEntry {
         if ($this->url !== null) {
             $secret = null;
             foreach ($this->headers as $header => $value) {
-                if (strtolower($header) === 'authorization' && preg_match('~^Bearer \$?\{([A-Za-z0-9_.:-]{1,64})\}$~', $value, $m) === 1) {
+                if (strtolower($header) === 'authorization' && preg_match(self::BEARER, $value, $m) === 1) {
                     $secret = $m[1];
                 }
             }
             return [$this->url, $secret];
         }
-        // the command runs in the Linux sandbox: POSIX quoting, whatever the platform of the application
+        // the command runs in the Linux sandbox: POSIX quoting, whatever the platform of the application; the command
+        // itself is one word of safe characters and goes as it is (the lookup of its package in OSV reads it so)
         $command = 'stdio:' . (string) $this->command . implode('', array_map(static fn(string $a): string => " '" . str_replace("'", "'\''", $a) . "'", $this->args));
         foreach ($this->env as $variable => $value) {
             if (preg_match(self::SECRET, $value, $m) === 1) {

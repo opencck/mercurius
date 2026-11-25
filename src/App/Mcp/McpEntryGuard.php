@@ -13,8 +13,9 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the check of an entry, when it is saved and when it runs
  * ref: references/hermes-agent/hermes_cli/mcp_security.py@e96221fa:L15-L45 (patterns), L59-L80 (wrappers),
- *      L285-L314 (_shell_and_script), L335-L379 (validate_mcp_server_entry) — the two shell rules and the peeling of
- *      wrappers are taken; the indicators of one campaign are not
+ *      L285-L314 (_shell_and_script), L335-L379 (validate_mcp_server_entry) — the two shell rules and the wrappers are
+ *      taken; instead of hermes' table of wrapper options a shell is looked for in every word after a wrapper, which
+ *      no option can hide; the indicators of one campaign are not
  */
 final class McpEntryGuard {
     private const SHELLS = ['bash', 'sh', 'zsh', 'dash', 'fish', 'ash', 'ksh', 'cmd', 'cmd.exe', 'powershell', 'powershell.exe', 'pwsh', 'pwsh.exe'];
@@ -41,37 +42,33 @@ final class McpEntryGuard {
     }
 
     /**
-     * The script given to a shell, after wrappers and their options are peeled; null — no shell.
+     * The script given to a shell; null — no shell. Behind a wrapper the shell is looked for in every word of the rest:
+     * the options of wrappers are many (env -S splits a string, timeout --signal takes an operand), and a word that
+     * names a shell after a wrapper is a shell whatever stands before it.
      *
      * @param list<string> $argv
      */
     private function script(array $argv): ?string {
-        $i = 0;
-        $count = count($argv);
-        while ($i < $count) {
-            $base = strtolower(basename(str_replace('\\', '/', $argv[$i])));
-            if (in_array($base, self::SHELLS, true)) {
-                return implode(' ', array_slice($argv, $i + 1));
-            }
-            if (!in_array($base, self::WRAPPERS, true)) {
-                return null;
-            }
-            $i++;
-            // the options of a wrapper, their operands and NAME=value assignments
-            while ($i < $count) {
-                $token = $argv[$i];
-                if ($token === '-u' || $token === '--unset' || $token === '-n' || $token === '-k') {
-                    // an option with its operand: env -u NAME, nice -n 10, timeout -k 5
-                    $i += 2;
-                    continue;
-                }
-                if (str_starts_with($token, '-') || preg_match('~^[A-Za-z_][A-Za-z0-9_]*=~', $token) === 1 || preg_match('~^\d+(?:\.\d+)?[smhd]?$~', $token) === 1) {
-                    $i++;
-                    continue;
-                }
-                break;
+        $first = self::base($argv[0] ?? '');
+        if (in_array($first, self::SHELLS, true)) {
+            return implode(' ', array_slice($argv, 1));
+        }
+        if (!in_array($first, self::WRAPPERS, true)) {
+            return null;
+        }
+        $words = preg_split('~[\s\'"]+~', implode(' ', array_slice($argv, 1)), -1, PREG_SPLIT_NO_EMPTY);
+        if ($words === false) {
+            return null;
+        }
+        foreach ($words as $i => $word) {
+            if (in_array(self::base($word), self::SHELLS, true)) {
+                return implode(' ', array_slice($words, $i + 1));
             }
         }
         return null;
+    }
+
+    private static function base(string $word): string {
+        return strtolower(basename(str_replace('\\', '/', $word)));
     }
 }

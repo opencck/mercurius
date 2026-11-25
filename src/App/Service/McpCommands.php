@@ -7,6 +7,7 @@ namespace OpenCCK\App\Service;
 use Amp\TimeoutCancellation;
 use DomainException;
 use OpenCCK\App\Mcp\McpEntry;
+use OpenCCK\App\Mcp\McpEntryGuard;
 use OpenCCK\App\Mcp\McpFiles;
 use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\Domain\Mcp\McpServer;
@@ -23,11 +24,15 @@ use function Mercurius\I18n\t;
  *       the entry the file holds
  */
 final class McpCommands {
+    /**
+     * @param McpFiles|null $files null — no sandbox to keep files in: the connections are changed in the store only
+     * @param \Closure(int): ?int|null $projectOwner the owner of a project, null — none
+     */
     public function __construct(
         private readonly McpManager $manager,
         private readonly McpServerRepository $servers,
-        /** null — no sandbox to keep files in: the connections are changed in the store only */
         private readonly ?McpFiles $files = null,
+        private readonly ?\Closure $projectOwner = null,
     ) {}
 
     /**
@@ -40,6 +45,9 @@ final class McpCommands {
         if (preg_match('~^\s*((?:project|member):\d+):\s*(.*)$~s', $argument, $m) === 1) {
             $context = $m[1];
             $argument = $m[2];
+            if (!$this->mayManage($context, $who)) {
+                return t('service.mcp_commands.not_yours');
+            }
         }
         // the command of a stdio server has spaces of its own: everything after ' -- ' is it
         [$head, $command] = array_pad(explode(' -- ', trim($argument), 2), 2, null);
@@ -58,9 +66,26 @@ final class McpCommands {
                 default => t('service.mcp_commands.mcp_spisok_mcp_add_imya')
                     . t('service.mcp_commands.mcp_tools_imya_include_exclude'),
             };
-        } catch (DomainException $e) {
+        } catch (DomainException|\InvalidArgumentException $e) {
             return $e->getMessage();
         }
+    }
+
+    /**
+     * Another context is managed by its own: a member's by that member, a project's by its owner; an owner of the agent
+     * manages every one. Its connections take secrets from the vault of the context's owner, so this is that vault too.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
+     */
+    private function mayManage(string $context, \OpenCCK\Domain\Entity\Member $who): bool {
+        if ($who->isOwner()) {
+            return true;
+        }
+        [$kind, $id] = array_pad(explode(':', $context, 2), 2, '');
+        if ($kind === 'member') {
+            return (int) $id === $who->id;
+        }
+        return $this->projectOwner !== null && ($this->projectOwner)((int) $id) === $who->id;
     }
 
     /** /mcp tools <name> include a,b* | exclude c* | all */
@@ -114,13 +139,8 @@ final class McpCommands {
         } catch (\InvalidArgumentException $e) {
             throw new DomainException($e->getMessage());
         }
-        // the entry was read at once: an entry that cannot run says why
-        foreach ($this->servers->inContext($context) as $server) {
-            if ($server->name === $name && $server->status === McpServer::ERROR) {
-                return $server->note;
-            }
-        }
-        return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $name, $name);
+        // an entry that cannot run is kept waiting and says why
+        return $entry->problem() ?? (new McpEntryGuard())->problem($entry) ?? sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $name, $name);
     }
 
     private function list(string $context): string {

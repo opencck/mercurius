@@ -42,6 +42,9 @@ final class McpManager {
     /** @var array<string, list<string>> connection key => tool names taken in its context at the last sync */
     private array $taken = [];
 
+    /** @var (Closure(string): bool)|null contexts whose connections come from a .mcp.json */
+    private ?Closure $filed = null;
+
     /**
      * @param Closure(string): ?Member $owner whose vault holds the token of a connection in this context
      * @param Closure(string): void $tell writes to the owner
@@ -78,6 +81,15 @@ final class McpManager {
     private ?OsvCheck $osv = null;
 
     /** spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the check of MCP packages */
+    /**
+     * The contexts whose connections come from a .mcp.json: there a server runs only by an approved entry.
+     *
+     * @param Closure(string): bool $filed
+     */
+    public function useFiles(Closure $filed): void {
+        $this->filed = $filed;
+    }
+
     public function useOsv(OsvCheck $osv): void {
         $this->osv = $osv;
     }
@@ -437,6 +449,11 @@ final class McpManager {
 
     /** @return int how many tools were registered */
     private function sync(McpServer $server, bool $approve, Cancellation $cancellation): int {
+        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a connection of a context with a file is called only
+        //       by the address of its approved entry; nothing else of it reaches the network or starts a command
+        if (!$approve && $server->approvedHash === null && $server->context !== '' && $this->filed !== null && ($this->filed)($server->context)) {
+            throw new DomainException(sprintf(t('mcp.mcp_manager.not_approved'), $server->name));
+        }
         $token = $this->token($server);
         // spec: brief/skills-mcp.md#подстановка-секретов — a secret named but not there: the connection fails naming it
         // ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L602-L616 (_require_rendered_remote) — a remote

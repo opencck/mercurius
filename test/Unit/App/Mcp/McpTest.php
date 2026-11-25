@@ -103,12 +103,12 @@ final class McpTest extends AsyncTestCase {
             $this->servers,
             $manager,
             new \OpenCCK\App\Mcp\McpEntryGuard(),
-            static fn(int $project): ?int => null,
+            static fn(int $project): ?int => $project === 5 ? 3 : null,
             static function (string $text): void {
             },
             new NullLogger(),
         );
-        return new McpCommands($manager, $this->servers, $files);
+        return new McpCommands($manager, $this->servers, $files, static fn(int $project): ?int => $project === 5 ? 3 : null);
     }
 
     /** A run in the owner's private chat: the context of the owner's connections. */
@@ -193,6 +193,21 @@ final class McpTest extends AsyncTestCase {
         self::assertNotNull($this->servers->find('member:9', 'docs'));
         self::assertNull($this->servers->find('member:1', 'docs'));
         self::assertStringContainsString('docs', $commands->handle('member:9:', $this->owner), 'the list of that context');
+    }
+
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — another's context only for the owners of the agent */
+    public function testAnotherContextIsOnlyForItsOwnerOrTheOwnersOfTheAgent(): void {
+        $commands = $this->commands($this->manager);
+        $user = new \OpenCCK\Domain\Entity\Member(3, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'User');
+
+        $commands->handle('member:9: add docs https://mcp.example.com/mcp', $user);
+        $commands->handle('project:6: add docs https://mcp.example.com/mcp', $user);
+        self::assertSame([null, null], [$this->servers->find('member:9', 'docs'), $this->servers->find('project:6', 'docs')]);
+
+        $commands->handle('project:5: add docs https://mcp.example.com/mcp', $user);
+        $commands->handle('member:3: add own https://mcp.example.com/mcp', $user);
+        self::assertNotNull($this->servers->find('project:5', 'docs'), 'the owner of the project');
+        self::assertNotNull($this->servers->find('member:3', 'own'), 'one\'s own');
     }
 
     public function testAConnectionWhoseNamesAreTakenIsNotTurnedOn(): void {
