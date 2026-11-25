@@ -220,7 +220,8 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new ReadFileTool($sandbox));
     $tools->register(new ListFilesTool($sandbox));
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\SearchFilesTool($sandbox));
-    $tools->register(new WriteFileTool($sandbox));
+    $writeFile = new WriteFileTool($sandbox);
+    $tools->register($writeFile);
     $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: brief/scheduler.md#git-с-доступом-из-хранилища — git with a token of the vault in the environment of one command
     $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));

@@ -82,6 +82,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresLlmCallRepository $llmCalls
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
  * @var Monolog\Logger $logger
+ * @var OpenCCK\App\Mcp\McpFiles|null $mcpFiles
  * @var OpenCCK\App\Mcp\McpManager $mcpManager
  * @var OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository $mcpServers
  * @var OpenCCK\Infrastructure\Media\MediaModels $mediaModels
@@ -236,7 +237,7 @@ $chat = new ChatService(
     new ProjectCommands($projectRepository),
     $serverCommands = new ServerCommands($vault, $serverRepository, $commandAudit),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
-    new McpCommands($mcpManager, $mcpServers),
+    new McpCommands($mcpManager, $mcpServers, $mcpFiles),
     new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
     // spec: brief/operations.md#как-сделано-поставка — /doctor checks the installation
     new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...), $mcpServers->all(...)),

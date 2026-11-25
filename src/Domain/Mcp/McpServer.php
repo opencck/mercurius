@@ -49,6 +49,8 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
         public readonly string $context = '',
         /** when a connection in error is tried again, unix time; null — at once or not at all */
         public readonly ?float $nextTry = null,
+        /** the hash of the .mcp.json entry that was approved; null — none was */
+        public readonly ?string $approvedHash = null,
     ) {}
 
     /** The connection inside the application: its context and name; a built-in server — its name. */
@@ -63,7 +65,7 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
 
     /** The same connection in another state. */
     public function withState(string $state, string $reason = '', ?float $nextTry = null): self {
-        return new self($this->id, $this->name, $this->url, $this->secret, $state, $this->toolsHash, $reason, $this->headers, $this->include, $this->exclude, $this->context, $nextTry);
+        return new self($this->id, $this->name, $this->url, $this->secret, $state, $this->toolsHash, $reason, $this->headers, $this->include, $this->exclude, $this->context, $nextTry, $this->approvedHash);
     }
 
     /**
@@ -95,7 +97,7 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
      * @param array<non-empty-string, string> $headers
      */
     public function withHeaders(#[\SensitiveParameter] array $headers): self {
-        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude, $this->context, $this->nextTry);
+        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude, $this->context, $this->nextTry, $this->approvedHash);
     }
 
     public function endpointName(): string {

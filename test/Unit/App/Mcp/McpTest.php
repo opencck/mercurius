@@ -95,6 +95,22 @@ final class McpTest extends AsyncTestCase {
         }, new NullLogger(), new \OpenCCK\App\Mcp\McpBreaker(fn(): float => $this->now), fn(): float => $this->now);
     }
 
+    /** The /mcp commands over a sandbox that keeps the files of the contexts. */
+    private function commands(McpManager $manager): McpCommands {
+        $files = new \OpenCCK\App\Mcp\McpFiles(
+            new \OpenCCK\Test\Support\FakeSandbox(),
+            static fn(int $id): \OpenCCK\Domain\Agent\SandboxLimits => new \OpenCCK\Domain\Agent\SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4),
+            $this->servers,
+            $manager,
+            new \OpenCCK\App\Mcp\McpEntryGuard(),
+            static fn(int $project): ?int => null,
+            static function (string $text): void {
+            },
+            new NullLogger(),
+        );
+        return new McpCommands($manager, $this->servers, $files);
+    }
+
     /** A run in the owner's private chat: the context of the owner's connections. */
     private function inOwnersChat(): \OpenCCK\Domain\Agent\ParticipantPolicy {
         return (new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), null, true))->withMcpContext('member:1');
@@ -152,6 +168,33 @@ final class McpTest extends AsyncTestCase {
         self::assertSame('mcp:member:1|github:create_issue', $tool->grantKey([]));
     }
 
+    /**
+     * spec: brief/skills-mcp.md#подстановка-секретов — no value for a secret: an error naming it, not a call without it
+     */
+    public function testAMissingSecretIsNamedInsteadOfCallingWithout(): void {
+        $this->manager->add('member:1', 'github', 'https://mcp.example.com/mcp', 'no-such-token');
+
+        $answer = $this->manager->approve('member:1', 'github', new NullCancellation());
+
+        self::assertStringContainsString('no-such-token', $answer);
+        self::assertNull($this->registry->get('mcp_github_list_issues', $this->inOwnersChat()));
+        $this->servers->update('member:1', 'github', McpServer::CONNECTED, 'h');
+        $this->manager->connectAll();
+        self::assertSame(McpServer::ERROR, $this->statusOf('github'));
+        self::assertStringContainsString('no-such-token', $this->servers->find('member:1', 'github')->note ?? '');
+    }
+
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a holder of mcp works in another context by its prefix */
+    public function testAnotherContextIsNamedByItsPrefix(): void {
+        $commands = $this->commands($this->manager);
+
+        self::assertStringContainsString('ждёт одобрения', $commands->handle('member:9: add docs https://mcp.example.com/mcp', $this->owner));
+
+        self::assertNotNull($this->servers->find('member:9', 'docs'));
+        self::assertNull($this->servers->find('member:1', 'docs'));
+        self::assertStringContainsString('docs', $commands->handle('member:9:', $this->owner), 'the list of that context');
+    }
+
     public function testAConnectionWhoseNamesAreTakenIsNotTurnedOn(): void {
         $this->registry->register(new \OpenCCK\Test\Support\FakeTool('mcp_github_list_issues'));
         $this->manager->add('member:1', 'github', 'https://mcp.example.com/mcp', null);
@@ -181,7 +224,7 @@ final class McpTest extends AsyncTestCase {
     }
 
     public function testFiltersChooseWhichToolsOfAServerAreRegistered(): void {
-        $commands = new McpCommands($this->manager, $this->servers);
+        $commands = $this->commands($this->manager);
         $commands->handle('add github https://mcp.example.com/mcp', $this->owner);
 
         self::assertStringContainsString('кроме: delete_*', $commands->handle('tools github exclude delete_*', $this->owner));
@@ -242,7 +285,7 @@ final class McpTest extends AsyncTestCase {
     }
 
     public function testAServerIsUsedOnlyAfterTheOwnerApprovesIt(): void {
-        $commands = new McpCommands($this->manager, $this->servers);
+        $commands = $this->commands($this->manager);
 
         self::assertStringContainsString('ждёт одобрения', $commands->handle('add github https://mcp.example.com/mcp gh-token', $this->owner));
         self::assertNull($this->registry->get('mcp_github_list_issues', $this->inOwnersChat()));
@@ -336,14 +379,14 @@ final class McpTest extends AsyncTestCase {
     public function testAStdioServerIsAddedByCommandAndWaitsForTheOwner(): void {
         $client = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(new HttpClient(new FakeHttpClient(), [])), new \OpenCCK\Infrastructure\Mcp\StdioMcpClient(new \OpenCCK\Test\Support\FakeSandboxStreams(), new \OpenCCK\Domain\Agent\SandboxLimits(1, 1, 1, 1, 1)));
         $manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(): Member => $this->owner, static function (string $t): void {}, new NullLogger(), stdio: true);
-        $commands = new McpCommands($manager, $this->servers);
+        $commands = $this->commands($manager);
 
         $added = $commands->handle('stdio everything gh-token:GITHUB_TOKEN -- npx -y @modelcontextprotocol/server-everything', $this->owner);
 
         self::assertStringContainsString('ждёт одобрения', $added);
         $server = $this->servers->find('member:1', 'everything');
         self::assertNotNull($server);
-        self::assertSame('stdio:npx -y @modelcontextprotocol/server-everything', $server->url);
+        self::assertSame("stdio:npx '-y' '@modelcontextprotocol/server-everything'", $server->url, 'built from the entry of .mcp.json');
         self::assertSame('gh-token:GITHUB_TOKEN', $server->secret);
         self::assertStringContainsString('/mcp stdio', $commands->handle('stdio broken', $this->owner), 'without a command the usage is shown');
 
@@ -428,7 +471,7 @@ data: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"tools\":[{\"name\":\"echo\",\"
     /** spec: brief/participants.md#свои-роли — MCP servers are managed by whoever has the permission mcp */
     public function testUserWithMcpMayAdd(): void {
         $stack = new \OpenCCK\Test\Support\AgentStack();
-        $stack->useMcp(new McpCommands($this->manager, $this->servers));
+        $stack->useMcp($this->commands($this->manager));
         $ops = Role::define('ops', '', 15, [\OpenCCK\Domain\Entity\Permission::Mcp]);
         $stack->principals->put(new Member(7, MemberKind::Human, $ops, 'Ops'), 'telegram', '77');
         try {
@@ -442,7 +485,7 @@ data: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"tools\":[{\"name\":\"echo\",\"
 
     public function testUserWithoutMcpIsRefused(): void {
         $stack = new \OpenCCK\Test\Support\AgentStack();
-        $stack->useMcp(new McpCommands($this->manager, $this->servers));
+        $stack->useMcp($this->commands($this->manager));
         $stack->principals->put(new Member(7, MemberKind::Human, Role::user(), 'User'), 'telegram', '77');
 
         $stack->say('/mcp add docs https://mcp.example.com/mcp', '77');

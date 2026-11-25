@@ -6,6 +6,8 @@ namespace OpenCCK\App\Service;
 
 use Amp\TimeoutCancellation;
 use DomainException;
+use OpenCCK\App\Mcp\McpEntry;
+use OpenCCK\App\Mcp\McpFiles;
 use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Repository\McpServerRepository;
@@ -17,11 +19,15 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — managed from the channel
  * spec: brief/participants.md#свои-роли — by whoever has the permission mcp
+ * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the commands write the context's .mcp.json; on approves
+ *       the entry the file holds
  */
 final class McpCommands {
     public function __construct(
         private readonly McpManager $manager,
         private readonly McpServerRepository $servers,
+        /** null — no sandbox to keep files in: the connections are changed in the store only */
+        private readonly ?McpFiles $files = null,
     ) {}
 
     /**
@@ -30,6 +36,11 @@ final class McpCommands {
      */
     public function handle(string $argument, \OpenCCK\Domain\Entity\Member $who): string {
         $context = 'member:' . $who->id;
+        // another context: /mcp project:<number>: … or /mcp member:<number>: …
+        if (preg_match('~^\s*((?:project|member):\d+):\s*(.*)$~s', $argument, $m) === 1) {
+            $context = $m[1];
+            $argument = $m[2];
+        }
         // the command of a stdio server has spaces of its own: everything after ' -- ' is it
         [$head, $command] = array_pad(explode(' -- ', trim($argument), 2), 2, null);
         $parts = preg_split('~\s+~', trim((string) $head)) ?: [];
@@ -40,9 +51,9 @@ final class McpCommands {
                 '' => $this->list($context),
                 'add' => $this->add($context, $name, $parts[2] ?? '', $parts[3] ?? null),
                 'stdio' => $command === null || trim($command) === '' || $name === '' ? t('service.mcp_commands.stdio_usage') : $this->add($context, $name, 'stdio:' . trim($command), $parts[2] ?? null),
-                'on' => $this->manager->approve($context, $name, new TimeoutCancellation(60)),
-                'off' => $this->manager->disable($context, $name) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
-                'remove' => $this->manager->remove($context, $name) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
+                'on' => $this->files?->approve($context, $name, $who) ?? $this->manager->approve($context, $name, new TimeoutCancellation(60)),
+                'off' => ($this->files?->switch($context, $name, false) ?? $this->manager->disable($context, $name)) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
+                'remove' => ($this->files?->drop($context, $name) ?? $this->manager->remove($context, $name)) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
                 'tools' => $this->tools($context, $name, $parts[2] ?? '', $parts[3] ?? ''),
                 default => t('service.mcp_commands.mcp_spisok_mcp_add_imya')
                     . t('service.mcp_commands.mcp_tools_imya_include_exclude'),
@@ -75,9 +86,41 @@ final class McpCommands {
         };
     }
 
+    /** An entry of the context's file from the command: a url with a bearer secret, or a command with one variable. */
     private function add(string $context, string $name, string $url, ?string $secret): string {
-        $server = $this->manager->add($context, $name, $url, $secret);
-        return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $server->name, $server->name);
+        // the checks of the address and of stdio stay the manager's
+        $this->manager->checkAddress($url);
+        if ($this->files === null) {
+            $server = $this->manager->add($context, $name, $url, $secret);
+            return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $server->name, $server->name);
+        }
+        if (str_starts_with($url, 'stdio:')) {
+            $words = preg_split('~\s+~', trim(substr($url, 6))) ?: [];
+            [$secretName, $variable] = array_pad(explode(':', (string) $secret, 2), 2, 'MCP_TOKEN');
+            $raw = ['command' => (string) array_shift($words), 'args' => $words, 'env' => $secret === null ? [] : [$variable => '{' . $secretName . '}']];
+        } else {
+            $raw = ['url' => $url, 'headers' => $secret === null ? [] : ['Authorization' => 'Bearer {' . $secret . '}']];
+        }
+        try {
+            $entry = McpEntry::fromArray($name, $raw);
+        } catch (\InvalidArgumentException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        if ($this->servers->find($context, $name) !== null) {
+            throw new DomainException(sprintf(t('repository.postgres_mcp_server.mcp_server_uzhe_est'), $name));
+        }
+        try {
+            $this->files->put($context, $entry);
+        } catch (\InvalidArgumentException $e) {
+            throw new DomainException($e->getMessage());
+        }
+        // the entry was read at once: an entry that cannot run says why
+        foreach ($this->servers->inContext($context) as $server) {
+            if ($server->name === $name && $server->status === McpServer::ERROR) {
+                return $server->note;
+            }
+        }
+        return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $name, $name);
     }
 
     private function list(string $context): string {

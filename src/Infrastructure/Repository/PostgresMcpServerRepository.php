@@ -17,7 +17,7 @@ use function Mercurius\I18n\t;
  * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — connections in contexts, with their state
  */
 final class PostgresMcpServerRepository implements McpServerRepository {
-    private const COLUMNS = 'id, context, name, url, secret, state, tools_hash, reason, tools_include, tools_exclude, extract(epoch FROM next_try)::float8 AS next_try';
+    private const COLUMNS = 'id, context, name, url, secret, state, tools_hash, reason, tools_include, tools_exclude, extract(epoch FROM next_try)::float8 AS next_try, entry_hash';
 
     public function __construct(private readonly PostgresLink $db) {}
 
@@ -66,6 +66,20 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         return $row === null ? null : self::server($row);
     }
 
+    public function setAddress(string $context, string $name, string $url, ?string $secret): ?McpServer {
+        $row = $this->db->execute('UPDATE mcp_connections SET url = ?, secret = ? WHERE context = ? AND name = ? RETURNING ' . self::COLUMNS, [$url, $secret, $context, $name])->fetchRow();
+        return $row === null ? null : self::server($row);
+    }
+
+    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by): ?McpServer {
+        $row = $this->db->execute(
+            'UPDATE mcp_connections SET entry_hash = ?, approved_by = ?, approved_at = CASE WHEN ?::text IS NULL THEN NULL ELSE now() END
+             WHERE context = ? AND name = ? RETURNING ' . self::COLUMNS,
+            [$entryHash, $by, $entryHash, $context, $name],
+        )->fetchRow();
+        return $row === null ? null : self::server($row);
+    }
+
     public function remove(string $context, string $name): bool {
         return $this->db->execute('DELETE FROM mcp_connections WHERE context = ? AND name = ? RETURNING id', [$context, $name])->fetchRow() !== null;
     }
@@ -93,6 +107,7 @@ final class PostgresMcpServerRepository implements McpServerRepository {
             exclude: $str('tools_exclude') ?? '',
             context: (string) $str('context'),
             nextTry: self::seconds($row['next_try'] ?? null),
+            approvedHash: $str('entry_hash'),
         );
     }
 }

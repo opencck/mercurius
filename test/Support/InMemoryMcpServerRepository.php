@@ -39,7 +39,7 @@ final class InMemoryMcpServerRepository implements McpServerRepository {
         if ($s === null) {
             return null;
         }
-        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $state, $toolsHash ?? $s->toolsHash, $reason, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $nextTry);
+        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $state, $toolsHash ?? $s->toolsHash, $reason, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $nextTry, approvedHash: $s->approvedHash);
     }
 
     public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer {
@@ -47,7 +47,23 @@ final class InMemoryMcpServerRepository implements McpServerRepository {
         if ($s === null) {
             return null;
         }
-        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $include, exclude: $exclude, context: $s->context, nextTry: $s->nextTry);
+        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $include, exclude: $exclude, context: $s->context, nextTry: $s->nextTry, approvedHash: $s->approvedHash);
+    }
+
+    public function setAddress(string $context, string $name, string $url, ?string $secret): ?McpServer {
+        $s = $this->servers[$context . '|' . $name] ?? null;
+        if ($s === null) {
+            return null;
+        }
+        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $url, $secret, $s->status, $s->toolsHash, $s->note, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $s->nextTry, approvedHash: $s->approvedHash);
+    }
+
+    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by): ?McpServer {
+        $s = $this->servers[$context . '|' . $name] ?? null;
+        if ($s === null) {
+            return null;
+        }
+        return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $s->nextTry, approvedHash: $entryHash);
     }
 
     public function remove(string $context, string $name): bool {

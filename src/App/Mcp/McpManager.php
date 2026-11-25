@@ -150,6 +150,16 @@ final class McpManager {
         if (preg_match(McpServer::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.imya_mcp_servera_strochnye_latinskie'));
         }
+        $this->checkAddress($url);
+        return $this->servers->add($context, $name, $url, $secret);
+    }
+
+    /**
+     * Whether a server can be added here: an http(s) address, or a command when the sandbox runs stdio servers.
+     *
+     * @throws DomainException
+     */
+    public function checkAddress(string $url): void {
         if (str_starts_with($url, 'stdio:')) {
             // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — a stdio server is a command run in the sandbox
             if (!$this->stdio) {
@@ -162,7 +172,6 @@ final class McpManager {
         } elseif (preg_match('~^https?://\S+$~', $url) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.adres_mcp_servera_http_s'));
         }
-        return $this->servers->add($context, $name, $url, $secret);
     }
 
     /**
@@ -178,7 +187,13 @@ final class McpManager {
             $this->logger->warning('MCP server not approved: its package has a malware advisory', ['server' => $name]);
             return $blocked;
         }
-        $count = $this->sync($server, true, $cancellation);
+        try {
+            $count = $this->sync($server, true, $cancellation);
+        } catch (DomainException $e) {
+            // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — not approved: an error with why
+            $this->servers->update($context, $name, McpServer::ERROR, null, mb_substr($e->getMessage(), 0, 300));
+            return $e->getMessage();
+        }
         $taken = $this->taken[$server->key()] ?? [];
         if ($taken !== []) {
             return sprintf(t('mcp.mcp_manager.names_taken'), $name, implode(', ', $taken));
@@ -207,6 +222,28 @@ final class McpManager {
             $this->sync($server, false, $cancellation);
         }
         return $server;
+    }
+
+    /**
+     * Takes a connection's tools out and puts it into a state with why, without removing it: an entry changed and waits
+     * for approval, or cannot run.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a new or changed entry gives no tools until approved
+     */
+    public function hold(string $context, string $name, string $state, string $reason): void {
+        $key = $context . '|' . $name;
+        $this->unregister($key);
+        $this->forget($key);
+        unset($this->down[$key]);
+        $this->servers->update($context, $name, $state, null, $reason);
+    }
+
+    /** An approved connection that was off or whose names were taken: its tools are listed and registered again. */
+    public function resume(string $context, string $name): void {
+        $server = $this->servers->find($context, $name);
+        if ($server !== null) {
+            $this->connect($server);
+        }
     }
 
     public function remove(string $context, string $name): bool {
@@ -401,6 +438,12 @@ final class McpManager {
     /** @return int how many tools were registered */
     private function sync(McpServer $server, bool $approve, Cancellation $cancellation): int {
         $token = $this->token($server);
+        // spec: brief/skills-mcp.md#подстановка-секретов — a secret named but not there: the connection fails naming it
+        // ref: references/hermes-agent/tools/mcp_tool_config.py@e96221fa:L602-L616 (_require_rendered_remote) — a remote
+        //      server is not called with its credential missing (a sure 401 read as a bad key); here a local one neither
+        if ($token === null && $server->secret !== null && !isset($this->builtin[$server->name])) {
+            throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), explode(':', $server->secret, 2)[0], $server->name));
+        }
         try {
             $tools = $this->client->tools($server, $token, $cancellation);
         } catch (RuntimeException $e) {

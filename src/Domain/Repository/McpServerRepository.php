@@ -33,6 +33,14 @@ interface McpServerRepository {
 
     public function remove(string $context, string $name): bool;
 
+    /** Where the connection leads and its secret, as its .mcp.json entry says now. */
+    public function setAddress(string $context, string $name, string $url, ?string $secret): ?McpServer;
+
+    /**
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the approved entry is kept by its hash and who approved it
+     */
+    public function setApproval(string $context, string $name, ?string $entryHash, ?int $by): ?McpServer;
+
     /** @param string|null $include null — every tool; '' — none */
     public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer;
 }

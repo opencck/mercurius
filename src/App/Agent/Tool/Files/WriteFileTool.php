@@ -17,6 +17,39 @@ use function Mercurius\I18n\t;
 final class WriteFileTool extends SandboxTool {
     public const NAME = 'write_file';
 
+    /** \var (\Closure(int, string): void)|null told of a written .mcp.json: the member and the path */
+    private ?\Closure $mcpChanged = null;
+
+    /**
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a written .mcp.json is checked as an MCP file and its
+     *       context reads it at once
+     *
+     * \param \Closure(int, string): void $changed
+     */
+    public function useMcpFiles(\Closure $changed): void {
+        $this->mcpChanged = $changed;
+    }
+
+    /** Why the content of a .mcp.json must not be written; null — it may. */
+    private static function mcpProblem(string $content): ?string {
+        $file = \OpenCCK\App\Mcp\McpFile::parse($content);
+        if ($file->errors !== []) {
+            return implode("\n", $file->errors);
+        }
+        $guard = new \OpenCCK\App\Mcp\McpEntryGuard();
+        foreach ($file->entries as $entry) {
+            $problem = $guard->problem($entry);
+            if ($problem !== null) {
+                return $problem;
+            }
+        }
+        return null;
+    }
+
+    private static function isMcpFile(string $path): bool {
+        return basename(str_replace('\\', '/', $path)) === \OpenCCK\App\Mcp\McpFile::NAME;
+    }
+
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.write_file.pishet_fayl_v_tvoem_rabochem')
             . t('tool.write_file.zamenoy_fragmenta_old_new_old'), [
@@ -54,11 +87,24 @@ final class WriteFileTool extends SandboxTool {
                     return ToolResult::error(sprintf(t('tool.write_file.not_a_skill'), sprintf(t('tool.write_file.skill_name'), $name, $m[1])));
                 }
             }
+            if (self::isMcpFile($path)) {
+                $problem = self::mcpProblem($content);
+                if ($problem !== null) {
+                    return ToolResult::error(sprintf(t('tool.write_file.not_an_mcp_file'), $problem));
+                }
+            }
             $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
+            if (self::isMcpFile($path) && $this->mcpChanged !== null) {
+                ($this->mcpChanged)($context->principal->id, $path);
+            }
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_zapisan_bayt'), $path, strlen($content)));
         }
         if ($content === null && $old !== null && $new !== null) {
             $this->sandbox->replace($context->principal->id, $limits, $path, $old, $new, $context->cancellation);
+            // a piece replaced is checked when the file is read: an entry that cannot run becomes an error there
+            if (self::isMcpFile($path) && $this->mcpChanged !== null) {
+                ($this->mcpChanged)($context->principal->id, $path);
+            }
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_izmenen'), $path));
         }
         return ToolResult::error(t('tool.write_file.ukazhi_content_ili_paru_old'));

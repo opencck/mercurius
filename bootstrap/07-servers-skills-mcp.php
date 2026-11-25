@@ -185,7 +185,65 @@ $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger
 if ($sandbox !== null) {
     $mcpManager->useSandbox($sandbox, new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00'));
 }
-\Revolt\EventLoop::defer($mcpManager->connectAll(...));
+// spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — .mcp.json of each member and project: read at start, once a
+//       minute and at once after a write; an entry works only while its hash is the approved one
+$mcpFiles = null;
+if ($sandbox !== null) {
+    $mcpFiles = new \OpenCCK\App\Mcp\McpFiles(
+        $sandbox,
+        static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principals->find($principalId);
+            return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
+        },
+        $mcpServers,
+        $mcpManager,
+        new \OpenCCK\App\Mcp\McpEntryGuard(),
+        static function (int $projectId) use ($skillProjects, $ownerDirectory): ?int {
+            $project = $skillProjects->find($projectId);
+            return $project === null ? null : ($project->ownerId ?? $ownerDirectory->principal()?->id);
+        },
+        static function (string $text) use ($channel): void {
+            $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));
+        },
+        $logger,
+    );
+    $mcpContexts = static function () use ($principals, $skillProjects): array {
+        $contexts = [];
+        foreach ($principals->all() as $member) {
+            if ($member->status === \OpenCCK\Domain\Entity\MemberStatus::Active) {
+                $contexts[] = 'member:' . $member->id;
+            }
+        }
+        foreach ($skillProjects->all(1000) as $project) {
+            $contexts[] = 'project:' . $project->id;
+        }
+        return $contexts;
+    };
+    $syncMcpFiles = static function () use ($mcpFiles, $mcpContexts, $logger): void {
+        try {
+            foreach ($mcpContexts() as $context) {
+                $mcpFiles->sync($context);
+            }
+        } catch (\Throwable $e) {
+            $logger->warning('MCP files were not read', ['error' => $e::class]);
+        }
+    };
+    \Revolt\EventLoop::defer(static function () use ($syncMcpFiles, $mcpManager): void {
+        $syncMcpFiles();
+        $mcpManager->connectAll();
+    });
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($syncMcpFiles): void {
+        \Amp\async($syncMcpFiles)->ignore();
+    }));
+    /** @var \OpenCCK\App\Agent\Tool\Files\WriteFileTool|null $writeFile */
+    $writeFile?->useMcpFiles(static function (int $member, string $path) use ($mcpFiles): void {
+        $path = preg_replace('~^/workspace/p\d+/~', '', str_replace('\\', '/', $path)) ?? $path;
+        $context = preg_match('~^projects/(\d+)/\.mcp\.json$~', $path, $m) === 1 ? 'project:' . $m[1] : 'member:' . $member;
+        \Amp\async(static fn() => $mcpFiles->sync($context))->ignore();
+    });
+} else {
+    \Revolt\EventLoop::defer($mcpManager->connectAll(...));
+}
 // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — servers down at start are tried again, connected ones are listed again for changes
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(30, static function (string $id) use ($mcpManager): void {
     \Amp\async($mcpManager->tick(...))->ignore();
