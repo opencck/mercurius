@@ -88,6 +88,40 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         return $row === null ? null : self::server($row);
     }
 
+    public function saveTools(string $context, string $name, string $listedBy, array $tools): void {
+        $this->db->execute(
+            'UPDATE mcp_connections SET tools = ?, tools_entry = ? WHERE context = ? AND name = ?',
+            [json_encode($tools, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $listedBy, $context, $name],
+        );
+    }
+
+    public function cachedTools(string $context, string $name, string $listedBy): ?array {
+        $row = $this->db->execute('SELECT tools FROM mcp_connections WHERE context = ? AND name = ? AND tools_entry = ?', [$context, $name, $listedBy])->fetchRow();
+        $json = $row['tools'] ?? null;
+        if (!is_string($json)) {
+            return null;
+        }
+        /** @psalm-suppress MixedAssignment the kept list is any JSON; each tool is checked below */
+        $list = json_decode($json, true);
+        if (!is_array($list) || !array_is_list($list)) {
+            return null;
+        }
+        $tools = [];
+        /** @psalm-suppress MixedAssignment */
+        foreach ($list as $tool) {
+            if (!is_array($tool)) {
+                return null;
+            }
+            /** @psalm-suppress MixedAssignment */
+            [$name, $description, $schema, $annotations] = [$tool['name'] ?? null, $tool['description'] ?? null, $tool['schema'] ?? null, $tool['annotations'] ?? null];
+            if (!is_string($name) || !is_string($description) || !is_array($schema) || !is_array($annotations)) {
+                return null;
+            }
+            $tools[] = ['name' => $name, 'description' => $description, 'schema' => $schema, 'annotations' => $annotations];
+        }
+        return $tools;
+    }
+
     public function remove(string $context, string $name): bool {
         return $this->db->execute('DELETE FROM mcp_connections WHERE context = ? AND name = ? RETURNING id', [$context, $name])->fetchRow() !== null;
     }

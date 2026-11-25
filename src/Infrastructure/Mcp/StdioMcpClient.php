@@ -116,6 +116,11 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         return $stopped;
     }
 
+    public function idle(string $server): bool {
+        $session = $this->sessions[$server] ?? null;
+        return $session === null || !$session->alive();
+    }
+
     public function forget(string $server): void {
         $session = $this->sessions[$server] ?? null;
         unset($this->sessions[$server]);

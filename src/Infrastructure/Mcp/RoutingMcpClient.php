@@ -48,6 +48,10 @@ final class RoutingMcpClient implements McpClient, McpSessions {
         }
     }
 
+    public function idle(string $server): bool {
+        return $this->stdio instanceof McpSessions && $this->stdio->idle($server);
+    }
+
     /** @throws RuntimeException */
     private function of(McpEndpoint $server): McpClient {
         if (!str_starts_with($server->endpointUrl(), StdioMcpClient::PREFIX)) {

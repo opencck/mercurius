@@ -41,6 +41,10 @@ final class McpManager {
     private array $registered = [];
     /** @var array<string, list<string>> connection key => tool names taken in its context at the last sync */
     private array $taken = [];
+    /** @var array<string, string> connection key => hash of the tools last kept in the cache of schemas */
+    private array $kept = [];
+    /** @var array<string, true> connections whose tools came from the cache: the first call lists them again */
+    private array $fromCache = [];
 
     private ?McpSecrets $secrets = null;
     /** @var (Closure(string): bool)|null contexts whose connections come from a .mcp.json */
@@ -157,6 +161,9 @@ final class McpManager {
     }
 
     private function connect(McpServer $server): void {
+        if ($this->fromCache($server)) {
+            return;
+        }
         try {
             $this->sync($server, false, new NullCancellation());
         } catch (Throwable $e) {
@@ -324,6 +331,9 @@ final class McpManager {
         }
         $this->lastResync = $now;
         foreach ($this->connected() as $server) {
+            if ($this->stopped($server)) {
+                continue;
+            }
             try {
                 $this->sync($server, false, new NullCancellation());
             } catch (Throwable $e) {
@@ -505,7 +515,7 @@ final class McpManager {
              */
             static fn(array $a, array $b): int => strcmp($a['name'], $b['name']),
         );
-        $hash = hash('sha256', json_encode($cleaned, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $hash = self::toolsHash($cleaned);
         if (!$approve && $server->toolsHash !== null && !hash_equals($server->toolsHash, $hash)) {
             $this->unregister($server->key());
             $this->forget($server->key());
@@ -515,6 +525,21 @@ final class McpManager {
             ($this->tell)(sprintf(t('mcp.mcp_manager.mcp_server_izmenil_instrumenty_imena'), $server->name, $server->name));
             return 0;
         }
+        unset($this->fromCache[$server->key()]);
+        if (self::cached($server) && ($this->kept[$server->key()] ?? null) !== $hash) {
+            $this->servers->saveTools($server->context, $server->name, self::listedBy($server), $cleaned);
+            $this->kept[$server->key()] = $hash;
+        }
+        return $this->register($server, $cleaned, $hash, $approve);
+    }
+
+    /**
+     * Puts the tools of a connection in the registry of its context.
+     *
+     * @param list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $cleaned
+     * @return int how many were registered
+     */
+    private function register(McpServer $server, array $cleaned, string $hash, bool $approve): int {
         $this->unregister($server->key());
         $names = [];
         $taken = [];
@@ -524,7 +549,7 @@ final class McpManager {
                 continue;
             }
             try {
-                $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): array => $this->endpoint($server), $this->breaker);
+                $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): array => $this->endpointOnCall($server), $this->breaker);
                 if ($this->sandbox !== null && $this->zone !== null) {
                     $mcpTool->useSandbox($this->sandbox, $this->zone);
                 }
@@ -559,6 +584,74 @@ final class McpManager {
             $this->servers->update($server->context, $server->name, McpServer::CONNECTED, $approve ? $hash : null, '');
         }
         return count($names);
+    }
+
+    /** @param list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $cleaned */
+    private static function toolsHash(array $cleaned): string {
+        return hash('sha256', json_encode($cleaned, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** A process of the sandbox: its tools are kept, so a start of the application does not start it. */
+    private static function cached(McpServer $server): bool {
+        return $server->context !== '' && str_starts_with($server->url, 'stdio:');
+    }
+
+    /** What the kept tools were listed by: the approved entry, or the command of a connection without one. */
+    private static function listedBy(McpServer $server): string {
+        return $server->approvedHash ?? $server->url;
+    }
+
+    /**
+     * Registers the kept tools of a stdio connection without starting its process. They are trusted only when they
+     * were listed by the same entry and are the approved set; otherwise the process is started and asked.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
+     * ref: references/hermes-agent/tools/mcp_schema_cache.py@e96221fa:L27-L39 (config_fingerprint) — the cache is
+     *      keyed by what defines the connection; here by the approved entry, and checked against the approved tools
+     */
+    private function fromCache(McpServer $server): bool {
+        if (!self::cached($server) || $server->toolsHash === null) {
+            return false;
+        }
+        if ($server->approvedHash === null && $this->filed !== null && ($this->filed)($server->context)) {
+            return false;
+        }
+        $tools = $this->servers->cachedTools($server->context, $server->name, self::listedBy($server));
+        if ($tools === null || !hash_equals($server->toolsHash, self::toolsHash($tools))) {
+            return false;
+        }
+        try {
+            // a secret the entry names is gone: the connection waits as it would after a start
+            $this->endpoint($server);
+        } catch (DomainException $e) {
+            $this->markDown($server, 0, $e);
+            return true;
+        }
+        $this->kept[$server->key()] = $server->toolsHash;
+        $this->register($server, $tools, $server->toolsHash, false);
+        $this->fromCache[$server->key()] = true;
+        return true;
+    }
+
+    /** A stdio connection whose process is not running: listing its tools only to see them would start it. */
+    private function stopped(McpServer $server): bool {
+        return str_starts_with($server->url, 'stdio:') && $this->client instanceof McpSessions && $this->client->idle($server->key());
+    }
+
+    /**
+     * The endpoint of a call. The first call to tools taken from the cache lists them again from the started process:
+     * a change of the package is caught as at start.
+     *
+     * @return array{McpServer, ?string, list<string>}
+     * @throws DomainException
+     */
+    private function endpointOnCall(McpServer $server): array {
+        $endpoint = $this->endpoint($server);
+        if (isset($this->fromCache[$server->key()])) {
+            unset($this->fromCache[$server->key()]);
+            $this->toolsChanged($server->key());
+        }
+        return $endpoint;
     }
 
     private function unregister(string $key): void {

@@ -51,4 +51,20 @@ interface McpServerRepository {
 
     /** @param string|null $include null — every tool; '' — none */
     public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer;
+
+    /**
+     * The tools a server listed, kept with what they were listed by: an entry or a command.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
+     *
+     * @param list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $tools
+     */
+    public function saveTools(string $context, string $name, string $listedBy, array $tools): void;
+
+    /**
+     * The kept tools when they were listed by this entry; null — none, or listed by another.
+     *
+     * @return list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>|null
+     */
+    public function cachedTools(string $context, string $name, string $listedBy): ?array;
 }

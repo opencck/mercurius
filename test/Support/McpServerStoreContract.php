@@ -43,4 +43,18 @@ abstract class McpServerStoreContract extends TestCase {
         self::assertTrue($store->remove('member:7', 'docs'));
         self::assertFalse($store->remove('member:7', 'docs'));
     }
+
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — the kept tools go with what listed them */
+    public function testTheToolsAreKeptWithWhatListedThem(): void {
+        $store = $this->store();
+        $store->add('member:8', 'local', 'stdio:npx -y some-mcp', null);
+        $tools = [['name' => 'echo', 'description' => 'Echoes «всё»', 'schema' => ['type' => 'object', 'properties' => ['q' => ['type' => 'string']]], 'annotations' => ['readOnlyHint' => true]]];
+
+        self::assertNull($store->cachedTools('member:8', 'local', 'e1'), 'nothing kept yet');
+        $store->saveTools('member:8', 'local', 'e1', $tools);
+
+        self::assertSame($tools, $store->cachedTools('member:8', 'local', 'e1'));
+        self::assertNull($store->cachedTools('member:8', 'local', 'e2'), 'listed by another entry');
+        $store->remove('member:8', 'local');
+    }
 }

@@ -74,7 +74,20 @@ final class InMemoryMcpServerRepository implements McpServerRepository {
         return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $s->nextTry, approvedHash: $entryHash, entry: $entry);
     }
 
+    /** @var array<string, array{string, list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>}> */
+    private array $tools = [];
+
+    public function saveTools(string $context, string $name, string $listedBy, array $tools): void {
+        $this->tools[$context . '|' . $name] = [$listedBy, $tools];
+    }
+
+    public function cachedTools(string $context, string $name, string $listedBy): ?array {
+        $kept = $this->tools[$context . '|' . $name] ?? null;
+        return $kept !== null && $kept[0] === $listedBy ? $kept[1] : null;
+    }
+
     public function remove(string $context, string $name): bool {
+        unset($this->tools[$context . '|' . $name]);
         if (!isset($this->servers[$context . '|' . $name])) {
             return false;
         }
