@@ -43,7 +43,11 @@ final class StdioSession {
     private bool $closed = false;
     private string $failure = '';
 
-    /** @param (Closure(string): void)|null $onToolsChanged the server said its tools changed */
+    /**
+     * @param (Closure(string): void)|null $onToolsChanged the server said its tools changed
+     * @param (Closure(string, array<array-key, mixed>): array<string, mixed>)|null $onElicit the server asks for consent:
+     *        the result of elicitation/create, after the owner of the entry answered
+     */
     public function __construct(
         private readonly SandboxStreams $sandbox,
         private readonly SandboxLimits $limits,
@@ -52,6 +56,7 @@ final class StdioSession {
         private readonly string $server,
         private readonly ?Closure $onToolsChanged,
         private readonly LoggerInterface $logger,
+        private readonly ?Closure $onElicit = null,
     ) {
         async($this->read(...))->ignore();
     }
@@ -166,6 +171,26 @@ final class StdioSession {
                 return;
             }
             $waiting->complete(isset($message['result']) && is_array($message['result']) ? $message['result'] : []);
+            return;
+        }
+        if ($id !== null && $method === 'elicitation/create' && $this->onElicit !== null) {
+            // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — the server asks the owner of
+            //       its entry; the answer may take minutes, the reading of the pipe goes on meanwhile
+            $params = isset($message['params']) && is_array($message['params']) ? $message['params'] : [];
+            $elicit = $this->onElicit;
+            async(function () use ($elicit, $id, $params): void {
+                try {
+                    $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => $elicit($this->server, $params)];
+                } catch (\Throwable $e) {
+                    $this->logger->warning('MCP consent was not asked', ['server' => $this->server, 'error' => $e::class]);
+                    $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['action' => 'decline']];
+                }
+                try {
+                    $this->write($reply);
+                } catch (RuntimeException) {
+                    // the session is gone: the server stopped waiting
+                }
+            })->ignore();
             return;
         }
         if ($id !== null) {

@@ -191,6 +191,26 @@ $mcpManager = new McpManager(
 // spec: brief/skills-mcp.md#подстановка-секретов — an approved entry gets the secrets it names from the layers of its
 //       context; the wider layers only where they are turned on
 $secretInheritance = new \OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository($db);
+// spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a server asks the owner of its entry
+$mcpElicitations = new \OpenCCK\App\Mcp\McpElicitations(
+    $channel,
+    static function (string $context) use ($principals, $skillProjects, $channel): ?array {
+        if (preg_match('~^project:(\d+)$~', $context, $m) === 1) {
+            $owner = $skillProjects->find((int) $m[1])?->ownerId;
+            $context = $owner === null ? 'owners' : 'member:' . $owner;
+        }
+        if (preg_match('~^member:(\d+)$~', $context, $m) === 1) {
+            $chat = $principals->externalId((int) $m[1], $channel->name());
+            return $chat === null ? null : [$chat, (int) $m[1]];
+        }
+        return [\OpenCCK\App\Service\OwnersChannel::OWNERS, null];
+    },
+);
+$stdioMcp?->useElicitation(static function (string $key, array $params) use ($mcpElicitations): array {
+    // a connection of a context is context|name; a built-in server has no context: the owners answer for it
+    $parts = explode('|', $key, 2);
+    return count($parts) === 2 ? $mcpElicitations->ask($parts[0], $parts[1], $params) : $mcpElicitations->ask('owners', $key, $params);
+});
 $mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $vault,
     static fn(int $project): ?int => $skillProjects->find($project)?->ownerId,

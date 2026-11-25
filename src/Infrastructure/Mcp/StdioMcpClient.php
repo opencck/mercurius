@@ -63,6 +63,29 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         parent::__construct($texts);
     }
 
+    /** @var (Closure(string, array<array-key, mixed>): array<string, mixed>)|null */
+    private ?Closure $elicit = null;
+
+    /**
+     * Requests of the servers for consent go to the owner of their entry: the key of the connection and the request
+     * in, the result of elicitation/create out. The client then says at the handshake that it can ask.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
+     *
+     * @param Closure(string, array<array-key, mixed>): array<string, mixed> $elicit
+     */
+    public function useElicitation(Closure $elicit): void {
+        $this->elicit = $elicit;
+    }
+
+    protected function initializeParams(): array {
+        $params = parent::initializeParams();
+        if ($this->elicit !== null) {
+            $params['capabilities'] = ['elicitation' => (object) []];
+        }
+        return $params;
+    }
+
     /** The variable the token goes into: the part after ':' in the secret's field, MCP_TOKEN otherwise. */
     public static function envName(?string $secret): string {
         $position = $secret === null ? false : strrpos($secret, ':');
@@ -120,7 +143,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         } catch (SandboxFailure $e) {
             throw new RuntimeException(t('mcp.stdio.not_started') . $e->getMessage());
         }
-        $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->key(), $this->onToolsChanged, $this->logger);
+        $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->key(), $this->onToolsChanged, $this->logger, $this->elicit);
         try {
             $session->request('initialize', $this->initializeParams(), new NullCancellation(), self::START_SECONDS);
             $session->notify('notifications/initialized');

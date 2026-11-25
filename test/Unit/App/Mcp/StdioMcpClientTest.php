@@ -85,6 +85,25 @@ final class StdioMcpClientTest extends AsyncTestCase {
         self::assertCount(1, $this->sandbox->spawned, 'concurrent first calls start one process');
     }
 
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a request of the server for consent */
+    public function testTheServerMayAskForConsentAndHearsTheAnswer(): void {
+        $asked = new \ArrayObject();
+        $this->client->useElicitation(static function (string $server, array $params) use ($asked): array {
+            $asked->append([$server, $params['message'] ?? null]);
+            return ['action' => 'accept', 'content' => ['confirm' => true]];
+        });
+        $this->client->tools(self::server(), null, new NullCancellation());
+
+        $this->sandbox->push('s1', '{"jsonrpc":"2.0","id":9,"method":"elicitation/create","params":{"message":"Confirm touch","requestedSchema":{"type":"object","properties":{"confirm":{"type":"boolean"}}}}}');
+        delay(0.3);
+
+        self::assertSame([['everything', 'Confirm touch']], $asked->getArrayCopy());
+        $reply = array_values(array_filter($this->sandbox->written, static fn(array $m): bool => ($m['id'] ?? null) === 9));
+        self::assertSame([['jsonrpc' => '2.0', 'id' => 9, 'result' => ['action' => 'accept', 'content' => ['confirm' => true]]]], $reply);
+        $init = array_values(array_filter($this->sandbox->written, static fn(array $m): bool => ($m['method'] ?? null) === 'initialize'));
+        self::assertStringContainsString('"elicitation"', (string) json_encode($init[0] ?? []), 'the client says it can ask');
+    }
+
     public function testTheServerMayNotifyAndAsk(): void {
         $this->client->tools(self::server(), null, new NullCancellation());
 
