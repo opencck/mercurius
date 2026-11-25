@@ -72,9 +72,9 @@ final class McpEntryCards implements CallbackHandler {
             return;
         }
         if ($action === 'a') {
-            $text = $this->files->approve($context, $name, $who);
+            $text = $this->files->approve($context, $name, $who, $tag);
         } else {
-            $this->files->refuse($context, $name, $who);
+            $this->files->refuse($context, $name, $who, $entry);
             $text = sprintf(t('mcp.cards.refused'), $name, $context);
         }
         $this->channel->answerCallback($callback->callbackId, mb_substr($text, 0, 180));

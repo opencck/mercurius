@@ -89,7 +89,7 @@ final class ServerCommands {
         }
         $parts = preg_split('~\s+~', trim($rest)) ?: [];
         // another member's context is named by number, and only by an owner of the agent
-        $other = $principal->isOwner() && isset($parts[3]) && ctype_digit($parts[3]) ? $parts[3] : (string) $principal->id;
+        $other = $principal->isOwner() && isset($parts[3]) && ctype_digit($parts[3]) ? (string) (int) $parts[3] : (string) $principal->id;
         $context = $project === null ? 'member:' . $other : 'project:' . $project->id;
         if (count($parts) === 1) {
             return $this->inheritState($context, $project);
@@ -100,11 +100,11 @@ final class ServerCommands {
             return t($project === null ? 'service.server_commands.inherit_usage_member' : 'service.server_commands.inherit_usage_project');
         }
         // the owner's own secrets go to their project by their word; the agent's — only by an owner of the agent
-        $may = $layer === 'owner' ? ($project?->visibleTo($principal) ?? false) : $principal->isOwner();
+        $may = $layer === 'owner' ? ($project !== null && $project->ownerId === $principal->id) : $principal->isOwner();
         if (!$may) {
             return t($layer === 'owner' ? 'service.server_commands.inherit_owner_only' : 'service.server_commands.inherit_agent_only');
         }
-        $this->inherit->set($context, $layer === 'owner' ? 'owner' : 'agent', $on);
+        $this->inherit->set($context, $layer === 'owner' ? 'owner' : 'agent', $on, $layer === 'owner' ? $principal->id : null);
         return $this->inheritState($context, $project);
     }
 

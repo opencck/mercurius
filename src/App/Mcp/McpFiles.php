@@ -196,6 +196,10 @@ final class McpFiles {
             $this->wait($context, $server, $server->approvedHash === null ? '' : t('mcp.files.changed'));
             return !$entry->disabled;
         }
+        if ($server->entry === null) {
+            // approved before entries were kept: the approved entry is stored, so its secrets keep coming
+            $server = $this->servers->setEntry($context, $entry->name, $entry->toArray()) ?? $server;
+        }
         [$url, $secret] = [$entry->address(), null];
         if ($server->url !== $url || $server->secret !== $secret) {
             // the approved entry is the address: a connection kept before files had it written otherwise
@@ -303,7 +307,13 @@ final class McpFiles {
     }
 
     /** The entry is not approved: it keeps waiting, its tools out, with who refused it. */
-    public function refuse(string $context, string $name, Member $by): void {
+    public function refuse(string $context, string $name, Member $by, ?McpEntry $entry = null): void {
+        $server = $this->servers->find($context, $name);
+        $approved = $server?->approvedHash;
+        if ($entry !== null && $approved !== null && hash_equals($approved, $entry->hash())) {
+            // the entry refused is the one approved: the approval is taken back, or the next reading would resume it
+            $this->servers->setApproval($context, $name, null, null);
+        }
         $this->manager->hold($context, $name, McpServer::PENDING, sprintf(t('mcp.cards.refused_reason'), $by->displayName ?? (string) $by->id));
     }
 
@@ -314,7 +324,7 @@ final class McpFiles {
      *
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the hash of the approved entry and who approved it
      */
-    public function approve(string $context, string $name, Member $by): string {
+    public function approve(string $context, string $name, Member $by, ?string $expected = null): string {
         $file = $this->load($context);
         if ($file === false || $file?->broken === true) {
             return t('mcp.files.unreadable');
@@ -322,6 +332,10 @@ final class McpFiles {
         $entry = $file?->entries[$name] ?? null;
         if ($file === null || $entry === null) {
             return $file?->bad[$name] ?? sprintf(t('mcp.files.no_entry'), $name);
+        }
+        // a card approves the entry it showed: the file read here, not an earlier read, must hold it
+        if ($expected !== null && !str_starts_with($entry->hash(), $expected)) {
+            return t('mcp.cards.decided');
         }
         $problem = $this->guard->problem($entry);
         if ($problem !== null) {

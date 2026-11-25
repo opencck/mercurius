@@ -10,9 +10,12 @@ namespace OpenCCK\Domain\Repository;
  * spec: brief/skills-mcp.md#подстановка-секретов
  */
 interface SecretInheritanceRepository {
-    /** @return array{owner: bool, agent: bool} */
+    /** @return array{owner: bool, agent: bool, by: ?int} by — who opened their own secrets to the context */
     public function of(string $context): array;
 
-    /** @param 'owner'|'agent' $layer */
-    public function set(string $context, string $layer, bool $on): void;
+    /**
+     * @param 'owner'|'agent' $layer
+     * @param int|null $by for the owner's layer: whose secrets are opened; the consent holds only while they own it
+     */
+    public function set(string $context, string $layer, bool $on, ?int $by = null): void;
 }

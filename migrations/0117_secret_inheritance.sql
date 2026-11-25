@@ -5,5 +5,7 @@
 CREATE TABLE secret_inheritance (
     context text PRIMARY KEY CHECK (context ~ '^(member|project):[0-9]+$'),
     owner boolean NOT NULL DEFAULT false,
-    agent boolean NOT NULL DEFAULT false
+    agent boolean NOT NULL DEFAULT false,
+    -- who opened their own secrets to the project: the consent holds only while they own it
+    owner_by bigint REFERENCES principals (id) ON DELETE SET NULL
 );

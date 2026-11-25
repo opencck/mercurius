@@ -129,6 +129,47 @@ final class McpFileSyncTest extends AsyncTestCase {
         $this->cards?->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'c' . mt_rand(), '42', $who, null, '1', $data, 'u' . mt_rand()));
     }
 
+    /** An approved connection that has no stored entry yet gets it from the file, and keeps its secret. */
+    public function testAnApprovedConnectionWithoutAStoredEntryKeepsItsSecret(): void {
+        $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
+        $json = '{"mcpServers": {"docs": {"url": "https://a.example/mcp", "headers": {"Authorization": "Bearer {tok}"}}}}';
+        $this->file(1, '.mcp.json', $json);
+        $this->servers->add('member:1', 'docs', 'https://a.example/mcp', 'tok');
+        $this->servers->setApproval('member:1', 'docs', McpEntry::fromArray('docs', ['url' => 'https://a.example/mcp', 'headers' => ['Authorization' => 'Bearer {tok}']])->hash(), 1);
+        $this->servers->update('member:1', 'docs', McpServer::CONNECTED, 'h');
+
+        $this->files->sync('member:1');
+        $this->manager->resume('member:1', 'docs');
+
+        self::assertNotNull($this->servers->find('member:1', 'docs')?->entry, 'the entry is stored');
+        $all = $this->seen->getArrayCopy();
+        $last = array_pop($all) ?? ['', [], 'none'];
+        self::assertSame('Bearer secret-value-1', $last[1]['Authorization'] ?? '');
+    }
+
+    public function testAnApprovalStandsOnlyForTheEntryItWasAskedFor(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp"}}}');
+        $this->files->sync('member:1');
+
+        $this->files->approve('member:1', 'docs', $this->owner, expected: str_repeat('0', 64));
+
+        self::assertNull($this->servers->find('member:1', 'docs')?->approvedHash, 'the file holds another entry than the card showed');
+    }
+
+    public function testARefusalTakesBackAnApprovalOfTheSameEntry(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp"}}}');
+        $this->files->sync('member:1');
+        $card = $this->lastCard();
+        $this->files->approve('member:1', 'docs', $this->owner);
+
+        $this->press($card[1] ?? '', '1');
+        $this->files->sync('member:1');
+
+        $docs = $this->servers->find('member:1', 'docs');
+        self::assertSame([McpServer::PENDING, null], [$docs?->status, $docs?->approvedHash], 'refused stays refused');
+        self::assertNull($this->registry->get('mcp_docs_search', $this->in('member:1')));
+    }
+
     /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the card names the secrets and their layers */
     public function testANewEntryBringsACardWithItsSecrets(): void {
         $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);

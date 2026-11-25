@@ -57,11 +57,23 @@ final class McpSecretsTest extends TestCase {
         self::assertSame(['key' => null], $this->secrets->layers($entry, 'member:1'), 'nor of the agent in a personal context');
         self::assertSame('user-key', $this->secrets->render($entry, 'member:2')->headers['X-Key'], 'one\'s own always');
 
-        $this->inherit->set('project:5', 'owner', true);
+        $this->inherit->set('project:5', 'owner', true, 2);
         self::assertSame('user-key', $this->secrets->render($entry, 'project:5')->headers['X-Key']);
         $this->inherit->set('project:5', 'owner', false);
         $this->inherit->set('project:5', 'agent', true);
         self::assertSame('agent-key', $this->secrets->render($entry, 'project:5')->headers['X-Key']);
+    }
+
+    public function testTheConsentOfAFormerProjectOwnerDoesNotPassToTheNextOne(): void {
+        $owners = new \ArrayObject(['owner' => 2]);
+        $secrets = new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? $owners['owner'] : null, $this->inherit);
+        $entry = McpEntry::fromArray('docs', ['url' => 'https://a.example/mcp', 'headers' => ['X-Key' => '{key}']]);
+        $this->vault->put('key', 'token', 'owner-key', $this->owner);
+        $this->inherit->set('project:5', 'owner', true, 2);
+
+        $owners['owner'] = 1;
+
+        self::assertSame(['key'], $secrets->render($entry, 'project:5')->missing, 'member 1 never opened their secrets to the project');
     }
 
     public function testAMissingNameIsNamed(): void {

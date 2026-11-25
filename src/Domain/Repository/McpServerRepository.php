@@ -39,6 +39,13 @@ interface McpServerRepository {
     /**
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the approved entry is kept by its hash and who approved it
      */
+    /**
+     * Keeps the approved entry of a connection approved before entries were kept; the approval itself stays.
+     *
+     * @param array<array-key, mixed> $entry
+     */
+    public function setEntry(string $context, string $name, array $entry): ?McpServer;
+
     /** @param array<array-key, mixed>|null $entry the approved entry itself, kept to call the server by it */
     public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer;
 

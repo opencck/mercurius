@@ -55,10 +55,12 @@ final class ServerCommandsTest extends AsyncTestCase {
         $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
         $project = $projects->create('Job Hunt', '', ownerId: 7);
 
-        self::assertSame(['owner' => false, 'agent' => false], $inherit->of('project:' . $project->id), 'off by default');
+        self::assertSame(['owner' => false, 'agent' => false, 'by' => null], $inherit->of('project:' . $project->id), 'off by default');
         $commands->secret($anna, 'Job Hunt: inherit owner on');
         $commands->secret($anna, 'Job Hunt: inherit agent on');
-        self::assertSame(['owner' => true, 'agent' => false], $inherit->of('project:' . $project->id), 'the project owner shares their own, not the agent\'s');
+        self::assertSame(['owner' => true, 'agent' => false, 'by' => 7], $inherit->of('project:' . $project->id), 'the project owner shares their own, not the agent\'s');
+        $commands->secret($owner, 'Job Hunt: inherit owner off');
+        self::assertTrue($inherit->of('project:' . $project->id)['owner'], 'an owner of the agent does not decide on the project owner\'s secrets');
         $commands->secret($owner, 'Job Hunt: inherit agent on');
         self::assertTrue($inherit->of('project:' . $project->id)['agent']);
 
@@ -68,6 +70,8 @@ final class ServerCommandsTest extends AsyncTestCase {
         self::assertTrue($inherit->of('member:7')['agent']);
         $commands->secret($owner, 'inherit agent on');
         self::assertTrue($inherit->of('member:1')['agent'], 'an owner turns it on for themselves');
+        $commands->secret($owner, 'inherit agent on 007');
+        self::assertTrue($inherit->of('member:7')['agent'], 'the number is a number');
         $commands->secret($owner, 'inherit agent off 7');
         self::assertFalse($inherit->of('member:7')['agent']);
         self::assertStringContainsString('секреты агента наследуются', $commands->secret($owner, 'inherit'), 'the state of their own context');

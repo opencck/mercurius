@@ -50,7 +50,9 @@ final class McpSecrets {
             return [null, (int) $m[1], true, $inherits['agent']];
         }
         if (preg_match('~^project:(\d+)$~', $context, $m) === 1) {
-            return [(int) $m[1], ($this->projectOwner)((int) $m[1]) ?? 0, $inherits['owner'], $inherits['agent']];
+            $owner = ($this->projectOwner)((int) $m[1]) ?? 0;
+            // the owner's consent is theirs: a project that changed hands inherits nothing of the new owner
+            return [(int) $m[1], $owner, $inherits['owner'] && $inherits['by'] === $owner, $inherits['agent']];
         }
         return [null, 0, false, false];
     }
