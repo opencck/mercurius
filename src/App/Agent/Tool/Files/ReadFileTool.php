@@ -23,6 +23,7 @@ final class ReadFileTool extends SandboxTool implements Unspillable {
             . t('tool.read_file.po_umolchaniyu_pervye_500_puti'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'path' => ['type' => 'string', 'maxLength' => 4096],
                 'start_line' => ['type' => 'integer', 'minimum' => 1, 'description' => t('tool.read_file.s_kakoy_stroki_po_umolchaniyu')],
                 'max_lines' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 2000, 'description' => t('tool.read_file.skolko_strok_po_umolchaniyu_500')],
@@ -38,7 +39,7 @@ final class ReadFileTool extends SandboxTool implements Unspillable {
 
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
         $start = Args::int($args, 'start_line') ?? 1;
-        $read = $this->sandbox->read($context->principal->id, $limits, Args::string($args, 'path') ?? '', $start, Args::int($args, 'max_lines') ?? 500, $context->cancellation);
+        $read = $this->sandbox->read($this->holder($args, $context), $limits, Args::string($args, 'path') ?? '', $start, Args::int($args, 'max_lines') ?? 500, $context->cancellation);
         $lines = $read['text'] === '' ? [] : explode("\n", rtrim($read['text'], "\n"));
         $numbered = [];
         foreach ($lines as $offset => $line) {

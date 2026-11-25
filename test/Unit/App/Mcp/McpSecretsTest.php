@@ -76,6 +76,13 @@ final class McpSecretsTest extends TestCase {
         self::assertSame(['key'], $secrets->render($entry, 'project:5')->missing, 'member 1 never opened their secrets to the project');
     }
 
+    public function testTheOwnersContextTakesTheAgentsSecrets(): void {
+        $entry = McpEntry::fromArray('docs', ['url' => 'https://a.example/mcp', 'headers' => ['X-Key' => '{key}']]);
+        $this->vault->putAgent('key', 'agent-key', $this->owner);
+
+        self::assertSame('agent-key', $this->secrets->render($entry, 'owners')->headers['X-Key'], 'the owners keep the agent\'s secrets: no switch');
+    }
+
     public function testAMissingNameIsNamed(): void {
         $entry = McpEntry::fromArray('docs', ['command' => 'npx', 'env' => ['TOKEN' => '{nothing}']]);
 

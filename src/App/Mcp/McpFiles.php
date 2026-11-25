@@ -29,6 +29,9 @@ use function Mercurius\I18n\t;
  *      is checked again before it runs; here the approval by hash comes first, the check sorts out what cannot run
  */
 final class McpFiles {
+    /** the holder of the owners' area in the sandbox */
+    public const OWNERS_AREA = 0;
+
     /** @var array<string, true> context|name of new entries already told about */
     private array $told = [];
 
@@ -49,12 +52,16 @@ final class McpFiles {
     ) {}
 
     /**
-     * Whose folder holds the context's file and where in it; null — the context has no file now (the owners' area
-     * comes with the root of the sandbox).
+     * Whose folder holds the context's file and where in it: the owners' area (the root), a member's folder, or a
+     * project's folder in its owner's; null — the context has no file.
      *
      * @return array{int, string}|null
      */
     public function where(string $context): ?array {
+        // spec: brief/agent-loop.md#раскладка-каталогов — the owners' context keeps its file in the root
+        if ($context === 'owners') {
+            return [self::OWNERS_AREA, McpFile::NAME];
+        }
         if (preg_match('~^member:(\d+)$~', $context, $m) === 1) {
             return [(int) $m[1], McpFile::NAME];
         }

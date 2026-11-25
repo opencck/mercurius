@@ -85,6 +85,30 @@ final class FileToolsTest extends TestCase {
         self::assertSame([[7, '.mcp.json']], $changed->getArrayCopy(), 'its context reads it at once');
     }
 
+    /** spec: brief/agent-loop.md#раскладка-каталогов — the root is the owners' area: for owners only */
+    public function testAnOwnerWorksInTheOwnersAreaAndAMemberMayNot(): void {
+        /** @var \ArrayObject<int, array{int, string}> $changed */
+        $changed = new \ArrayObject();
+        $write = new WriteFileTool($this->sandbox);
+        $write->useMcpFiles(static function (int $holder, string $path) use ($changed): void {
+            $changed->append([$holder, $path]);
+        });
+
+        self::assertFalse($write->execute(['path' => 'notes.md', 'content' => 'shared', 'area' => 'owners'], self::context())->isError);
+        self::assertSame('shared', $this->sandbox->files[0]['notes.md'] ?? null, 'in the root, not in the owner\'s folder');
+        $write->execute(['path' => '.mcp.json', 'content' => '{"mcpServers": {}}', 'area' => 'owners'], self::context());
+        self::assertSame([[0, '.mcp.json']], $changed->getArrayCopy(), 'the file of the owners\' context');
+        self::assertStringContainsString('shared', (new ReadFileTool($this->sandbox))->execute(['path' => 'notes.md', 'area' => 'owners'], self::context())->content);
+        (new RunCommandTool($this->sandbox, 120))->execute(['command' => 'ls', 'area' => 'owners'], self::context());
+        self::assertContains('exec 0 ls @. t120', $this->sandbox->calls);
+
+        $member = new ToolContext(3, 1, new Member(8, MemberKind::Human, Role::user(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true), 'c2');
+        $calls = count($this->sandbox->calls);
+        self::assertTrue((new ReadFileTool($this->sandbox))->execute(['path' => 'notes.md', 'area' => 'owners'], $member)->isError);
+        self::assertTrue((new RunCommandTool($this->sandbox, 120))->execute(['command' => 'ls', 'area' => 'owners'], $member)->isError);
+        self::assertCount($calls, $this->sandbox->calls, 'nothing reached the sandbox');
+    }
+
     public function testASkillFileIsNotOverwrittenWithWhatIsNotASkill(): void {
         // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a SKILL.md written with its line breaks
         //       as backslash-n stopped being a skill and failed the runs of its project

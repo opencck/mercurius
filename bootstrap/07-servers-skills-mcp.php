@@ -233,8 +233,9 @@ if ($sandbox !== null) {
     $mcpCardsHolder = new \ArrayObject();
     $mcpFiles = new \OpenCCK\App\Mcp\McpFiles(
         $sandbox,
-        static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
-            $principal = $principals->find($principalId);
+        // the owners' area works with the limits of an owner of the agent
+        static function (int $principalId) use ($principals, $policies, $ownerDirectory): ?\OpenCCK\Domain\Agent\SandboxLimits {
+            $principal = $principalId === \OpenCCK\App\Mcp\McpFiles::OWNERS_AREA ? $ownerDirectory->principal() : $principals->find($principalId);
             return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
         },
         $mcpServers,
@@ -262,7 +263,7 @@ if ($sandbox !== null) {
     );
     $mcpCardsHolder['cards'] = $mcpCards;
     $mcpContexts = static function () use ($principals, $skillProjects): array {
-        $contexts = [];
+        $contexts = ['owners'];
         foreach ($principals->all() as $member) {
             if ($member->status === \OpenCCK\Domain\Entity\MemberStatus::Active) {
                 $contexts[] = 'member:' . $member->id;
@@ -306,7 +307,19 @@ if ($sandbox !== null) {
     }));
     /** @var \OpenCCK\App\Agent\Tool\Files\WriteFileTool|null $writeFile */
     $writeFile?->useMcpFiles(static function (int $member, string $path) use ($mcpFiles): void {
-        $path = preg_replace('~^/workspace/p\d+/~', '', str_replace('\\', '/', $path)) ?? $path;
+        $path = str_replace('\\', '/', $path);
+        if ($member === \OpenCCK\App\Mcp\McpFiles::OWNERS_AREA) {
+            // from the owners' area: the root's own file, or a member's or project's file inside a member's folder
+            $path = preg_replace('~^/workspace/~', '', $path) ?? $path;
+            if (preg_match('~^p(\d+)/(.*)$~', $path, $m) === 1) {
+                $member = (int) $m[1];
+                $path = $m[2];
+            } else {
+                \Amp\async(static fn() => $mcpFiles->sync('owners'))->ignore();
+                return;
+            }
+        }
+        $path = preg_replace('~^/workspace/p\d+/~', '', $path) ?? $path;
         $context = preg_match('~^projects/(\d+)/\.mcp\.json$~', $path, $m) === 1 ? 'project:' . $m[1] : 'member:' . $member;
         \Amp\async(static fn() => $mcpFiles->sync($context))->ignore();
     });

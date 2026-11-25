@@ -31,6 +31,7 @@ final class SearchFilesTool extends SandboxTool {
         return new ToolDefinition(self::NAME, t('tool.search_files.about'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'pattern' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 500, 'description' => t('tool.search_files.pattern')],
                 'target' => ['type' => 'string', 'enum' => ['content', 'files']],
                 'path' => ['type' => 'string', 'maxLength' => 4096],
@@ -54,7 +55,7 @@ final class SearchFilesTool extends SandboxTool {
         $command = (Args::string($args, 'target') ?? 'content') === 'files'
             ? sprintf("find -- %s -name %s -not -path '*/.checkpoints/*' 2>/dev/null | head -n %d", self::quote($path), self::quote($pattern), $limit)
             : sprintf('grep -rInE --exclude-dir=.checkpoints %s-e %s -- %s 2>/dev/null | head -n %d', $glob === null || $glob === '' ? '' : '--include=' . self::quote($glob) . ' ', self::quote($pattern), self::quote($path), $limit);
-        $outcome = $this->sandbox->exec($context->principal->id, $limits, $context->callId, $command, '.', 60, $context->cancellation);
+        $outcome = $this->sandbox->exec($this->holder($args, $context), $limits, $context->callId, $command, '.', 60, $context->cancellation);
         $found = rtrim($outcome->stdout, "\n");
         if ($found === '') {
             return ToolResult::ok(t('tool.search_files.nothing'));

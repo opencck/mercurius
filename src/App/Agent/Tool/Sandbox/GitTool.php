@@ -74,6 +74,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         return new ToolDefinition(self::NAME, t('tool.git.about'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'args' => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 2000], 'minItems' => 1, 'maxItems' => 50, 'description' => t('tool.git.args')],
                 'cwd' => ['type' => 'string', 'maxLength' => 4096],
                 'secret' => ['type' => 'string', 'maxLength' => 64, 'description' => t('tool.git.secret')],
@@ -186,7 +187,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
                 . str_replace("'", "'\\''", t('tool.git.read_programs')) . "' >&2; exit 3; fi; ";
         }
         $outcome = $this->env->execEnv(
-            $context->principal->id,
+            $this->holder($args, $context),
             $limits,
             $context->callId,
             $check . self::command($list, $hardened),

@@ -55,6 +55,7 @@ final class WriteFileTool extends SandboxTool {
             . t('tool.write_file.zamenoy_fragmenta_old_new_old'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'path' => ['type' => 'string', 'maxLength' => 4096],
                 'content' => ['type' => 'string'],
                 'old' => ['type' => 'string'],
@@ -93,17 +94,17 @@ final class WriteFileTool extends SandboxTool {
                     return ToolResult::error(sprintf(t('tool.write_file.not_an_mcp_file'), $problem));
                 }
             }
-            $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
+            $this->sandbox->write($this->holder($args, $context), $limits, $path, $content, $context->cancellation);
             if (self::isMcpFile($path) && $this->mcpChanged !== null) {
-                ($this->mcpChanged)($context->principal->id, $path);
+                ($this->mcpChanged)($this->holder($args, $context), $path);
             }
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_zapisan_bayt'), $path, strlen($content)));
         }
         if ($content === null && $old !== null && $new !== null) {
-            $this->sandbox->replace($context->principal->id, $limits, $path, $old, $new, $context->cancellation);
+            $this->sandbox->replace($this->holder($args, $context), $limits, $path, $old, $new, $context->cancellation);
             // a piece replaced is checked when the file is read: an entry that cannot run becomes an error there
             if (self::isMcpFile($path) && $this->mcpChanged !== null) {
-                ($this->mcpChanged)($context->principal->id, $path);
+                ($this->mcpChanged)($this->holder($args, $context), $path);
             }
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_izmenen'), $path));
         }

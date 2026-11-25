@@ -129,6 +129,18 @@ final class McpFileSyncTest extends AsyncTestCase {
         $this->cards?->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'c' . mt_rand(), '42', $who, null, '1', $data, 'u' . mt_rand()));
     }
 
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the owners' context keeps its file in the root */
+    public function testTheOwnersContextReadsTheFileInTheRoot(): void {
+        $this->file(0, '.mcp.json', '{"mcpServers": {"shared": {"url": "https://a.example/mcp"}}}');
+
+        self::assertSame([0, '.mcp.json'], $this->files->where('owners'));
+        $this->files->sync('owners');
+
+        self::assertSame(McpServer::PENDING, $this->servers->find('owners', 'shared')?->status);
+        $this->files->approve('owners', 'shared', $this->owner);
+        self::assertNotNull($this->registry->get('mcp_shared_search', $this->in('owners')));
+    }
+
     /** An approved connection that has no stored entry yet gets it from the file, and keeps its secret. */
     public function testAnApprovedConnectionWithoutAStoredEntryKeepsItsSecret(): void {
         $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
@@ -412,10 +424,12 @@ final class McpFileSyncTest extends AsyncTestCase {
         $this->servers->update('member:1', 'old', McpServer::CONNECTED, 'h');
         $this->servers->add('owners', 'shared', 'https://shared.example/mcp', null);
         $this->servers->update('owners', 'shared', McpServer::CONNECTED, 'h');
+        $this->servers->add('', 'builtin', 'https://builtin.example/mcp', null);
+        $this->servers->update('', 'builtin', McpServer::CONNECTED, 'h');
 
         $this->manager->connectAll();
 
-        self::assertSame(['https://shared.example/mcp'], $this->called->getArrayCopy(), 'not approved by an entry: not called');
+        self::assertSame(['https://builtin.example/mcp'], $this->called->getArrayCopy(), 'not approved by an entry: not called, in the owners context too');
     }
 
     public function testTheFileOfAProjectIsInItsOwnersFolderAndNewEntriesAreTold(): void {

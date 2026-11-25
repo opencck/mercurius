@@ -42,7 +42,7 @@ final class McpCommands {
     public function handle(string $argument, \OpenCCK\Domain\Entity\Member $who): string {
         $context = 'member:' . $who->id;
         // another context: /mcp project:<number>: … or /mcp member:<number>: …
-        if (preg_match('~^\s*((?:project|member):\d+):\s*(.*)$~s', $argument, $m) === 1) {
+        if (preg_match('~^\s*((?:project|member):\d+|owners):\s*(.*)$~s', $argument, $m) === 1) {
             $context = $m[1];
             $argument = $m[2];
             if (!$this->mayManage($context, $who)) {
@@ -82,6 +82,10 @@ final class McpCommands {
             return true;
         }
         [$kind, $id] = array_pad(explode(':', $context, 2), 2, '');
+        if ($kind === 'owners') {
+            // the owners' area is the owners' alone
+            return false;
+        }
         if ($kind === 'member') {
             return (int) $id === $who->id;
         }

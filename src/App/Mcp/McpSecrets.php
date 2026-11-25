@@ -63,6 +63,7 @@ final class McpSecrets {
             // the owner's consent is theirs: a project that changed hands inherits nothing of the new owner
             return [(int) $m[1], $owner, $inherits['owner'] && $inherits['by'] === $owner, $inherits['agent']];
         }
-        return [null, 0, false, false];
+        // the owners' context: the owners keep the agent's secrets, there is nothing to switch on
+        return $context === 'owners' ? [null, 0, false, true] : [null, 0, false, false];
     }
 }

@@ -56,7 +56,7 @@ final class McpEntryCards implements CallbackHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if (preg_match('~^mc:([ar]):([0-9a-f]{12}):((?:member|project):\d+)\|([a-z0-9_]{1,24})$~', $callback->data, $m) !== 1) {
+        if (preg_match('~^mc:([ar]):([0-9a-f]{12}):((?:member|project):\d+|owners)\|([a-z0-9_]{1,24})$~', $callback->data, $m) !== 1) {
             $this->channel->answerCallback($callback->callbackId, t('mcp.cards.decided'));
             return;
         }

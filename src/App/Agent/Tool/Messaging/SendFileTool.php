@@ -55,6 +55,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         return new ToolDefinition(self::NAME, t('tool.send_file.about'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'path' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 1024, 'description' => t('tool.send_file.path')],
                 'caption' => ['type' => 'string', 'maxLength' => 1000],
                 'as' => ['type' => 'string', 'enum' => array_map(static fn(MediaKind $k): string => $k->value, MediaKind::cases()), 'description' => t('tool.send_file.as')],
@@ -92,7 +93,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         // spec: brief/internet.md#между-агентами — send_file without `to` in a conversation of an A2A task is the answer
         if (($to === null || $to === '') && $this->answerTask !== null && $this->conversations->meta($context->conversationId)?->channel === 'a2a') {
             $path = Args::string($args, 'path') ?? '';
-            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, self::MAX_BYTES, $context->cancellation);
+            $bytes = $this->sandbox->fetch($this->holder($args, $context), $limits, $path, self::MAX_BYTES, $context->cancellation);
             $name = basename(str_replace('\\', '/', $path)) ?: 'file';
             return ($this->answerTask)($context->runId, $name, $bytes)
                 ? ToolResult::ok(sprintf(t('tool.send_file.with_answer'), $name, strlen($bytes)))
@@ -109,7 +110,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         }
         [$chat, $thread] = $where;
         $path = Args::string($args, 'path') ?? '';
-        $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, self::MAX_BYTES, $context->cancellation);
+        $bytes = $this->sandbox->fetch($this->holder($args, $context), $limits, $path, self::MAX_BYTES, $context->cancellation);
         $name = basename(str_replace('\\', '/', $path));
         $name = $name === '' ? 'file' : $name;
         $caption = trim(Args::string($args, 'caption') ?? '');

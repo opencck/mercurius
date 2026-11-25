@@ -210,6 +210,11 @@ final class McpTest extends AsyncTestCase {
         $commands->handle('member:3: add own https://mcp.example.com/mcp', $user);
         self::assertNotNull($this->servers->find('project:5', 'docs'), 'the owner of the project');
         self::assertNotNull($this->servers->find('member:3', 'own'), 'one\'s own');
+
+        $commands->handle('owners: add shared https://mcp.example.com/mcp', $user);
+        self::assertNull($this->servers->find('owners', 'shared'), 'the owners\' context is the owners\'');
+        $commands->handle('owners: add shared https://mcp.example.com/mcp', $this->owner);
+        self::assertNotNull($this->servers->find('owners', 'shared'));
     }
 
     public function testAConnectionWhoseNamesAreTakenIsNotTurnedOn(): void {

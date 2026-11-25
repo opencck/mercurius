@@ -22,6 +22,7 @@ final class ListFilesTool extends SandboxTool {
             . t('tool.list_files.ne_bolshe_500_zapisey'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'path' => ['type' => 'string', 'maxLength' => 4096, 'description' => t('tool.list_files.katalog_po_umolchaniyu_rabochiy')],
                 'depth' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 3, 'description' => t('tool.list_files.glubina_po_umolchaniyu_1')],
             ],
@@ -34,7 +35,7 @@ final class ListFilesTool extends SandboxTool {
     }
 
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
-        $entries = $this->sandbox->list($context->principal->id, $limits, Args::string($args, 'path') ?? '.', Args::int($args, 'depth') ?? 1, $context->cancellation);
+        $entries = $this->sandbox->list($this->holder($args, $context), $limits, Args::string($args, 'path') ?? '.', Args::int($args, 'depth') ?? 1, $context->cancellation);
         if ($entries === []) {
             return ToolResult::ok(t('tool.list_files.katalog_pust'));
         }

@@ -62,6 +62,7 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
             . t('tool.run_command.sohranyayutsya_vyvod_kod_vyhoda_stdout'), [
             'type' => 'object',
             'properties' => [
+                'area' => self::areaProperty(),
                 'command' => ['type' => 'string', 'maxLength' => 10000],
                 'cwd' => ['type' => 'string', 'maxLength' => 4096, 'description' => t('tool.run_command.katalog_po_umolchaniyu_rabochiy')],
                 'timeout' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600, 'description' => t('tool.run_command.sekundy')],
@@ -159,8 +160,8 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
         $cwd = Args::string($args, 'cwd') ?? '.';
         $timeout = max(1, Args::int($args, 'timeout') ?? $this->defaultTimeout);
         $outcome = $env === [] || $this->env === null
-            ? $this->sandbox->exec($context->principal->id, $limits, $context->callId, $command, $cwd, $timeout, $context->cancellation)
-            : $this->env->execEnv($context->principal->id, $limits, $context->callId, $command, $cwd, $timeout, $env, $context->cancellation);
+            ? $this->sandbox->exec($this->holder($args, $context), $limits, $context->callId, $command, $cwd, $timeout, $context->cancellation)
+            : $this->env->execEnv($this->holder($args, $context), $limits, $context->callId, $command, $cwd, $timeout, $env, $context->cancellation);
         // the values put in are masked whatever their length: the command may print them
         $values = array_values($env);
         usort($values, static fn(string $a, string $b): int => strlen($b) <=> strlen($a));
