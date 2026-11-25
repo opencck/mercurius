@@ -92,7 +92,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $main = $principals->createAgent('mercurius', Role::user());
-        $orphan = $principals->createAgent('mercurius-03b8330c', Role::admin());
+        $orphan = $principals->createAgent('mercurius-03b8330c', Role::user());
         $keys = [['name' => 'mercurius', 'fingerprint' => 'SHA256:03b8330cfa3e39768506b215efd119ac68fdadfcbb833e31be3545e84dd0fc0b', 'principal' => $main->id, 'revoked' => false]];
         $tool = new ParticipantsTool($principals, new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120)), static fn(): array => $keys);
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
@@ -103,4 +103,23 @@ final class ParticipantsToolTest extends AsyncTestCase {
         self::assertStringContainsString('#' . $orphan->id . ' mercurius-03b8330c', $found, 'the name matches too');
         self::assertStringContainsString('без ключа', $found, 'an agent without a key cannot connect: the owner sees it');
     }
+
+    public function testOwnersAreAddedByOwnerAndTakenAwayByDecide(): void {
+        // spec: brief/participants.md#свои-роли — /owner adds an owner; another owner takes the role away, never the last
+        $principals = new InMemoryMemberRepository();
+        $owner = $principals->ensureOwner('telegram', '42', 'Сергей');
+        $roman = $principals->createVisitor('telegram', '7', 'Roman');
+        $principals->decideVisitor($roman->id, Role::user(), MemberStatus::Active);
+        $tool = new ParticipantsTool($principals, new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120)));
+        $context = new ToolContext(1, 1, $owner, new NullCancellation());
+
+        self::assertTrue($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'admin'], $context)->isError, 'an owner role is given by /owner only');
+        self::assertFalse($principals->find($roman->id)?->isOwner());
+
+        $principals->addOwner($roman->id);
+        self::assertFalse($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError);
+        self::assertSame(['user'], array_values(array_map(static fn(Member $m): string => $m->role->value, array_filter($principals->all(), static fn(Member $m): bool => $m->id === $roman->id))));
+        self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'user'], $context)->isError, 'not oneself, and never the last');
+    }
+
 }

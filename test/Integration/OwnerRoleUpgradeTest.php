@@ -58,6 +58,25 @@ final class OwnerRoleUpgradeTest extends TestCase {
         self::assertSame(['admin', 'admin'], [$this->role($env), $this->role($owner)]);
     }
 
+    public function testTheOwnerOwnershipWasPassedToStaysTheFirst(): void {
+        $env = $this->member('admin', '100');
+        $owner = $this->member('owner', '200');
+        $this->db->execute('INSERT INTO ownership_transfers (from_principal, to_principal) VALUES (?, ?)', [$env, $owner]);
+        (new OwnerRoleUpgrade($this->db))->run('telegram', '100');
+
+        self::assertSame($owner, (new \OpenCCK\Infrastructure\Repository\PostgresMemberRepository($this->db))->owner()?->id, 'the things of the agent stay with whom they were passed to');
+    }
+
+    public function testAnAdministratorAgentBecomesAUser(): void {
+        $this->member('owner', '100');
+        $agent = $this->db->execute("INSERT INTO principals (kind, role, display_name) VALUES ('agent', 'admin', 'peer') RETURNING id")->fetchRow()['id'] ?? null;
+        self::assertIsInt($agent);
+
+        (new OwnerRoleUpgrade($this->db))->run('telegram', '100');
+
+        self::assertSame('user', $this->role($agent), 'an agent never holds the owner role');
+    }
+
     public function testSecondRunChangesNothing(): void {
         $this->member('owner', '100');
         $this->member('admin');

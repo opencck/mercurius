@@ -52,7 +52,7 @@ final class CallbackRouter implements CallbackHandler {
             return;
         }
         // spec: brief/participants.md#свои-роли — every copy of an owner's card shows who decided
-        $name = !$open && $this->ownerUserId instanceof OwnerDirectory ? $this->ownerUserId->nameOf($callback->userId) : null;
+        $name = $this->ownerUserId instanceof OwnerDirectory ? $this->ownerUserId->nameOf($callback->userId) : null;
         if ($this->channel instanceof \OpenCCK\App\Service\OwnersChannel && $name !== null) {
             $this->channel->pressedBy($name, static fn() => $handler->handleCallback($callback));
             return;

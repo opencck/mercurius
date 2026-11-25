@@ -32,10 +32,13 @@ final class PartialImportTest extends AsyncTestCase {
 
     private string $staging = '';
     private static bool $noSkills = false;
+    /** @var array<string, string> tables of a newer archive, over TABLES */
+    private static array $tables = [];
 
     protected function setUp(): void {
         parent::setUp();
         self::$noSkills = false;
+        self::$tables = [];
         $this->staging = sys_get_temp_dir() . '/partial-' . bin2hex(random_bytes(4));
         mkdir($this->staging);
         file_put_contents($this->staging . '/db.dump', 'DUMP');
@@ -56,7 +59,7 @@ final class PartialImportTest extends AsyncTestCase {
     private static function fake(array $command, array $env): void {
         if ($command[0] === 'pg_restore') {
             $table = substr($command[2] ?? '', strlen('--table='));
-            file_put_contents($command[4] ?? '', self::TABLES[$table] ?? '');
+            file_put_contents($command[4] ?? '', self::$tables[$table] ?? self::TABLES[$table] ?? '');
         } elseif ($command[0] === 'tar') {
             if (self::$noSkills) {
                 throw new RuntimeException('tar exited with 2: Not found in archive');
@@ -103,6 +106,26 @@ final class PartialImportTest extends AsyncTestCase {
         self::assertSame('echo hi', self::file($sandbox, '.mercurius/skills/deploy/scripts/run.sh'));
         self::assertSame('# my notes', self::file($sandbox, '.mercurius/skills/notes/SKILL.md'), 'a skill of the same name here is kept');
         self::assertDirectoryDoesNotExist($this->staging . '/skills');
+    }
+
+    public function testAnArchiveWithOwnerRolesBringsTheOwnersSkills(): void {
+        // spec: brief/participants.md#свои-роли — in a newer archive the owner is the person of a role with owner
+        self::$tables = [
+            'principals' => "COPY public.principals (id, kind, role, created_at) FROM stdin;
+7	human	admin	2026-11-01
+9	human	admin	\N
+8	human	user	\N
+\.
+",
+            'participant_roles' => "COPY public.participant_roles (name, title, \"position\", permissions, policy) FROM stdin;
+admin		10	{owner}	{}
+user		20	{tools,skills}	{}
+\.
+",
+        ];
+        $import = new PartialImport(self::fake(...), new InMemoryMemoryStore(), new TextAnalyzer(), new FakeSandbox(), static fn(int $id): SandboxLimits => new SandboxLimits(100, 10, 5, 1000, 1));
+
+        self::assertSame(['deploy', 'notes'], $import->skills($this->staging, 3, new NullCancellation()), 'the earliest owner, p7');
     }
 
     public function testAnArchiveWithoutSkillsGivesNone(): void {

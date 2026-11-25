@@ -88,7 +88,7 @@ final class VisitorService implements CallbackHandler {
             : sprintf(t('service.visitor.in_group'), $group, $who, $said);
         // the stranger's words may carry a link: no preview of it in the owner's card
         // spec: brief/participants.md#свои-роли — the card offers the roles in their order
-        $buttons = array_map(static fn(Role $role): Button => new Button(RoleCatalog::label($role), sprintf('pv:%d', $visitor->id) . RoleCatalog::code($role)), Role::assignable());
+        $buttons = array_map(static fn(Role $role): Button => new Button(RoleCatalog::label($role), sprintf('pv:%d', $visitor->id) . RoleCatalog::code($role)), Role::grantable());
         $buttons[] = new Button(t('service.visitor.otkazat'), sprintf('pv:%d:r', $visitor->id));
         $result = $this->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), $card, disableLinkPreview: true, buttons: array_chunk($buttons, 3)));
         if (!$result->success) {
@@ -140,7 +140,8 @@ final class VisitorService implements CallbackHandler {
             return;
         }
         $named = ($match[3] ?? '') === '' ? null : Role::of($match[3]);
-        if ($named !== null && !in_array($named, Role::assignable(), true)) {
+        // spec: brief/participants.md#свои-роли — a card makes nobody an owner, a card sent before the roles changed neither
+        if (($named !== null && !in_array($named, Role::grantable(), true)) || ($named === null && ($match[2] ?? '') === 'a' && Role::admin()->isOwner())) {
             $this->channel->answerCallback($callback->callbackId, t('service.visitor.uzhe_resheno'));
             return;
         }

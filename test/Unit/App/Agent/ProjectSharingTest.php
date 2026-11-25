@@ -34,7 +34,7 @@ final class ProjectSharingTest extends AsyncTestCase {
         parent::setUp();
         $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
-        $this->agent = $this->principals->createAgent('helper', Role::admin());
+        $this->agent = $this->principals->createAgent('helper', Role::user());
         $visitor = $this->principals->createVisitor('telegram', '7', 'Анна');
         $this->user = $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? self::fail('no user');
         $this->projects = new InMemoryProjectRepository();

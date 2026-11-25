@@ -73,10 +73,18 @@ final class PartialImport {
         if ($limits === null) {
             throw new RuntimeException('no sandbox limits of the owner');
         }
+        // spec: brief/participants.md#свои-роли — an archive of either version: the old role owner, or a role with the
+        //       permission owner; the earliest such person is the owner whose skills come in
+        $ownerRoles = ['owner'];
+        foreach ($this->table($staging, 'participant_roles') as $row) {
+            if (is_string($row['name'] ?? null) && in_array('owner', explode(',', trim($row['permissions'] ?? '', '{}')), true)) {
+                $ownerRoles[] = $row['name'];
+            }
+        }
         $from = null;
         foreach ($this->table($staging, 'principals') as $row) {
-            if (($row['role'] ?? null) === 'owner' && is_numeric($row['id'] ?? null)) {
-                $from = (int) $row['id'];
+            if (in_array($row['role'] ?? null, $ownerRoles, true) && ($row['kind'] ?? 'human') === 'human' && is_numeric($row['id'] ?? null)) {
+                $from = $from === null ? (int) $row['id'] : min($from, (int) $row['id']);
             }
         }
         if ($from === null || !is_file($staging . '/workspace.tar.gz') || filesize($staging . '/workspace.tar.gz') === 0) {

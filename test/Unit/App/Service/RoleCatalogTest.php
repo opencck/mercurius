@@ -61,6 +61,18 @@ final class RoleCatalogTest extends TestCase {
         self::assertSame(sprintf(t('self.limits.role'), t('service.visitor.reader'), t('roles.no_powers')), RoleCatalog::ofMember(Role::reader()));
     }
 
+    public function testAnAgentsRoleGetsNoOwner(): void {
+        $this->catalog->useAgents(static fn(string $role): bool => $role === 'user');
+
+        try {
+            $this->catalog->set('user', 'permissions', 'owner');
+            self::fail('an agent became an owner by its role');
+        } catch (InvalidArgumentException $e) {
+            self::assertSame(t('roles.agent_owner'), $e->getMessage());
+        }
+        self::assertFalse(Role::user()->isOwner());
+    }
+
     public function testSetAcceptsPermissionsAndOldPowersKey(): void {
         $this->catalog->add('one', 'Один');
         $this->catalog->add('two', 'Два');

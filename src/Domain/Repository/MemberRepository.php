@@ -16,7 +16,11 @@ interface MemberRepository {
 
     public function findByIdentity(string $channel, string $externalId): ?Member;
 
-    /** The first owner of the agent (the earliest active person whose role has the permission owner); null before one wrote. */
+    /**
+     * The first owner of the agent: the one ownership was last passed to while it was passed whole, else the earliest
+     * active person whose role has the permission owner; null before one wrote. The agent's own things (its key, its
+     * jobs, projects without an owner) belong to this owner.
+     */
     public function owner(): ?Member;
 
     /**

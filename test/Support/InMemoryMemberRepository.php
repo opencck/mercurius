@@ -49,7 +49,11 @@ final class InMemoryMemberRepository implements MemberRepository {
         if ($new === null || $new->kind !== MemberKind::Human || $new->status !== MemberStatus::Active || $new->isOwner()) {
             return false;
         }
-        $this->principals[$new->id] = new Member($new->id, $new->kind, Role::admin(), $new->displayName, $new->status);
+        $role = Role::ownerRoles()[0] ?? null;
+        if ($role === null) {
+            return false;
+        }
+        $this->principals[$new->id] = new Member($new->id, $new->kind, Role::of($role), $new->displayName, $new->status);
         return true;
     }
 
@@ -125,6 +129,9 @@ final class InMemoryMemberRepository implements MemberRepository {
     }
 
     public function createAgent(string $name, Role $role): Member {
+        if ($role->isOwner()) {
+            throw new \InvalidArgumentException('An agent gets no owner role');
+        }
         $existing = $this->findByIdentity('a2a', $name);
         $id = $existing !== null ? $existing->id : ($this->principals === [] ? 1 : max(array_keys($this->principals)) + 1);
         $this->identities['a2a:' . $name] = $id;

@@ -66,6 +66,12 @@ final class AgentNetworkTest extends AsyncTestCase {
         );
         $this->follower->scheduler->useJobRuns($this->server);
         $network = $this->network($this->followerPeers, $this->follower, $this->followerKey, self::FOLLOWER, null);
+        // spec: brief/participants.md#свои-роли — an agent never holds a role with the permission owner
+        try {
+            $network->allow('chief', $this->leaderKey->fingerprint(), Role::admin());
+            self::fail('an agent became an owner');
+        } catch (\DomainException) {
+        }
         self::assertStringContainsString('может подключаться', $network->allow('leader', $this->leaderKey->fingerprint(), Role::user()));
     }
 

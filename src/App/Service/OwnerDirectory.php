@@ -15,9 +15,6 @@ use OpenCCK\Domain\Repository\MemberRepository;
  * spec: brief/participants.md#свои-роли — owners are the people whose role has the permission owner
  */
 final class OwnerDirectory {
-    private ?Member $owner = null;
-    /** @var list<Member>|null */
-    private ?array $owners = null;
     /** @var list<int>|null */
     private ?array $former = null;
 
@@ -28,13 +25,14 @@ final class OwnerDirectory {
         private readonly string $initialId,
     ) {}
 
+    /** spec: brief/participants.md#свои-роли — read anew each time: a role may make or unmake an owner at any moment */
     public function principal(): ?Member {
-        return $this->owner ??= $this->principals->owner();
+        return $this->principals->owner();
     }
 
     /** @return list<Member> the owners now, by id */
     public function owners(): array {
-        return $this->owners ??= $this->principals->owners();
+        return $this->principals->owners();
     }
 
     /**
@@ -93,8 +91,6 @@ final class OwnerDirectory {
 
     /** After ownership passed on: the next question reads the owner anew. */
     public function forget(): void {
-        $this->owner = null;
-        $this->owners = null;
         $this->former = null;
     }
 

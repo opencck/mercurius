@@ -98,6 +98,7 @@ $transcript = new PostgresTranscriptRepository($db);
 $roleCatalog = new \OpenCCK\App\Service\RoleCatalog(new \OpenCCK\Infrastructure\Repository\PostgresRoleRepository($db));
 // spec: brief/participants.md#свои-роли — a change of the roles never leaves the agent without an owner
 $roleCatalog->useOwners(static fn(array $roles): int => $principals->countActivePeople($roles));
+$roleCatalog->useAgents(static fn(string $role): bool => array_filter($principals->all(), static fn(\OpenCCK\Domain\Entity\Member $m): bool => $m->isAgent() && $m->role->value === $role) !== []);
 $roleCatalog->load();
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits(), $roleCatalog->template(...));
 $addressGuard = new AddressGuard();

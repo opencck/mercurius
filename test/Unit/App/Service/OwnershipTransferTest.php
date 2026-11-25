@@ -97,4 +97,16 @@ final class OwnershipTransferTest extends AsyncTestCase {
         self::assertSame($first->id, $this->principals->owner()?->id);
         self::assertSame([\Mercurius\I18n\t('ownership.cancelled'), \Mercurius\I18n\t('ownership.expired')], array_column($this->channel->answers, 1));
     }
+
+    public function testAnOwnerGetsTheRoleThatHoldsOwner(): void {
+        Role::define('chief', '', 5, [\OpenCCK\Domain\Entity\Permission::Owner]);
+        Role::define('admin', '', 10, [\OpenCCK\Domain\Entity\Permission::Tools]);
+        try {
+            self::assertTrue($this->principals->addOwner(2));
+            self::assertTrue($this->principals->find(2)?->isOwner(), 'admin without owner is not enough');
+        } finally {
+            Role::reset();
+        }
+    }
+
 }

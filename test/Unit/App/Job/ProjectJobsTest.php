@@ -46,7 +46,7 @@ final class ProjectJobsTest extends AsyncTestCase {
     private function scheduler(ScriptedLlm $llm): JobScheduler {
         $this->stack = new AgentStack($llm);
         $this->owner = $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
-        $this->agent = $this->stack->principals->createAgent('helper', Role::admin());
+        $this->agent = $this->stack->principals->createAgent('helper', Role::user());
         $scheduler = new JobScheduler(
             $this->jobs,
             $this->stack->loop,

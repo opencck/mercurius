@@ -26,6 +26,9 @@ final class RoleCatalog {
     /** @var (\Closure(): void)|null */
     private ?\Closure $onChange = null;
 
+    /** @var (\Closure(string): bool)|null whether an agent holds the role */
+    private ?\Closure $agents = null;
+
     /** @var (\Closure(list<string>): int)|null active people holding one of these roles */
     private ?\Closure $owners = null;
 
@@ -48,6 +51,15 @@ final class RoleCatalog {
      */
     public function useOwners(\Closure $count): void {
         $this->owners = $count;
+    }
+
+    /**
+     * spec: brief/participants.md#свои-роли — a role an agent holds never gets the permission owner
+     *
+     * @param \Closure(string): bool $held whether an agent holds the role
+     */
+    public function useAgents(\Closure $held): void {
+        $this->agents = $held;
     }
 
     /** @param list<string> $ownerRoles */
@@ -140,6 +152,9 @@ final class RoleCatalog {
                 $policy[$field] = self::policyValue($field, $value);
                 // a bad field or value is refused here, before it is kept
                 ParticipantPolicy::fromArray($policy, new ParticipantPolicy([], new RunLimits(1, 1, 1, 1), null, false));
+        }
+        if (in_array(Permission::Owner->value, $permissions, true) && !$role->isOwner() && $this->agents !== null && ($this->agents)($name)) {
+            throw new InvalidArgumentException(t('roles.agent_owner'));
         }
         $others = array_values(array_filter(Role::ownerRoles(), static fn(string $r): bool => $r !== $name));
         $this->keepAnOwner(in_array(Permission::Owner->value, $permissions, true) ? [...$others, $name] : $others);

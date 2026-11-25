@@ -90,4 +90,20 @@ final class OwnerDirectoryTest extends AsyncTestCase {
         self::assertSame(['200'], $handler->pressed);
     }
 
+
+    public function testAnOwnerGivenOrTakenByARoleIsSeenAtOnce(): void {
+        $principals = new InMemoryMemberRepository();
+        $principals->ensureOwner('telegram', '100', 'Первый');
+        $next = $principals->createVisitor('telegram', '200', 'Второй');
+        $principals->decideVisitor($next->id, Role::user(), MemberStatus::Active);
+        $owner = new OwnerDirectory($principals, 'telegram', '100');
+        self::assertSame(['100'], $owner->chatIds());
+
+        $principals->setRole($next->id, Role::admin(), MemberStatus::Active);
+        self::assertTrue($owner->isOwnerAccount('200'), 'a new owner presses at once');
+
+        $principals->setRole($next->id, Role::user(), MemberStatus::Active);
+        self::assertFalse($owner->isOwnerAccount('200'), 'a former owner presses no more');
+    }
+
 }

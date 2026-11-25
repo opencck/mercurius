@@ -122,4 +122,24 @@ final class OwnersChannelTest extends AsyncTestCase {
         self::assertStringEndsWith(sprintf(t('owners.decided_by'), 'Борис'), $edits[0][2]);
     }
 
+
+    public function testAnOwnersPressOnAnOpenCardNamesThemToo(): void {
+        $this->secondOwner();
+        $this->channel->send(new OutgoingMessage(OwnersChannel::OWNERS, 'Новый собеседник'));
+        $channel = $this->channel;
+        $handler = new class($channel) implements CallbackHandler {
+            public function __construct(private readonly OwnersChannel $channel) {}
+
+            public function handleCallback(IncomingCallback $callback): void {
+                $this->channel->edit($callback->chatId, $callback->messageId ?? '', 'Роль: пользователь');
+            }
+        };
+        $router = new CallbackRouter($this->channel, new OwnerDirectory($this->members, 'telegram', '100'), ['pv' => $handler], openPrefixes: ['pv']);
+
+        $router->handleCallback(new IncomingCallback('telegram', 'cb', '200', '200', 'Борис', '101', 'pv:3:u', 'u'));
+
+        $edits = array_values(array_filter($this->inner->log, static fn(array $e): bool => $e[0] === 'edit'));
+        self::assertStringEndsWith(sprintf(t('owners.decided_by'), 'Борис'), $edits[0][2] ?? '');
+    }
+
 }

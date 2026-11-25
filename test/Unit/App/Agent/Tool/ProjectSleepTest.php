@@ -32,7 +32,7 @@ final class ProjectSleepTest extends AsyncTestCase {
     public function testTheOwnerTurnsSleepOfAProjectOnAndOffAndAMemberOnlyAsks(): void {
         $this->stack = new AgentStack();
         $owner = $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
-        $member = $this->stack->principals->createAgent('helper', Role::admin());
+        $member = $this->stack->principals->createAgent('helper', Role::user());
         $projects = new InMemoryProjectRepository();
         $project = $projects->create('Новости', '');
         $projects->share($project->id, $member->id, 'write', null);

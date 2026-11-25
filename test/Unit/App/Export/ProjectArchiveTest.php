@@ -72,7 +72,7 @@ final class ProjectArchiveTest extends AsyncTestCase {
         $job = $jobs->create(1, 'telegram', '42', 'Утро', 'Собери новости', 'daily:10:00', null);
         $jobs->setProject($job->id, $project->id);
         $vault->putProject($project->id, 'hh-token', 'hh.ru', 'very-secret-value-123', $principals->owner() ?? self::fail('no owner'));
-        $agent = $principals->createAgent('helper', Role::admin());
+        $agent = $principals->createAgent('helper', Role::user());
         $links->subscribe($project->id, $agent->id);
         $sandbox->outcome = new CommandOutcome(0, 'packed', '', false, false, 1);
         $sandbox->files[1]['.mercurius/project-export-' . $project->id . '.tgz'] = 'FOLDER-TGZ';
@@ -81,7 +81,7 @@ final class ProjectArchiveTest extends AsyncTestCase {
         self::assertStringNotContainsString('very-secret-value-123', (string) file_get_contents($path), 'sealed, and no secret value inside anyway');
 
         [$to, $projectsB, $policiesB, $prefsB, $approvalsB, $jobsB, $sandboxB, $principalsB] = $this->instance($folder);
-        $principalsB->createAgent('helper', Role::admin());
+        $principalsB->createAgent('helper', Role::user());
         $projectsB->create('Новости', 'занято');
         $sandboxB->outcome = new CommandOutcome(0, 'unpacked', '', false, false, 1);
         $owner = $principalsB->owner() ?? self::fail('no owner');

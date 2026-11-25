@@ -138,7 +138,12 @@ final class ParticipantsTool implements Tool {
         if (count($found) !== 1) {
             return ToolResult::error(t('tool.participants.not_found'));
         }
-        if ($found[0]->isOwner()) {
+        // spec: brief/participants.md#свои-роли — an owner is added by /owner, with a card; an owner takes another owner's
+        //       role away, never their own (and never the last owner's: setRole refuses)
+        if ($decision[0]->isOwner() && $decision[1] === MemberStatus::Active) {
+            return ToolResult::error(t('tool.participants.owner_by_command'));
+        }
+        if ($found[0]->isOwner() && (!$who->isOwner() || $found[0]->id === $who->id)) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
         // spec: brief/participants.md#свои-роли — a holder of the permission changes others, not themselves, and

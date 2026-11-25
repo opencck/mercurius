@@ -261,7 +261,7 @@ final class A2aLinksTest extends AsyncTestCase {
 
     public function testAParticipantTheOwnerGaveTheToolOpensAConnectionToo(): void {
         $a = $this->agents['a'];
-        $guest = $a['stack']->principals->createAgent('rekryt', Role::admin());
+        $guest = $a['stack']->principals->createAgent('rekryt', Role::user());
         $tool = new \OpenCCK\App\Agent\Tool\Agents\PeerLinksTool($a['network']);
         $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $guest, new \Amp\NullCancellation());
 

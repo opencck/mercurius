@@ -57,7 +57,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertCount(1, $this->cards());
         self::assertStringContainsString('привет, я Вася', $this->cards()[0]);
         self::assertTrue($this->stack->channel->previewOff('привет, я Вася'), 'a link of a stranger is not opened by Telegram in the card');
-        self::assertSame(['pv:2:a', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons(), 'the roles in their order, then refusal');
+        self::assertSame(['pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons(), 'the roles in their order without an owner role, then refusal');
         self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
         self::assertSame(MemberStatus::Pending, $this->stack->principals->find(2)?->status);
@@ -97,11 +97,16 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertStringContainsString('Разговор разрешён', implode("\n", $this->stack->channel->texts('edit')));
     }
 
-    public function testUserAndAdminPressesGiveThatRole(): void {
+    public function testAnOldAdminButtonMakesNobodyAnOwner(): void {
+        // spec: brief/participants.md#свои-роли — an owner is added only by /owner; a card sent before still carries :a
         $this->stack->say('привет', '99');
         $this->stack->press('pv:2:a');
+        $this->stack->press('pv:2=admin');
 
-        self::assertSame(Role::admin(), $this->stack->principals->find(2)?->role);
+        self::assertFalse($this->stack->principals->find(2)?->isOwner());
+        self::assertSame([MemberStatus::Pending], array_values(array_map(static fn(\OpenCCK\Domain\Entity\Member $m): MemberStatus => $m->status, array_filter($this->stack->principals->all(), static fn(\OpenCCK\Domain\Entity\Member $m): bool => $m->id === 2))));
+        $this->stack->press('pv:2:u');
+        self::assertSame(Role::user(), $this->stack->principals->find(2)?->role);
     }
 
     public function testTheCardOffersTheOwnersOwnRolesAndThePressGivesOne(): void {
@@ -109,7 +114,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Permission::Tools]);
         try {
             $this->stack->say('привет', '99');
-            self::assertSame(['pv:2:a', 'pv:2=trader', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons());
+            self::assertSame(['pv:2=trader', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons());
             $this->stack->press('pv:2=trader');
             self::assertSame(Role::of('trader'), $this->stack->principals->find(2)?->role);
             $this->stack->press('pv:2=owner');

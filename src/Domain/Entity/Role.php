@@ -107,6 +107,15 @@ final class Role {
     }
 
     /**
+     * spec: brief/participants.md#свои-роли — an owner is added by /owner only: cards and agents get these
+     *
+     * @return list<self> the roles a member may get without becoming an owner, in their order
+     */
+    public static function grantable(): array {
+        return array_values(array_filter(self::assignable(), static fn(self $r): bool => !$r->isOwner()));
+    }
+
+    /**
      * spec: brief/participants.md#свои-роли — whoever holds one of these roles is an owner of the agent
      *
      * @return list<string> the names of the roles with the permission owner, in their order

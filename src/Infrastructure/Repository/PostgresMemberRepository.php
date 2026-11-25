@@ -20,7 +20,8 @@ final class PostgresMemberRepository implements MemberRepository {
 
     public function owner(): ?Member {
         $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals
-             WHERE kind = 'human' AND status = 'active' AND role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions)) ORDER BY id LIMIT 1")->fetchRow();
+             WHERE kind = 'human' AND status = 'active' AND role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions))
+             ORDER BY id = (SELECT to_principal FROM ownership_transfers ORDER BY at DESC, id DESC LIMIT 1) DESC NULLS LAST, id LIMIT 1")->fetchRow();
         return $row === null ? null : self::hydrate($row);
     }
 
@@ -45,10 +46,15 @@ final class PostgresMemberRepository implements MemberRepository {
     }
 
     public function addOwner(int $to): bool {
+        // the first role of the list that has the permission owner: admin, unless the owners changed it
+        $role = Role::ownerRoles()[0] ?? null;
+        if ($role === null) {
+            return false;
+        }
         $row = $this->db->execute(
-            "UPDATE principals SET role = 'admin' WHERE id = ? AND kind = 'human' AND status = 'active' AND role NOT IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions))
+            "UPDATE principals SET role = ? WHERE id = ? AND kind = 'human' AND status = 'active' AND role NOT IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions))
              RETURNING id",
-            [$to],
+            [$role, $to],
         )->fetchRow();
         return $row !== null;
     }
@@ -130,6 +136,10 @@ final class PostgresMemberRepository implements MemberRepository {
     }
 
     public function createAgent(string $name, Role $role): Member {
+        // spec: brief/participants.md#свои-роли — an agent never holds a role with the permission owner
+        if ($role->isOwner()) {
+            throw new \InvalidArgumentException('An agent gets no owner role');
+        }
         $tx = $this->db->beginTransaction();
         try {
             $tx->execute('SELECT pg_advisory_xact_lock(?, hashtext(?))', [self::OWNER_LOCK, 'a2a:' . $name]);
@@ -173,7 +183,7 @@ final class PostgresMemberRepository implements MemberRepository {
                  WHERE i.channel = ? AND i.external_id = ?',
                 [$channel, $externalId],
             )->fetchRow() ?? $tx->execute(
-                "INSERT INTO principals (kind, role, display_name, status) VALUES ('human', 'visitor', ?, 'pending')
+                "INSERT INTO principals (kind, role, display_name, status) VALUES ('human', 'reader', ?, 'pending')
                  RETURNING id, kind, role, display_name, status",
                 [$displayName],
             )->fetchRow();

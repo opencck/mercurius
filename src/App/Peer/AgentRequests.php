@@ -92,7 +92,7 @@ final class AgentRequests implements CallbackHandler {
 
     /** @return list<Role> the roles an agent may take: those of the list that may have tools */
     private static function roles(): array {
-        return array_values(array_filter(Role::assignable(), static fn(Role $r): bool => $r->may(\OpenCCK\Domain\Entity\Permission::Tools)));
+        return array_values(array_filter(Role::grantable(), static fn(Role $r): bool => $r->may(\OpenCCK\Domain\Entity\Permission::Tools)));
     }
 
     public function handleCallback(IncomingCallback $callback): void {
@@ -103,7 +103,8 @@ final class AgentRequests implements CallbackHandler {
         $role = match (true) {
             ($match[3] ?? '') !== '' => in_array(Role::of($match[3]), self::roles(), true) ? Role::of($match[3]) : null,
             ($match[2] ?? '') === 'u' => Role::user(),
-            ($match[2] ?? '') === 'a' => Role::admin(),
+            // spec: brief/participants.md#свои-роли — an agent is never an owner, a card sent before neither
+            ($match[2] ?? '') === 'a' => Role::admin()->isOwner() ? null : Role::admin(),
             default => null,
         };
         if ($role === null && ($match[2] ?? '') !== 'r') {

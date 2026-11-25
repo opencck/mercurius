@@ -55,7 +55,7 @@ final class AgentRequestsTest extends AsyncTestCase {
         self::assertStringContainsString('https://tester.example', $cards[0]);
         self::assertStringContainsString($this->fingerprint, $cards[0]);
         $buttons = array_map(static fn(\Mercurius\Messenger\Button $b): string => $b->data, $this->channel->buttons['100'][0] ?? []);
-        self::assertSame(['pa:1:a', 'pa:1:u', 'pa:1:r'], $buttons);
+        self::assertSame(['pa:1:u', 'pa:1:r'], $buttons, 'an agent is never offered an owner role');
         self::assertNull($this->peers->principalByFingerprint($this->fingerprint), 'not let in before the owner decides');
     }
 
@@ -63,15 +63,17 @@ final class AgentRequestsTest extends AsyncTestCase {
         $this->requests->knock($this->fingerprint, 'claude-tester', '', 'http');
 
         $this->press('pa:1:a');
+        self::assertNull($this->peers->principalByFingerprint($this->fingerprint), 'an old button of the role admin makes no agent an owner');
         $this->press('pa:1:u');
+        $this->press('pa:1:r');
 
         $id = $this->peers->principalByFingerprint($this->fingerprint);
         self::assertNotNull($id);
         $agent = $this->principals->find($id);
-        self::assertSame([MemberKind::Agent, Role::admin(), 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
+        self::assertSame([MemberKind::Agent, Role::user(), 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
         self::assertSame('edit', $this->channel->log[1][0] ?? null, 'the card shows the decision');
-        self::assertNotNull($this->channel->answers[1][1] ?? null, 'a second press is already decided');
-        self::assertSame(Role::admin(), $this->principals->find($id)?->role, 'the second press changes nothing');
+        self::assertNotNull($this->channel->answers[2][1] ?? null, 'a second press is already decided');
+        self::assertSame(Role::user(), $this->principals->find($id)?->role, 'the second press changes nothing');
     }
 
     public function testARevokedKeyLetInAgainGoesBackToItsAgentAndMakesNoNewOne(): void {
@@ -81,7 +83,7 @@ final class AgentRequestsTest extends AsyncTestCase {
         $before = count($this->principals->all());
 
         $this->requests->knock($this->fingerprint, 'mercurius', 'https://main.example', 'ws');
-        $this->press('pa:1:a');
+        $this->press('pa:1:u');
 
         self::assertSame($agent->id, $this->peers->principalByFingerprint($this->fingerprint), 'the key is its agent again');
         self::assertCount($before, $this->principals->all(), 'no second participant for the same key');
