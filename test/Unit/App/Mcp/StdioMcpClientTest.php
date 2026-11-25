@@ -104,6 +104,78 @@ final class StdioMcpClientTest extends AsyncTestCase {
         self::assertStringContainsString('"elicitation"', (string) json_encode($init[0] ?? []), 'the client says it can ask');
     }
 
+    /** @param \Closure(string, array<array-key, mixed>, \Amp\Cancellation): array<string, mixed> $elicit */
+    private function session(\Closure $elicit): \OpenCCK\Infrastructure\Mcp\StdioSession {
+        $id = $this->sandbox->spawn(900007, new SandboxLimits(1, 1, 1, 1, 1), 'x', [], new NullCancellation());
+        return new \OpenCCK\Infrastructure\Mcp\StdioSession($this->sandbox, new SandboxLimits(1, 1, 1, 1, 1), 900007, $id, 'member:1|ssh', null, new \Psr\Log\NullLogger(), $elicit);
+    }
+
+    private const CONSENT = '{"jsonrpc":"2.0","id":%d,"method":"elicitation/create","params":{"message":"Confirm","requestedSchema":{"type":"object","properties":{"confirm":{"type":"boolean"}}}}}';
+
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — the call waits while the owner decides */
+    public function testACallWaitsWhileItsConsentIsAsked(): void {
+        $this->sandbox->callDelay = 0.6;
+        $session = $this->session(static function (string $server, array $params): array {
+            delay(0.5);
+            return ['action' => 'accept', 'content' => ['confirm' => true]];
+        });
+        $this->sandbox->push('s1', sprintf(self::CONSENT, 9));
+
+        $result = $session->request('tools/call', ['name' => 'echo'], new NullCancellation(), 0.2);
+
+        self::assertArrayHasKey('content', $result, 'not given up while the card was open');
+        $session->close();
+    }
+
+    public function testASecondConsentWhileOneIsOpenIsDeclined(): void {
+        $asked = new \ArrayObject();
+        $session = $this->session(static function (string $server, array $params) use ($asked): array {
+            $asked->append($server);
+            delay(0.3);
+            return ['action' => 'decline'];
+        });
+        $this->sandbox->push('s1', sprintf(self::CONSENT, 9) . "\n" . sprintf(self::CONSENT, 10));
+        delay(0.15);
+
+        self::assertCount(1, $asked, 'one card at a time');
+        $declined = array_values(array_filter($this->sandbox->written, static fn(array $m): bool => ($m['id'] ?? null) === 10));
+        self::assertSame([['jsonrpc' => '2.0', 'id' => 10, 'result' => ['action' => 'decline']]], $declined);
+        delay(0.3);
+        $session->close();
+    }
+
+    public function testAClosedSessionClosesItsConsent(): void {
+        $ended = new \ArrayObject();
+        $session = $this->session(static function (string $server, array $params, \Amp\Cancellation $cancellation) use ($ended): array {
+            try {
+                delay(5, cancellation: $cancellation);
+            } catch (\Amp\CancelledException) {
+                $ended->append('cancelled');
+            }
+            return ['action' => 'cancel'];
+        });
+        $this->sandbox->push('s1', sprintf(self::CONSENT, 9));
+        delay(0.1);
+
+        $session->close();
+        delay(0.05);
+
+        self::assertSame(['cancelled'], $ended->getArrayCopy());
+    }
+
+    public function testAProcessWaitingForConsentIsNotIdle(): void {
+        $this->client->useElicitation(static function (string $server, array $params): array {
+            delay(0.5);
+            return ['action' => 'decline'];
+        });
+        $this->client->tools(self::server(), null, new NullCancellation());
+        $this->sandbox->push('s1', sprintf(self::CONSENT, 9));
+        delay(0.1);
+
+        self::assertSame(0, $this->client->stopIdle(microtime(true) + StdioMcpClient::IDLE_SECONDS + 1.0), 'a card is open');
+        delay(0.5);
+    }
+
     /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — stopped when idle, started on demand */
     public function testAnIdleProcessStopsAndTheNextRequestStartsItAgain(): void {
         $this->client->tools(self::server(), null, new NullCancellation());

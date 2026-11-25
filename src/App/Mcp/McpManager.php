@@ -214,6 +214,7 @@ final class McpManager {
             $this->logger->warning('MCP server not approved: its package has a malware advisory', ['server' => $name]);
             return $blocked;
         }
+        unset($this->kept[$server->key()]);
         try {
             $count = $this->sync($server, true, $cancellation);
         } catch (DomainException $e) {
@@ -453,18 +454,25 @@ final class McpManager {
      * ref: references/hermes-agent/tools/mcp_tool_node_abi.py@e96221fa:L16-L18 (_ABI_MARKERS) — NODE_MODULE_VERSION and
      *      ERR_DLOPEN_FAILED; hermes then says how to rebuild the package, here the stderr tail goes into the reason
      */
-    public static function lasting(Throwable $why): bool {
-        return preg_match('~\(\D{0,8}127\)|\bHTTP 40[13]\b|NODE_MODULE_VERSION|ERR_DLOPEN_FAILED~u', $why->getMessage()) === 1;
+    public static function lasting(Throwable $why, int $tries): bool {
+        $message = $why->getMessage();
+        // a refused login may be a passing block of a proxy in front of the server: lasting on the third time in a row
+        if ($tries >= 2 && preg_match('~\bHTTP 40[13]\b~u', $message) === 1) {
+            return true;
+        }
+        // exit code 127 in the words of the ended process, in any language of the texts
+        return preg_match('~[(（]\D{0,8}127[)）]|NODE_MODULE_VERSION|ERR_DLOPEN_FAILED~u', $message) === 1;
     }
 
     private function markDown(McpServer $server, int $tries, ?Throwable $why = null): void {
-        if ($why !== null && self::lasting($why)) {
+        // a built-in server has no switch for its owner: it keeps being tried
+        if ($why !== null && $server->context !== '' && self::lasting($why, $tries)) {
             unset($this->down[$server->key()]);
-            if ($server->context !== '') {
-                // the next try is far away: neither a restart nor the minute pass over the file tries it; /mcp on or
-                // a change of the entry does
-                $this->servers->update($server->context, $server->name, McpServer::ERROR, null, mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($why->getMessage()), 0, 300), $this->now() + self::LASTING);
-            }
+            $reason = mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($why->getMessage()), 0, 300);
+            // the next try is far away: neither a restart nor the minute pass over the file tries it; /mcp on or a
+            // change of the entry does
+            $this->servers->update($server->context, $server->name, McpServer::ERROR, null, $reason, $this->now() + self::LASTING);
+            ($this->tell)(sprintf(t('mcp.mcp_manager.lasting'), $server->name, $server->context, $reason, $server->name));
             return;
         }
         $pause = min(self::RETRY_FIRST * (float) (2 ** min($tries, 10)), self::RETRY_MAX);
@@ -646,12 +654,18 @@ final class McpManager {
      * @throws DomainException
      */
     private function endpointOnCall(McpServer $server): array {
-        $endpoint = $this->endpoint($server);
         if (isset($this->fromCache[$server->key()])) {
-            unset($this->fromCache[$server->key()]);
-            $this->toolsChanged($server->key());
+            // the package is asked before the call goes to it; a failed check leaves the next call to check again
+            try {
+                $this->sync($server, false, new NullCancellation());
+            } catch (Throwable $e) {
+                throw new DomainException(sprintf(t('mcp.mcp_manager.not_checked'), $server->name) . $e->getMessage());
+            }
+            if (($this->registered[$server->key()] ?? []) === []) {
+                throw new DomainException(t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
+            }
         }
-        return $endpoint;
+        return $this->endpoint($server);
     }
 
     private function unregister(string $key): void {

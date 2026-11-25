@@ -205,6 +205,7 @@ $mcpElicitations = new \OpenCCK\App\Mcp\McpElicitations(
         }
         return [\OpenCCK\App\Service\OwnersChannel::OWNERS, null];
     },
+    static fn(string $user): bool => $ownerDirectory->isOwnerAccount($user),
 );
 // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a process nobody asked for 10 minutes stops
 if ($stdioMcp !== null) {
@@ -212,10 +213,10 @@ if ($stdioMcp !== null) {
         $stdioMcp->stopIdle();
     }));
 }
-$stdioMcp?->useElicitation(static function (string $key, array $params) use ($mcpElicitations): array {
+$stdioMcp?->useElicitation(static function (string $key, array $params, \Amp\Cancellation $session) use ($mcpElicitations): array {
     // a connection of a context is context|name; a built-in server has no context: the owners answer for it
     $parts = explode('|', $key, 2);
-    return count($parts) === 2 ? $mcpElicitations->ask($parts[0], $parts[1], $params) : $mcpElicitations->ask('owners', $key, $params);
+    return count($parts) === 2 ? $mcpElicitations->ask($parts[0], $parts[1], $params, $session) : $mcpElicitations->ask('owners', $key, $params, $session);
 });
 $mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $vault,

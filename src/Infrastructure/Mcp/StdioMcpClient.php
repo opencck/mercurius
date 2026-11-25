@@ -67,7 +67,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         parent::__construct($texts);
     }
 
-    /** @var (Closure(string, array<array-key, mixed>): array<string, mixed>)|null */
+    /** @var (Closure(string, array<array-key, mixed>, \Amp\Cancellation): array<string, mixed>)|null */
     private ?Closure $elicit = null;
 
     /**
@@ -76,7 +76,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
      *
      * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
      *
-     * @param Closure(string, array<array-key, mixed>): array<string, mixed> $elicit
+     * @param Closure(string, array<array-key, mixed>, \Amp\Cancellation): array<string, mixed> $elicit
      */
     public function useElicitation(Closure $elicit): void {
         $this->elicit = $elicit;
@@ -108,7 +108,11 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         $now ??= microtime(true);
         $stopped = 0;
         foreach ($this->used as $server => $at) {
-            if ($now - $at >= self::IDLE_SECONDS && isset($this->sessions[$server])) {
+            // a request still waiting or a card still open is not idle, however long ago it began
+            if (!isset($this->sessions[$server])) {
+                // stopped or forgotten already: nothing to watch
+                unset($this->used[$server]);
+            } elseif ($now - $at >= self::IDLE_SECONDS && !$this->sessions[$server]->busy()) {
                 $this->forget($server);
                 $stopped++;
             }

@@ -69,7 +69,7 @@ final class McpFileSyncTest extends AsyncTestCase {
                     throw new \RuntimeException('no answer');
                 }
                 if (str_contains($server->endpointUrl(), 'refused') && count($this->called) > 1) {
-                    throw new \RuntimeException('MCP server answered HTTP 401');
+                    throw new \RuntimeException('The MCP server process ended (code 127): sh: some-mcp: not found');
                 }
                 return [['name' => 'search', 'description' => 'Searches', 'schema' => ['type' => 'object'], 'annotations' => ['readOnlyHint' => true]]];
             }
@@ -148,7 +148,7 @@ final class McpFileSyncTest extends AsyncTestCase {
         $docs = $this->servers->find('member:1', 'docs');
         self::assertNotNull($docs);
         self::assertSame(McpServer::ERROR, $docs->status);
-        self::assertStringContainsString('401', $docs->note);
+        self::assertStringContainsString('127', $docs->note);
         self::assertCount($calls, $this->called, 'neither the minute pass nor a restart calls it again');
     }
 

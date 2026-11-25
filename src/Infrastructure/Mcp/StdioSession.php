@@ -7,6 +7,7 @@ namespace OpenCCK\Infrastructure\Mcp;
 use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\CompositeCancellation;
+use Amp\DeferredCancellation;
 use Amp\DeferredFuture;
 use Amp\NullCancellation;
 use Amp\TimeoutCancellation;
@@ -42,11 +43,16 @@ final class StdioSession {
     private string $buffer = '';
     private bool $closed = false;
     private string $failure = '';
+    /** a consent of the owner is being asked: one card at a time; the requests wait for it */
+    private bool $asking = false;
+    /** cancelled when the session ends: an open card stops waiting */
+    private readonly DeferredCancellation $ended;
 
     /**
      * @param (Closure(string): void)|null $onToolsChanged the server said its tools changed
-     * @param (Closure(string, array<array-key, mixed>): array<string, mixed>)|null $onElicit the server asks for consent:
-     *        the result of elicitation/create, after the owner of the entry answered
+     * @param (Closure(string, array<array-key, mixed>, Cancellation): array<string, mixed>)|null $onElicit the server asks
+     *        for consent: the result of elicitation/create, after the owner of the entry answered; the cancellation ends
+     *        with the session
      */
     public function __construct(
         private readonly SandboxStreams $sandbox,
@@ -58,6 +64,7 @@ final class StdioSession {
         private readonly LoggerInterface $logger,
         private readonly ?Closure $onElicit = null,
     ) {
+        $this->ended = new DeferredCancellation();
         async($this->read(...))->ignore();
     }
 
@@ -65,12 +72,17 @@ final class StdioSession {
         return !$this->closed;
     }
 
+    /** A request is waiting for its answer or a consent is being asked: the process is not idle. */
+    public function busy(): bool {
+        return $this->pending !== [] || $this->asking;
+    }
+
     /**
      * @param array<string, mixed> $params
      * @return array<array-key, mixed>
      * @throws RuntimeException
      */
-    public function request(string $method, array $params, Cancellation $cancellation, float $timeout): array {
+    public function request(string $method, array $params, Cancellation $cancellation, float $timeoutSeconds): array {
         if ($this->closed) {
             throw new RuntimeException($this->failure);
         }
@@ -78,12 +90,24 @@ final class StdioSession {
         /** @var DeferredFuture<array<array-key, mixed>> $deferred */
         $deferred = new DeferredFuture();
         $this->pending[$id] = $deferred;
+        // the time of a request does not run while the owner decides on a consent the server asked for it
+        $timeout = new DeferredCancellation();
+        $deadline = microtime(true) + $timeoutSeconds;
+        $watch = \Revolt\EventLoop::repeat(0.05, function () use (&$deadline, $timeout, $timeoutSeconds): void {
+            if ($this->asking) {
+                $deadline = microtime(true) + $timeoutSeconds;
+            } elseif (microtime(true) >= $deadline) {
+                $timeout->cancel();
+            }
+        });
+        \Revolt\EventLoop::unreference($watch);
         try {
             $this->write(['jsonrpc' => '2.0', 'id' => $id, 'method' => $method, 'params' => (object) $params]);
-            return $deferred->getFuture()->await(new CompositeCancellation($cancellation, new TimeoutCancellation($timeout)));
+            return $deferred->getFuture()->await(new CompositeCancellation($cancellation, $timeout->getCancellation()));
         } catch (CancelledException) {
             throw new RuntimeException(sprintf(t('mcp.stdio.timeout'), $method));
         } finally {
+            \Revolt\EventLoop::cancel($watch);
             unset($this->pending[$id]);
         }
     }
@@ -178,12 +202,21 @@ final class StdioSession {
             //       its entry; the answer may take minutes, the reading of the pipe goes on meanwhile
             $params = isset($message['params']) && is_array($message['params']) ? $message['params'] : [];
             $elicit = $this->onElicit;
-            async(function () use ($elicit, $id, $params): void {
-                try {
-                    $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => $elicit($this->server, $params)];
-                } catch (\Throwable $e) {
-                    $this->logger->warning('MCP consent was not asked', ['server' => $this->server, 'error' => $e::class]);
+            // one card at a time: a server that asks again before the answer hears decline
+            $busy = $this->asking;
+            $this->asking = true;
+            async(function () use ($elicit, $id, $params, $busy): void {
+                if ($busy) {
                     $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['action' => 'decline']];
+                } else {
+                    try {
+                        $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => $elicit($this->server, $params, $this->ended->getCancellation())];
+                    } catch (\Throwable $e) {
+                        $this->logger->warning('MCP consent was not asked', ['server' => $this->server, 'error' => $e::class]);
+                        $reply = ['jsonrpc' => '2.0', 'id' => $id, 'result' => ['action' => 'decline']];
+                    } finally {
+                        $this->asking = false;
+                    }
                 }
                 try {
                     $this->write($reply);
@@ -215,6 +248,7 @@ final class StdioSession {
     private function fail(string $why): void {
         $this->closed = true;
         $this->failure = $why;
+        $this->ended->cancel();
         $pending = $this->pending;
         $this->pending = [];
         foreach ($pending as $deferred) {

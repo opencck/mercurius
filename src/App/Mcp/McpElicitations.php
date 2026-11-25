@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Mcp;
 
+use Amp\Cancellation;
+use Amp\CancelledException;
 use Amp\DeferredFuture;
 use Closure;
 use Mercurius\Messenger\Button;
@@ -35,11 +37,13 @@ final class McpElicitations implements CallbackHandler {
 
     /**
      * @param Closure(string): ?array{string, ?int} $whoAnswers the chat of the owner of a context's entries and the
-     *        member who presses there (null — any owner in the owners' chat); null — nobody to ask
+     *        member who presses there (null — the owners of the agent, each in their own chat); null — nobody to ask
+     * @param Closure(string): bool $isOwner whether an account is an owner of the agent
      */
     public function __construct(
         private readonly Channel $channel,
         private readonly Closure $whoAnswers,
+        private readonly Closure $isOwner,
         private readonly float $seconds = 600.0,
     ) {}
 
@@ -47,7 +51,7 @@ final class McpElicitations implements CallbackHandler {
      * @param array<array-key, mixed> $params the request of the server: message, requestedSchema
      * @return array<string, mixed> the result of elicitation/create
      */
-    public function ask(string $context, string $server, array $params): array {
+    public function ask(string $context, string $server, array $params, ?Cancellation $cancellation = null): array {
         $fields = self::booleans($params['requestedSchema'] ?? null);
         $whom = ($this->whoAnswers)($context);
         if ($fields === null || $whom === null) {
@@ -55,14 +59,19 @@ final class McpElicitations implements CallbackHandler {
         }
         [$chat, $member] = $whom;
         $id = ++$this->next;
+        $message = isset($params['message']) && is_string($params['message']) ? McpManager::clean(mb_substr($params['message'], 0, self::MESSAGE_MAX)) : '';
+        try {
+            $this->channel->send(new OutgoingMessage($chat, sprintf(t('mcp.elicit.ask'), $server, $context, $message), buttons: [[
+                new Button(t('mcp.elicit.allow'), sprintf('%s:%d:a', self::PREFIX, $id)),
+                new Button(t('mcp.elicit.refuse'), sprintf('%s:%d:d', self::PREFIX, $id)),
+            ]]));
+        } catch (\Throwable) {
+            // a card nobody sees decides nothing
+            return ['action' => 'decline'];
+        }
         /** @var DeferredFuture<array<string, mixed>> $answer */
         $answer = new DeferredFuture();
         $this->waiting[$id] = [$answer, $chat, $member, $fields];
-        $message = isset($params['message']) && is_string($params['message']) ? McpManager::clean(mb_substr($params['message'], 0, self::MESSAGE_MAX)) : '';
-        $this->channel->send(new OutgoingMessage($chat, sprintf(t('mcp.elicit.ask'), $server, $context, $message), buttons: [[
-            new Button(t('mcp.elicit.allow'), sprintf('%s:%d:a', self::PREFIX, $id)),
-            new Button(t('mcp.elicit.refuse'), sprintf('%s:%d:d', self::PREFIX, $id)),
-        ]]));
         // no press in time: the server hears cancel (the card stays, a later press is already decided)
         $timer = \Revolt\EventLoop::delay($this->seconds, static function () use ($answer): void {
             if (!$answer->isComplete()) {
@@ -70,7 +79,10 @@ final class McpElicitations implements CallbackHandler {
             }
         });
         try {
-            return $answer->getFuture()->await();
+            return $answer->getFuture()->await($cancellation);
+        } catch (CancelledException) {
+            // the process that asked has ended: nothing waits for the answer
+            return ['action' => 'cancel'];
         } finally {
             \Revolt\EventLoop::cancel($timer);
             unset($this->waiting[$id]);
@@ -102,8 +114,11 @@ final class McpElicitations implements CallbackHandler {
             return;
         }
         [$answer, $chat, $member, $fields] = $this->waiting[(int) $m[1]];
-        // a card in a member's private chat is theirs to press; the owners' chat is checked by the router
-        if ($callback->chatId !== $chat || ($member !== null && $callback->userId !== $chat)) {
+        // a member's card is pressed by them in their private chat; the owners' card — by an owner in their own chat
+        $theirs = $member !== null
+            ? $callback->chatId === $chat && $callback->userId === $chat
+            : $callback->chatId === $callback->userId && ($this->isOwner)($callback->userId);
+        if (!$theirs) {
             $this->channel->answerCallback($callback->callbackId, t('mcp.elicit.not_yours'));
             return;
         }
