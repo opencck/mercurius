@@ -77,7 +77,7 @@ $tools->register(new ServerAddTool($serverRepository, $vault));
 $tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerEditTool($serverRepository, $vault));
 $tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool($serverRepository));
 $tools->register(new SshRunTool($serverConsole));
-$tools->register(new SqlQueryTool($serverConsole, $vault));
+$tools->register($sqlQueryTool = new SqlQueryTool($serverConsole, $vault));
 $tools->register(new FileWriteTool($serverConsole, new SshCommandClassifier($sshNeverOff)));
 $tools->register(new TcpProbeTool($addressGuard));
 $tools->register(new OpenRouterByokTool($modelHttp, $vault));
@@ -200,6 +200,24 @@ $mcpManager->useSecrets($mcpSecrets);
 // spec: brief/skills-mcp.md#подстановка-секретов — a request to a site takes the same wider layers
 /** @var OpenCCK\App\Agent\Tool\Web\HttpRequestTool|null $httpRequestTool */
 $httpRequestTool?->useLayers($mcpSecrets->outside(...));
+// spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a command takes the caller's own secret, then the
+//       wider layers of the context; a project's secret is for its site and does not go into commands
+/**
+ * @var OpenCCK\App\Agent\Tool\Sandbox\RunCommandTool|null $runCommandTool
+ * @var OpenCCK\App\Agent\Tool\Sandbox\GitTool|null $gitTool
+ * @var OpenCCK\App\Agent\Tool\Web\BrowserTool|null $browserTool
+ * @var Closure(int, Member): ?int $secretProjectOf
+ */
+$widerSecret = static function (string $name, \OpenCCK\App\Agent\Tool\ToolContext $c) use ($mcpSecrets, $secretProjectOf): ?string {
+    $project = $secretProjectOf($c->conversationId, $c->principal);
+    return $mcpSecrets->outside($name, $project === null ? 'member:' . $c->principal->id : 'project:' . $project);
+};
+$gitTool?->useWiderSecrets($widerSecret);
+$browserTool?->useWiderSecrets($widerSecret);
+$sqlQueryTool->useWiderSecrets($widerSecret);
+if ($runCommandTool !== null && $sandbox !== null) {
+    $runCommandTool->useSecrets($sandbox, static fn(string $name, \OpenCCK\App\Agent\Tool\ToolContext $c): ?string => $vault->reveal($name, $c->principal) ?? $widerSecret($name, $c));
+}
 // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
 $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {

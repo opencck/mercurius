@@ -37,6 +37,8 @@ use function Mercurius\I18n\t;
  *       the statement and the connection
  */
 final class SqlQueryTool implements Tool, GrantKeyed {
+    use \OpenCCK\App\Agent\Tool\WiderSecrets;
+
     public const NAME = 'sql_query';
     private const QUERY_MAX = 20_000;
     /** what a single read statement may not start with: it would leave or change the transaction */
@@ -152,7 +154,7 @@ final class SqlQueryTool implements Tool, GrantKeyed {
             if (str_starts_with(strtolower($secret), self::SETTING_PREFIX)) {
                 return ToolResult::error(sprintf(t('tool.sql_query.sekret_nedostupen'), $secret));
             }
-            $password = $this->vault->reveal($secret, $context->principal);
+            $password = $this->vault->reveal($secret, $context->principal) ?? $this->widerSecret($secret, $context);
             if ($password === null) {
                 return ToolResult::error(sprintf(t('tool.sql_query.sekret_nedostupen'), $secret));
             }

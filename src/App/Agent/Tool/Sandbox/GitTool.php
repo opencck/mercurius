@@ -38,6 +38,8 @@ use function Mercurius\I18n\t;
  * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a call with a secret is always a card with the pair secret + address
  */
 final class GitTool extends SandboxTool implements GrantKeyed {
+    use \OpenCCK\App\Agent\Tool\WiderSecrets;
+
     public const NAME = 'git';
     /** reads of the repository: no card; ls-remote talks to a server and is not one */
     private const READS = ['status', 'log', 'diff', 'show', 'blame', 'ls-files', 'rev-parse', 'describe', 'shortlog', 'grep'];
@@ -157,7 +159,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             if ($origin === null) {
                 return ToolResult::error(t('tool.git.origin_bad'));
             }
-            $token = $this->vault->reveal($secret, $context->principal);
+            $token = $this->vault->reveal($secret, $context->principal) ?? $this->widerSecret($secret, $context);
             if ($token === null || $token === '') {
                 return ToolResult::error(sprintf(t('tool.git.no_secret'), $secret));
             }

@@ -146,16 +146,20 @@ $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context
     $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
     return $project === null ? 'p' . $context->principal->id : 'project:' . $project->id;
 };
+// spec: brief/participants.md#ресурсы-проекта — the project of a chat, for those who may change things in it: its secrets serve them
+$runCommandTool = null;
+$gitTool = null;
+$browserTool = null;
+$secretProjectOf = static function (int $conversationId, \OpenCCK\Domain\Entity\Member $who) use ($conversations, $httpCookieProjects): ?int {
+    $meta = $conversations->meta($conversationId);
+    $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
+    if ($project === null) {
+        return null;
+    }
+    return $project->levelOf($who, $httpCookieProjects->memberLevel($project->id, $who->id))?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true ? $project->id : null;
+};
 $tools->register($httpRequestTool = new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope,
-    // spec: brief/participants.md#ресурсы-проекта — the project of a chat, for those who may change things in it: its secrets serve them
-    static function (int $conversationId, \OpenCCK\Domain\Entity\Member $who) use ($conversations, $httpCookieProjects): ?int {
-        $meta = $conversations->meta($conversationId);
-        $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
-        if ($project === null) {
-            return null;
-        }
-        return $project->levelOf($who, $httpCookieProjects->memberLevel($project->id, $who->id))?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true ? $project->id : null;
-    },
+    $secretProjectOf,
     $principals,
 ));
 // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — pages as text; search by the model's web search on OpenRouter
@@ -222,9 +226,9 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\SearchFilesTool($sandbox));
     $writeFile = new WriteFileTool($sandbox);
     $tools->register($writeFile);
-    $tools->register(new RunCommandTool($sandbox, $agentSettings->toolTimeout));
+    $tools->register($runCommandTool = new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: brief/scheduler.md#git-с-доступом-из-хранилища — git with a token of the vault in the environment of one command
-    $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
+    $tools->register($gitTool = new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
     // spec: brief/agent-loop.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: brief/internet.md#между-агентами — in a task of another agent a file goes with the answer
     $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, $recipients, static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {
@@ -280,7 +284,7 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
             $logger->warning('Browser profiles were not adopted', ['error' => $e::class]);
         }
     })->ignore();
-    $tools->register(new BrowserTool(
+    $tools->register($browserTool = new BrowserTool(
         $browserClient,
         $channel,
         $ownerDirectory,

@@ -126,6 +126,17 @@ final class GitToolTest extends AsyncTestCase {
         self::assertSame([], $this->sandbox->calls);
     }
 
+    /** spec: brief/skills-mcp.md#подстановка-секретов — a secret of a wider layer the context inherits */
+    public function testAMemberUsesASecretTheirContextInherits(): void {
+        $tool = $this->tool();
+        $tool->useWiderSecrets(static fn(string $name, ToolContext $c): ?string => $name === 'agent-github' && $c->principal->id === 5 ? 'agent-token-1' : null);
+
+        $result = $tool->execute(['args' => ['pull'], 'secret' => 'agent-github', 'origin' => 'https://github.com'], $this->context(new Member(5, MemberKind::Human, Role::user(), null)));
+
+        self::assertFalse($result->isError);
+        self::assertStringContainsString(base64_encode('x-access-token:agent-token-1'), $this->sandbox->env['GIT_CONFIG_VALUE_0'] ?? '');
+    }
+
     public function testTheOriginMustBeHttps(): void {
         $tool = $this->tool();
 

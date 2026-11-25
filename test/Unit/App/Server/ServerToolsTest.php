@@ -79,6 +79,16 @@ final class ServerToolsTest extends AsyncTestCase {
         self::assertSame('read', $this->audit->records[0]['class']);
     }
 
+    /** spec: brief/skills-mcp.md#подстановка-секретов — a secret of a wider layer the context inherits */
+    public function testAPasswordMayComeFromAWiderLayer(): void {
+        $tool = new SqlQueryTool($this->console, $this->vault);
+        $tool->useWiderSecrets(static fn(string $name, \OpenCCK\App\Agent\Tool\ToolContext $c): ?string => $name === 'agent-pg' ? 'agent-pg-password' : null);
+        $args = ['server' => 'db', 'engine' => 'postgres', 'database' => 'shop', 'user' => 'app', 'secret' => 'agent-pg', 'query' => 'select 1;'];
+
+        self::assertFalse($tool->execute($args, $this->context())->isError);
+        self::assertStringStartsWith("agent-pg-password\n", $this->ran[0][1] ?? '');
+    }
+
     public function testAReadCannotLeaveItsTransaction(): void {
         $tool = new SqlQueryTool($this->console, $this->vault);
         $base = ['server' => 'db', 'engine' => 'mysql', 'database' => 'shop', 'user' => 'app'];

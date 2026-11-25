@@ -33,6 +33,8 @@ use function Mercurius\I18n\t;
  *       card; profiles keep logins
  */
 final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall, NeedsService, \OpenCCK\App\Agent\Tool\PreparesInConversation, \OpenCCK\App\Agent\Tool\DecidedByParticipant {
+    use \OpenCCK\App\Agent\Tool\WiderSecrets;
+
     /** set by the code when the call works in the profiles of another participant (a project of theirs); a model cannot set it */
     private const HOLDER = 'holder';
     public const NAME = 'browser';
@@ -283,7 +285,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         if ($host !== $site && !str_ends_with($host, '.' . $site)) {
             throw new RuntimeException(sprintf(t('tool.browser.secret_other_site'), $host === '' ? '—' : $host, $site));
         }
-        return $this->vault->reveal($name, $context->principal) ?? throw new RuntimeException(sprintf(t('tool.browser.secret_missing'), $name));
+        return $this->vault->reveal($name, $context->principal) ?? $this->widerSecret($name, $context) ?? throw new RuntimeException(sprintf(t('tool.browser.secret_missing'), $name));
     }
 
     public function execute(array $args, ToolContext $context): ToolResult {

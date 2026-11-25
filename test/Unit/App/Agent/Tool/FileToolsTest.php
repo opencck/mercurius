@@ -138,6 +138,34 @@ description: Дайджест
         self::assertSame(['exec 7 make @src t30'], $this->sandbox->calls);
     }
 
+    /** spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a secret goes into a command by its environment */
+    public function testASecretGoesIntoTheEnvironmentOfACommandAndNeverIntoItsOutput(): void {
+        $this->sandbox->outcome = new CommandOutcome(0, "token=s3cr-value\n", '', false, false, 5);
+        $tool = new RunCommandTool($this->sandbox, 120);
+        $tool->useSecrets($this->sandbox, static fn(string $name, ToolContext $c): ?string => $name === 'api' ? 's3cr-value' : null);
+        $call = ['command' => 'php deploy.php', 'secrets' => ['API_TOKEN' => 'api']];
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($call), 'a command with a secret waits for the owner');
+        self::assertStringStartsWith('cmd-secret:api ', (string) $tool->grantKey($call), 'a grant names the secret and the command');
+        self::assertStringContainsString('api', $tool->describe($call));
+
+        $result = $tool->execute($call, self::context());
+
+        self::assertSame(['API_TOKEN' => 's3cr-value'], $this->sandbox->env, 'in the environment, not in the command line');
+        self::assertSame(['exec 7 php deploy.php @. t120'], $this->sandbox->calls);
+        self::assertStringNotContainsString('s3cr-value', $result->content, 'masked in the output');
+    }
+
+    public function testAMissingSecretOrABadVariableStopsTheCommand(): void {
+        $tool = new RunCommandTool($this->sandbox, 120);
+        $tool->useSecrets($this->sandbox, static fn(string $name, ToolContext $c): ?string => null);
+
+        self::assertTrue($tool->execute(['command' => 'x', 'secrets' => ['T' => 'nope']], self::context())->isError);
+        self::assertTrue($tool->execute(['command' => 'x', 'secrets' => ['lower; rm' => 'api']], self::context())->isError);
+        self::assertTrue((new RunCommandTool($this->sandbox, 120))->execute(['command' => 'x', 'secrets' => ['T' => 'api']], self::context())->isError, 'no secrets where they are not set up');
+        self::assertSame([], $this->sandbox->calls, 'nothing ran');
+    }
+
     public function testTimeoutIsMarked(): void {
         $this->sandbox->outcome = new CommandOutcome(137, '', '', true, false, 5000);
 
