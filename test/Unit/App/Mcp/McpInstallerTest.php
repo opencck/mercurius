@@ -256,5 +256,18 @@ final class McpInstallerTest extends AsyncTestCase {
         self::assertSame([[7, 'ssh_mcp', '999999999999']], $news);
         self::assertSame([], $installer->checkUpdates(), 'said once');
     }
+
+    /** spec: brief/skills-mcp.md#установка-и-обновление — the context the install was asked in is allowed by its approval */
+    public function testTheContextOfTheInstallIsAllowedByItsApproval(): void {
+        $installer = $this->installer();
+        $this->fetched($installer);
+        $installer->install($this->owner, 'project:5', 'ssh_mcp', ['npm ci'], self::entry());
+
+        $installer->approve($this->owner, 'ssh_mcp', 'hints');
+
+        self::assertSame(['project:5'], $this->installs->contexts('ssh_mcp'));
+        self::assertTrue($installer->allowedIn('ssh_mcp', 'project:5'));
+        self::assertFalse($installer->allowedIn('ssh_mcp', 'project:6'));
+    }
 }
 

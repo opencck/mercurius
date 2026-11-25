@@ -408,6 +408,10 @@ final class McpInstaller {
             // the entry is the same: the connections take the new set at their next listing
             return sprintf(t('mcp.install.updated'), $name, $install->revision ?? '—', $pending['revision']);
         }
+        // the context the install was asked in is allowed by this approval, as the installer's own is
+        if (!$this->allowedIn($name, $pending['context'])) {
+            $this->installs->allow($name, $pending['context'], true);
+        }
         try {
             $answer = ($this->persist)($pending['context'], $entry, $who);
         } catch (Throwable $e) {
