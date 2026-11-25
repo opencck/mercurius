@@ -245,6 +245,19 @@ final class ApprovalServiceTest extends AsyncTestCase {
         self::assertStringContainsString('Разрешено владельцем', implode("\n", $this->stack->channel->texts('edit')));
     }
 
+    public function testSecondPressSaysDecided(): void {
+        // spec: brief/participants.md#свои-роли — the card reaches every owner; the second owner's press comes too late
+        $this->waitingRun();
+
+        $this->stack->press('ap:1:a');
+        $this->stack->press('ap:1:d');
+        $this->stack->scheduler->awaitIdle();
+
+        self::assertSame(RunStatus::Done, $this->stack->runs->find(1)?->status);
+        self::assertSame(\Mercurius\I18n\t('agent.approval_service.uzhe_resheno'), $this->stack->channel->answers[1][1] ?? null);
+        self::assertCount(1, array_filter($this->stack->channel->texts('edit'), static fn(string $t): bool => str_contains($t, 'Разрешено владельцем')));
+    }
+
     public function testTheWaitingMessageSaysTheDecisionCameAfterThePress(): void {
         $this->waitingRun();
         $edits = count($this->stack->channel->texts('edit'));

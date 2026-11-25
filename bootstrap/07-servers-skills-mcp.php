@@ -167,8 +167,8 @@ $mcpManager = new McpManager(
     $vault,
     $tools,
     static fn(): ?Member => $ownerDirectory->principal(),
-    static function (string $text) use ($channel, $ownerDirectory): void {
-        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text));
+    static function (string $text) use ($channel): void {
+        $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));
     },
     $logger,
     stdio: $stdioMcp !== null,

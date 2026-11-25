@@ -170,12 +170,12 @@ final class AgentRequests implements CallbackHandler {
         if ($this->conversations === null || $this->transcript === null) {
             return;
         }
-        $owner = $this->principals->findByIdentity($this->channel->name(), OwnerDirectory::chat($this->ownerChatId));
+        $owner = $this->principals->findByIdentity($this->channel->name(), OwnerDirectory::first($this->ownerChatId));
         if ($owner === null) {
             return;
         }
         try {
-            $conversation = $this->conversations->openConversation($owner->id, $this->channel->name(), OwnerDirectory::chat($this->ownerChatId));
+            $conversation = $this->conversations->openConversation($owner->id, $this->channel->name(), OwnerDirectory::first($this->ownerChatId));
             $this->transcript->appendUser($conversation, null, $text);
         } catch (\Throwable $e) {
             $this->logger->warning('Agent request note was not kept', ['error' => $e::class]);

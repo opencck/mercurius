@@ -335,13 +335,13 @@ if ($claudeSubscription !== null) {
 }
 // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — one message to the owner per window of a plan,
 // and one when a subscription lost its sign-in
-$providerPauses->tellWith(static function (string $provider, string $why, int $until) use ($channel, $ownerDirectory, $logger): void {
+$providerPauses->tellWith(static function (string $provider, string $why, int $until) use ($channel, $logger): void {
     $text = $why === \OpenCCK\App\Agent\Model\ProviderPauses::LIMIT
         ? sprintf(\Mercurius\I18n\t('models.provider_limit'), $provider, gmdate('Y-m-d H:i', $until) . ' UTC')
         : sprintf(\Mercurius\I18n\t('models.provider_sign_in'), $provider, $provider === \OpenCCK\Domain\Agent\ModelRef::CLAUDE ? '/claude login' : '/codex login');
-    \Amp\async(static function () use ($channel, $ownerDirectory, $logger, $text): void {
+    \Amp\async(static function () use ($channel, $logger, $text): void {
         try {
-            $channel->send(new \Mercurius\Messenger\OutgoingMessage($ownerDirectory->chatId(), $text));
+            $channel->send(new \Mercurius\Messenger\OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));
         } catch (\Throwable $e) {
             $logger->warning('The notice of a provider off the choice was not sent', ['error' => $e::class]);
         }
@@ -370,10 +370,10 @@ $chat->useImport(new \OpenCCK\App\Export\ImportCommands(
 ));
 // after an import: the working folders back through the executor, and the owner told how it went
 if ($imported !== null || $importFailed) {
-    \Amp\async(static function () use ($imported, $sandbox, $channel, $ownerDirectory, $logger): void {
+    \Amp\async(static function () use ($imported, $sandbox, $channel, $logger): void {
         \Amp\delay(5);
         if ($imported === null) {
-            $channel->send(new OutgoingMessage($ownerDirectory->chatId(), \Mercurius\I18n\t('import.start_failed')));
+            $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, \Mercurius\I18n\t('import.start_failed')));
             return;
         }
         $workspace = $imported['dir'] . '/workspace.tar.gz';
@@ -394,7 +394,7 @@ if ($imported !== null || $importFailed) {
         if ($state !== \Mercurius\I18n\t('import.workspace_failed')) {
             \OpenCCK\App\Export\AgentImport::remove($imported['dir']);
         }
-        $channel->send(new OutgoingMessage($ownerDirectory->chatId(), sprintf(\Mercurius\I18n\t('import.done'), $imported['commit'] === '' ? '?' : substr($imported['commit'], 0, 12), $state)));
+        $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, sprintf(\Mercurius\I18n\t('import.done'), $imported['commit'] === '' ? '?' : substr($imported['commit'], 0, 12), $state)));
     })->ignore();
 }
 // spec: brief/participants.md#несколько-пользователей — the owner passes ownership on by /owner and a card

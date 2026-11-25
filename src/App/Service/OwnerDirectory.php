@@ -98,8 +98,28 @@ final class OwnerDirectory {
         $this->former = null;
     }
 
-    /** A service built with a fixed chat (tests, a single owner) or with the directory. */
+    /**
+     * Where a card or a notice for the owner goes: with the directory — every owner (the chat of the owners of
+     * OwnersChannel); a service built with a fixed chat (tests) — that chat.
+     *
+     * spec: brief/participants.md#свои-роли — cards and notices go to every owner
+     */
     public static function chat(self|string $owner): string {
+        return is_string($owner) ? $owner : OwnersChannel::OWNERS;
+    }
+
+    /** The first owner's own chat: for what belongs to one person (a conversation, an identity), not for a notice. */
+    public static function first(self|string $owner): string {
         return is_string($owner) ? $owner : $owner->chatId();
+    }
+
+    /** How the owner of an account is called: their name, else their number; null — not an owner. */
+    public function nameOf(string $userId): ?string {
+        foreach ($this->owners() as $owner) {
+            if ($userId === 'p' . $owner->id || $this->principals->externalId($owner->id, $this->channel) === $userId) {
+                return $owner->displayName ?? ('#' . $owner->id);
+            }
+        }
+        return null;
     }
 }

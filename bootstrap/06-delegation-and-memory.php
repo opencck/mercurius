@@ -258,7 +258,7 @@ $memoryProbes = new \Mercurius\Memory\Infrastructure\PostgresProbes($db);
 $lossGuard = new \Mercurius\Memory\App\LossGuard(
     $memoryStore,
     new \Mercurius\Memory\Infrastructure\PostgresGuardJournal($db),
-    static fn(string $text): bool => $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success,
+    static fn(string $text): bool => $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text))->success,
     $sleepEdits,
     $memoryProbes,
     $recall,
@@ -283,8 +283,8 @@ $consolidation = new Consolidation(
     $proposals,
     $consolidationJournal,
     $memoryCards->show(...),
-    static function (string $text) use ($channel, $ownerDirectory): bool {
-        return $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text))->success;
+    static function (string $text) use ($channel): bool {
+        return $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text))->success;
     },
 );
 // spec: brief/memory.md#судья-пары — the model of sleep judges the gray zone; its verdicts are kept while the texts stay

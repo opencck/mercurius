@@ -106,13 +106,13 @@ $tools = new ToolRegistry();
 // checked at start and once a minute
 // spec: brief/channels.md#здоровье-локального-сервера-bot-api — the local Bot API is a module checked by its bot; after a fall
 //       of two minutes or more the owner hears that buttons and messages of that time may not have arrived
-$serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger, static function (string $module, float $seconds) use ($channel, $ownerDirectory, $logger): void {
+$serviceModules = new \OpenCCK\Infrastructure\Services\ServiceModules(HttpClients::create(), $logger, static function (string $module, float $seconds) use ($channel, $logger): void {
     if ($module !== 'telegram-api' || $seconds < 120) {
         return;
     }
     $logger->notice('The local Bot API is back', ['seconds' => (int) $seconds]);
     try {
-        $channel->send(new \Mercurius\Messenger\OutgoingMessage($ownerDirectory->chatId(), sprintf(\Mercurius\I18n\t('app.bot_api_back'), max(1, (int) round($seconds / 60.0)))));
+        $channel->send(new \Mercurius\Messenger\OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, sprintf(\Mercurius\I18n\t('app.bot_api_back'), max(1, (int) round($seconds / 60.0)))));
     } catch (\Throwable $e) {
         $logger->warning('The notice of the Bot API return was not sent', ['error' => $e::class]);
     }

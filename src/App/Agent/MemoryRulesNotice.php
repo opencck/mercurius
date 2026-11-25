@@ -82,7 +82,7 @@ final class MemoryRulesNotice implements CallbackHandler {
             return;
         }
         $id = $this->rules->record($place->holder, $place->path, $place->kind, $place->project, $before, $now);
-        $chatId = $place->kind === MemoryPlace::PERSON ? $this->principals->externalId($place->holder, $this->channelName) : $this->owner->chatId();
+        $chatId = $place->kind === MemoryPlace::PERSON ? $this->principals->externalId($place->holder, $this->channelName) : OwnerDirectory::chat($this->owner);
         if ($chatId === null || $chatId === '') {
             return;
         }

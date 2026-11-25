@@ -18,6 +18,8 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  *
  * @var Monolog\Logger $logger
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
+ * @var Amp\Postgres\PostgresConnectionPool $db
+ * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  */
 
 // Channel: Telegram — directly, through a proxy or VLESS (TELEGRAM_PROXY); the cloud Bot API or a local server.
@@ -54,3 +56,5 @@ $logger->info('Telegram route', ['proxy' => $telegram->route() === null ? 'direc
 // spec: brief/operations.md#второй-канал-websocket-api — chats ws:… go to the WebSocket API, the rest to Telegram
 $wsChannel = new \Mercurius\Messenger\Websocket\WebsocketChannel();
 $channel = new \Mercurius\Messenger\RoutingChannel(new TelegramChannel($telegramApi, logger: $logger), [\Mercurius\Messenger\Websocket\WebsocketChannel::PREFIX => $wsChannel]);
+// spec: brief/participants.md#свои-роли — the chat of the owners: a card or a notice for the owner reaches every owner
+$channel = new \OpenCCK\App\Service\OwnersChannel($channel, $ownerDirectory, new \OpenCCK\Infrastructure\Repository\PostgresOwnerCardRepository($db));
