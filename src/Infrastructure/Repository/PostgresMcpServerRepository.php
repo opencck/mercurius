@@ -13,57 +13,86 @@ use UnexpectedValueException;
 
 use function Mercurius\I18n\t;
 
+/**
+ * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — connections in contexts, with their state
+ */
 final class PostgresMcpServerRepository implements McpServerRepository {
-    private const COLUMNS = 'id, name, url, secret, status, tools_hash, note, tools_include, tools_exclude';
+    private const COLUMNS = 'id, context, name, url, secret, state, tools_hash, reason, tools_include, tools_exclude, extract(epoch FROM next_try)::float8 AS next_try';
 
     public function __construct(private readonly PostgresLink $db) {}
 
-    public function add(string $name, string $url, ?string $secret): McpServer {
+    public function add(string $context, string $name, string $url, ?string $secret): McpServer {
         try {
-            $row = $this->db->execute('INSERT INTO mcp_servers (name, url, secret) VALUES (?, ?, ?) RETURNING ' . self::COLUMNS, [$name, $url, $secret])->fetchRow();
+            $row = $this->db->execute('INSERT INTO mcp_connections (context, name, url, secret) VALUES (?, ?, ?, ?) RETURNING ' . self::COLUMNS, [$context, $name, $url, $secret])->fetchRow();
         } catch (SqlQueryError) {
             throw new DomainException(sprintf(t('repository.postgres_mcp_server.mcp_server_uzhe_est'), $name));
         }
-        return self::server($row ?? throw new UnexpectedValueException('MCP server was not added'));
+        return self::server($row ?? throw new UnexpectedValueException('MCP connection was not added'));
     }
 
-    public function find(string $name): ?McpServer {
-        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM mcp_servers WHERE name = ?', [$name])->fetchRow();
+    public function find(string $context, string $name): ?McpServer {
+        $row = $this->db->execute('SELECT ' . self::COLUMNS . ' FROM mcp_connections WHERE context = ? AND name = ?', [$context, $name])->fetchRow();
         return $row === null ? null : self::server($row);
     }
 
+    /** @return list<McpServer> */
     public function all(): array {
         $found = [];
-        foreach ($this->db->query('SELECT ' . self::COLUMNS . ' FROM mcp_servers ORDER BY name') as $row) {
+        foreach ($this->db->query('SELECT ' . self::COLUMNS . ' FROM mcp_connections ORDER BY context, name') as $row) {
             $found[] = self::server($row);
         }
         return $found;
     }
 
-    public function update(string $name, string $status, ?string $toolsHash, string $note = ''): ?McpServer {
+    public function inContext(string $context): array {
+        $found = [];
+        foreach ($this->db->execute('SELECT ' . self::COLUMNS . ' FROM mcp_connections WHERE context = ? ORDER BY name', [$context]) as $row) {
+            $found[] = self::server($row);
+        }
+        return $found;
+    }
+
+    public function update(string $context, string $name, string $state, ?string $toolsHash, string $reason = '', ?float $nextTry = null): ?McpServer {
         $row = $this->db->execute(
-            'UPDATE mcp_servers SET status = ?, tools_hash = coalesce(?, tools_hash), note = ? WHERE name = ? RETURNING ' . self::COLUMNS,
-            [$status, $toolsHash, $note, $name],
+            'UPDATE mcp_connections SET state = ?, tools_hash = coalesce(?, tools_hash), reason = ?, next_try = to_timestamp(?::float8)
+             WHERE context = ? AND name = ? RETURNING ' . self::COLUMNS,
+            [$state, $toolsHash, $reason, $nextTry, $context, $name],
         )->fetchRow();
         return $row === null ? null : self::server($row);
     }
 
-    public function setFilter(string $name, ?string $include, string $exclude): ?McpServer {
-        $row = $this->db->execute('UPDATE mcp_servers SET tools_include = ?, tools_exclude = ? WHERE name = ? RETURNING ' . self::COLUMNS, [$include, $exclude, $name])->fetchRow();
+    public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer {
+        $row = $this->db->execute('UPDATE mcp_connections SET tools_include = ?, tools_exclude = ? WHERE context = ? AND name = ? RETURNING ' . self::COLUMNS, [$include, $exclude, $context, $name])->fetchRow();
         return $row === null ? null : self::server($row);
     }
 
-    public function remove(string $name): bool {
-        return $this->db->execute('DELETE FROM mcp_servers WHERE name = ? RETURNING id', [$name])->fetchRow() !== null;
+    public function remove(string $context, string $name): bool {
+        return $this->db->execute('DELETE FROM mcp_connections WHERE context = ? AND name = ? RETURNING id', [$context, $name])->fetchRow() !== null;
+    }
+
+    private static function seconds(mixed $value): ?float {
+        return is_float($value) || is_int($value) ? (float) $value : null;
     }
 
     /** @param array<string, mixed> $row */
     private static function server(array $row): McpServer {
         $str = static fn(string $k): ?string => isset($row[$k]) && is_string($row[$k]) ? $row[$k] : null;
         $id = $row['id'] ?? null;
-        if (!is_int($id) || $str('name') === null || $str('url') === null || $str('status') === null) {
-            throw new UnexpectedValueException('Malformed MCP server row');
+        if (!is_int($id) || $str('name') === null || $str('url') === null || $str('state') === null || $str('context') === null) {
+            throw new UnexpectedValueException('Malformed MCP connection row');
         }
-        return new McpServer($id, (string) $str('name'), (string) $str('url'), $str('secret'), (string) $str('status'), $str('tools_hash'), $str('note') ?? '', include: $str('tools_include'), exclude: $str('tools_exclude') ?? '');
+        return new McpServer(
+            $id,
+            (string) $str('name'),
+            (string) $str('url'),
+            $str('secret'),
+            (string) $str('state'),
+            $str('tools_hash'),
+            $str('reason') ?? '',
+            include: $str('tools_include'),
+            exclude: $str('tools_exclude') ?? '',
+            context: (string) $str('context'),
+            nextTry: self::seconds($row['next_try'] ?? null),
+        );
     }
 }

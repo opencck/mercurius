@@ -60,6 +60,36 @@ final class ProjectRightsRunTest extends AsyncTestCase {
         self::assertEqualsCanonicalizing(['read_file'], array_values(array_intersect(self::tools($llm, 1), ['read_file', 'web_read', 'ssh_run'])), 'outside the project — Bob\'s own');
     }
 
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — the context of a run */
+    public function testARunGetsTheConnectionsOfItsContext(): void {
+        $llm = new ScriptedLlm([ScriptedLlm::text('в проекте'), ScriptedLlm::text('в личке'), ScriptedLlm::text('в группе')]);
+        $stack = new AgentStack($llm);
+        $stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $stack->registry->register(new FakeTool('read_file'));
+        $alice = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '51', 'Алиса')->id, Role::user(), MemberStatus::Active);
+        self::assertNotNull($alice);
+        $stack->policies->update($alice, ['tools' => ['read_file']]);
+        $projects = new InMemoryProjectRepository();
+        $project = $projects->create('Новости', '', $alice->id);
+        $rights = new ProjectPolicies(new InMemoryProjectPolicyRepository(), $projects, $stack->principals, $stack->policies, $stack->registry->names(...), new NullLogger());
+        $stack->scheduler->useProjects(new ProjectContext($projects));
+        $stack->scheduler->useProjectPolicies($rights);
+        $stack->registry->registerIn('project:' . $project->id, new FakeTool('mcp_docs_search'));
+        $stack->registry->registerIn('member:' . $alice->id, new FakeTool('mcp_mine_search'));
+
+        $projects->activate('telegram', '51', $project->id);
+        $stack->say('в проекте', '51');
+        $stack->scheduler->awaitIdle();
+        $projects->activate('telegram', '51', null);
+        $stack->say('в личке', '51');
+        $stack->scheduler->awaitIdle();
+
+        self::assertContains('mcp_docs_search', self::tools($llm, 0), 'the connection of the project, though not on the list of the member');
+        self::assertNotContains('mcp_mine_search', self::tools($llm, 0));
+        self::assertContains('mcp_mine_search', self::tools($llm, 1), 'the private chat: the own connection of the member');
+        self::assertNotContains('mcp_docs_search', self::tools($llm, 1));
+    }
+
     public function testRightsOfAnEmptyPolicyStayEmpty(): void {
         $policy = new ParticipantPolicy([], new \OpenCCK\Domain\Agent\RunLimits(1, 1, 1, 1), null, false);
 

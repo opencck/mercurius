@@ -143,9 +143,12 @@ final class A2aServer implements JobRuns {
         if ($rights !== null) {
             $meta = $this->conversations->meta($conversationId);
             $project = $meta === null ? null : $this->projectsOfChats?->active($meta->channel, $meta->chatId, $meta->threadId);
-            $inProject = $project === null ? null : $rights->forRun($project, $agent);
-            if ($inProject !== null) {
-                return $inProject;
+            if ($project !== null) {
+                $inProject = $rights->forRun($project, $agent);
+                if ($inProject !== null) {
+                    // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — an agent in a project gets its connections
+                    return $inProject->withMcpContext('project:' . $project->id);
+                }
             }
         }
         return $this->policies->forPrincipal($agent);

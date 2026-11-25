@@ -77,6 +77,53 @@ final class ToolRegistryTest extends TestCase {
         self::assertSame($tool, $registry->get('a'));
         self::assertNull($registry->get('b'));
     }
+
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам */
+    public function testToolsOfAContextOnlyThere(): void {
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('read_file'));
+        self::assertTrue($registry->registerIn('project:1', new FakeTool('mcp_docs_search')));
+
+        $inProject = $this->policy(null)->withMcpContext('project:1');
+        self::assertSame(['read_file', 'mcp_docs_search'], $registry->names($inProject));
+        self::assertNotNull($registry->get('mcp_docs_search', $inProject));
+        self::assertSame(['read_file'], $registry->names($this->policy(null)->withMcpContext('member:7')));
+        self::assertSame(['read_file'], $registry->names($this->policy(null)), 'a run without a context gets no connection tools');
+        self::assertNull($registry->get('mcp_docs_search'));
+        self::assertFalse($registry->allows($this->policy(null), 'mcp_docs_search'));
+
+        $registry->removeIn('project:1', 'mcp_docs_search');
+        self::assertSame(['read_file'], $registry->names($inProject));
+    }
+
+    public function testTwoProjectsSameName(): void {
+        $registry = new ToolRegistry();
+        $one = new FakeTool('mcp_docs_search');
+        $two = new FakeTool('mcp_docs_search');
+        self::assertTrue($registry->registerIn('project:1', $one));
+        self::assertTrue($registry->registerIn('project:2', $two));
+
+        self::assertSame($one, $registry->get('mcp_docs_search', $this->policy(null)->withMcpContext('project:1')));
+        self::assertSame($two, $registry->get('mcp_docs_search', $this->policy(null)->withMcpContext('project:2')));
+        self::assertFalse($registry->registerIn('project:1', new FakeTool('mcp_docs_search')), 'a name once per context');
+    }
+
+    public function testNameTakenByCoreIsRefused(): void {
+        $registry = new ToolRegistry();
+        $registry->register(new FakeTool('mcp_mail_mail_list'));
+
+        self::assertFalse($registry->registerIn('member:7', new FakeTool('mcp_mail_mail_list')));
+        self::assertSame(['mcp_mail_mail_list'], $registry->names($this->policy(null)->withMcpContext('member:7')));
+    }
+
+    public function testTheContextSurvivesNarrowing(): void {
+        $policy = $this->policy(null)->withMcpContext('project:3');
+
+        self::assertSame('project:3', $policy->capTo($this->policy(['a']))->mcpContext);
+        self::assertSame('project:3', $policy->narrowedBy($this->policy(['a']), keepApproval: true)->mcpContext);
+        self::assertSame('project:3', $policy->without(['a'])->mcpContext);
+        self::assertSame('project:3', $policy->readOnlyCopy()->mcpContext);
+    }
 }
 
 /** A tool of the media-docs module. */

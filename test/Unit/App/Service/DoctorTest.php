@@ -98,4 +98,17 @@ final class DoctorTest extends AsyncTestCase {
         self::assertStringContainsString('⚠️ ' . \Mercurius\I18n\t('service.doctor.settings_unknown') . ': OLD_LIMIT', Doctor::render($doctor->run()));
         self::assertStringNotContainsString(\Mercurius\I18n\t('service.doctor.settings_unknown'), self::results([]), 'no outdated keys, no line');
     }
+
+    /** spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — doctor names connections that do not work */
+    public function testConnectionsThatDoNotWorkAreNamed(): void {
+        $ok = new \OpenCCK\Domain\Mcp\McpServer(1, 'docs', 'https://a.example/mcp', null, \OpenCCK\Domain\Mcp\McpServer::CONNECTED, null, context: 'member:1');
+        $bad = new \OpenCCK\Domain\Mcp\McpServer(2, 'github', 'https://b.example/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ERROR, null, 'Connection refused', context: 'project:3');
+        $doctor = new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), mcp: static fn(): array => [$ok, $bad]);
+
+        $text = Doctor::render($doctor->run());
+
+        self::assertStringContainsString('github (project:3): ' . \Mercurius\I18n\t('service.mcp_commands.state.error') . ' — Connection refused', $text);
+        self::assertStringNotContainsString('docs (member:1)', $text);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('service.doctor.mcp_ok'), 1), Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir(), mcp: static fn(): array => [$ok]))->run()));
+    }
 }

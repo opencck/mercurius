@@ -14,6 +14,8 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 final class ToolRegistry {
     /** @var array<string, Tool> */
     private array $tools = [];
+    /** @var array<string, array<string, Tool>> context => name => a tool of an MCP connection of that context */
+    private array $scoped = [];
     /** @var (\Closure(string): bool)|null whether a module service is up */
     private ?\Closure $services = null;
 
@@ -77,6 +79,33 @@ final class ToolRegistry {
         return null;
     }
 
+    /**
+     * A tool of an MCP connection: offered only to runs of its context. False — the name is taken by a common tool or
+     * by another connection of the context (the connection goes into the state names).
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — names are checked within the context
+     * @throws \InvalidArgumentException the name or the schema of the tool is not one a model can call
+     */
+    public function registerIn(string $context, Tool $tool): bool {
+        $definition = $tool->definition();
+        $name = $definition->name;
+        if (isset($this->tools[$name]) || isset($this->scoped[$context][$name])) {
+            return false;
+        }
+        $problem = self::problem($name, $definition->parameters);
+        if ($problem !== null) {
+            throw new \InvalidArgumentException(sprintf('Tool "%s" is not registered: %s', mb_substr($name, 0, 80), $problem));
+        }
+        $this->scoped[$context][$name] = $tool;
+        return true;
+    }
+
+    public function removeIn(string $context, string ...$names): void {
+        foreach ($names as $name) {
+            unset($this->scoped[$context][$name]);
+        }
+    }
+
     /** Takes tools out — those of an MCP server that was turned off or changed. */
     public function remove(string ...$names): void {
         foreach ($names as $name) {
@@ -84,13 +113,17 @@ final class ToolRegistry {
         }
     }
 
-    public function get(string $name): ?Tool {
-        return $this->tools[$name] ?? null;
+    /** A common tool, else a tool of the run's context of MCP connections. */
+    public function get(string $name, ?ParticipantPolicy $policy = null): ?Tool {
+        $context = $policy?->mcpContext;
+        return $this->tools[$name] ?? ($context === null ? null : ($this->scoped[$context][$name] ?? null));
     }
 
-    /** @return list<string> tools the participant may use, in registration order */
+    /** @return list<string> tools the participant may use, in registration order: the common ones, then the context's */
     public function names(ParticipantPolicy $policy): array {
-        return array_values(array_filter(array_keys($this->tools), fn(string $name): bool => $this->allows($policy, $name)));
+        $context = $policy->mcpContext;
+        $names = [...array_keys($this->tools), ...($context === null ? [] : array_keys($this->scoped[$context] ?? []))];
+        return array_values(array_filter($names, fn(string $name): bool => $this->allows($policy, $name)));
     }
 
     /**
@@ -100,7 +133,7 @@ final class ToolRegistry {
      * spec: brief/network.md#участник-просит-инструмент
      */
     public function allows(ParticipantPolicy $policy, string $name): bool {
-        $tool = $this->tools[$name] ?? null;
+        $tool = $this->get($name, $policy);
         if ($tool instanceof NeedsService && ($this->services === null || !($this->services)($tool->service()))) {
             return false;
         }
@@ -116,6 +149,11 @@ final class ToolRegistry {
             // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the bridge shows only the tools the participant may use, so anyone may search
             return true;
         }
+        if ($tool !== null && !isset($this->tools[$name])) {
+            // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a connection of the run's context
+            //       was approved by the owner of that context: whoever works there uses it, without a place on their list
+            return true;
+        }
         return $tool !== null && $policy->allowsTool($name);
     }
 
@@ -126,6 +164,6 @@ final class ToolRegistry {
 
     /** @return list<ToolDefinition> */
     public function definitions(ParticipantPolicy $policy): array {
-        return array_map(fn(string $name): ToolDefinition => $this->tools[$name]->definition(), $this->names($policy));
+        return array_values(array_filter(array_map(fn(string $name): ?ToolDefinition => $this->get($name, $policy)?->definition(), $this->names($policy))));
     }
 }

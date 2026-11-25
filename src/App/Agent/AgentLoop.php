@@ -436,7 +436,7 @@ final class AgentLoop {
             $wire = new ToolCall($stored->callId, $stored->name, $stored->argumentsJson);
             [$name, $json] = self::target($stored->name, $stored->argumentsJson);
             $call = new ToolCall($stored->callId, $name, $json);
-            $tool = $this->registry->allows($state->policy, $name) ? $this->registry->get($name) : null;
+            $tool = $this->registry->allows($state->policy, $name) ? $this->registry->get($name, $state->policy) : null;
             $error = $tool === null || $stored->args === null ? t('agent.agent_loop.instrument_nedostupen_posle_perezapuska') : null;
             return new ValidatedCall($call, $tool, $stored->args, $error, $stored->danger, $name === $stored->name ? null : $wire);
         }, $pending);

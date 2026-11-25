@@ -62,10 +62,10 @@ final class McpResourcesTool implements Tool, ReadsOutside {
         $uri = Args::string($args, 'uri');
         try {
             if ($uri !== null) {
-                return ToolResult::ok($this->manager->readResource($server, $uri, $context->cancellation));
+                return ToolResult::ok($this->manager->readResource($context->policy?->mcpContext, $server, $uri, $context->cancellation));
             }
             $lines = [];
-            foreach ($this->manager->resources($server, $context->cancellation) as $resource) {
+            foreach ($this->manager->resources($context->policy?->mcpContext, $server, $context->cancellation) as $resource) {
                 $lines[] = trim(sprintf('%s — %s%s%s', $resource['uri'], $resource['name'], $resource['mimeType'] === '' ? '' : ' (' . $resource['mimeType'] . ')', $resource['description'] === '' ? '' : ': ' . $resource['description']));
             }
             return ToolResult::ok($lines === [] ? t('tool.mcp_resources.none') : implode("\n", array_slice($lines, 0, 200)));

@@ -24,7 +24,12 @@ final class McpCommands {
         private readonly McpServerRepository $servers,
     ) {}
 
-    public function handle(string $argument): string {
+    /**
+     * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the commands work in the private
+     *       context of the one who writes, member:<id>
+     */
+    public function handle(string $argument, \OpenCCK\Domain\Entity\Member $who): string {
+        $context = 'member:' . $who->id;
         // the command of a stdio server has spaces of its own: everything after ' -- ' is it
         [$head, $command] = array_pad(explode(' -- ', trim($argument), 2), 2, null);
         $parts = preg_split('~\s+~', trim((string) $head)) ?: [];
@@ -32,13 +37,13 @@ final class McpCommands {
         $name = $parts[1] ?? '';
         try {
             return match ($action) {
-                '' => $this->list(),
-                'add' => $this->add($name, $parts[2] ?? '', $parts[3] ?? null),
-                'stdio' => $command === null || trim($command) === '' || $name === '' ? t('service.mcp_commands.stdio_usage') : $this->add($name, 'stdio:' . trim($command), $parts[2] ?? null),
-                'on' => $this->manager->approve($name, new TimeoutCancellation(60)),
-                'off' => $this->manager->disable($name) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
-                'remove' => $this->manager->remove($name) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
-                'tools' => $this->tools($name, $parts[2] ?? '', $parts[3] ?? ''),
+                '' => $this->list($context),
+                'add' => $this->add($context, $name, $parts[2] ?? '', $parts[3] ?? null),
+                'stdio' => $command === null || trim($command) === '' || $name === '' ? t('service.mcp_commands.stdio_usage') : $this->add($context, $name, 'stdio:' . trim($command), $parts[2] ?? null),
+                'on' => $this->manager->approve($context, $name, new TimeoutCancellation(60)),
+                'off' => $this->manager->disable($context, $name) ? sprintf(t('service.mcp_commands.mcp_server_vyklyuchen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
+                'remove' => $this->manager->remove($context, $name) ? sprintf(t('service.mcp_commands.mcp_server_udalen'), $name) : sprintf(t('service.mcp_commands.mcp_servera_net'), $name),
+                'tools' => $this->tools($context, $name, $parts[2] ?? '', $parts[3] ?? ''),
                 default => t('service.mcp_commands.mcp_spisok_mcp_add_imya')
                     . t('service.mcp_commands.mcp_tools_imya_include_exclude'),
             };
@@ -48,11 +53,11 @@ final class McpCommands {
     }
 
     /** /mcp tools <name> include a,b* | exclude c* | all */
-    private function tools(string $name, string $mode, string $masks): string {
+    private function tools(string $context, string $name, string $mode, string $masks): string {
         $server = match ($mode) {
-            'include' => $this->manager->filter($name, $masks, '', new TimeoutCancellation(60)),
-            'exclude' => $this->manager->filter($name, null, $masks, new TimeoutCancellation(60)),
-            'all' => $this->manager->filter($name, null, '', new TimeoutCancellation(60)),
+            'include' => $this->manager->filter($context, $name, $masks, '', new TimeoutCancellation(60)),
+            'exclude' => $this->manager->filter($context, $name, null, $masks, new TimeoutCancellation(60)),
+            'all' => $this->manager->filter($context, $name, null, '', new TimeoutCancellation(60)),
             default => null,
         };
         if ($server === null) {
@@ -70,13 +75,13 @@ final class McpCommands {
         };
     }
 
-    private function add(string $name, string $url, ?string $secret): string {
-        $server = $this->manager->add($name, $url, $secret);
+    private function add(string $context, string $name, string $url, ?string $secret): string {
+        $server = $this->manager->add($context, $name, $url, $secret);
         return sprintf(t('service.mcp_commands.mcp_server_dobavlen_i_zhdet'), $server->name, $server->name);
     }
 
-    private function list(): string {
-        $all = $this->servers->all();
+    private function list(string $context): string {
+        $all = $this->servers->inContext($context);
         if ($all === []) {
             return t('service.mcp_commands.mcp_serverov_net_mcp_add');
         }
@@ -84,13 +89,10 @@ final class McpCommands {
             '%s — %s, %s%s%s',
             $s->name,
             $s->url,
-            match ($s->status) {
-                McpServer::ACTIVE => t('service.mcp_commands.vklyuchen'),
-                McpServer::DISABLED => t('service.mcp_commands.vyklyuchen'),
-                default => t('service.mcp_commands.zhdet_odobreniya'),
-            },
+            // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the state of each connection
+            t('service.mcp_commands.state.' . $s->status),
             $s->note === '' ? '' : ' (' . $s->note . ')',
-            ($tools = $this->manager->tools($s->name)) === [] ? '' : ': ' . implode(', ', $tools),
+            ($tools = $this->manager->tools($s->key())) === [] ? '' : ': ' . implode(', ', $tools),
         ), $all));
     }
 }

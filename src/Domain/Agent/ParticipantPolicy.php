@@ -30,7 +30,18 @@ final class ParticipantPolicy {
         public readonly bool $irreversible = true,
         /** USD a UTC day of this participant may cost; 0 — no cap of their own (spec: brief/participants.md#несколько-пользователей) */
         public readonly float $dailySpendUsd = 0.0,
+        /**
+         * The context whose MCP connections the run gets: owners, member:<id> or project:<id>; null — none.
+         *
+         * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
+         */
+        public readonly ?string $mcpContext = null,
     ) {}
+
+    /** The same policy in a context of MCP connections. */
+    public function withMcpContext(?string $context): self {
+        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $context);
+    }
 
     /** The same policy with one more tool; every tool already — the same. */
     /** @param list<string> $names tools taken out */
@@ -38,19 +49,19 @@ final class ParticipantPolicy {
         if ($this->tools === null || array_intersect($this->tools, $names) === []) {
             return $this;
         }
-        return new self(array_values(array_diff($this->tools, $names)), $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd);
+        return new self(array_values(array_diff($this->tools, $names)), $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext);
     }
 
     public function withTool(string $name): self {
         if ($this->tools === null || in_array($name, $this->tools, true) || $name === '') {
             return $this;
         }
-        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd);
+        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext);
     }
 
     /** The same policy where only calls that read run. */
     public function readOnlyCopy(): self {
-        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, true, $this->irreversible, $this->dailySpendUsd);
+        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, true, $this->irreversible, $this->dailySpendUsd, $this->mcpContext);
     }
 
     public function allowsTool(string $name): bool {
@@ -78,6 +89,7 @@ final class ParticipantPolicy {
             readOnly: $this->readOnly || $owner->readOnly,
             irreversible: $this->irreversible && $owner->irreversible,
             dailySpendUsd: $cap,
+            mcpContext: $this->mcpContext,
         );
     }
 
@@ -92,7 +104,7 @@ final class ParticipantPolicy {
         if (!$keepApproval || !$this->mayRequestApproval || $narrowed->mayRequestApproval) {
             return $narrowed;
         }
-        return new self($narrowed->tools, $narrowed->run, $narrowed->sandbox, true, $narrowed->readOnly, $narrowed->irreversible, $narrowed->dailySpendUsd);
+        return new self($narrowed->tools, $narrowed->run, $narrowed->sandbox, true, $narrowed->readOnly, $narrowed->irreversible, $narrowed->dailySpendUsd, $narrowed->mcpContext);
     }
 
     /**

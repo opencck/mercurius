@@ -125,4 +125,12 @@ final class MetricsHandlerTest extends AsyncTestCase {
     public function testLabelValuesAreEscaped(): void {
         self::assertSame('a\\"b\\\\c\\n', MetricsText::label("a\"b\\c\n"));
     }
+
+    /** spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the state of each connection as a metric */
+    public function testEachConnectionHasItsState(): void {
+        $server = new \OpenCCK\Domain\Mcp\McpServer(1, 'github', 'https://b.example/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ERROR, null, context: 'project:3');
+        $text = (new MetricsText(self::figures(), null, static fn(): array => [$server]))->render();
+
+        self::assertStringContainsString('mercurius_mcp_connection{context="project:3",name="github",state="error"} 1', $text);
+    }
 }

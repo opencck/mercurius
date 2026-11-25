@@ -8,22 +8,31 @@ use DomainException;
 use OpenCCK\Domain\Mcp\McpServer;
 
 /**
+ * The connections to MCP servers, each in its context: a name is unique within its context.
+ *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие
+ * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение
  */
 interface McpServerRepository {
-    /** @throws DomainException when the name is taken */
-    public function add(string $name, string $url, ?string $secret): McpServer;
+    /** @throws DomainException when the name is taken in the context */
+    public function add(string $context, string $name, string $url, ?string $secret): McpServer;
 
-    public function find(string $name): ?McpServer;
+    public function find(string $context, string $name): ?McpServer;
 
-    /** @return list<McpServer> */
+    /** @return list<McpServer> every connection, by context and name */
     public function all(): array;
 
-    /** A new status; a hash given is stored as the approved set of tools; a note says why. */
-    public function update(string $name, string $status, ?string $toolsHash, string $note = ''): ?McpServer;
+    /** @return list<McpServer> the connections of one context, by name */
+    public function inContext(string $context): array;
 
-    public function remove(string $name): bool;
+    /**
+     * A new state with why; a hash given is stored as the approved set of tools; $nextTry — when a connection in
+     * error is tried again (unix time).
+     */
+    public function update(string $context, string $name, string $state, ?string $toolsHash, string $reason = '', ?float $nextTry = null): ?McpServer;
+
+    public function remove(string $context, string $name): bool;
 
     /** @param string|null $include null — every tool; '' — none */
-    public function setFilter(string $name, ?string $include, string $exclude): ?McpServer;
+    public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer;
 }

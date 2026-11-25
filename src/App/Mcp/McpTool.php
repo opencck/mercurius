@@ -237,7 +237,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
      */
     public function executeWith(array $args, ToolContext $context, #[\SensitiveParameter] ?array $headers): ToolResult {
         $server = $headers === null ? $this->server : $this->server->withHeaders($headers);
-        $refusal = $this->breaker->refusal($this->server->name);
+        $refusal = $this->breaker->refusal($this->server->key());
         if ($refusal !== null) {
             return ToolResult::error($refusal);
         }
@@ -253,13 +253,13 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
             [$text, $error] = $answer;
             $returned = $answer[2] ?? [];
         } catch (RuntimeException $e) {
-            $this->breaker->failed($this->server->name, false);
+            $this->breaker->failed($this->server->key(), false);
             return ToolResult::error($e->getMessage());
         }
         if ($error) {
-            $this->breaker->failed($this->server->name, true);
+            $this->breaker->failed($this->server->key(), true);
         } else {
-            $this->breaker->succeeded($this->server->name);
+            $this->breaker->succeeded($this->server->key());
         }
         $text = SecretMasker::mask(McpManager::clean($text));
         $kept = $returned === [] ? '' : $this->keep($returned, $context);

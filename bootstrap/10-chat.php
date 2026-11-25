@@ -239,7 +239,7 @@ $chat = new ChatService(
     new McpCommands($mcpManager, $mcpServers),
     new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
     // spec: brief/operations.md#как-сделано-поставка — /doctor checks the installation
-    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...)),
+    new \OpenCCK\App\Service\Doctor($_ENV, $db, PATH_ROOT . '/migrations', PATH_ROOT . '/storage', HttpClients::create(), $commandAudit, $settingsService->unknown(...), $mcpServers->all(...)),
     new \OpenCCK\App\Service\SettingsCommands($settingsService, $restarter),
     new \OpenCCK\App\Service\PeerCommands($peerNetwork, $peerRepository),
     $groupGate,

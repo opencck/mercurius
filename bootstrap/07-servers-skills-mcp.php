@@ -166,7 +166,8 @@ $mcpManager = new McpManager(
     $mcpClient,
     $vault,
     $tools,
-    static fn(): ?Member => $ownerDirectory->principal(),
+    // spec: brief/skills-mcp.md#подстановка-секретов — the token of a member's connection is that member's secret; others — the first owner's until secrets are bound to MCP
+    static fn(string $context): ?Member => str_starts_with($context, 'member:') ? $principals->find((int) substr($context, 7)) : $ownerDirectory->principal(),
     static function (string $text) use ($channel): void {
         $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));
     },

@@ -493,7 +493,7 @@ final class WorkerRunner {
                 return false;
             }
             foreach ($this->tools($parent, $task) as $name) {
-                if ($this->registry->get($name)?->danger([]) !== DangerClass::Read) {
+                if ($this->registry->get($name, $parent->policy)?->danger([]) !== DangerClass::Read) {
                     return false;
                 }
             }
@@ -511,7 +511,7 @@ final class WorkerRunner {
             //      toolsets given, the child inherits the parent's; here only the reading ones, so a forgotten list does not widen rights
             $asked = array_values(array_filter(
                 $this->onTheList($this->registry->all()),
-                fn(string $name): bool => $this->registry->get($name)?->danger([]) === DangerClass::Read,
+                fn(string $name): bool => $this->registry->get($name, $parent->policy)?->danger([]) === DangerClass::Read,
             ));
         }
         if ($task->memory !== 'none') {
@@ -519,7 +519,7 @@ final class WorkerRunner {
         }
         $tools = [];
         foreach ($this->onTheList(array_values(array_unique($asked))) as $name) {
-            $tool = $this->registry->get($name);
+            $tool = $this->registry->get($name, $parent->policy);
             if (in_array($name, self::FORBIDDEN, true) || $tool === null) {
                 continue;
             }
@@ -681,7 +681,7 @@ final class WorkerRunner {
         }
         $reads = array_values(array_filter(
             $this->tools($parent, $task),
-            fn(string $name): bool => $this->registry->get($name)?->danger([]) === DangerClass::Read,
+            fn(string $name): bool => $this->registry->get($name, $parent->policy)?->danger([]) === DangerClass::Read,
         ));
         $check = new WorkerTask(self::verifyBrief($task, $report->summary), '', '', $reads, ModelRole::STRONG, $task->profile);
         // The model that wrote the answer: after a cascade the report's model is a description, the run knows.
@@ -809,7 +809,8 @@ final class WorkerRunner {
                 }
                 $this->transcript->appendUser($conversation, $run->id, $message ?? $this->brief($parent, $task));
             }
-            $policy = new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false);
+            // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a worker is in its parent's context
+            $policy = (new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false))->withMcpContext($parent->policy?->mcpContext);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);

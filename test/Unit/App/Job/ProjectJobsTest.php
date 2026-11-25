@@ -96,6 +96,22 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertSame([], $this->stack->channel->texts('send'), 'not into the chat of whoever set the job');
     }
 
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a job of a project gets its connections */
+    public function testAJobOfAProjectGetsTheConnectionsOfTheProject(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));
+        $project = $this->projects->create('Поиск', 'работа');
+        $this->stack->registry->registerIn('project:' . $project->id, new \OpenCCK\Test\Support\FakeTool('mcp_docs_search'));
+        $this->stack->registry->registerIn('project:999', new \OpenCCK\Test\Support\FakeTool('mcp_other_search'));
+        $job = $this->jobs->create($this->agent->id, 'a2a', 'a2a-ctx', 'Отклики', 'Сделай отклики', 'every:60', $this->now->modify('-1 minute'));
+        $this->jobs->setProject($job->id, $project->id);
+
+        $scheduler->tick(true);
+
+        $tools = array_map(static fn(\Mercurius\Llm\ToolDefinition $d): string => $d->name, $this->stack->llm->requests[0]->tools);
+        self::assertContains('mcp_docs_search', $tools);
+        self::assertNotContains('mcp_other_search', $tools);
+    }
+
     public function testAJobOfAProjectGetsTheProjectsMemoryFile(): void {
         // spec: brief/memory.md#файл-памяти-места — a job of a project gets the project's MEMORY.md as a chat of the project does
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));

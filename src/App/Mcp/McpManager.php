@@ -21,9 +21,13 @@ use Throwable;
 use function Mercurius\I18n\t;
 
 /**
- * External MCP servers: the owner adds and approves a server, its tools go into the registry; the approved set of
- * tools is hashed, and a server that changes its names, descriptions or schemas is turned off until the owner
- * approves it again — a description is an instruction the model reads.
+ * Connections to MCP servers, each in its context: an approved connection's tools go into the registry for runs of
+ * that context (a built-in server's for every run); the approved set of tools is hashed, and a server that changes its
+ * names, descriptions or schemas is stopped (state changed) until it is approved again — a description is an
+ * instruction the model reads. The state of every connection is kept in the store: /mcp, the metric and doctor read it.
+ *
+ * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the states of a connection
+ * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — tools by context, names checked within it
  *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — servers from outside are untrusted until the owner approves them; a change of a tool's
  *       description is noticed; invisible Unicode is removed from descriptions and results
@@ -33,11 +37,13 @@ use function Mercurius\I18n\t;
 final class McpManager {
     private const DESCRIPTION_MAX = 1000;
 
-    /** @var array<string, list<string>> server => tool names in the registry */
+    /** @var array<string, list<string>> connection key => tool names in the registry */
     private array $registered = [];
+    /** @var array<string, list<string>> connection key => tool names taken in its context at the last sync */
+    private array $taken = [];
 
     /**
-     * @param Closure(): ?Member $owner the owner, whose vault holds the servers' tokens
+     * @param Closure(string): ?Member $owner whose vault holds the token of a connection in this context
      * @param Closure(string): void $tell writes to the owner
      */
     public function __construct(
@@ -62,7 +68,7 @@ final class McpManager {
     private const RESYNC = 900.0;
     private const RESOURCE_MAX = 100_000;
 
-    /** @var array<string, array{int, float}> servers that did not answer: tries so far and when to try again */
+    /** @var array<string, array{int, float}> connection keys that did not answer: tries so far and when to try again */
     private array $down = [];
     private ?float $lastResync = null;
     private bool $ticking = false;
@@ -111,25 +117,30 @@ final class McpManager {
             $this->logger->info('Built-in MCP server connected', ['server' => $server->name, 'tools' => $count]);
         } catch (Throwable $e) {
             $this->logger->warning('Built-in MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
-            $this->markDown($server->name, 0);
+            $this->markDown($server, 0, $e);
         }
     }
 
+    /** At start: every connection that is on; a changed one is stopped, one that does not answer waits for its next try. */
     public function connectAll(): void {
         foreach ($this->servers->all() as $server) {
-            if ($server->status === McpServer::ACTIVE) {
-                try {
-                    $this->sync($server, false, new NullCancellation());
-                } catch (Throwable $e) {
-                    $this->logger->warning('MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
-                    $this->markDown($server->name, 0);
-                }
+            if ($server->enabled()) {
+                $this->connect($server);
             }
         }
     }
 
+    private function connect(McpServer $server): void {
+        try {
+            $this->sync($server, false, new NullCancellation());
+        } catch (Throwable $e) {
+            $this->logger->warning('MCP server is not reachable', ['server' => $server->key(), 'error' => $e::class]);
+            $this->markDown($server, 0, $e);
+        }
+    }
+
     /** @throws DomainException */
-    public function add(string $name, string $url, ?string $secret): McpServer {
+    public function add(string $context, string $name, string $url, ?string $secret): McpServer {
         if (preg_match(McpServer::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.imya_mcp_servera_strochnye_latinskie'));
         }
@@ -145,7 +156,7 @@ final class McpManager {
         } elseif (preg_match('~^https?://\S+$~', $url) !== 1) {
             throw new DomainException(t('mcp.mcp_manager.adres_mcp_servera_http_s'));
         }
-        return $this->servers->add($name, $url, $secret);
+        return $this->servers->add($context, $name, $url, $secret);
     }
 
     /**
@@ -153,8 +164,8 @@ final class McpManager {
      *
      * @return string what was registered
      */
-    public function approve(string $name, Cancellation $cancellation): string {
-        $server = $this->servers->find($name) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
+    public function approve(string $context, string $name, Cancellation $cancellation): string {
+        $server = $this->servers->find($context, $name) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
         // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before it starts
         $blocked = str_starts_with($server->url, 'stdio:') ? $this->osv?->check(substr($server->url, 6), $cancellation) : null;
         if ($blocked !== null) {
@@ -162,14 +173,20 @@ final class McpManager {
             return $blocked;
         }
         $count = $this->sync($server, true, $cancellation);
+        $taken = $this->taken[$server->key()] ?? [];
+        if ($taken !== []) {
+            return sprintf(t('mcp.mcp_manager.names_taken'), $name, implode(', ', $taken));
+        }
         return sprintf(t('mcp.mcp_manager.mcp_server_odobren_instrumentov'), $name, $count);
     }
 
-    public function disable(string $name, string $note = ''): bool {
+    public function disable(string $context, string $name, string $note = ''): bool {
         $note = $note === '' ? t('mcp.mcp_manager.disabled_by_owner') : $note;
-        $this->unregister($name);
-        $this->forget($name);
-        return $this->servers->update($name, McpServer::DISABLED, null, $note) !== null;
+        $key = $context === '' ? $name : $context . '|' . $name;
+        $this->unregister($key);
+        $this->forget($key);
+        unset($this->down[$key]);
+        return $this->servers->update($context, $name, McpServer::DISABLED, null, $note) !== null;
     }
 
     /**
@@ -178,18 +195,20 @@ final class McpManager {
      *
      * @param string|null $include null — every tool; '' — none
      */
-    public function filter(string $name, ?string $include, string $exclude, Cancellation $cancellation): McpServer {
-        $server = $this->servers->setFilter($name, $include, $exclude) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
-        if ($server->status === McpServer::ACTIVE) {
+    public function filter(string $context, string $name, ?string $include, string $exclude, Cancellation $cancellation): McpServer {
+        $server = $this->servers->setFilter($context, $name, $include, $exclude) ?? throw new DomainException(sprintf(t('mcp.mcp_manager.mcp_servera_net'), $name));
+        if ($server->status === McpServer::CONNECTED) {
             $this->sync($server, false, $cancellation);
         }
         return $server;
     }
 
-    public function remove(string $name): bool {
-        $this->unregister($name);
-        $this->forget($name);
-        return $this->servers->remove($name);
+    public function remove(string $context, string $name): bool {
+        $key = $context === '' ? $name : $context . '|' . $name;
+        $this->unregister($key);
+        $this->forget($key);
+        unset($this->down[$key]);
+        return $this->servers->remove($context, $name);
     }
 
     /**
@@ -216,21 +235,21 @@ final class McpManager {
 
     private function check(): void {
         $now = $this->now();
-        foreach ($this->down as $name => [$tries, $next]) {
+        foreach ($this->down as $key => [$tries, $next]) {
             if ($next > $now) {
                 continue;
             }
-            $server = $this->builtinServers[$name] ?? $this->servers->find($name);
-            if ($server === null || (!isset($this->builtinServers[$name]) && $server->status !== McpServer::ACTIVE)) {
-                unset($this->down[$name]);
+            $server = $this->byKey($key);
+            if ($server === null || (!isset($this->builtinServers[$key]) && !$server->enabled())) {
+                unset($this->down[$key]);
                 continue;
             }
             try {
                 $count = $this->sync($server, false, new NullCancellation());
-                unset($this->down[$name]);
-                $this->logger->info('MCP server reconnected', ['server' => $name, 'tools' => $count, 'tries' => $tries + 1]);
+                unset($this->down[$key]);
+                $this->logger->info('MCP server reconnected', ['server' => $key, 'tools' => $count, 'tries' => $tries + 1]);
             } catch (Throwable $e) {
-                $this->markDown($name, $tries + 1);
+                $this->markDown($server, $tries + 1, $e);
             }
         }
         if ($this->lastResync === null) {
@@ -245,8 +264,8 @@ final class McpManager {
             try {
                 $this->sync($server, false, new NullCancellation());
             } catch (Throwable $e) {
-                $this->logger->warning('MCP server is not reachable', ['server' => $server->name, 'error' => $e::class]);
-                $this->markDown($server->name, 0);
+                $this->logger->warning('MCP server is not reachable', ['server' => $server->key(), 'error' => $e::class]);
+                $this->markDown($server, 0, $e);
             }
         }
     }
@@ -257,8 +276,8 @@ final class McpManager {
      * @return list<array{uri: string, name: string, description: string, mimeType: string}>
      * @throws DomainException
      */
-    public function resources(string $name, Cancellation $cancellation): array {
-        $server = $this->connectedServer($name);
+    public function resources(?string $context, string $name, Cancellation $cancellation): array {
+        $server = $this->connectedServer($context, $name);
         try {
             $list = $this->client->resources($server, $this->token($server), $cancellation);
         } catch (RuntimeException $e) {
@@ -273,8 +292,8 @@ final class McpManager {
     }
 
     /** @throws DomainException */
-    public function readResource(string $name, string $uri, Cancellation $cancellation): string {
-        $server = $this->connectedServer($name);
+    public function readResource(?string $context, string $name, string $uri, Cancellation $cancellation): string {
+        $server = $this->connectedServer($context, $name);
         try {
             $text = $this->client->readResource($server, $this->token($server), $uri, $cancellation);
         } catch (RuntimeException $e) {
@@ -287,62 +306,85 @@ final class McpManager {
      * The server said its tools changed (a stdio server can, over its open pipe): they are listed again at once, and
      * a changed set turns the server off as at start.
      */
-    public function toolsChanged(string $name): void {
-        \Amp\async(function () use ($name): void {
+    public function toolsChanged(string $key): void {
+        \Amp\async(function () use ($key): void {
             foreach ($this->connected() as $server) {
-                if ($server->name !== $name) {
+                if ($server->key() !== $key) {
                     continue;
                 }
                 try {
                     $this->sync($server, false, new NullCancellation());
                 } catch (Throwable $e) {
-                    $this->logger->warning('MCP tools were not listed again', ['server' => $name, 'error' => $e::class]);
+                    $this->logger->warning('MCP tools were not listed again', ['server' => $key, 'error' => $e::class]);
                 }
             }
         })->ignore();
     }
 
-    private function forget(string $name): void {
+    private function forget(string $key): void {
         if ($this->client instanceof McpSessions) {
-            $this->client->forget($name);
+            $this->client->forget($key);
         }
+    }
+
+    /** A built-in server by its name, or a connection by context|name. */
+    private function byKey(string $key): ?McpServer {
+        if (isset($this->builtinServers[$key])) {
+            return $this->builtinServers[$key];
+        }
+        $parts = explode('|', $key, 2);
+        return count($parts) === 2 ? $this->servers->find($parts[0], $parts[1]) : null;
     }
 
     /** @return list<McpServer> servers whose tools are in the registry now */
     private function connected(): array {
         $connected = [];
-        foreach (array_keys($this->registered) as $name) {
-            $server = $this->builtinServers[$name] ?? $this->servers->find($name);
-            if ($server !== null && (isset($this->builtinServers[$name]) || $server->status === McpServer::ACTIVE)) {
+        foreach (array_keys($this->registered) as $key) {
+            $server = $this->byKey($key);
+            if ($server !== null && (isset($this->builtinServers[$key]) || $server->status === McpServer::CONNECTED)) {
                 $connected[] = $server;
             }
         }
         return $connected;
     }
 
-    /** @throws DomainException */
-    private function connectedServer(string $name): McpServer {
-        foreach ($this->connected() as $server) {
+    /**
+     * A connected server a run may read: a built-in one, or a connection of the run's context.
+     *
+     * @throws DomainException
+     */
+    private function connectedServer(?string $context, string $name): McpServer {
+        $reachable = array_values(array_filter($this->connected(), static fn(McpServer $s): bool => $s->context === '' || $s->context === $context));
+        foreach ($reachable as $server) {
             if ($server->name === $name) {
                 return $server;
             }
         }
-        $names = array_map(static fn(McpServer $s): string => $s->name, $this->connected());
+        $names = array_map(static fn(McpServer $s): string => $s->name, $reachable);
         throw new DomainException(sprintf(t('mcp.mcp_manager.not_connected'), $name, $names === [] ? '—' : implode(', ', $names)));
     }
 
-    private function markDown(string $name, int $tries): void {
+    /**
+     * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — a server that did not answer is tried again after a
+     *       growing pause; the connection is in error with why and when
+     */
+    private function markDown(McpServer $server, int $tries, ?Throwable $why = null): void {
         $pause = min(self::RETRY_FIRST * (float) (2 ** min($tries, 10)), self::RETRY_MAX);
-        $this->down[$name] = [$tries, $this->now() + $pause];
+        $next = $this->now() + $pause;
+        $this->down[$server->key()] = [$tries, $next];
+        if ($server->context !== '') {
+            $reason = $why === null ? '' : mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($why->getMessage()), 0, 300);
+            $this->servers->update($server->context, $server->name, McpServer::ERROR, null, $reason, $next);
+        }
     }
 
     private function now(): float {
         return $this->clock === null ? microtime(true) : ($this->clock)();
     }
 
-    /** @return list<string> tool names of a server in the registry */
-    public function tools(string $name): array {
-        return $this->registered[$name] ?? [];
+    /** @return list<string> tool names of a connection (context|name, or a built-in server's name) in the registry */
+    public function tools(string $key): array {
+        return $this->registered[$key] ?? [];
     }
 
     /** Text without Unicode tags, private-use and other invisible format characters. */
@@ -372,15 +414,20 @@ final class McpManager {
         );
         $hash = hash('sha256', json_encode($cleaned, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         if (!$approve && $server->toolsHash !== null && !hash_equals($server->toolsHash, $hash)) {
-            $this->disable($server->name, t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
+            $this->unregister($server->key());
+            $this->forget($server->key());
+            if ($server->context !== '') {
+                $this->servers->update($server->context, $server->name, McpServer::CHANGED, null, t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
+            }
             ($this->tell)(sprintf(t('mcp.mcp_manager.mcp_server_izmenil_instrumenty_imena'), $server->name, $server->name));
             return 0;
         }
-        $this->unregister($server->name);
+        $this->unregister($server->key());
         $names = [];
+        $taken = [];
         foreach ($cleaned as $tool) {
             $name = self::toolName($server->name, $tool['name']);
-            if ($this->registry->get($name) !== null || !$server->registers($tool['name'])) {
+            if (!$server->registers($tool['name'])) {
                 continue;
             }
             try {
@@ -389,24 +436,47 @@ final class McpManager {
                     $mcpTool->useSandbox($this->sandbox, $this->zone);
                 }
                 $wrap = $this->wraps[$server->name] ?? null;
-                $this->registry->register($wrap === null ? $mcpTool : $wrap($mcpTool, $tool['name']));
+                $wrapped = $wrap === null ? $mcpTool : $wrap($mcpTool, $tool['name']);
+                if ($server->context === '') {
+                    if ($this->registry->get($name) !== null) {
+                        continue;
+                    }
+                    $this->registry->register($wrapped);
+                } elseif (!$this->registry->registerIn($server->context, $wrapped)) {
+                    $taken[] = $name;
+                    continue;
+                }
             } catch (\InvalidArgumentException $e) {
                 // spec: brief/agent-loop.md#инструменты — a tool with a schema no model can call is left out
-                $this->logger->warning('An MCP tool is not registered', ['server' => $server->name, 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);
+                $this->logger->warning('An MCP tool is not registered', ['server' => $server->key(), 'tool' => mb_substr($tool['name'], 0, 80), 'problem' => $e->getMessage()]);
                 continue;
             }
             $names[] = $name;
         }
-        $this->registered[$server->name] = $names;
-        if ($approve) {
-            $this->servers->update($server->name, McpServer::ACTIVE, $hash, '');
+        $this->registered[$server->key()] = $names;
+        $this->taken[$server->key()] = $taken;
+        if ($taken !== []) {
+            // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — a connection whose tools would take
+            //       names already taken in its context is not turned on while they are taken
+            $this->unregister($server->key());
+            $this->servers->update($server->context, $server->name, McpServer::NAMES, $approve ? $hash : null, implode(', ', $taken));
+            return 0;
+        }
+        if ($server->context !== '') {
+            $this->servers->update($server->context, $server->name, McpServer::CONNECTED, $approve ? $hash : null, '');
         }
         return count($names);
     }
 
-    private function unregister(string $server): void {
-        $this->registry->remove(...($this->registered[$server] ?? []));
-        unset($this->registered[$server]);
+    private function unregister(string $key): void {
+        $server = $this->byKey($key);
+        $names = $this->registered[$key] ?? [];
+        if ($server !== null && $server->context !== '') {
+            $this->registry->removeIn($server->context, ...$names);
+        } else {
+            $this->registry->remove(...$names);
+        }
+        unset($this->registered[$key]);
     }
 
     private function token(McpServer $server): ?string {
@@ -416,7 +486,7 @@ final class McpManager {
         if ($server->secret === null) {
             return null;
         }
-        $owner = ($this->owner)();
+        $owner = ($this->owner)($server->context);
         // `secret:VARIABLE` of a stdio server names the variable after the secret
         $secret = explode(':', $server->secret, 2)[0];
         $token = $owner === null ? null : $this->vault->reveal($secret, $owner);

@@ -39,11 +39,37 @@ final class Doctor {
         private readonly ?\OpenCCK\Domain\Repository\CommandAuditRepository $audit = null,
         /** @var (\Closure(): list<string>)|null the stored settings the catalog no longer has */
         private readonly ?\Closure $unknownSettings = null,
+        /** @var (\Closure(): list<\OpenCCK\Domain\Mcp\McpServer>)|null the MCP connections of every context */
+        private readonly ?\Closure $mcp = null,
     ) {}
 
     /** @return list<array{string, string, string}> status, what, details */
     public function run(): array {
-        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->outdated(), ...$this->audit(), ...$this->services(), ...$this->botApi()];
+        return [...$this->settings(), $this->database(), $this->disk(), $this->writable(), ...$this->outdated(), ...$this->audit(), ...$this->services(), ...$this->botApi(), ...$this->mcp()];
+    }
+
+    /**
+     * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — connections in error, changed or with
+     *       taken names are named with their context and why
+     *
+     * @return list<array{string, string, string}>
+     */
+    private function mcp(): array {
+        $all = $this->mcp === null ? [] : ($this->mcp)();
+        if ($all === []) {
+            return [];
+        }
+        $bad = array_values(array_filter($all, static fn(\OpenCCK\Domain\Mcp\McpServer $s): bool => in_array($s->status, [\OpenCCK\Domain\Mcp\McpServer::ERROR, \OpenCCK\Domain\Mcp\McpServer::CHANGED, \OpenCCK\Domain\Mcp\McpServer::NAMES], true)));
+        if ($bad === []) {
+            return [[self::OK, 'mcp', sprintf(t('service.doctor.mcp_ok'), count($all))]];
+        }
+        return [[self::WARN, 'mcp', implode('; ', array_map(static fn(\OpenCCK\Domain\Mcp\McpServer $s): string => sprintf(
+            '%s (%s): %s%s',
+            $s->name,
+            $s->context,
+            t('service.mcp_commands.state.' . $s->status),
+            $s->note === '' ? '' : ' — ' . $s->note,
+        ), $bad))]];
     }
 
     /**

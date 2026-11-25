@@ -5,14 +5,25 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Mcp;
 
 /**
- * An external MCP server over HTTP, added and approved by the owner.
+ * A connection to an MCP server in a context (the owners' area, a member, a project): where it leads, its token,
+ * its state. A built-in server (mail) has no context: its tools are common.
  *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие
+ * spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the context and the states of a connection
  */
 final class McpServer implements \Mercurius\Mcp\McpEndpoint {
-    public const PENDING = 'pending';
-    public const ACTIVE = 'active';
     public const DISABLED = 'disabled';
+    public const PENDING = 'pending';
+    public const CONNECTING = 'connecting';
+    public const CONNECTED = 'connected';
+    public const ERROR = 'error';
+    public const CHANGED = 'changed';
+    public const NAMES = 'names';
+    public const UPDATE = 'update';
+    /** a built-in server is connected: the name kept for it and for tests */
+    public const ACTIVE = self::CONNECTED;
+    /** the states of an approved connection that is on: its tools are registered or tried */
+    public const ENABLED = [self::CONNECTING, self::CONNECTED, self::ERROR, self::UPDATE];
     public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_]{0,23}$~';
 
     public function __construct(
@@ -34,7 +45,26 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
         public readonly ?string $include = null,
         /** names or masks of the tools not to register; the whitelist wins */
         public readonly string $exclude = '',
+        /** owners, member:<id> or project:<id>; '' — a built-in server, common to every run */
+        public readonly string $context = '',
+        /** when a connection in error is tried again, unix time; null — at once or not at all */
+        public readonly ?float $nextTry = null,
     ) {}
+
+    /** The connection inside the application: its context and name; a built-in server — its name. */
+    public function key(): string {
+        return $this->context === '' ? $this->name : $this->context . '|' . $this->name;
+    }
+
+    /** Approved and on: its tools are registered or are being tried. */
+    public function enabled(): bool {
+        return in_array($this->status, self::ENABLED, true);
+    }
+
+    /** The same connection in another state. */
+    public function withState(string $state, string $reason = '', ?float $nextTry = null): self {
+        return new self($this->id, $this->name, $this->url, $this->secret, $state, $this->toolsHash, $reason, $this->headers, $this->include, $this->exclude, $this->context, $nextTry);
+    }
 
     /**
      * Whether a tool of this server goes into the registry.
@@ -65,7 +95,7 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
      * @param array<non-empty-string, string> $headers
      */
     public function withHeaders(#[\SensitiveParameter] array $headers): self {
-        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude);
+        return new self($this->id, $this->name, $this->url, $this->secret, $this->status, $this->toolsHash, $this->note, $headers, $this->include, $this->exclude, $this->context, $this->nextTry);
     }
 
     public function endpointName(): string {

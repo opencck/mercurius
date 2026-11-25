@@ -79,7 +79,7 @@ final class ToolCallValidator {
     /** @param array<string, string> $seen */
     private function check(ToolCall $call, string $json, ParticipantPolicy $policy, array &$seen, bool &$truncated): ValidatedCall {
         $id = $call->id;
-        $tool = $this->registry->allows($policy, $call->name) ? $this->registry->get($call->name) : null;
+        $tool = $this->registry->allows($policy, $call->name) ? $this->registry->get($call->name, $policy) : null;
         if ($tool === null) {
             return $this->invalid($call, null, null, $this->unknown($call->name, $policy));
         }

@@ -75,23 +75,23 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         if (!$server instanceof McpServer) {
             throw new \RuntimeException('stdio needs a registered server');
         }
-        $session = $this->sessions[$server->name] ?? null;
+        $session = $this->sessions[$server->key()] ?? null;
         if ($session !== null && $session->alive()) {
             return $session;
         }
         // concurrent first requests start one process
-        $opening = array_key_exists($server->name, $this->opening) ? $this->opening[$server->name] : null;
+        $opening = array_key_exists($server->key(), $this->opening) ? $this->opening[$server->key()] : null;
         if ($opening === null) {
             $opening = async(fn(): StdioSession => $this->open($server, $token));
-            $this->opening[$server->name] = $opening;
+            $this->opening[$server->key()] = $opening;
         }
         try {
             /** @var StdioSession $started */
             $started = $opening->await($cancellation);
             return $started;
         } finally {
-            if ($opening->isComplete() && array_key_exists($server->name, $this->opening) && $this->opening[$server->name] === $opening) {
-                unset($this->opening[$server->name]);
+            if ($opening->isComplete() && array_key_exists($server->key(), $this->opening) && $this->opening[$server->key()] === $opening) {
+                unset($this->opening[$server->key()]);
             }
         }
     }
@@ -105,7 +105,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
 
     /** @throws RuntimeException */
     private function open(McpServer $server, ?string $token): StdioSession {
-        $this->forget($server->name);
+        $this->forget($server->key());
         $command = trim(substr($server->url, strlen(self::PREFIX)));
         $env = $token === null ? [] : [self::envName($server->secret) => $token];
         $principal = self::PRINCIPAL_BASE + $server->id;
@@ -114,7 +114,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         } catch (SandboxFailure $e) {
             throw new RuntimeException(t('mcp.stdio.not_started') . $e->getMessage());
         }
-        $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->name, $this->onToolsChanged, $this->logger);
+        $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->key(), $this->onToolsChanged, $this->logger);
         try {
             $session->request('initialize', $this->initializeParams(), new NullCancellation(), self::START_SECONDS);
             $session->notify('notifications/initialized');
@@ -122,7 +122,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
             $session->close();
             throw $e;
         }
-        $this->logger->info('MCP stdio server started', ['server' => $server->name]);
-        return $this->sessions[$server->name] = $session;
+        $this->logger->info('MCP stdio server started', ['server' => $server->key()]);
+        return $this->sessions[$server->key()] = $session;
     }
 }

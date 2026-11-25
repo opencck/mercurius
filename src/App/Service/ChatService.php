@@ -476,7 +476,7 @@ final class ChatService implements MessageHandler {
         }
         if ($command === '/mcp' && $this->mcp !== null) {
             // spec: brief/participants.md#свои-роли — MCP servers are managed by whoever has the permission mcp
-            $this->reply($message, $principal->role->may(Permission::Mcp) ? $this->mcp->handle(substr($text, strlen($command))) : t(self::OWNER_ONLY));
+            $this->reply($message, $principal->role->may(Permission::Mcp) ? $this->mcp->handle(substr($text, strlen($command)), $principal) : t(self::OWNER_ONLY));
             return;
         }
         if (in_array($command, ['/skills', '/skill'], true) && $this->skills !== null) {

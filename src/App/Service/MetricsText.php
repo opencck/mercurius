@@ -26,6 +26,8 @@ final class MetricsText {
         private readonly MetricsRepository $figures,
         /** @var (\Closure(): array<string, bool>)|null the modules set up and whether each answers now */
         private readonly ?\Closure $modules = null,
+        /** @var (\Closure(): list<\OpenCCK\Domain\Mcp\McpServer>)|null the MCP connections of every context */
+        private readonly ?\Closure $mcp = null,
     ) {}
 
     public function render(): string {
@@ -90,6 +92,14 @@ final class MetricsText {
             self::head($out, 'mercurius_module_up', 'gauge', 'Whether a module service answers its check now');
             foreach ($modules as $name => $up) {
                 $out[] = self::line('mercurius_module_up', ['module' => $name], $up ? 1 : 0);
+            }
+        }
+        // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the state of each connection
+        $connections = $this->mcp === null ? [] : ($this->mcp)();
+        if ($connections !== []) {
+            self::head($out, 'mercurius_mcp_connection', 'gauge', 'The state of each MCP connection: 1 for its state now');
+            foreach ($connections as $server) {
+                $out[] = self::line('mercurius_mcp_connection', ['context' => $server->context, 'name' => $server->name, 'state' => $server->status], 1);
             }
         }
         return implode("\n", $out) . "\n";

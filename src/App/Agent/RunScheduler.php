@@ -199,6 +199,13 @@ final class RunScheduler {
             $policy = $inProject;
             $members = $project;
         }
+        // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a chat of a project gets the project's
+        //       connections, a private chat the member's own; a group without a project none
+        $policy = $policy->withMcpContext(match (true) {
+            $members !== null => 'project:' . $members->id,
+            $meta !== null && !str_starts_with($meta->chatId, '-') => 'member:' . $principal->id,
+            default => null,
+        });
         $speakers = $this->speakers;
         if ($speakers === null || $meta === null) {
             return $policy;

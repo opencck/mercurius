@@ -23,6 +23,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
 /**
  * Made by the parts before this one:
  *
+ * @var OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository $mcpServers
  * @var 262144|28000000 $a2aFrameMax
  * @var Amp\Websocket\Parser\Rfc6455ParserFactory $a2aParser
  * @var OpenCCK\App\Peer\A2aServer|null $a2aServer
@@ -196,6 +197,6 @@ $routes[] = ['GET', '/api/ws', static fn(\Amp\Http\Server\HttpServer $http): \Am
 $routes[] = ['POST', '/hooks/{id:\d+}', new JobHookHandler(new HookReceiver($jobRepository, $jobScheduler, $vault, $principals, $logger))];
 
 // Prometheus: GET /metrics behind METRICS_TOKEN; without the token the endpoint does not exist.
-$routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db), $serviceModules->states(...)), $traceSettings->metricsToken())];
+$routes[] = ['GET', '/metrics', new MetricsHandler(new MetricsText(new PostgresMetricsRepository($db), $serviceModules->states(...), $mcpServers->all(...)), $traceSettings->metricsToken())];
 
 $health = new HealthService([new DatabaseHealthCheck($db)], 2.0, $logger);
