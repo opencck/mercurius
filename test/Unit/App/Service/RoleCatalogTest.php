@@ -11,6 +11,8 @@ use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryRoleRepository;
 use PHPUnit\Framework\TestCase;
 
+use function Mercurius\I18n\t;
+
 /**
  * The owner keeps any list of roles: adds, changes, orders and removes them; a role someone has stays.
  *
@@ -28,6 +30,29 @@ final class RoleCatalogTest extends TestCase {
 
     protected function tearDown(): void {
         Role::reset();
+    }
+
+    public function testCannotRemoveLastOwner(): void {
+        $this->catalog->useOwners(static fn(array $roles): int => in_array('admin', $roles, true) ? 1 : 0);
+
+        try {
+            $this->catalog->set('admin', 'permissions', 'tools');
+            self::fail('the last owner kept their role');
+        } catch (InvalidArgumentException $e) {
+            self::assertSame(t('roles.last_owner'), $e->getMessage());
+        }
+        self::assertTrue(Role::admin()->isOwner());
+    }
+
+    public function testAnotherOwnerRoleLetsAdminLoseOwner(): void {
+        $this->catalog->useOwners(static fn(array $roles): int => in_array('chief', $roles, true) ? 1 : 0);
+        $this->catalog->add('chief', 'Шеф');
+        $this->catalog->set('chief', 'permissions', 'owner');
+
+        $this->catalog->set('admin', 'permissions', 'tools');
+
+        self::assertFalse(Role::admin()->isOwner());
+        self::assertTrue(Role::of('chief')->isOwner());
     }
 
     public function testSetAcceptsPermissionsAndOldPowersKey(): void {
@@ -96,7 +121,7 @@ final class RoleCatalogTest extends TestCase {
             } catch (InvalidArgumentException) {
             }
         }
-        $this->catalog->remove('visitor');
-        self::assertNotContains(Role::visitor(), Role::assignable(), 'a role nobody has is removed');
+        $this->catalog->remove('reader');
+        self::assertNotContains(Role::reader(), Role::assignable(), 'a role nobody has is removed');
     }
 }

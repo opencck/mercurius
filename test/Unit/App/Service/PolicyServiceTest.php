@@ -9,6 +9,7 @@ use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
 use PHPUnit\Framework\TestCase;
@@ -28,7 +29,7 @@ final class PolicyServiceTest extends TestCase {
     }
 
     public function testOwnerHasAllToolsAndOwnerLimits(): void {
-        $policy = $this->service->forPrincipal($this->principal(Role::owner(), 1));
+        $policy = $this->service->forPrincipal($this->principal(Role::admin(), 1));
 
         self::assertNull($policy->tools);
         self::assertSame(30, $policy->run->maxTurns);
@@ -70,7 +71,12 @@ final class PolicyServiceTest extends TestCase {
         $this->repository->save(2, ['tools' => ['channel_post', 'participants', 'web_search']]);
 
         self::assertSame(['web_search'], $this->service->forPrincipal($this->principal(Role::user()))->tools);
-        self::assertSame(['channel_post', 'participants', 'web_search'], $this->service->forPrincipal($this->principal(Role::admin()))->tools);
+        $manager = Role::define('manager', '', 15, [Permission::Tools, Permission::Publish, Permission::Participants]);
+        try {
+            self::assertSame(['channel_post', 'participants', 'web_search'], $this->service->forPrincipal($this->principal($manager))->tools);
+        } finally {
+            Role::reset();
+        }
     }
 
     public function testUpdateIsStoredAndCapped(): void {
@@ -94,6 +100,6 @@ final class PolicyServiceTest extends TestCase {
 
     public function testOwnerPolicyCannotBeChanged(): void {
         $this->expectException(DomainException::class);
-        $this->service->update($this->principal(Role::owner(), 1), ['max_turns' => 5]);
+        $this->service->update($this->principal(Role::admin(), 1), ['max_turns' => 5]);
     }
 }

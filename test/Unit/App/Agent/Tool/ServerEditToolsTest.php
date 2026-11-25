@@ -33,7 +33,7 @@ final class ServerEditToolsTest extends TestCase {
     protected function setUp(): void {
         $this->servers = new InMemoryServerRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->context = new ToolContext(1, 1, $this->owner, new NullCancellation(), approved: true);
         $this->vault->put('web-pass', 'password', 'x', $this->owner);
         $this->vault->put('web-key', 'private_key', 'y', $this->owner);

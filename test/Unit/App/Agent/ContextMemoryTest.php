@@ -33,9 +33,9 @@ final class ContextMemoryTest extends TestCase {
         $this->sandbox = new FakeSandbox();
         $this->projects = new InMemoryProjectRepository();
         $this->memory = new ContextMemory($this->sandbox, static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), $this->projects, static fn(): int => 1);
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'owner');
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), 'owner');
         $this->member = new Member(7, MemberKind::Human, Role::admin(), 'member');
-        $this->stranger = new Member(9, MemberKind::Human, Role::admin(), 'stranger');
+        $this->stranger = new Member(9, MemberKind::Human, Role::user(), 'stranger');
     }
 
     public function testEachContextHasItsFile(): void {

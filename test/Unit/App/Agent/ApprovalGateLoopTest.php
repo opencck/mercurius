@@ -86,7 +86,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
     }
 
     private function execute(AgentLoop $loop, Run $run, bool $mayAsk = true): Run {
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, $mayAsk), $owner, $this->observer, new NullCancellation());
     }
 

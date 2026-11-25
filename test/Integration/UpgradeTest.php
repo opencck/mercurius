@@ -60,7 +60,7 @@ final class UpgradeTest extends AsyncTestCase {
         self::assertContains(50, $applied, 'up to the newest migration');
         self::assertNotContains(self::PREVIOUS, $applied, 'the old ones are not applied again');
 
-        $principals = new PostgresMemberRepository($db, 'telegram');
+        $principals = new PostgresMemberRepository($db);
         self::assertSame($owner, $principals->findByIdentity('telegram', '42')?->id, 'the owner is the owner');
         self::assertSame('Владелец', $principals->find($owner)?->displayName);
         $project = (new PostgresProjectRepository($db))->byName('Меркурий');

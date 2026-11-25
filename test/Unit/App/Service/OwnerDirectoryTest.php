@@ -15,13 +15,12 @@ use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
- * The owner from the configuration is only the first one: after ownership passed on, cards go to the new owner and
- * only the new owner presses.
+ * The owner from the configuration is only the first one: the directory reads the owners at the moment it is asked.
  *
- * spec: brief/participants.md#несколько-пользователей
+ * spec: brief/participants.md#свои-роли
  */
 final class OwnerDirectoryTest extends AsyncTestCase {
-    public function testAfterATransferTheOwnerIsReachedAndHeardInTheirOwnChat(): void {
+    public function testAnAddedOwnerLeavesTheFirstOwnerReachable(): void {
         $principals = new InMemoryMemberRepository();
         $first = $principals->ensureOwner('telegram', '100', 'Первый');
         $next = $principals->createVisitor('telegram', '200', 'Второй');
@@ -42,13 +41,12 @@ final class OwnerDirectoryTest extends AsyncTestCase {
         self::assertSame('100', $owner->chatId());
         $router->handleCallback($press('100'));
 
-        $principals->transferOwnership($first->id, $next->id);
+        $principals->addOwner($next->id);
         $owner->forget();
 
-        self::assertSame('200', $owner->chatId());
-        self::assertSame($next->id, $owner->principal()?->id);
+        self::assertSame('100', $owner->chatId(), 'the first owner stays the one reached first');
+        self::assertSame($first->id, $owner->principal()?->id);
         $router->handleCallback($press('100'));
-        $router->handleCallback($press('200'));
-        self::assertSame(['100', '200'], $handler->pressed, 'the former owner presses no more');
+        self::assertSame(['100', '100'], $handler->pressed);
     }
 }

@@ -15,56 +15,40 @@ use UnexpectedValueException;
 final class PostgresMemberRepository implements MemberRepository {
     /** Advisory lock key: only one process creates the owner. */
     private const OWNER_LOCK = 7_331_002;
-    /** the vault name of the agent's own key for other agents (AgentIdentity::VAULT_NAME), and of its extra keys */
-    private const AGENT_KEY = 'a2a-identity-key';
 
-    /** @param string $channel the channel of the owner's chat: jobs passed with the agent go to the new owner's chat there */
-    public function __construct(private readonly PostgresLink $db, private readonly string $channel) {}
+    public function __construct(private readonly PostgresLink $db) {}
 
     public function owner(): ?Member {
-        $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals WHERE role = 'owner'")->fetchRow();
+        $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals
+             WHERE kind = 'human' AND status = 'active' AND role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions)) ORDER BY id LIMIT 1")->fetchRow();
         return $row === null ? null : self::hydrate($row);
     }
 
-    public function transferOwnership(int $from, int $to): bool {
-        $tx = $this->db->beginTransaction();
-        try {
-            $tx->execute('SELECT pg_advisory_xact_lock(?)', [self::OWNER_LOCK]);
-            $old = $tx->execute("SELECT id FROM principals WHERE id = ? AND role = 'owner'", [$from])->fetchRow();
-            $new = $tx->execute("SELECT id FROM principals WHERE id = ? AND id <> ? AND kind = 'human' AND status = 'active'", [$to, $from])->fetchRow();
-            if ($old === null || $new === null) {
-                return false;
-            }
-            $tx->execute("UPDATE principals SET role = 'admin' WHERE id = ?", [$from]);
-            $tx->execute("UPDATE principals SET role = 'owner' WHERE id = ?", [$to]);
-            // the personal stays with the former owner: memory about them, the projects they had as owner
-            $tx->execute("UPDATE facts SET scope = 'principal:' || ? WHERE scope = 'owner'", [(string) $from]);
-            $tx->execute('UPDATE projects SET owner_id = ? WHERE owner_id IS NULL', [$from]);
-            // what the agent has goes with it: its key for other agents and the jobs it keeps for the owner
-            $tx->execute(
-                "UPDATE secrets SET principal_id = ? WHERE lower(name) = ? OR starts_with(lower(name), ?)",
-                [$to, self::AGENT_KEY, self::AGENT_KEY . '-'],
-            );
-            $tx->execute(
-                "UPDATE jobs SET principal_id = ?, chat_id = coalesce((SELECT external_id FROM channel_identities WHERE principal_id = ? AND channel = ? ORDER BY external_id LIMIT 1), chat_id)
-                 WHERE principal_id = ? AND title IN ('initiative', 'self-review')",
-                [$to, $to, $this->channel, $from],
-            );
-            $tx->execute('INSERT INTO ownership_transfers (from_principal, to_principal) VALUES (?, ?)', [$from, $to]);
-            $tx->commit();
-            return true;
-        } finally {
-            if ($tx->isActive()) {
-                $tx->rollback();
-            }
+    public function countActivePeople(array $roles): int {
+        if ($roles === []) {
+            return 0;
         }
+        $count = $this->db->execute(
+            "SELECT count(*) AS n FROM principals WHERE kind = 'human' AND status = 'active' AND role = ANY(?::text[])",
+            ['{' . implode(',', $roles) . '}'],
+        )->fetchRow()['n'] ?? 0;
+        return is_int($count) ? $count : 0;
+    }
+
+    public function addOwner(int $to): bool {
+        $row = $this->db->execute(
+            "UPDATE principals SET role = 'admin' WHERE id = ? AND kind = 'human' AND status = 'active' AND role NOT IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions))
+             RETURNING id",
+            [$to],
+        )->fetchRow();
+        return $row !== null;
     }
 
     public function formerOwners(): array {
         $former = [];
         foreach ($this->db->query(
             "SELECT t.from_principal AS id, extract(epoch FROM max(t.at))::bigint AS until FROM ownership_transfers t
-             JOIN principals p ON p.id = t.from_principal WHERE p.role <> 'owner' GROUP BY t.from_principal",
+             JOIN principals p ON p.id = t.from_principal WHERE p.role NOT IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions)) GROUP BY t.from_principal",
         ) as $row) {
             $id = $row['id'] ?? null;
             $until = $row['until'] ?? null;
@@ -109,9 +93,13 @@ final class PostgresMemberRepository implements MemberRepository {
         $tx = $this->db->beginTransaction();
         try {
             $tx->execute('SELECT pg_advisory_xact_lock(?)', [self::OWNER_LOCK]);
-            $row = $tx->query("SELECT id, kind, role, display_name, status FROM principals WHERE role = 'owner'")->fetchRow()
+            $row = $tx->execute(
+                'SELECT p.id, p.kind, p.role, p.display_name, p.status FROM channel_identities i JOIN principals p ON p.id = i.principal_id
+                 WHERE i.channel = ? AND i.external_id = ?',
+                [$channel, $externalId],
+            )->fetchRow()
                 ?? $tx->execute(
-                    "INSERT INTO principals (kind, role, display_name) VALUES ('human', 'owner', ?) RETURNING id, kind, role, display_name, status",
+                    "INSERT INTO principals (kind, role, display_name) VALUES ('human', 'admin', ?) RETURNING id, kind, role, display_name, status",
                     [$displayName],
                 )->fetchRow();
             if ($row === null) {
@@ -209,13 +197,26 @@ final class PostgresMemberRepository implements MemberRepository {
     }
 
     public function setRole(int $id, Role $role, MemberStatus $status): ?Member {
-        $row = $this->db->execute(
-            "UPDATE principals SET role = ?, status = ? WHERE id = ? AND role <> 'owner'
-             RETURNING id, kind, role, display_name, status",
-            [$role->value, $status->value, $id],
-        )->fetchRow();
-
-        return $row === null ? null : self::hydrate($row);
+        $keeps = $role->isOwner() && $status === MemberStatus::Active;
+        $tx = $this->db->beginTransaction();
+        try {
+            $tx->execute('SELECT pg_advisory_xact_lock(?)', [self::OWNER_LOCK]);
+            // spec: brief/participants.md#свои-роли — an agent is never an owner, and the last owner keeps the role
+            $row = $tx->execute(
+                "UPDATE principals SET role = ?, status = ? WHERE id = ? AND (kind = 'human' OR NOT ?::boolean)
+                   AND (?::boolean OR NOT (kind = 'human' AND status = 'active' AND role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions)))
+                        OR EXISTS (SELECT 1 FROM principals o WHERE o.id <> ? AND o.kind = 'human' AND o.status = 'active'
+                                   AND o.role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions))))
+                 RETURNING id, kind, role, display_name, status",
+                [$role->value, $status->value, $id, $role->isOwner(), $keeps, $id],
+            )->fetchRow();
+            $tx->commit();
+            return $row === null ? null : self::hydrate($row);
+        } finally {
+            if ($tx->isActive()) {
+                $tx->rollback();
+            }
+        }
     }
 
     public function all(): array {

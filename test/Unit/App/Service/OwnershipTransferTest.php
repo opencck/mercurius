@@ -54,7 +54,7 @@ final class OwnershipTransferTest extends AsyncTestCase {
         $this->transfer->handleCallback(new IncomingCallback('telegram', 'cb', '100', '100', null, '7', $data, 'u'));
     }
 
-    public function testThePressPassesOwnershipAndTheNewOwnerIsTold(): void {
+    public function testOwnerCommandAddsAdmin(): void {
         $first = $this->owner->principal();
         self::assertNotNull($first);
         self::assertSame(\Mercurius\I18n\t('ownership.usage'), $this->transfer->ask($first, '100', ''));
@@ -63,10 +63,10 @@ final class OwnershipTransferTest extends AsyncTestCase {
 
         $this->press($this->button(\Mercurius\I18n\t('ownership.confirm')));
 
-        self::assertSame(2, $this->principals->owner()?->id);
-        self::assertSame(Role::admin(), $this->principals->find($first->id)?->role);
-        self::assertSame('200', $this->owner->chatId(), 'the directory reads the new owner');
-        self::assertContains(\Mercurius\I18n\t('ownership.welcome'), $this->channel->texts('send'));
+        self::assertSame(Role::admin(), $this->principals->find(2)?->role);
+        self::assertSame(Role::admin(), $this->principals->find($first->id)?->role, 'the one who asked stays an owner');
+        self::assertSame(\Mercurius\I18n\t('ownership.not_eligible'), $this->transfer->ask($first, '100', '2'), 'already an owner');
+        self::assertContains(['200', \Mercurius\I18n\t('ownership.welcome')], array_map(static fn(array $e): array => [$e[1], $e[2]], array_filter($this->channel->log, static fn(array $e): bool => $e[0] === 'send')));
     }
 
     public function testTheCommandIsTheOwnersAndOnlyInTheirPrivateChat(): void {

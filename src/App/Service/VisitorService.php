@@ -146,10 +146,10 @@ final class VisitorService implements CallbackHandler {
         }
         [$role, $status, $outcome] = match (true) {
             $named !== null => [$named, MemberStatus::Active, sprintf(t('service.visitor.role_given'), RoleCatalog::label($named))],
-            ($match[2] ?? '') === 't' => [Role::visitor(), MemberStatus::Active, t('service.visitor.razgovor_razreshen')],
+            ($match[2] ?? '') === 't' => [Role::reader(), MemberStatus::Active, t('service.visitor.razgovor_razreshen')],
             ($match[2] ?? '') === 'u' => [Role::user(), MemberStatus::Active, t('service.visitor.naznachen_polzovatelem')],
             ($match[2] ?? '') === 'a' => [Role::admin(), MemberStatus::Active, t('service.visitor.naznachen_administratorom')],
-            default => [Role::visitor(), MemberStatus::Rejected, t('service.visitor.otkazano')],
+            default => [Role::reader(), MemberStatus::Rejected, t('service.visitor.otkazano')],
         };
         // a participant who admits gives no role with a permission they lack
         if ($presser !== null && $status === MemberStatus::Active && array_diff(array_map(static fn(Permission $p): string => $p->value, $role->permissions()), array_map(static fn(Permission $p): string => $p->value, $presser->role->permissions())) !== []) {
@@ -215,7 +215,7 @@ final class VisitorService implements CallbackHandler {
         }
         $decided = 0;
         foreach ($summary['visitors'] as $visitorId) {
-            $principal = $this->principals->decideVisitor($visitorId, Role::visitor(), $talk ? MemberStatus::Active : MemberStatus::Rejected);
+            $principal = $this->principals->decideVisitor($visitorId, Role::reader(), $talk ? MemberStatus::Active : MemberStatus::Rejected);
             if ($principal !== null) {
                 $decided++;
                 if ($talk) {

@@ -32,7 +32,7 @@ final class GitToolTest extends AsyncTestCase {
 
     private function tool(): GitTool {
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('github', 'token', self::TOKEN, $this->owner);
         return new GitTool($this->sandbox, $this->sandbox, $this->vault, 120);

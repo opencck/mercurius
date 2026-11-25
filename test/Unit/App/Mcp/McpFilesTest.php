@@ -66,7 +66,7 @@ final class McpFilesTest extends TestCase {
 
     private static function context(): ToolContext {
         $limits = new SandboxLimits(1_000_000_000, 64, 60, 0, 2);
-        return new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $limits, true));
+        return new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::admin(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $limits, true));
     }
 
     public function testAFileTheServerReturnsLandsInTheInbox(): void {

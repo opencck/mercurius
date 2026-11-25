@@ -21,7 +21,7 @@ final class VaultTest extends TestCase {
     protected function setUp(): void {
         $this->store = new InMemorySecretRepository();
         $this->vault = new Vault($this->store, random_bytes(32));
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->user = new Member(2, MemberKind::Human, Role::user(), 'u');
     }
 

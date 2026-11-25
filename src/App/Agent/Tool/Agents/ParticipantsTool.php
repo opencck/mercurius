@@ -35,11 +35,11 @@ final class ParticipantsTool implements Tool {
      * @return array<string, array{Role, MemberStatus}> role argument => [role, status]
      */
     private static function decisions(): array {
-        $decisions = ['talk' => [Role::visitor(), MemberStatus::Active]];
+        $decisions = ['talk' => [Role::reader(), MemberStatus::Active]];
         foreach (Role::assignable() as $role) {
             $decisions[$role->value] = [$role, MemberStatus::Active];
         }
-        $decisions['rejected'] = [Role::visitor(), MemberStatus::Rejected];
+        $decisions['rejected'] = [Role::reader(), MemberStatus::Rejected];
         return $decisions;
     }
 

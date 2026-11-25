@@ -32,7 +32,7 @@ final class HistoryToolsTest extends AsyncTestCase {
         $this->episodes = new InMemoryEpisodeRepository();
         $this->experience = new InMemoryExperienceRepository();
         $this->audience = new ConversationAudience($this->conversations);
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->guest = new Member(2, MemberKind::Human, Role::user(), 'Гость');
     }
 

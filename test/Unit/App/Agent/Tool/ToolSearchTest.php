@@ -143,7 +143,7 @@ final class ToolSearchTest extends TestCase {
 
     public function testSearchAndDescribeShowOnlyToolsOfTheParticipant(): void {
         $registry = self::registry();
-        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation(), self::policy());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation(), self::policy());
 
         $found = $registry->get(ToolSearchTool::SEARCH)?->execute(['queries' => ['github issue', 'secret drop']], $context);
         $described = $registry->get(ToolSearchTool::DESCRIBE)?->execute(['names' => ['mcp_github_create_issue', 'mcp_secret_drop']], $context);

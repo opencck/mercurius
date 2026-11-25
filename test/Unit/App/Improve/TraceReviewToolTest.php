@@ -33,7 +33,7 @@ final class TraceReviewToolTest extends AsyncTestCase {
             }
         };
         $tool = new TraceReviewTool($repo);
-        $owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
+        $owner = new Member(1, MemberKind::Human, Role::admin(), 'Owner');
 
         $result = $tool->execute(['days' => 3], new ToolContext(1, 1, $owner, new NullCancellation()));
 

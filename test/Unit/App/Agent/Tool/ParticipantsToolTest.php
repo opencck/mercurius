@@ -59,7 +59,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
             self::assertSame(Role::of('trader'), $principals->find($guest->id)?->role);
 
             self::assertFalse($tool->execute(['action' => 'list'], $bySteward)->isError, 'the holder sees the participants');
-            self::assertFalse($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'visitor'], $bySteward)->isError);
+            self::assertFalse($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'reader'], $bySteward)->isError);
             self::assertTrue($tool->execute(['action' => 'decide', 'id' => $guest->id, 'role' => 'admin'], $bySteward)->isError, 'no role above their own');
             self::assertTrue($tool->execute(['action' => 'decide', 'id' => $steward->id, 'role' => 'trader'], $bySteward)->isError, 'not their own role');
             self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'trader'], $bySteward)->isError);

@@ -60,7 +60,7 @@ final class AgentLoopOverHttpTest extends AsyncTestCase {
         $run = $this->runs->start($this->conversationId, 1, 'a/m', new RunLimits(30, 100_000, 900, 120));
         self::assertNotNull($run);
         $this->transcript->appendUser($this->conversationId, $run->id, 'задача');
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, true), $owner, $this->observer, new NullCancellation());
     }
 

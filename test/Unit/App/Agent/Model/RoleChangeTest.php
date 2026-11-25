@@ -47,7 +47,7 @@ final class RoleChangeTest extends AsyncTestCase {
         $this->conversations = new InMemoryConversationRepository();
         $this->roles = new ModelRoles($this->stores, $this->stores, conversations: new RoleConversations($this->conversations, $this->stores, new NullLogger()));
         $this->roles->seed();
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Владелец');
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), 'Владелец');
         $this->agent = new Member(2, MemberKind::Human, Role::user(), 'Участник');
         $this->stores->set(ModelRole::STRONG, ModelRef::parse(self::A), 'начальное', ModelRole::SET_BY_AGENT);
     }

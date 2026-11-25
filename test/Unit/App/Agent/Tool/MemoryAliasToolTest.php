@@ -26,8 +26,8 @@ use PHPUnit\Framework\TestCase;
 final class MemoryAliasToolTest extends TestCase {
     public function testTheAgentAddsAGroupForTheOwnerOnly(): void {
         $tool = new MemoryAliasTool(new Aliases(new InMemoryAliasStore(), new TextAnalyzer(), new InMemoryMemoryStore(), new ContentScreen()));
-        $owner = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), 'owner'), new NullCancellation());
-        $guest = new ToolContext(2, 2, new Member(5, MemberKind::Human, Role::admin(), 'guest'), new NullCancellation());
+        $owner = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::admin(), 'owner'), new NullCancellation());
+        $guest = new ToolContext(2, 2, new Member(5, MemberKind::Human, Role::user(), 'guest'), new NullCancellation());
 
         self::assertFalse($tool->execute(['action' => 'add', 'words' => ['прокс', 'proxmox']], $owner)->isError);
         self::assertTrue($tool->execute(['action' => 'add', 'words' => ['кубер', 'kubernetes']], $guest)->isError);

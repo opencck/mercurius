@@ -29,7 +29,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
     }
 
     private static function context(Role $role): ToolContext {
-        return new ToolContext(1, 1, new Member($role === Role::owner() ? 1 : 7, MemberKind::Human, $role, null), new NullCancellation());
+        return new ToolContext(1, 1, new Member($role === Role::admin() ? 1 : 7, MemberKind::Human, $role, null), new NullCancellation());
     }
 
     public function testAHolderOfThePowerChangesOthersWithinTheirOwnTools(): void {
@@ -56,10 +56,10 @@ final class SetParticipantPolicyToolTest extends TestCase {
         $tool = new SetParticipantPolicyTool($principals, new PolicyService($this->policies, new RunLimits(30, 400_000, 900, 120)), static fn(int $conversation): bool => $conversation === 1);
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger(['principal_id' => 7]));
-        $inGroup = new ToolContext(1, 2, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation(), approved: true);
+        $inGroup = new ToolContext(1, 2, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation(), approved: true);
         self::assertTrue($tool->execute(['principal_id' => 7, 'tools' => null], $inGroup)->isError, 'not in a group, even approved');
         self::assertSame([], $this->policies->policies);
-        self::assertFalse($tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::owner()))->isError);
+        self::assertFalse($tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::admin()))->isError);
     }
 
     public function testNonOwnerCannotChangePolicies(): void {
@@ -70,7 +70,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
     }
 
     public function testPolicyChangeIsCappedByOwner(): void {
-        $result = $this->tool->execute(['principal_id' => 7, 'tools' => ['http_request'], 'max_turns' => 100], self::context(Role::owner()));
+        $result = $this->tool->execute(['principal_id' => 7, 'tools' => ['http_request'], 'max_turns' => 100], self::context(Role::admin()));
 
         self::assertFalse($result->isError);
         self::assertStringContainsString('"max_turns":30', $result->content);
@@ -78,17 +78,17 @@ final class SetParticipantPolicyToolTest extends TestCase {
     }
 
     public function testOwnerPolicyIsNotEditable(): void {
-        self::assertTrue($this->tool->execute(['principal_id' => 1, 'max_turns' => 5], self::context(Role::owner()))->isError);
+        self::assertTrue($this->tool->execute(['principal_id' => 1, 'max_turns' => 5], self::context(Role::admin()))->isError);
     }
 
     public function testBadValueIsReported(): void {
-        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 0], self::context(Role::owner()));
+        $result = $this->tool->execute(['principal_id' => 7, 'max_turns' => 0], self::context(Role::admin()));
 
         self::assertTrue($result->isError);
         self::assertStringContainsString('max_turns', $result->content);
     }
 
     public function testUnknownParticipant(): void {
-        self::assertSame('Участник 99 не найден.', $this->tool->execute(['principal_id' => 99], self::context(Role::owner()))->content);
+        self::assertSame('Участник 99 не найден.', $this->tool->execute(['principal_id' => 99], self::context(Role::admin()))->content);
     }
 }

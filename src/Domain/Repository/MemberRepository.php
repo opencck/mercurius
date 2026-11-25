@@ -16,16 +16,23 @@ interface MemberRepository {
 
     public function findByIdentity(string $channel, string $externalId): ?Member;
 
-    /** The participant who owns the agent now; null before the first owner wrote. */
+    /** The first owner of the agent (the earliest active person whose role has the permission owner); null before one wrote. */
     public function owner(): ?Member;
 
     /**
-     * Ownership passes to an active person: the owner becomes an admin. What the agent has goes with it (its key, its
-     * own jobs); what the former owner kept as owner stays theirs (memory about them, their projects).
+     * spec: brief/participants.md#свои-роли — the agent keeps at least one owner
      *
-     * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
+     * @param list<string> $roles
      */
-    public function transferOwnership(int $from, int $to): bool;
+    public function countActivePeople(array $roles): int;
+
+    /**
+     * Another active person becomes an owner: they get the role admin. False for an agent, a member who is not active or
+     * one who already is an owner.
+     *
+     * spec: brief/participants.md#свои-роли — /owner adds another administrator
+     */
+    public function addOwner(int $to): bool;
 
     /** @return array<int, int> former owners (not the owner now) => when their ownership ended, unix time */
     public function formerOwners(): array;
@@ -36,7 +43,11 @@ interface MemberRepository {
     /** Gives the participant an identity in a channel; an identity that already exists is kept as it is. */
     public function bindIdentity(int $principalId, string $channel, string $externalId): void;
 
-    /** Creates the owner (a person) and binds the identity; returns the existing owner when there already is one. */
+    /**
+     * The member of the account from the configuration: an existing one as it is, else a new administrator (a person).
+     *
+     * spec: brief/participants.md#свои-роли — on the first start TELEGRAM_ADMIN_ID becomes an administrator
+     */
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Member;
 
     /** Creates a pending visitor (a person) and binds the identity; returns the existing participant when the identity is taken. */
@@ -52,6 +63,9 @@ interface MemberRepository {
     /** The owner's decision on a pending visitor, taken atomically; null when it was already decided. */
     public function decideVisitor(int $id, Role $role, MemberStatus $status): ?Member;
 
-    /** Sets the role and status of a participant whatever they were; the owner is never changed (null). */
+    /**
+     * Sets the role and status of a member whatever they were; null when it would leave the agent without an owner or
+     * make an agent an owner.
+     */
     public function setRole(int $id, Role $role, MemberStatus $status): ?Member;
 }

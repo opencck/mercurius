@@ -65,7 +65,7 @@ final class VisitorGroupSummaryTest extends AsyncTestCase {
         $first = $this->principals->findByIdentity('telegram', '101');
         self::assertNotNull($third);
         self::assertSame(MemberStatus::Active, $third->status);
-        self::assertSame(Role::visitor(), $third->role);
+        self::assertSame(Role::reader(), $third->role);
         self::assertSame(MemberStatus::Active, $fourth?->status);
         self::assertSame(MemberStatus::Pending, $first?->status, 'a stranger with an own card waits for that card');
         self::assertSame([], $this->channel->buttons[$summaryId], 'the decided summary has no buttons left');

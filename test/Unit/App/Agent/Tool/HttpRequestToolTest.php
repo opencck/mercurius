@@ -34,11 +34,11 @@ final class HttpRequestToolTest extends AsyncTestCase {
     }
 
     private static function context(): ToolContext {
-        return new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
+        return new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation());
     }
 
     public function testASecretGoesByNameToItsHostAndIsMaskedInTheAnswer(): void {
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('openrouter-management', 'token', 'sk-or-v1-managementkeyvalue', $owner);
         $this->http = new FakeHttpClient(['https://example.com/api/v1/credits' => [200, ['content-type' => 'application/json'], '{"total_credits":10,"echo":"sk-or-v1-managementkeyvalue"}']]);
@@ -67,7 +67,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
     }
 
     public function testASecretNeverFollowsARedirectAwayAndMayGoOverHttp(): void {
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('key', 'token', 'sk-or-v1-secretvalue', $owner);
         $this->http = new FakeHttpClient([
@@ -91,7 +91,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
     }
 
     public function testSecretsArePutIntoTheBodyByTheirNamesEscapedForItsType(): void {
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('panel-user', 'token', 'admin', $owner);
         $vault->put('panel-pass', 'token', 'p&ss="w0rd"', $owner);
@@ -134,7 +134,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
 
     public function testASecretGoesIntoTheQueryOfTheAddressButNeverIntoItsHost(): void {
         // spec: brief/servers.md#секрет-в-http-запросе — a site that takes its password in the address (?password=…)
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
         $vault->put('game-pass', 'token', 'a b&c', $owner);
         $this->http = new FakeHttpClient([
@@ -173,7 +173,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
 
         $tool->execute(['url' => 'http://other.com/x'], self::context());
         self::assertArrayNotHasKey('cookie', $this->http->headers[2], 'another host does not get it');
-        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(2, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(2, 1, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation()));
         self::assertSame('3x-ui=SESSIONVALUE', $this->http->headers[3]['cookie'] ?? null, 'the next run of the participant keeps the session');
         $tool->execute(['url' => 'http://example.com/panel/api/inbounds/list'], new ToolContext(3, 1, new Member(2, MemberKind::Human, Role::user(), null), new NullCancellation()));
         self::assertArrayNotHasKey('cookie', $this->http->headers[4], 'another participant does not get it');
@@ -212,7 +212,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
         $scope = static fn(ToolContext $context): string => $context->conversationId === 7 ? 'project:3' : 'p' . $context->principal->id;
         $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), cookies: $cookies, cookieScope: $scope);
 
-        $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST'], new ToolContext(1, 7, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation()));
+        $tool->execute(['url' => 'http://example.com/login', 'method' => 'POST'], new ToolContext(1, 7, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation()));
         $tool->execute(['url' => 'http://example.com/list'], new ToolContext(2, 7, new Member(2, MemberKind::Human, Role::user(), null), new NullCancellation()));
         self::assertSame('sid=PROJECTSESSION', $this->http->headers[1]['cookie'] ?? null, 'a participant of the project uses its session');
         $tool->execute(['url' => 'http://example.com/list'], new ToolContext(3, 8, new Member(2, MemberKind::Human, Role::user(), null), new NullCancellation()));
@@ -329,7 +329,7 @@ final class HttpRequestToolTest extends AsyncTestCase {
             $guards[] = $permitted;
             return $this->http;
         });
-        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
 
         $refused = $tool->execute(['url' => 'http://internal.example.com/status'], self::context());
         $allowed = $tool->execute(['url' => 'http://internal.example.com/status'], new ToolContext(1, 1, $owner, new NullCancellation(), approved: true));

@@ -31,7 +31,7 @@ final class ProjectsTest extends AsyncTestCase {
         parent::setUp();
         $this->projects = new InMemoryProjectRepository();
         $this->conversations = new InMemoryConversationRepository();
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->conversation = $this->conversations->openConversation(1, 'telegram', '42');
     }
 
@@ -108,7 +108,7 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('Главный проект', $block);
         self::assertStringNotContainsString('Чужое отношение', $block);
         self::assertStringNotContainsString('задач', $block, 'a project has no tasks of its own');
-        self::assertSame('', $context->block(new Member(3, MemberKind::Human, Role::visitor(), null), 'telegram', '42'));
+        self::assertSame('', $context->block(new Member(3, MemberKind::Human, Role::reader(), null), 'telegram', '42'));
         self::assertSame('', $context->block($this->owner, 'telegram', '43'));
     }
 

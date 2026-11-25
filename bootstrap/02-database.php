@@ -65,10 +65,15 @@ if ($importedKey !== null && $importedKey !== ($_ENV['SECRETS_KEY'] ?? null)) {
 $db = Database::pool($config->postgres);
 $applied = (new Migrator($db, $logger))->migrate(Migrator::loadDirectories(...\OpenCCK\Infrastructure\Database\MigrationFolders::of(PATH_ROOT)));
 $logger->info('Migrations checked', ['applied' => $applied]);
+// spec: brief/participants.md#свои-роли — a running instance moves to roles with the permission owner before anything reads a role
+$upgraded = (new \OpenCCK\App\Service\OwnerRoleUpgrade($db))->run(TelegramChannel::NAME, $telegram->ownerId);
+if ($upgraded > 0) {
+    $logger->notice('Owner roles upgraded', ['members' => $upgraded]);
+}
 
 // spec: brief/operations.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
 // when it is kept, and once more here: if they fail, the agent starts on .env and says why.
-$principals = new PostgresMemberRepository($db, TelegramChannel::NAME);
+$principals = new PostgresMemberRepository($db);
 // spec: brief/participants.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
 $ownerDirectory = new \OpenCCK\App\Service\OwnerDirectory($principals, TelegramChannel::NAME, $telegram->ownerId);
 // spec: brief/participants.md#несколько-пользователей — the owner reads every secret but a former owner's

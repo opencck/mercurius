@@ -19,10 +19,10 @@ use Psr\Log\LoggerInterface;
 use function Mercurius\I18n\t;
 
 /**
- * The owner passes ownership on: /owner <number> in the private chat shows a card, the owner's press passes it. The
- * former owner becomes an admin and keeps what is theirs; the new owner gets the agent.
+ * An owner adds another owner: /owner <number> in the private chat shows a card, an owner's press gives the member the
+ * role admin. Nobody stops being an owner by it; a role is taken away with /role, like any.
  *
- * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on, the personal stays with the former owner
+ * spec: brief/participants.md#свои-роли — /owner adds another administrator
  */
 final class OwnershipTransfer implements CallbackHandler {
     public const PREFIX = 'ow';
@@ -81,20 +81,22 @@ final class OwnershipTransfer implements CallbackHandler {
     }
 
     private function pass(int $from, int $to): string {
-        $owner = $this->owner->principal();
+        $asker = $this->principals->find($from);
         $target = $this->principals->find($to);
-        // the press comes from the owner (CallbackRouter); the owner must still be the one who asked
-        if ($owner === null || $owner->id !== $from || $target === null || !$this->eligible($owner, $target) || !$this->principals->transferOwnership($from, $to)) {
+        // the press comes from an owner (CallbackRouter); the one who asked must still be an owner
+        if ($asker === null || !$asker->isOwner() || $target === null || !$this->eligible($asker, $target) || !$this->principals->addOwner($to)) {
             return t('ownership.failed');
         }
         $this->owner->forget();
-        $this->logger->notice('Ownership passed on', ['from' => $from, 'to' => $to]);
-        $chat = $this->owner->chatId();
-        $this->channel->send(new OutgoingMessage($chat, t('ownership.welcome')));
+        $this->logger->notice('Owner added', ['by' => $from, 'member' => $to]);
+        $chat = $this->principals->externalId($to, $this->channel->name());
+        if ($chat !== null) {
+            $this->channel->send(new OutgoingMessage($chat, t('ownership.welcome')));
+        }
         return sprintf(t('ownership.done'), $target->id, $target->displayName ?? '—');
     }
 
     private function eligible(Member $owner, Member $target): bool {
-        return $target->id !== $owner->id && $target->kind === MemberKind::Human && $target->status === MemberStatus::Active;
+        return $target->id !== $owner->id && !$target->isOwner() && $target->kind === MemberKind::Human && $target->status === MemberStatus::Active;
     }
 }

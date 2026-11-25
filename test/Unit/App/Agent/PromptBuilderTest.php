@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
 
 final class PromptBuilderTest extends TestCase {
     public function testConstantPartComesFirstThenContext(): void {
-        $prompt = PromptBuilder::system(new Member(1, MemberKind::Human, Role::owner(), 'Сергей'), new DateTimeImmutable('2026-11-16 10:00:00+00:00'));
+        $prompt = PromptBuilder::system(new Member(1, MemberKind::Human, Role::admin(), 'Сергей'), new DateTimeImmutable('2026-11-16 10:00:00+00:00'));
 
         self::assertStringStartsWith(SystemPrompt::text(), $prompt);
         self::assertStringContainsString('Собеседник: Сергей, владелец.', $prompt);
@@ -34,7 +34,7 @@ final class PromptBuilderTest extends TestCase {
     }
 
     public function testAConversationOfTheWebsocketApiIsNamedSo(): void {
-        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Owner');
+        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), 'Owner');
         $at = new \DateTimeImmutable('2026-11-18 10:00 UTC');
 
         self::assertStringContainsString('WebSocket API', \OpenCCK\App\Agent\PromptBuilder::system($owner, $at, channel: 'ws'));
@@ -42,7 +42,7 @@ final class PromptBuilderTest extends TestCase {
     }
 
     public function testTheAgentKnowsHowANeighbourConnectsToIt(): void {
-        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Owner');
+        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), 'Owner');
         $about = sprintf(\Mercurius\I18n\t('agent.prompt_builder.instance_a2a'), 'https://agent.example', 'wss://agent.example/a2a/ws');
 
         $prompt = \OpenCCK\App\Agent\PromptBuilder::system($owner, new \DateTimeImmutable('2026-11-18 10:00 UTC'), instance: $about);

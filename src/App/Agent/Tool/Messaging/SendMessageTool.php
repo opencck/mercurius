@@ -75,7 +75,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
             return DangerClass::Write;
         }
         $recipient = $this->recipient($args);
-        return $recipient instanceof Member && $recipient->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
+        return $recipient instanceof Member && $recipient->isOwner() ? DangerClass::Write : DangerClass::Irreversible;
     }
 
     public function grantKey(array $args): ?string {
@@ -83,7 +83,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
         if (is_string($recipient)) {
             return $this->agent($args) === null ? $this->places?->grantKey(Args::string($args, 'to')) : null;
         }
-        return $recipient->role !== Role::owner() ? 'message:' . $recipient->id : null;
+        return !$recipient->isOwner() ? 'message:' . $recipient->id : null;
     }
 
     public function describe(array $args): string {
@@ -149,7 +149,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
             }
         }
         // an answer of someone else comes back by default; the owner's private chat is their own conversation
-        $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && $recipient->role !== Role::owner();
+        $waits = ($args['expect_reply'] ?? true) !== false && $recipient->id !== $context->principal->id && !$recipient->isOwner();
         if ($waits) {
             $this->relays->create($this->channelName, $chatId, $recipient->id, $context->conversationId, $context->principal->id, $context->runId, mb_substr($text, 0, 1000));
         }
@@ -167,7 +167,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
      * @param list<array{name: string, bytes: string}> $files
      */
     private function toPlace(array $place, string $text, array $files, ToolContext $context): ToolResult {
-        $shown = $context->principal->role === Role::owner()
+        $shown = $context->principal->isOwner()
             ? $text
             : sprintf(t('tool.send_message.header'), $context->principal->displayName ?? '#' . $context->principal->id) . $text;
         $sent = $this->channel->send(new OutgoingMessage($place['chat'], $shown, threadId: $place['thread']));

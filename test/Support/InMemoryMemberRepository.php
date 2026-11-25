@@ -22,31 +22,29 @@ final class InMemoryMemberRepository implements MemberRepository {
     }
 
     public function owner(): ?Member {
+        ksort($this->principals);
         foreach ($this->principals as $principal) {
-            if ($principal->role === Role::owner()) {
+            if ($principal->isOwner() && $principal->status === MemberStatus::Active) {
                 return $principal;
             }
         }
         return null;
     }
 
+    public function countActivePeople(array $roles): int {
+        return count(array_filter($this->principals, static fn(Member $p): bool => $p->kind === MemberKind::Human
+            && $p->status === MemberStatus::Active && in_array($p->role->value, $roles, true)));
+    }
+
     /** @var array<int, int> */
     private array $former = [];
 
-    public function transferOwnership(int $from, int $to): bool {
-        if ($from < 1 || $to < 1) {
-            return false;
-        }
-        $old = $this->principals[$from] ?? null;
+    public function addOwner(int $to): bool {
         $new = $this->principals[$to] ?? null;
-        if ($old === null || $new === null || $from === $to || !$old->isOwner() || $new->kind !== MemberKind::Human || $new->status !== MemberStatus::Active) {
+        if ($new === null || $new->kind !== MemberKind::Human || $new->status !== MemberStatus::Active || $new->isOwner()) {
             return false;
         }
-        $this->principals[$from] = new Member($old->id, $old->kind, Role::admin(), $old->displayName, $old->status);
-        $this->principals[$to] = new Member($new->id, $new->kind, Role::owner(), $new->displayName, $new->status);
-        $this->ownerId = $to;
-        $this->former[$from] = time();
-        unset($this->former[$to]);
+        $this->principals[$new->id] = new Member($new->id, $new->kind, Role::admin(), $new->displayName, $new->status);
         return true;
     }
 
@@ -73,7 +71,7 @@ final class InMemoryMemberRepository implements MemberRepository {
     }
 
     public function ensureOwner(string $channel, string $externalId, ?string $displayName): Member {
-        $owner = $this->ownerId === null ? $this->add(Role::owner(), $displayName, MemberStatus::Active) : $this->principals[$this->ownerId];
+        $owner = $this->findByIdentity($channel, $externalId) ?? ($this->ownerId !== null ? $this->principals[$this->ownerId] : $this->add(Role::admin(), $displayName, MemberStatus::Active));
         $this->ownerId = $owner->id;
         $this->identities[$channel . ':' . $externalId] ??= $owner->id;
         return $owner;
@@ -84,7 +82,7 @@ final class InMemoryMemberRepository implements MemberRepository {
         if ($existing !== null) {
             return $existing;
         }
-        $visitor = $this->add(Role::visitor(), $displayName, MemberStatus::Pending);
+        $visitor = $this->add(Role::reader(), $displayName, MemberStatus::Pending);
         $this->identities[$channel . ':' . $externalId] = $visitor->id;
         return $visitor;
     }
@@ -99,7 +97,12 @@ final class InMemoryMemberRepository implements MemberRepository {
 
     public function setRole(int $id, Role $role, MemberStatus $status): ?Member {
         $current = $this->principals[$id] ?? null;
-        if ($current === null || $current->isOwner()) {
+        if ($current === null || ($role->isOwner() && $current->kind !== MemberKind::Human)) {
+            return null;
+        }
+        $keeps = $role->isOwner() && $status === MemberStatus::Active;
+        $others = array_filter($this->principals, static fn(Member $p): bool => $p->id !== $id && $p->isOwner() && $p->status === MemberStatus::Active);
+        if ($current->isOwner() && $current->status === MemberStatus::Active && !$keeps && $others === []) {
             return null;
         }
         return $this->principals[$current->id] = new Member($current->id, $current->kind, $role, $current->displayName, $status);

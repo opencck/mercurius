@@ -37,7 +37,7 @@ final class SendFileToolTest extends AsyncTestCase {
     }
 
     private function context(int $conversation, bool $withSandbox = true): ToolContext {
-        return new ToolContext(3, $conversation, new Member(7, MemberKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $withSandbox ? new SandboxLimits(100, 10, 5, 1000, 1) : null, true), 'c1');
+        return new ToolContext(3, $conversation, new Member(7, MemberKind::Human, Role::admin(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $withSandbox ? new SandboxLimits(100, 10, 5, 1000, 1) : null, true), 'c1');
     }
 
     public function testTheFileGoesToTheTopicItWasAskedIn(): void {

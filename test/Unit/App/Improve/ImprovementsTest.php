@@ -42,7 +42,7 @@ final class ImprovementsTest extends AsyncTestCase {
         $this->store = new InMemoryImprovementRepository();
         $this->channel = new FakeChannel(4096);
         $this->notes = new PromptNotes($this->store);
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), 'Owner');
     }
 
     private function improvements(): Improvements {

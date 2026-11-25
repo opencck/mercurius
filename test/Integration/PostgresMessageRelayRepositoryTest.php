@@ -17,7 +17,7 @@ use OpenCCK\Test\Support\TestDatabase;
 final class PostgresMessageRelayRepositoryTest extends AsyncTestCase {
     public function testAnAnswerTakesTheOldestQuestionOnce(): void {
         $db = TestDatabase::connect();
-        $principals = new PostgresMemberRepository($db, 'telegram');
+        $principals = new PostgresMemberRepository($db);
         $owner = $principals->ensureOwner('telegram', 'relay-owner', 'Owner');
         $chat = 'relay-' . bin2hex(random_bytes(4));
         $roman = $principals->createVisitor('telegram', $chat, 'Roman');

@@ -20,7 +20,7 @@ abstract class MemberStoreContract extends AsyncTestCase {
     public function testVisitorIsCreatedPendingAndOnlyOnce(): void {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, 'Гость');
 
-        self::assertSame(Role::visitor(), $visitor->role);
+        self::assertSame(Role::reader(), $visitor->role);
         self::assertSame(MemberStatus::Pending, $visitor->status);
         self::assertSame($visitor->id, $this->principals->createVisitor('telegram', $this->externalId, 'Гость')->id);
         self::assertSame($visitor->id, $this->principals->findByIdentity('telegram', $this->externalId)?->id);
@@ -28,27 +28,37 @@ abstract class MemberStoreContract extends AsyncTestCase {
         self::assertNull($this->principals->externalId($visitor->id, 'slack'));
     }
 
-    public function testOwnershipPassesToAnActivePersonAndTheFormerOwnerBecomesAnAdmin(): void {
+    public function testAnotherActivePersonBecomesAnOwner(): void {
         $owner = $this->principals->ensureOwner('telegram', 'owner-' . $this->externalId, 'Владелец');
-        $next = $this->principals->createVisitor('telegram', $this->externalId, 'Преемник');
+        $next = $this->principals->createVisitor('telegram', $this->externalId, 'Второй');
         $this->principals->decideVisitor($next->id, Role::user(), MemberStatus::Active);
         $agent = $this->principals->createAgent('agent-' . $this->externalId, Role::user());
+        $before = $this->principals->countActivePeople(Role::ownerRoles());
         try {
-            self::assertFalse($this->principals->transferOwnership($next->id, $owner->id), 'only the owner passes it on');
-            self::assertFalse($this->principals->transferOwnership($owner->id, $agent->id), 'an agent does not own');
-            self::assertFalse($this->principals->transferOwnership($owner->id, $owner->id));
+            self::assertFalse($this->principals->addOwner($agent->id), 'an agent does not own');
+            self::assertFalse($this->principals->addOwner($owner->id), 'already an owner');
 
-            self::assertTrue($this->principals->transferOwnership($owner->id, $next->id));
+            self::assertTrue($this->principals->addOwner($next->id));
 
-            self::assertSame($next->id, $this->principals->owner()?->id);
-            self::assertSame(Role::admin(), $this->principals->find($owner->id)?->role);
-            self::assertArrayHasKey($owner->id, $this->principals->formerOwners(), 'with the time ownership ended');
-            self::assertArrayNotHasKey($next->id, $this->principals->formerOwners());
+            self::assertTrue($this->principals->find($next->id)?->isOwner());
+            self::assertTrue($this->principals->find($owner->id)?->isOwner(), 'nobody stops being an owner by it');
+            self::assertSame($before + 1, $this->principals->countActivePeople(Role::ownerRoles()));
         } finally {
-            // the store is shared with other tests on the server: ownership goes back
-            $this->principals->transferOwnership($next->id, $owner->id);
+            // the store is shared with other tests on the server
+            $this->principals->setRole($next->id, Role::user(), MemberStatus::Active);
         }
-        self::assertSame($owner->id, $this->principals->owner()?->id);
+    }
+
+    public function testTheLastOwnerKeepsTheRole(): void {
+        $owner = $this->principals->ensureOwner('telegram', 'owner-' . $this->externalId, 'Владелец');
+        $agent = $this->principals->createAgent('agent-' . $this->externalId, Role::user());
+        if ($this->principals->countActivePeople(Role::ownerRoles()) > 1) {
+            self::markTestSkipped('the shared store has other owners');
+        }
+
+        self::assertNull($this->principals->setRole($owner->id, Role::user(), MemberStatus::Active));
+        self::assertNull($this->principals->setRole($agent->id, Role::admin(), MemberStatus::Active), 'an agent is never an owner');
+        self::assertTrue($this->principals->find($owner->id)?->isOwner());
     }
 
     public function testVisitorIsDecidedOnce(): void {
@@ -65,7 +75,7 @@ abstract class MemberStoreContract extends AsyncTestCase {
     public function testRejectedVisitorStaysRejected(): void {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, null);
 
-        $this->principals->decideVisitor($visitor->id, Role::visitor(), MemberStatus::Rejected);
+        $this->principals->decideVisitor($visitor->id, Role::reader(), MemberStatus::Rejected);
 
         self::assertSame(MemberStatus::Rejected, $this->principals->findByIdentity('telegram', $this->externalId)?->status);
     }

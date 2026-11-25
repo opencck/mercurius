@@ -24,7 +24,7 @@ use OpenCCK\Test\Support\ScriptedLlm;
  */
 final class TodoListToolTest extends AsyncTestCase {
     private function context(int $conversation): ToolContext {
-        return new ToolContext(1, $conversation, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
+        return new ToolContext(1, $conversation, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation());
     }
 
     /** @return array{todos: list<array<string, string>>, revision: int, summary: array<string, int>} */

@@ -7,23 +7,26 @@ namespace OpenCCK\Domain\Entity;
 use InvalidArgumentException;
 
 /**
- * A role of participants: one object per name, so roles compare with ===. The owner's role is fixed and has every
- * permission; the others are the owner's list — admin, user and visitor are only the starting set. People and other agents
- * take the same roles; only a person can be the owner.
+ * A role of members: one object per name, so roles compare with ===. A role is a set of permissions; a role with the
+ * permission owner makes its holders owners of the agent and has every permission. admin, user and reader are only
+ * the starting set. People and other agents take the same roles; only a person can be an owner.
  *
  * spec: brief/participants.md#свои-роли
  */
 final class Role {
-    public const OWNER = 'owner';
+    /** the name no role of the catalog may take: it was the fixed role of the single owner before */
+    public const RESERVED = 'owner';
     /** the starting set: name => [title ('' — the translated name), position, permissions] */
     public const BUILTIN = [
-        'admin' => ['', 10, ['tools', 'skills', 'projects', 'secrets', 'admit', 'participants', 'publish', 'reports']],
+        'admin' => ['', 10, ['owner']],
         'user' => ['', 20, ['tools', 'skills', 'projects', 'secrets']],
-        'visitor' => ['', 30, []],
+        'reader' => ['', 30, []],
     ];
 
     /** @var array<string, self> */
     private static array $known = [];
+    /** the starting set or a catalog has defined the roles */
+    private static bool $loaded = false;
 
     private string $title;
     private int $position;
@@ -40,7 +43,7 @@ final class Role {
         if (preg_match('/^[a-z0-9_-]{1,32}$/', $name) !== 1) {
             throw new InvalidArgumentException(sprintf('Bad role name "%s"', $name));
         }
-        if (self::$known === []) {
+        if (!self::$loaded) {
             self::reset();
         }
         return self::$known[$name] ??= new self($name);
@@ -51,11 +54,7 @@ final class Role {
     }
 
     public static function tryFrom(string $name): ?self {
-        return preg_match('/^[a-z0-9_-]{1,32}$/', $name) === 1 && (self::$known === [] || isset(self::$known[$name]) || $name === self::OWNER) ? self::of($name) : null;
-    }
-
-    public static function owner(): self {
-        return self::of(self::OWNER);
+        return preg_match('/^[a-z0-9_-]{1,32}$/', $name) === 1 && (!self::$loaded || isset(self::$known[$name])) ? self::of($name) : null;
     }
 
     public static function admin(): self {
@@ -66,8 +65,8 @@ final class Role {
         return self::of('user');
     }
 
-    public static function visitor(): self {
-        return self::of('visitor');
+    public static function reader(): self {
+        return self::of('reader');
     }
 
     /** @param list<Permission> $permissions */
@@ -81,12 +80,12 @@ final class Role {
 
     /** No role is defined: the catalog of an instance defines its list from scratch. */
     public static function clear(): void {
+        self::$loaded = true;
         foreach (self::$known as $role) {
             $role->permissions = [];
             $role->title = '';
             $role->position = PHP_INT_MAX;
         }
-        self::$known[self::OWNER] ??= new self(self::OWNER);
     }
 
     /** Back to the starting set (an instance without a catalog, tests). */
@@ -97,18 +96,27 @@ final class Role {
         }
     }
 
-    /** @return list<self> the roles a participant may get, in their order */
+    /** @return list<self> the roles a member may get, in their order */
     public static function assignable(): array {
-        if (self::$known === []) {
+        if (!self::$loaded) {
             self::reset();
         }
-        $roles = array_values(array_filter(self::$known, static fn(self $r): bool => $r->value !== self::OWNER && $r->position !== PHP_INT_MAX));
+        $roles = array_values(array_filter(self::$known, static fn(self $r): bool => $r->position !== PHP_INT_MAX));
         usort($roles, static fn(self $a, self $b): int => [$a->position, $a->value] <=> [$b->position, $b->value]);
         return $roles;
     }
 
+    /**
+     * spec: brief/participants.md#свои-роли — whoever holds one of these roles is an owner of the agent
+     *
+     * @return list<string> the names of the roles with the permission owner, in their order
+     */
+    public static function ownerRoles(): array {
+        return array_values(array_map(static fn(self $r): string => $r->value, array_filter(self::assignable(), static fn(self $r): bool => $r->isOwner())));
+    }
+
     public function isOwner(): bool {
-        return $this->value === self::OWNER;
+        return in_array(Permission::Owner, $this->permissions, true);
     }
 
     public function may(Permission $permission): bool {
@@ -120,12 +128,17 @@ final class Role {
         return $this->isOwner() ? Permission::cases() : $this->permissions;
     }
 
+    /** @return list<Permission> the permissions as the catalog keeps them, without the ones owner implies */
+    public function granted(): array {
+        return $this->permissions;
+    }
+
     /** The title the owner gave; '' — none (the built-in roles are named by their translation). */
     public function title(): string {
-        return $this->isOwner() ? '' : $this->title;
+        return $this->title;
     }
 
     public function position(): int {
-        return $this->isOwner() ? 0 : $this->position;
+        return $this->position;
     }
 }

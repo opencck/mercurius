@@ -151,7 +151,7 @@ final class Recipients {
         }
         $key = mb_strtolower(ltrim($to, '@#'));
         if (in_array($key, ['owner', 'владелец', 'владельцу'], true)) {
-            $owner = array_values(array_filter($people, static fn(Member $p): bool => $p->role === Role::owner()));
+            $owner = array_values(array_filter($people, static fn(Member $p): bool => $p->isOwner()));
             return $owner[0] ?? t('tool.send_message.no_owner');
         }
         if (ctype_digit($key)) {
@@ -207,7 +207,7 @@ final class Recipients {
             return DangerClass::Write;
         }
         $person = $this->find($to);
-        return $person instanceof Member && $person->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
+        return $person instanceof Member && $person->isOwner() ? DangerClass::Write : DangerClass::Irreversible;
     }
 
     public function grantKey(?string $to): ?string {
@@ -219,7 +219,7 @@ final class Recipients {
             $place = $this->place($to);
             return is_array($place) ? 'message:place:' . $place['chat'] . ($place['thread'] === null ? '' : ':' . $place['thread']) : null;
         }
-        return $person->role !== Role::owner() ? 'message:' . $person->id : null;
+        return !$person->isOwner() ? 'message:' . $person->id : null;
     }
 
     public function name(?string $to): string {

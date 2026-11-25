@@ -50,7 +50,7 @@ final class McpTest extends AsyncTestCase {
         parent::setUp();
         $this->servers = new InMemoryMcpServerRepository();
         $this->registry = new ToolRegistry();
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('gh-token', 'token', 'ghp_' . str_repeat('a', 36), $this->owner);
         $this->remoteTools = [

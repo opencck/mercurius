@@ -20,8 +20,9 @@ final class Member {
         public readonly MemberStatus $status = MemberStatus::Active,
     ) {}
 
+    /** spec: brief/participants.md#свои-роли — an owner is a person whose role has the permission owner */
     public function isOwner(): bool {
-        return $this->role->isOwner();
+        return $this->kind === MemberKind::Human && $this->role->isOwner();
     }
 
     public function isAgent(): bool {

@@ -26,6 +26,9 @@ final class RoleCatalog {
     /** @var (\Closure(): void)|null */
     private ?\Closure $onChange = null;
 
+    /** @var (\Closure(list<string>): int)|null active people holding one of these roles */
+    private ?\Closure $owners = null;
+
     public function __construct(private readonly RoleRepository $roles) {}
 
     /**
@@ -35,6 +38,23 @@ final class RoleCatalog {
      */
     public function onChange(\Closure $listener): void {
         $this->onChange = $listener;
+    }
+
+    /**
+     * spec: brief/participants.md#свои-роли — the agent keeps at least one owner: a change that would leave nobody with
+     * the permission owner is refused
+     *
+     * @param \Closure(list<string>): int $count active people holding one of the roles named
+     */
+    public function useOwners(\Closure $count): void {
+        $this->owners = $count;
+    }
+
+    /** @param list<string> $ownerRoles */
+    private function keepAnOwner(array $ownerRoles): void {
+        if ($this->owners !== null && ($ownerRoles === [] || ($this->owners)(array_values(array_unique($ownerRoles))) === 0)) {
+            throw new InvalidArgumentException(t('roles.last_owner'));
+        }
     }
 
     private function changed(): void {
@@ -95,7 +115,7 @@ final class RoleCatalog {
         $role = $this->existing($name);
         $title = $role->title();
         $position = $role->position();
-        $permissions = array_map(static fn(Permission $p): string => $p->value, $role->permissions());
+        $permissions = array_map(static fn(Permission $p): string => $p->value, $role->granted());
         $policy = $this->template($role);
         switch ($field) {
             case 'title':
@@ -121,6 +141,8 @@ final class RoleCatalog {
                 // a bad field or value is refused here, before it is kept
                 ParticipantPolicy::fromArray($policy, new ParticipantPolicy([], new RunLimits(1, 1, 1, 1), null, false));
         }
+        $others = array_values(array_filter(Role::ownerRoles(), static fn(string $r): bool => $r !== $name));
+        $this->keepAnOwner(in_array(Permission::Owner->value, $permissions, true) ? [...$others, $name] : $others);
         $this->roles->save($name, $title, $position, array_values(array_unique($permissions)), $policy);
         $this->load();
         $this->changed();
@@ -129,6 +151,7 @@ final class RoleCatalog {
 
     public function remove(string $name): string {
         $this->existing($name);
+        $this->keepAnOwner(array_values(array_filter(Role::ownerRoles(), static fn(string $r): bool => $r !== $name)));
         if (!$this->roles->remove($name)) {
             throw new InvalidArgumentException(sprintf(t('roles.held'), $name));
         }
@@ -141,7 +164,7 @@ final class RoleCatalog {
         return $role->title() !== '' ? $role->title() : match ($role->value) {
             'admin' => t('service.visitor.admin'),
             'user' => t('service.visitor.polzovatel'),
-            'visitor' => t('service.visitor.razgovor'),
+            'reader' => t('service.visitor.reader'),
             default => $role->value,
         };
     }
@@ -154,7 +177,7 @@ final class RoleCatalog {
         return match ($role->value) {
             'admin' => ':a',
             'user' => ':u',
-            'visitor' => ':t',
+            'reader' => ':t',
             default => '=' . $role->value,
         };
     }
@@ -169,7 +192,7 @@ final class RoleCatalog {
     }
 
     private static function checkName(string $name): void {
-        if ($name === Role::OWNER || preg_match('/^[a-z0-9_-]{1,32}$/', $name) !== 1) {
+        if ($name === Role::RESERVED || preg_match('/^[a-z0-9_-]{1,32}$/', $name) !== 1) {
             throw new InvalidArgumentException(t('roles.bad_name'));
         }
     }

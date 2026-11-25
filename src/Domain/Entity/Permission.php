@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Entity;
 
 /**
- * What a role lets a participant do beyond talking. The owner has every permission.
+ * What a role lets a participant do beyond talking. The permission owner makes its holder an owner of the agent and
+ * gives every other permission.
  *
  * spec: brief/participants.md#свои-роли
  */
 enum Permission: string {
+    /** an owner of the agent: every permission, the roles and their permissions */
+    case Owner = 'owner';
+    /** installs, sets up and removes MCP servers */
+    case Mcp = 'mcp';
     /** the role may be given tools */
     case Tools = 'tools';
     /** skills in the context and their files */

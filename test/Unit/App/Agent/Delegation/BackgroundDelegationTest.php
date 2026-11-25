@@ -191,7 +191,7 @@ final class BackgroundDelegationTest extends AsyncTestCase {
         for ($i = 0; $i < 20; $i++) {
             $llm->byModel[$this->worker][] = ScriptedLlm::calls(new ToolCall('r' . $i, 'read', '{"q":"' . $i . '"}'));
         }
-        $here = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::owner(), null), new \Amp\NullCancellation());
+        $here = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), null), new \Amp\NullCancellation());
         $elsewhere = new \OpenCCK\App\Agent\Tool\ToolContext(1, 99, $here->principal, new \Amp\NullCancellation());
 
         $stack->say('задача');

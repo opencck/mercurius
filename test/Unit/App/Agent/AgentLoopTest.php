@@ -54,7 +54,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->observer = new RecordingObserver();
-        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $this->conversationId = $this->conversations->openConversation(1, 'test', '1');
         $this->conversations->setMeta($this->conversationId, 'системный промпт', 'test/model');
     }

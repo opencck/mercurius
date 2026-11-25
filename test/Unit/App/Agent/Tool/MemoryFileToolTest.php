@@ -39,7 +39,7 @@ final class MemoryFileToolTest extends TestCase {
         );
         $group = $conversations->openConversation(7, 'telegram', '-100');
         $member = new ToolContext(1, $group, new Member(7, MemberKind::Human, Role::admin(), 'member'), new NullCancellation());
-        $stranger = new ToolContext(2, $conversations->openConversation(9, 'telegram', '-100'), new Member(9, MemberKind::Human, Role::admin(), 'stranger'), new NullCancellation());
+        $stranger = new ToolContext(2, $conversations->openConversation(9, 'telegram', '-100'), new Member(9, MemberKind::Human, Role::user(), 'stranger'), new NullCancellation());
 
         $saved = $tool->execute(['action' => 'write', 'content' => "## Правила\nВсё по-английски"], $member);
 

@@ -29,7 +29,7 @@ final class SelfInfoToolTest extends AsyncTestCase {
             },
             'modules' => static fn(ToolContext $c): string => 'browser: работает',
         ]);
-        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), 'Owner'), new NullCancellation());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::admin(), 'Owner'), new NullCancellation());
 
         $index = $tool->execute([], $context)->content;
         self::assertStringContainsString('network', $index);
@@ -42,7 +42,7 @@ final class SelfInfoToolTest extends AsyncTestCase {
     }
 
     public function testThePromptHoldsOnlyThePointer(): void {
-        $owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
+        $owner = new Member(1, MemberKind::Human, Role::admin(), 'Owner');
         $prompt = PromptBuilder::system($owner, new \DateTimeImmutable('2026-11-18 10:00 UTC'), instance: \Mercurius\I18n\t('agent.prompt_builder.self_info'));
 
         self::assertStringContainsString('self_info', $prompt);

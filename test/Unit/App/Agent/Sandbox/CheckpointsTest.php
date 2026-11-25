@@ -34,7 +34,7 @@ final class CheckpointsTest extends AsyncTestCase {
     }
 
     private static function context(int $run = 3): ToolContext {
-        return new ToolContext($run, 9, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
+        return new ToolContext($run, 9, new Member(1, MemberKind::Human, Role::admin(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
     }
 
     /** @return list<string> */

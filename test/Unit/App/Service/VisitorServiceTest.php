@@ -89,7 +89,7 @@ final class VisitorServiceTest extends AsyncTestCase {
 
         $visitor = $this->stack->principals->find(2);
         self::assertNotNull($visitor);
-        self::assertSame(Role::visitor(), $visitor->role);
+        self::assertSame(Role::reader(), $visitor->role);
         self::assertSame(MemberStatus::Active, $visitor->status);
         self::assertCount(1, $this->stack->llm->requests);
         self::assertSame([], $this->stack->llm->requests[0]->tools);
@@ -137,7 +137,7 @@ final class VisitorServiceTest extends AsyncTestCase {
             self::assertSame(MemberStatus::Pending, $this->stack->principals->find($visitor->id)?->status, 'no role above their own, no press without the permission');
 
             $this->stack->press(sprintf('pv:%d:t', $visitor->id), '77');
-            self::assertSame([Role::visitor(), MemberStatus::Active], [$this->stack->principals->find($visitor->id)?->role, $this->stack->principals->find($visitor->id)?->status]);
+            self::assertSame([Role::reader(), MemberStatus::Active], [$this->stack->principals->find($visitor->id)?->role, $this->stack->principals->find($visitor->id)?->status]);
         } finally {
             Role::reset();
         }
