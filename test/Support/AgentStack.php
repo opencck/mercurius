@@ -30,7 +30,7 @@ final class AgentStack {
     public readonly InMemoryRunRepository $runs;
     public readonly InMemoryTranscriptRepository $transcript;
     public readonly InMemoryConversationRepository $conversations;
-    public readonly InMemoryPrincipalRepository $principals;
+    public readonly InMemoryMemberRepository $principals;
     public readonly InMemoryLlmCallRepository $calls;
     public readonly ToolRegistry $registry;
     public readonly FakeChannel $channel;
@@ -59,7 +59,7 @@ final class AgentStack {
         $this->runs = new InMemoryRunRepository();
         $this->transcript = new InMemoryTranscriptRepository();
         $this->conversations = new InMemoryConversationRepository();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->channel = new FakeChannel(max(1, $maxMessageLength));

@@ -8,8 +8,8 @@ use Amp\NullCancellation;
 use OpenCCK\App\Agent\ContextMemory;
 use OpenCCK\App\Agent\MemoryPlace;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
@@ -25,17 +25,17 @@ final class ContextMemoryTest extends TestCase {
     private FakeSandbox $sandbox;
     private InMemoryProjectRepository $projects;
     private ContextMemory $memory;
-    private Principal $owner;
-    private Principal $member;
-    private Principal $stranger;
+    private Member $owner;
+    private Member $member;
+    private Member $stranger;
 
     protected function setUp(): void {
         $this->sandbox = new FakeSandbox();
         $this->projects = new InMemoryProjectRepository();
         $this->memory = new ContextMemory($this->sandbox, static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), $this->projects, static fn(): int => 1);
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'owner');
-        $this->member = new Principal(7, PrincipalKind::Human, Role::admin(), 'member');
-        $this->stranger = new Principal(9, PrincipalKind::Human, Role::admin(), 'stranger');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'owner');
+        $this->member = new Member(7, MemberKind::Human, Role::admin(), 'member');
+        $this->stranger = new Member(9, MemberKind::Human, Role::admin(), 'stranger');
     }
 
     public function testEachContextHasItsFile(): void {
@@ -57,7 +57,7 @@ final class ContextMemoryTest extends TestCase {
         $project = $this->projects->create('Job Hunt', '', 7);
         $this->projects->chats['a2a:a2a-agent-1:'] = $project->id;
         $this->projects->share($project->id, 12, 'read', 7);
-        $reader = new Principal(12, PrincipalKind::Agent, Role::admin(), 'agent');
+        $reader = new Member(12, MemberKind::Agent, Role::admin(), 'agent');
 
         self::assertNotNull($this->memory->shared($reader, 'a2a', 'a2a-agent-1', '', false), 'an agent of the network is a participant like a person');
         self::assertNotNull($this->memory->shared($this->owner, 'a2a', 'a2a-agent-1', '', false), 'the owner of the agent owns every project');

@@ -7,8 +7,8 @@ namespace OpenCCK\Test\Unit\App\Service;
 use DomainException;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
 use PHPUnit\Framework\TestCase;
@@ -23,8 +23,8 @@ final class PolicyServiceTest extends TestCase {
     }
 
     /** @param positive-int $id */
-    private function principal(Role $role, int $id = 2): Principal {
-        return new Principal($id, PrincipalKind::Human, $role, null);
+    private function principal(Role $role, int $id = 2): Member {
+        return new Member($id, MemberKind::Human, $role, null);
     }
 
     public function testOwnerHasAllToolsAndOwnerLimits(): void {

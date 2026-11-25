@@ -15,8 +15,8 @@ use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
@@ -31,7 +31,7 @@ final class JobsTest extends AsyncTestCase {
     private DateTimeImmutable $now;
     private InMemoryJobRepository $jobs;
     private AgentStack $stack;
-    private Principal $owner;
+    private Member $owner;
 
     protected function setUp(): void {
         parent::setUp();
@@ -113,10 +113,10 @@ final class JobsTest extends AsyncTestCase {
         $scheduler = $this->scheduler(new ScriptedLlm([]));
         $job = $this->jobs->create($this->owner->id, 'telegram', '42', 'Цена', 'Сообщи цену', 'every:60', $this->now);
         $manage = new JobManageTool($this->jobs, $scheduler);
-        $as = static fn(Principal $who): ToolContext => new ToolContext(1, 1, $who, new NullCancellation());
+        $as = static fn(Member $who): ToolContext => new ToolContext(1, 1, $who, new NullCancellation());
 
         self::assertSame(DangerClass::Irreversible, $manage->danger(['action' => 'trust', 'id' => $job->id]));
-        $refused = $manage->execute(['action' => 'trust', 'id' => $job->id], $as(new Principal(5, PrincipalKind::Human, Role::user(), null)));
+        $refused = $manage->execute(['action' => 'trust', 'id' => $job->id], $as(new Member(5, MemberKind::Human, Role::user(), null)));
         self::assertTrue($refused->isError);
         self::assertFalse($this->jobs->find($job->id)?->trusted);
 
@@ -182,7 +182,7 @@ final class JobsTest extends AsyncTestCase {
     public function testAJobRunKnowsTheMemoryCoreWhereItMay(): void {
         // spec: brief/participants.md#контекст-по-месту-и-аудитории — the core goes to a job only where its report may carry it
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('ok'), ScriptedLlm::text('ok')]));
-        $scheduler->useCore(static fn(Principal $who, \OpenCCK\Domain\Job\Job $job): string => $job->chatId === '42' ? 'Владелец любит краткие отчёты.' : '');
+        $scheduler->useCore(static fn(Member $who, \OpenCCK\Domain\Job\Job $job): string => $job->chatId === '42' ? 'Владелец любит краткие отчёты.' : '');
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Лично', 'Проверь', 'every:60', $this->now->modify('-5 minutes'));
         $this->jobs->create($this->owner->id, 'telegram', '-100500', 'Группа', 'Проверь', 'every:60', $this->now->modify('-5 minutes'));
 
@@ -232,7 +232,7 @@ description: Отчёт о диске таблицей
         // spec: brief/scheduler.md#место-итога-задания
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('первый итог'), ScriptedLlm::text('второй итог'), ScriptedLlm::text('третий итог')]));
         $told = [];
-        $scheduler->useInbox(function (Principal $to, string $text) use (&$told): bool {
+        $scheduler->useInbox(function (Member $to, string $text) use (&$told): bool {
             $told[] = $text;
             return true;
         });
@@ -258,14 +258,14 @@ description: Отчёт о диске таблицей
         self::assertStringContainsString('второй итог', implode("\n", $this->stack->channel->texts('send')), 'back into the topic it was set in');
         self::assertContains('577', $this->stack->channel->threads);
 
-        $stranger = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '77', 'Гость')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $stranger = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '77', 'Гость')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\MemberStatus::Active);
         self::assertNotNull($stranger);
         self::assertTrue($manage->execute(['action' => 'edit', 'id' => $job->id, 'deliver' => 'private'], new ToolContext(1, $topic, $stranger, new NullCancellation()))->isError, 'not their job');
     }
 
     public function testTheOwnerPicksTheJobsOfOneParticipant(): void {
         $scheduler = $this->scheduler(new ScriptedLlm([]));
-        $anna = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '7', 'Анна')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $anna = $this->stack->principals->decideVisitor($this->stack->principals->createVisitor('telegram', '7', 'Анна')->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\MemberStatus::Active);
         self::assertNotNull($anna);
         $this->jobs->create($this->owner->id, 'telegram', '42', 'Моё', 'п', 'every:30', $this->now);
         $this->jobs->create($anna->id, 'telegram', '7', 'Аннино', 'п', 'every:30', $this->now);

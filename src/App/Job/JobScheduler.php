@@ -24,12 +24,12 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\JobRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Psr\Log\LoggerInterface;
@@ -81,7 +81,7 @@ final class JobScheduler implements JobRuns {
         private readonly RunRepository $runs,
         private readonly TranscriptRepository $transcript,
         private readonly ConversationRepository $conversations,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly ToolRegistry $registry,
         private readonly Channel $channel,
@@ -363,9 +363,9 @@ final class JobScheduler implements JobRuns {
         $this->modelOf = $modelOf;
     }
 
-    /** @var (\Closure(Principal, Job): string)|null the memory core for a job's run; '' where it must not go */
+    /** @var (\Closure(Member, Job): string)|null the memory core for a job's run; '' where it must not go */
     private ?\Closure $core = null;
-    /** @var (\Closure(Principal, string, string): array{string, string})|null the rules and notes blocks of the place's MEMORY.md */
+    /** @var (\Closure(Member, string, string): array{string, string})|null the rules and notes blocks of the place's MEMORY.md */
     private ?\Closure $placeMemory = null;
 
     /**
@@ -374,7 +374,7 @@ final class JobScheduler implements JobRuns {
      *
      * spec: brief/memory.md#файл-памяти-места — a job of a project
      *
-     * @param \Closure(Principal, string, string): array{string, string} $read the runner, the channel and chat of the run
+     * @param \Closure(Member, string, string): array{string, string} $read the runner, the channel and chat of the run
      */
     public function usePlaceMemory(\Closure $read): void {
         $this->placeMemory = $read;
@@ -384,7 +384,7 @@ final class JobScheduler implements JobRuns {
      * spec: brief/participants.md#контекст-по-месту-и-аудитории — a job run knows its owner's memory core only when its report goes
      *       to the owner's private chat
      *
-     * @param \Closure(Principal, Job): string $core
+     * @param \Closure(Member, Job): string $core
      */
     public function useCore(\Closure $core): void {
         $this->core = $core;
@@ -396,7 +396,7 @@ final class JobScheduler implements JobRuns {
     }
 
     private ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null;
-    /** @var (\Closure(Principal, string): bool)|null tells a participant in their private place; false — not reachable now */
+    /** @var (\Closure(Member, string): bool)|null tells a participant in their private place; false — not reachable now */
     private ?\Closure $inbox = null;
 
     /** spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner, inside the project */
@@ -407,7 +407,7 @@ final class JobScheduler implements JobRuns {
     /**
      * spec: brief/scheduler.md#задания-проекта — a report goes to the owner of the project, a person or an agent
      *
-     * @param \Closure(Principal, string): bool $inbox
+     * @param \Closure(Member, string): bool $inbox
      */
     public function useInbox(\Closure $inbox): void {
         $this->inbox = $inbox;
@@ -422,7 +422,7 @@ final class JobScheduler implements JobRuns {
     }
 
     /** In whose name a job runs: the owner of its project, else whoever set it. */
-    private function runnerOf(Job $job, ?\OpenCCK\Domain\Project\Project $project): Principal {
+    private function runnerOf(Job $job, ?\OpenCCK\Domain\Project\Project $project): Member {
         if ($project !== null) {
             return ($project->ownerId === null ? $this->principals->owner() : $this->principals->find($project->ownerId)) ?? throw new \RuntimeException('the owner of the project is gone');
         }
@@ -437,7 +437,7 @@ final class JobScheduler implements JobRuns {
     }
 
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
-    private function policy(Principal $principal, Job $job, ?\OpenCCK\Domain\Project\Project $project = null): ParticipantPolicy {
+    private function policy(Member $principal, Job $job, ?\OpenCCK\Domain\Project\Project $project = null): ParticipantPolicy {
         $owner = $project !== null && $this->projectPolicies !== null ? $this->projectPolicies->of($project) : $this->policies->forPrincipal($principal);
         $tools = array_values(array_diff($this->registry->names($owner), self::JOB_TOOLS));
         if ($job->title === 'self-review') {

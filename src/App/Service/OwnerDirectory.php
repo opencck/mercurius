@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Service;
 
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 /**
  * Who the owner is now and where to reach them. The owner from the configuration is only the first one: ownership may
@@ -14,18 +14,18 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
  * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on; the first owner comes from the configuration
  */
 final class OwnerDirectory {
-    private ?Principal $owner = null;
+    private ?Member $owner = null;
     /** @var list<int>|null */
     private ?array $former = null;
 
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly string $channel,
         /** the owner's account from the configuration: the first owner, and the address until the owner is known */
         private readonly string $initialId,
     ) {}
 
-    public function principal(): ?Principal {
+    public function principal(): ?Member {
         return $this->owner ??= $this->principals->owner();
     }
 

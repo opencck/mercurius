@@ -32,7 +32,7 @@ final class Project {
     ) {}
 
     /** The owner of the agent sees every project; a participant only their own. */
-    public function visibleTo(\OpenCCK\Domain\Entity\Principal $principal): bool {
+    public function visibleTo(\OpenCCK\Domain\Entity\Member $principal): bool {
         return $principal->isOwner() || $this->ownerId === $principal->id;
     }
 
@@ -42,7 +42,7 @@ final class Project {
      *
      * spec: brief/participants.md#доступ-к-проектам-и-передача
      */
-    public function levelOf(\OpenCCK\Domain\Entity\Principal $principal, ?string $given): ?ProjectLevel {
+    public function levelOf(\OpenCCK\Domain\Entity\Member $principal, ?string $given): ?ProjectLevel {
         if ($this->visibleTo($principal)) {
             return ProjectLevel::Owner;
         }
@@ -50,7 +50,7 @@ final class Project {
     }
 
     /** The filter for a participant: null — the owner, who sees everything. */
-    public static function scopeOf(\OpenCCK\Domain\Entity\Principal $principal): ?int {
+    public static function scopeOf(\OpenCCK\Domain\Entity\Member $principal): ?int {
         return $principal->isOwner() ? null : $principal->id;
     }
 }

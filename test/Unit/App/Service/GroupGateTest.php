@@ -134,7 +134,7 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertNull($this->gate->route($this->message('@mrcuribot привет', '901', true)), 'a new bot waits for the owner like a person');
         $bot = $this->stack->principals->findByIdentity('telegram', '901');
         self::assertNotNull($bot);
-        $this->stack->principals->decideVisitor($bot->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($bot->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\MemberStatus::Active);
 
         self::assertNull($this->gate->route($this->message('просто болтаю', '901', true)), 'a free group still wants a bot to address the agent');
         $answered = 0;
@@ -180,7 +180,7 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(1, $cards, 'one card, at the first message');
         self::assertStringContainsString('«Дом»', $cards[0]);
         self::assertStringContainsString('Всем привет, я Роман', $cards[0]);
-        self::assertSame(\OpenCCK\Domain\Entity\PrincipalStatus::Pending, $this->stack->principals->findByIdentity('telegram', '77')?->status);
+        self::assertSame(\OpenCCK\Domain\Entity\MemberStatus::Pending, $this->stack->principals->findByIdentity('telegram', '77')?->status);
         self::assertCount(0, $this->stack->llm->requests, 'a stranger is still not answered');
     }
 
@@ -234,7 +234,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->press('gr:' . self::GROUP . ':f');
 
         $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
-        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\MemberStatus::Active);
 
         $this->say('просто болтаем', '77');
         self::assertCount(0, $this->stack->llm->requests, 'over the limit the agent does not join in by itself');
@@ -249,7 +249,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->say('первое');
         $this->press('gr:' . self::GROUP . ':f');
         $member = $this->stack->principals->createVisitor('telegram', '77', 'Роман');
-        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($member->id, \OpenCCK\Domain\Entity\Role::user(), \OpenCCK\Domain\Entity\MemberStatus::Active);
 
         $this->say('болтаем', '77');
         $this->say('и ещё', '77');
@@ -317,7 +317,7 @@ final class GroupGateTest extends AsyncTestCase {
         $this->stack(new ScriptedLlm([ScriptedLlm::text('раз'), ScriptedLlm::text('два')]));
         $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('read_file'));
         $visitor = $this->stack->principals->createVisitor('telegram', '77', 'Гость');
-        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\MemberStatus::Active);
         $this->say('первое сообщение');
         $this->press('gr:' . self::GROUP . ':m');
 
@@ -351,7 +351,7 @@ final class GroupGateTest extends AsyncTestCase {
         ]));
         $this->stack->registry->register(new \OpenCCK\Test\Support\FakeTool('slow', delay: 0.2));
         $visitor = $this->stack->principals->createVisitor('telegram', '77', 'Гость');
-        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($visitor->id, \OpenCCK\Domain\Entity\Role::visitor(), \OpenCCK\Domain\Entity\MemberStatus::Active);
         $this->say('первое сообщение');
         $this->press('gr:' . self::GROUP . ':m');
 

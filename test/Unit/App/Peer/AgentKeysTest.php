@@ -12,7 +12,7 @@ use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\AgentKeys;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\A2aWire;
 use OpenCCK\Test\Support\AgentStack;
@@ -32,7 +32,7 @@ final class AgentKeysTest extends AsyncTestCase {
     private const ENTRANCE = 'entrance';
 
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
     private AgentIdentity $main;
     private AgentStack $follower;
     private InMemoryPeerRepository $followerPeers;
@@ -44,7 +44,7 @@ final class AgentKeysTest extends AsyncTestCase {
         $this->followerPeers = new InMemoryPeerRepository();
         $key = AgentIdentity::generate();
         $server = new A2aServer($this->followerPeers, $this->follower->principals, $this->follower->loop, $this->follower->runs, $this->follower->transcript, $this->follower->conversations, $this->follower->policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $key, self::ENTRANCE, transport: $transport);
-        $this->followerNetwork = new PeerNetwork($this->followerPeers, $this->follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new A2aClient(new HttpClient(new A2aWire($server), []), $key), $this->follower->conversations, $this->follower->transcript, $this->follower->channel, 'https://follower.example', new NullLogger(), $key, static fn(): ?Principal => null);
+        $this->followerNetwork = new PeerNetwork($this->followerPeers, $this->follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new A2aClient(new HttpClient(new A2aWire($server), []), $key), $this->follower->conversations, $this->follower->transcript, $this->follower->channel, 'https://follower.example', new NullLogger(), $key, static fn(): ?Member => null);
         return $server;
     }
 
@@ -55,20 +55,20 @@ final class AgentKeysTest extends AsyncTestCase {
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('follower-entrance', 'token', self::ENTRANCE, $this->owner);
         $this->main = AgentKeys::loadMain($this->vault, $this->owner);
-        $keys = new AgentKeys($this->vault, fn(): Principal => $this->owner, $this->main);
+        $keys = new AgentKeys($this->vault, fn(): Member => $this->owner, $this->main);
         $connect = static function (string $url, string $token) use ($server): InProcessA2aChannel {
             [$mine, $theirs] = InProcessA2aChannel::pair();
             async(static fn() => $server->serveSocket($theirs))->ignore();
             return $mine;
         };
         $peers = new InMemoryPeerRepository();
-        $network = new PeerNetwork($peers, $stack->principals, $this->vault, new A2aClient(new HttpClient(new A2aWire($server), []), $this->main, $keys, $connect), $stack->conversations, $stack->transcript, $stack->channel, 'https://leader.example', new NullLogger(), $this->main, fn(): Principal => $this->owner, $keys);
+        $network = new PeerNetwork($peers, $stack->principals, $this->vault, new A2aClient(new HttpClient(new A2aWire($server), []), $this->main, $keys, $connect), $stack->conversations, $stack->transcript, $stack->channel, 'https://leader.example', new NullLogger(), $this->main, fn(): Member => $this->owner, $keys);
         return [$network, $keys, $peers];
     }
 
     public function testKeysAreMadeOnceAndListed(): void {
         $this->leader($this->server('http'));
-        $keys = new AgentKeys($this->vault, fn(): Principal => $this->owner, $this->main);
+        $keys = new AgentKeys($this->vault, fn(): Member => $this->owner, $this->main);
 
         $alt = $keys->get('work');
 

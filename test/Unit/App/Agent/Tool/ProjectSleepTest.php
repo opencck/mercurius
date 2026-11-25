@@ -9,7 +9,7 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 use OpenCCK\Test\Support\InMemoryProjectSleepRepository;
@@ -25,7 +25,7 @@ use function Mercurius\I18n\t;
 final class ProjectSleepTest extends AsyncTestCase {
     private AgentStack $stack;
 
-    private function as(Principal $who): ToolContext {
+    private function as(Member $who): ToolContext {
         return new ToolContext($who->id, $this->stack->conversations->openConversation($who->id, 'telegram', 'chat-' . $who->id), $who, new NullCancellation());
     }
 

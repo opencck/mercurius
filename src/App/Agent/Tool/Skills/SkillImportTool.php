@@ -34,7 +34,7 @@ use function Mercurius\I18n\t;
 final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
     public const NAME = 'skill_import';
 
-    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Principal): ?Project $projectOf the project of a conversation: one named, else the active one */
+    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Member): ?Project $projectOf the project of a conversation: one named, else the active one */
     public function __construct(
         private readonly SkillImporter $importer,
         private readonly SkillLibrary $library,

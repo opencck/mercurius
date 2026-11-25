@@ -8,8 +8,8 @@ use Amp\NullCancellation;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use OpenCCK\App\Service\PolicyService;
-use OpenCCK\Domain\Entity\PrincipalStatus;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\MemberStatus;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -22,7 +22,7 @@ use Psr\Log\NullLogger;
  */
 final class InboxCleaner {
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly Sandbox $sandbox,
         private readonly MediaSettings $settings,
@@ -35,7 +35,7 @@ final class InboxCleaner {
         $done = 0;
         foreach ($this->principals->all() as $principal) {
             $limits = $this->policies->forPrincipal($principal)->sandbox;
-            if ($limits === null || $principal->status === PrincipalStatus::Rejected) {
+            if ($limits === null || $principal->status === MemberStatus::Rejected) {
                 continue;
             }
             try {

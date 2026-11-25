@@ -13,7 +13,7 @@ use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Mail\Mailbox;
 use OpenCCK\Domain\Project\Project;
 
@@ -30,7 +30,7 @@ final class MailboxTool implements Tool {
     private const ACTIONS = ['list', 'add', 'check', 'to_project', 'from_project', 'remove'];
 
     /**
-     * @param Closure(string, Principal): ?Project $projectByName a project the participant works with, by its name
+     * @param Closure(string, Member): ?Project $projectByName a project the participant works with, by its name
      * @param Closure(array<non-empty-string, string>, Cancellation): ?string $probe opens the mailbox once; the reason when it did not open
      */
     public function __construct(
@@ -99,7 +99,7 @@ final class MailboxTool implements Tool {
     }
 
     /** @param array<string, mixed> $args */
-    private function add(Principal $who, string $name, array $args): ToolResult {
+    private function add(Member $who, string $name, array $args): ToolResult {
         $host = Args::string($args, 'host');
         $user = Args::string($args, 'user');
         $secret = Args::string($args, 'secret');
@@ -110,7 +110,7 @@ final class MailboxTool implements Tool {
         return ToolResult::ok(sprintf(t('mail.tool.added'), $mailbox->name, $mailbox->from, $mailbox->host));
     }
 
-    private function check(Principal $who, string $name, ToolContext $context): ToolResult {
+    private function check(Member $who, string $name, ToolContext $context): ToolResult {
         $mailbox = $this->mailboxes->pick($who, $context->conversationId, $name);
         if (is_string($mailbox)) {
             return ToolResult::error($mailbox);
@@ -123,7 +123,7 @@ final class MailboxTool implements Tool {
         return $failure === null ? ToolResult::ok(sprintf(t('mail.tool.opens'), $mailbox->name)) : ToolResult::error(sprintf(t('mail.tool.does_not_open'), $mailbox->name, $failure));
     }
 
-    private function toProject(Principal $who, string $name, ?string $projectName): ToolResult {
+    private function toProject(Member $who, string $name, ?string $projectName): ToolResult {
         $project = $projectName === null ? null : ($this->projectByName)(trim($projectName), $who);
         if ($project === null) {
             return ToolResult::error(t('mail.tool.need_project'));
@@ -132,7 +132,7 @@ final class MailboxTool implements Tool {
         return ToolResult::ok(sprintf(t('mail.tool.given'), $mailbox->name, $project->name));
     }
 
-    private function list(Principal $who, int $conversationId): string {
+    private function list(Member $who, int $conversationId): string {
         $lines = [];
         foreach ($this->mailboxes->own($who) as $mailbox) {
             $lines[] = sprintf(t('mail.tool.line_own'), $mailbox->name, $mailbox->from, $mailbox->host) . ($mailbox->projectId === null ? '' : ' ' . sprintf(t('mail.tool.line_project'), $mailbox->projectId));

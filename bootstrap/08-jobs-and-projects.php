@@ -18,7 +18,7 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Web\TextExtractor;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Repository\PostgresJobRepository;
 use Mercurius\Memory\Domain\ContentScreen;
@@ -39,7 +39,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var OpenCCK\App\Service\RoleCatalog $roleCatalog
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  * @var OpenCCK\App\Vault\Vault $vault
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
@@ -89,13 +89,13 @@ $jobScheduler->useSkills($skillLibrary);
 // spec: brief/scheduler.md#как-сделано-задания-и-доставка-итогов — a job marked cheap runs on the model of the cheap role
 $jobScheduler->useModels(static fn(string $role): string => (string) $modelRoles->model($role));
 // spec: brief/participants.md#контекст-по-месту-и-аудитории — the memory core only for a job that reports to its owner's private chat
-$jobScheduler->useCore(static function (Principal $who, \OpenCCK\Domain\Job\Job $job) use ($scheduler, $principals): string {
+$jobScheduler->useCore(static function (Member $who, \OpenCCK\Domain\Job\Job $job) use ($scheduler, $principals): string {
     $private = $job->threadId === '' && $principals->externalId($who->id, $job->channel) === $job->chatId;
     return $private ? $scheduler->coreOf($who) : '';
 });
 // spec: brief/memory.md#файл-памяти-места — a job of a project gets the project's MEMORY.md
 if ($contextMemory !== null) {
-    $jobScheduler->usePlaceMemory(static function (Principal $who, string $channel, string $chat) use ($contextMemory, $memorySettings): array {
+    $jobScheduler->usePlaceMemory(static function (Member $who, string $channel, string $chat) use ($contextMemory, $memorySettings): array {
         $place = $contextMemory->shared($who, $channel, $chat, '', false);
         if ($place === null || $place->kind !== \OpenCCK\App\Agent\MemoryPlace::PROJECT) {
             return ['', ''];
@@ -106,7 +106,7 @@ if ($contextMemory !== null) {
 // spec: brief/scheduler.md#задания-проекта — a job of a project runs in the name of the project's owner and reports to them
 $participantInbox = new \OpenCCK\App\Service\ParticipantInbox($channel, $principals, TelegramChannel::NAME, $logger);
 $jobScheduler->useProjects($projectRepository);
-$jobScheduler->useInbox(static fn(Principal $to, string $text): bool => $participantInbox->tell($to, $text));
+$jobScheduler->useInbox(static fn(Member $to, string $text): bool => $participantInbox->tell($to, $text));
 $jobText = new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text);
 $tools->register(new JobCreateTool($jobRepository, $conversations, $jobScheduler, $jobText, $runs, $projectRepository));
 $jobManage = new JobManageTool($jobRepository, $jobScheduler, $projectRepository, $jobText, $runs, static function (int $jobId) use ($approvals): void {
@@ -155,7 +155,7 @@ $projectTransfers = new \OpenCCK\App\Service\ProjectTransfers(
     $projectRepository,
     $principals,
     $projectFolders === null ? null : $projectFolders->move(...),
-    static function (Principal $to, string $text, array $buttons) use ($participantInbox): void {
+    static function (Member $to, string $text, array $buttons) use ($participantInbox): void {
         $participantInbox->tell($to, $text, $buttons);
     },
     $channel,

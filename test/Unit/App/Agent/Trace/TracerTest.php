@@ -20,8 +20,8 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\TraceSpan;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -64,7 +64,7 @@ final class TracerTest extends AsyncTestCase {
             self::assertNotNull($run);
             $this->transcript->appendUser(1, $run->id, $task);
         }
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $final = $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
         $tracer->idle();
         return $final;

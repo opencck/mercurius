@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Repository;
 
 use Amp\Postgres\PostgresLink;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use UnexpectedValueException;
 
-final class PostgresPrincipalRepository implements PrincipalRepository {
+final class PostgresMemberRepository implements MemberRepository {
     /** Advisory lock key: only one process creates the owner. */
     private const OWNER_LOCK = 7_331_002;
     /** the vault name of the agent's own key for other agents (AgentIdentity::VAULT_NAME), and of its extra keys */
@@ -21,7 +21,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
     /** @param string $channel the channel of the owner's chat: jobs passed with the agent go to the new owner's chat there */
     public function __construct(private readonly PostgresLink $db, private readonly string $channel) {}
 
-    public function owner(): ?Principal {
+    public function owner(): ?Member {
         $row = $this->db->query("SELECT id, kind, role, display_name, status FROM principals WHERE role = 'owner'")->fetchRow();
         return $row === null ? null : self::hydrate($row);
     }
@@ -75,13 +75,13 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return $former;
     }
 
-    public function find(int $id): ?Principal {
+    public function find(int $id): ?Member {
         $row = $this->db->execute('SELECT id, kind, role, display_name, status FROM principals WHERE id = ?', [$id])->fetchRow();
 
         return $row === null ? null : self::hydrate($row);
     }
 
-    public function findByIdentity(string $channel, string $externalId): ?Principal {
+    public function findByIdentity(string $channel, string $externalId): ?Member {
         $row = $this->db->execute(
             'SELECT p.id, p.kind, p.role, p.display_name, p.status FROM channel_identities i JOIN principals p ON p.id = i.principal_id
              WHERE i.channel = ? AND i.external_id = ?',
@@ -105,7 +105,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         $this->db->execute('INSERT INTO channel_identities (channel, external_id, principal_id) VALUES (?, ?, ?) ON CONFLICT (channel, external_id) DO NOTHING', [$channel, $externalId, $principalId]);
     }
 
-    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
+    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Member {
         $tx = $this->db->beginTransaction();
         try {
             $tx->execute('SELECT pg_advisory_xact_lock(?)', [self::OWNER_LOCK]);
@@ -132,7 +132,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         }
     }
 
-    public function createAgent(string $name, Role $role): Principal {
+    public function createAgent(string $name, Role $role): Member {
         $tx = $this->db->beginTransaction();
         try {
             $tx->execute('SELECT pg_advisory_xact_lock(?, hashtext(?))', [self::OWNER_LOCK, 'a2a:' . $name]);
@@ -166,7 +166,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         }
     }
 
-    public function createVisitor(string $channel, string $externalId, ?string $displayName): Principal {
+    public function createVisitor(string $channel, string $externalId, ?string $displayName): Member {
         $tx = $this->db->beginTransaction();
         try {
             // Serialises two first messages of the same stranger: one visitor, one card.
@@ -198,7 +198,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         }
     }
 
-    public function decideVisitor(int $id, Role $role, PrincipalStatus $status): ?Principal {
+    public function decideVisitor(int $id, Role $role, MemberStatus $status): ?Member {
         $row = $this->db->execute(
             "UPDATE principals SET role = ?, status = ? WHERE id = ? AND status = 'pending'
              RETURNING id, kind, role, display_name, status",
@@ -208,7 +208,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
         return $row === null ? null : self::hydrate($row);
     }
 
-    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal {
+    public function setRole(int $id, Role $role, MemberStatus $status): ?Member {
         $row = $this->db->execute(
             "UPDATE principals SET role = ?, status = ? WHERE id = ? AND role <> 'owner'
              RETURNING id, kind, role, display_name, status",
@@ -227,7 +227,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
     }
 
     /** @param array<string, mixed> $row */
-    private static function hydrate(array $row): Principal {
+    private static function hydrate(array $row): Member {
         $id = $row['id'] ?? null;
         $kind = $row['kind'] ?? null;
         $role = $row['role'] ?? null;
@@ -235,7 +235,7 @@ final class PostgresPrincipalRepository implements PrincipalRepository {
             throw new UnexpectedValueException('Malformed principals row');
         }
         $name = isset($row['display_name']) && is_string($row['display_name']) ? $row['display_name'] : null;
-        $status = isset($row['status']) && is_string($row['status']) ? PrincipalStatus::from($row['status']) : PrincipalStatus::Active;
-        return new Principal($id, PrincipalKind::from($kind), Role::from($role), $name, $status);
+        $status = isset($row['status']) && is_string($row['status']) ? MemberStatus::from($row['status']) : MemberStatus::Active;
+        return new Member($id, MemberKind::from($kind), Role::from($role), $name, $status);
     }
 }

@@ -47,7 +47,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
 
     public function testTheMemoryFileGoesWholeIntoThePromptOfAPrivateChat(): void {
         // spec: brief/memory.md#правила-и-заметки-memorymd — a file without headings is notes, reference data
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "Дочь — Аня\nПароль от Wi-Fi в заметках", 1000);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => "Дочь — Аня\nПароль от Wi-Fi в заметках", 1000);
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -58,7 +58,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testAMemoryFileOverItsLimitIsCutAndTheAgentToldToCompressIt(): void {
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => str_repeat('запись ', 400), 600);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => str_repeat('запись ', 400), 600);
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -70,7 +70,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
 
     public function testTheRulesAreInstructionsAndTheNotesReferenceData(): void {
         // spec: brief/memory.md#правила-и-заметки-memorymd — two sections, two blocks of the prompt
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "## Правила\n- Отвечай коротко\n\n## Заметки\n- Дочь — Аня", 1000);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => "## Правила\n- Отвечай коротко\n\n## Заметки\n- Дочь — Аня", 1000);
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -87,7 +87,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testOverTheLimitTheNotesAreCutNeverARule(): void {
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "## Rules\n- Всегда отвечай по-русски\n## Notes\n" . str_repeat('заметка ', 200), 600);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => "## Rules\n- Всегда отвечай по-русски\n## Notes\n" . str_repeat('заметка ', 200), 600);
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -98,7 +98,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testCloseToTheLimitTheAgentIsAskedToCompressBeforeAnythingIsCut(): void {
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => str_repeat('я', 900), 1000);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => str_repeat('я', 900), 1000);
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -111,7 +111,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     public function testNoFileAnEmptyOneAndAnEmptySectionGiveNothing(): void {
         foreach (['', "  \n ", "## Правила\n\n## Заметки\n"] as $i => $text) {
             $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]));
-            $stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => $text, 1000);
+            $stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => $text, 1000);
             $stack->say('привет');
             $stack->scheduler->awaitIdle();
             $system = $stack->llm->requests[0]->messages[0]->content;
@@ -122,8 +122,8 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
 
     public function testAGroupGetsTheFileOfThePlaceNotThePersonsOwn(): void {
         // spec: brief/memory.md#файл-памяти-места — the place's rules for everyone who writes there
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => 'Дочь — Аня', 1000);
-        $this->stack->scheduler->usePlaceMemory(static fn(\OpenCCK\Domain\Entity\Principal $p, string $channel, string $chatId, string $threadId, bool $private): string => $private ? '' : "## Правила\nВ этой группе — только по делу\n## Заметки\nДежурный — Паша");
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => 'Дочь — Аня', 1000);
+        $this->stack->scheduler->usePlaceMemory(static fn(\OpenCCK\Domain\Entity\Member $p, string $channel, string $chatId, string $threadId, bool $private): string => $private ? '' : "## Правила\nВ этой группе — только по делу\n## Заметки\nДежурный — Паша");
 
         $this->stack->sayInGroup('привет');
         $this->stack->scheduler->awaitIdle();
@@ -136,8 +136,8 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testAPrivateChatOfAProjectGetsBothFiles(): void {
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => "## Правила\nОтвечай коротко", 1000);
-        $this->stack->scheduler->usePlaceMemory(static fn(\OpenCCK\Domain\Entity\Principal $p, string $channel, string $chatId, string $threadId, bool $private): string => "## Правила\nВ проекте — по-английски");
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => "## Правила\nОтвечай коротко", 1000);
+        $this->stack->scheduler->usePlaceMemory(static fn(\OpenCCK\Domain\Entity\Member $p, string $channel, string $chatId, string $threadId, bool $private): string => "## Правила\nВ проекте — по-английски");
 
         $this->stack->say('привет');
         $this->stack->scheduler->awaitIdle();
@@ -148,7 +148,7 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
     }
 
     public function testAGroupDoesNotGetTheMemoryFile(): void {
-        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Principal $p): string => 'Дочь — Аня', 1000);
+        $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => 'Дочь — Аня', 1000);
 
         $this->stack->sayInGroup('привет');
         $this->stack->scheduler->awaitIdle();

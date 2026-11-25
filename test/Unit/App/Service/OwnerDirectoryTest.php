@@ -9,10 +9,10 @@ use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Service\OwnerDirectory;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * The owner from the configuration is only the first one: after ownership passed on, cards go to the new owner and
@@ -22,10 +22,10 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
  */
 final class OwnerDirectoryTest extends AsyncTestCase {
     public function testAfterATransferTheOwnerIsReachedAndHeardInTheirOwnChat(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $first = $principals->ensureOwner('telegram', '100', 'Первый');
         $next = $principals->createVisitor('telegram', '200', 'Второй');
-        $principals->decideVisitor($next->id, Role::user(), PrincipalStatus::Active);
+        $principals->decideVisitor($next->id, Role::user(), MemberStatus::Active);
         $owner = new OwnerDirectory($principals, 'telegram', '100');
         $channel = new FakeChannel();
         $handler = new class implements CallbackHandler {

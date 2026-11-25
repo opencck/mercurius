@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Tool;
 
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 /**
  * A tool whose irreversible call is decided by the participant it belongs to, not by the owner of the agent: a letter
@@ -15,7 +15,7 @@ use OpenCCK\Domain\Entity\Principal;
 interface DecidedByParticipant {
     /**
      * @param array<string, mixed> $args the prepared arguments
-     * @return ?Principal who decides; null — the owner of the agent, as for any other tool
+     * @return ?Member who decides; null — the owner of the agent, as for any other tool
      */
-    public function decider(array $args): ?Principal;
+    public function decider(array $args): ?Member;
 }

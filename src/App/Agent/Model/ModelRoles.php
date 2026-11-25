@@ -9,7 +9,7 @@ use InvalidArgumentException;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ProviderProfile;
 use OpenCCK\Domain\Agent\ModelRole;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ModelCatalogRepository;
 use OpenCCK\Domain\Repository\ModelRoleRepository;
 
@@ -219,7 +219,7 @@ final class ModelRoles {
      *
      * spec: brief/self-improvement.md#самоулучшение — the history of model roles with a rollback
      */
-    public function rollback(int $id, Principal $by): string {
+    public function rollback(int $id, Member $by): string {
         if (!$by->isOwner()) {
             return sprintf(t('model.model_roles.rollback_owner_only'), $id);
         }
@@ -244,7 +244,7 @@ final class ModelRoles {
      *
      * @throws DomainException with a message for the model when the change is refused
      */
-    /** @var (\Closure(string, string, Principal): void)|null */
+    /** @var (\Closure(string, string, Member): void)|null */
     private ?\Closure $widen = null;
 
     /**
@@ -253,7 +253,7 @@ final class ModelRoles {
      *
      * spec: brief/models.md#списки-моделей-по-категориям
      *
-     * @param \Closure(string, string, Principal): void $widen the role, the model, who asked
+     * @param \Closure(string, string, Member): void $widen the role, the model, who asked
      */
     public function widenWith(\Closure $widen): void {
         $this->widen = $widen;
@@ -280,7 +280,7 @@ final class ModelRoles {
         }
     }
 
-    public function set(string $role, string $model, string $reason, Principal $by, bool $fix): RoleChange {
+    public function set(string $role, string $model, string $reason, Member $by, bool $fix): RoleChange {
         if (!in_array($role, ModelRole::ALL, true)) {
             throw new DomainException(sprintf(t('model.model_roles.net_roli_roli'), $role, implode(', ', ModelRole::ALL)));
         }

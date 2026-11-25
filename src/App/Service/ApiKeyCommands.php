@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use OpenCCK\App\Api\ApiKeys;
-use OpenCCK\Domain\Entity\PrincipalStatus;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\MemberStatus;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
 final class ApiKeyCommands {
     public function __construct(
         private readonly ApiKeys $keys,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
     ) {}
 
     public function handle(string $argument): string {
@@ -30,7 +30,7 @@ final class ApiKeyCommands {
         }
         if ($action === 'new') {
             $who = $this->principals->find((int) ltrim($parts[1] ?? '0', '#'));
-            if ($who === null || $who->status !== PrincipalStatus::Active) {
+            if ($who === null || $who->status !== MemberStatus::Active) {
                 return t('api.keys.usage');
             }
             $key = $this->keys->issue($who, $parts[2] ?? '');

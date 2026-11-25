@@ -9,8 +9,8 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\PromptBuilder;
 use OpenCCK\App\Agent\Tool\Self\SelfInfoTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 
 /**
@@ -29,7 +29,7 @@ final class SelfInfoToolTest extends AsyncTestCase {
             },
             'modules' => static fn(ToolContext $c): string => 'browser: работает',
         ]);
-        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner'), new NullCancellation());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), 'Owner'), new NullCancellation());
 
         $index = $tool->execute([], $context)->content;
         self::assertStringContainsString('network', $index);
@@ -42,7 +42,7 @@ final class SelfInfoToolTest extends AsyncTestCase {
     }
 
     public function testThePromptHoldsOnlyThePointer(): void {
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
+        $owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
         $prompt = PromptBuilder::system($owner, new \DateTimeImmutable('2026-11-18 10:00 UTC'), instance: \Mercurius\I18n\t('agent.prompt_builder.self_info'));
 
         self::assertStringContainsString('self_info', $prompt);

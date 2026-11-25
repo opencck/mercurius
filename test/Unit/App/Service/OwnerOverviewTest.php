@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Service\OwnerOverview;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Test\Support\AgentStack;
@@ -30,7 +30,7 @@ final class OwnerOverviewTest extends AsyncTestCase {
     public function testTheOwnerFindsAndCancelsAJobOfSomeoneElsesProjectWithoutGoingIntoItsChat(): void {
         $stack = new AgentStack(new ScriptedLlm([]));
         $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
-        $anna = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '7', 'Анна')->id, Role::user(), PrincipalStatus::Active);
+        $anna = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '7', 'Анна')->id, Role::user(), MemberStatus::Active);
         self::assertNotNull($anna);
         $projects = new InMemoryProjectRepository();
         $project = $projects->create('Сайт', '', $anna->id);

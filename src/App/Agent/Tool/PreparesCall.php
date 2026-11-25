@@ -6,7 +6,7 @@ namespace OpenCCK\App\Agent\Tool;
 
 use Amp\Cancellation;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 /**
  * A tool that completes its arguments before the call is saved: what it adds (a file the call names, its hash) is what
@@ -20,5 +20,5 @@ interface PreparesCall {
      * @param array<string, mixed> $args the validated arguments
      * @return array<string, mixed>|string the completed arguments, or why the call cannot run
      */
-    public function prepare(array $args, Principal $principal, ParticipantPolicy $policy, Cancellation $cancellation): array|string;
+    public function prepare(array $args, Member $principal, ParticipantPolicy $policy, Cancellation $cancellation): array|string;
 }

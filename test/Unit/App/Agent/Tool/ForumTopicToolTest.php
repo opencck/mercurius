@@ -9,8 +9,8 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Tool\Messaging\ForumTopicTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -25,7 +25,7 @@ final class ForumTopicToolTest extends AsyncTestCase {
         $topic = $conversations->openConversation(1, 'telegram', '-100500', '77');
         $general = $conversations->openConversation(1, 'telegram', '-100500');
         $tool = new ForumTopicTool($channel, $conversations);
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $in = static fn(int $conversation): ToolContext => new ToolContext(1, $conversation, $owner, new NullCancellation());
 
         self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'delete']));

@@ -21,13 +21,13 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Peer\A2aTask;
 use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PeerRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Psr\Log\LoggerInterface;
@@ -102,7 +102,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $params
      * @return array<string, mixed>
      */
-    private function streams(Principal $agent, mixed $id, string $handler, array $params): array {
+    private function streams(Member $agent, mixed $id, string $handler, array $params): array {
         if ($this->streams === null) {
             return self::error($id, self::ERR_METHOD_NOT_FOUND, 'streams are not available');
         }
@@ -138,7 +138,7 @@ final class A2aServer implements JobRuns {
      *
      * spec: brief/participants.md#права-проекта
      */
-    private function policyIn(Principal $agent, int $conversationId): \OpenCCK\Domain\Agent\ParticipantPolicy {
+    private function policyIn(Member $agent, int $conversationId): \OpenCCK\Domain\Agent\ParticipantPolicy {
         $rights = $this->projectRights;
         if ($rights !== null) {
             $meta = $this->conversations->meta($conversationId);
@@ -157,7 +157,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $params
      * @return array<string, mixed>
      */
-    private function projects(Principal $agent, mixed $id, string $handler, array $params): array {
+    private function projects(Member $agent, mixed $id, string $handler, array $params): array {
         if ($this->channels === null) {
             return self::error($id, self::ERR_METHOD_NOT_FOUND, 'projects are not available');
         }
@@ -191,7 +191,7 @@ final class A2aServer implements JobRuns {
     /** @param (Closure(): DateTimeImmutable)|null $now */
     public function __construct(
         private readonly PeerRepository $peers,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly AgentLoop $loop,
         private readonly RunRepository $runs,
         private readonly TranscriptRepository $transcript,
@@ -237,7 +237,7 @@ final class A2aServer implements JobRuns {
         return function (array $request) use ($fingerprint, $name, $url): array {
             $id = $this->peers->principalByFingerprint($fingerprint);
             $agent = $id === null ? null : $this->principals->find($id);
-            if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
+            if ($agent === null || $agent->kind !== MemberKind::Agent) {
                 /** @var mixed $requestId */
                 $requestId = $request['id'] ?? null;
                 return self::error($requestId, self::ERR_UNAUTHORIZED, $this->unknown($fingerprint, $name, $url, 'out'));
@@ -259,7 +259,7 @@ final class A2aServer implements JobRuns {
      * Who sends the request: the token of the entrance, then the signature by the agent's key.
      *
      * @param array<string, string> $headers names in lower case
-     * @return array{Principal|null, int, string} the agent (null — refused), the HTTP status, why
+     * @return array{Member|null, int, string} the agent (null — refused), the HTTP status, why
      */
     public function authenticate(array $headers, string $method, string $path, string $body): array {
         if (!hash_equals('Bearer ' . $this->token, trim($headers['authorization'] ?? ''))) {
@@ -282,7 +282,7 @@ final class A2aServer implements JobRuns {
         }
         $id = $this->peers->principalByFingerprint($fingerprint);
         $principal = $id === null ? null : $this->principals->find($id);
-        if ($principal === null || $principal->kind !== PrincipalKind::Agent) {
+        if ($principal === null || $principal->kind !== MemberKind::Agent) {
             $this->logger->notice('Unknown agent key', ['fingerprint' => $fingerprint]);
             return [null, 403, $this->unknown($fingerprint, $headers['x-a2a-name'] ?? '', $headers['x-a2a-url'] ?? '', 'http')];
         }
@@ -326,7 +326,7 @@ final class A2aServer implements JobRuns {
      * The agent that proved its key on this connection and the key's fingerprint; null — refused (the connection is
      * told why).
      *
-     * @return array{Principal, string}|null
+     * @return array{Member, string}|null
      */
     private function handshake(A2aChannel $channel, float $timeout): ?array {
         $deadline = new \Amp\TimeoutCancellation($timeout);
@@ -357,7 +357,7 @@ final class A2aServer implements JobRuns {
         }
         $id = $this->peers->principalByFingerprint($fingerprint);
         $agent = $id === null ? null : $this->principals->find($id);
-        if ($agent === null || $agent->kind !== PrincipalKind::Agent) {
+        if ($agent === null || $agent->kind !== MemberKind::Agent) {
             $this->logger->notice('Unknown agent key', ['fingerprint' => $fingerprint]);
             $this->deny($channel, $this->unknown($fingerprint, isset($hello['name']) && is_string($hello['name']) ? $hello['name'] : '', isset($hello['url']) && is_string($hello['url']) ? $hello['url'] : '', 'ws'));
             return null;
@@ -413,7 +413,7 @@ final class A2aServer implements JobRuns {
         return (preg_replace('~^http~', 'ws', rtrim($this->self, '/')) ?? $this->self) . '/a2a/ws';
     }
 
-    /** @var (Closure(Principal): list<array{id: string, name: string, description: string}>)|null */
+    /** @var (Closure(Member): list<array{id: string, name: string, description: string}>)|null */
     private ?Closure $skillsOf = null;
 
     /**
@@ -424,7 +424,7 @@ final class A2aServer implements JobRuns {
      *      skills by its tool sets and has no extended card (extendedAgentCard: false); here the public card keeps one
      *      general skill and the extended one names the tools of the agent's own policy
      *
-     * @param Closure(Principal): list<array{id: string, name: string, description: string}> $skillsOf
+     * @param Closure(Member): list<array{id: string, name: string, description: string}> $skillsOf
      */
     public function useSkills(Closure $skillsOf): void {
         $this->skillsOf = $skillsOf;
@@ -435,7 +435,7 @@ final class A2aServer implements JobRuns {
      *
      * @return array<string, mixed>
      */
-    public function extendedCard(Principal $agent): array {
+    public function extendedCard(Member $agent): array {
         $skills = $this->skillsOf === null ? [] : ($this->skillsOf)($agent);
         $card = $this->card();
         $card['skills'] = array_map(static fn(array $s): array => $s + ['tags' => [$s['id']]], $skills === [] ? [['id' => 'general', 'name' => 'general', 'description' => t('peer.a2a_server.zadachi_vladeltsa_etogo_agenta_po')]] : $skills);
@@ -478,7 +478,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $request
      * @return array{int, array<string, mixed>} HTTP status and the JSON-RPC answer
      */
-    public function handle(Principal $agent, array $request, string $via = 'http'): array {
+    public function handle(Member $agent, array $request, string $via = 'http'): array {
         /** @var mixed $id */
         $id = $request['id'] ?? null;
         $method = isset($request['method']) && is_string($request['method']) ? $request['method'] : '';
@@ -536,7 +536,7 @@ final class A2aServer implements JobRuns {
      * @param string $via how the task came: ws (it connected to me), http, out (over my connection to it)
      * @return array<string, mixed>
      */
-    private function send(Principal $agent, mixed $id, array $params, bool $v1, string $via = 'http'): array {
+    private function send(Member $agent, mixed $id, array $params, bool $v1, string $via = 'http'): array {
         $message = isset($params['message']) && is_array($params['message']) ? $params['message'] : [];
         $messageId = isset($message['messageId']) && is_string($message['messageId']) ? trim($message['messageId']) : '';
         $text = self::text($message);
@@ -581,7 +581,7 @@ final class A2aServer implements JobRuns {
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : self::result($id, $this->view($task), $v1);
     }
 
-    private function start(Principal $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null, ?string $project = null): void {
+    private function start(Member $agent, string $taskId, string $contextId, string $text, string $via = 'http', ?int $tokens = null, ?string $project = null): void {
         // spec: brief/network.md#проект-как-канал-для-агентов — a task of an agent runs in its working project (or in the one
         //       it names): the chat of the task is put there before anything looks for the project of the chat
         $misplaced = $this->channels?->place($agent, 'a2a-' . $agent->id . '-' . $contextId, $project);
@@ -615,7 +615,7 @@ final class A2aServer implements JobRuns {
         }
     }
 
-    private function launch(A2aTask $task, Principal $agent, Run $run): void {
+    private function launch(A2aTask $task, Member $agent, Run $run): void {
         $cancel = $this->cancels[$task->id] = new DeferredCancellation();
         async(function () use ($task, $agent, $run, $cancel): void {
             try {
@@ -711,7 +711,7 @@ final class A2aServer implements JobRuns {
     }
 
     /** A new run that reads the answers of the neighbours and gives the result of the task; false when it did not start. */
-    private function sumUp(A2aTask $task, Principal $agent, int $runId): bool {
+    private function sumUp(A2aTask $task, Member $agent, int $runId): bool {
         $previous = $this->runs->find($runId);
         if ($previous === null) {
             return false;
@@ -743,7 +743,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $params
      * @return array<string, mixed>
      */
-    private function get(Principal $agent, mixed $id, array $params): array {
+    private function get(Member $agent, mixed $id, array $params): array {
         $task = $this->own($agent, $params);
         return $task === null ? self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found') : ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->view($task)];
     }
@@ -752,7 +752,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $params
      * @return array<string, mixed>
      */
-    private function cancel(Principal $agent, mixed $id, array $params): array {
+    private function cancel(Member $agent, mixed $id, array $params): array {
         $task = $this->own($agent, $params);
         if ($task === null) {
             return self::error($id, self::ERR_TASK_NOT_FOUND, 'task not found');
@@ -771,7 +771,7 @@ final class A2aServer implements JobRuns {
     }
 
     /** @param array<array-key, mixed> $params */
-    private function own(Principal $agent, array $params): ?A2aTask {
+    private function own(Member $agent, array $params): ?A2aTask {
         $taskId = isset($params['id']) && is_string($params['id']) ? $params['id'] : '';
         $task = $taskId === '' ? null : $this->peers->task($taskId);
         return $task !== null && $task->principalId === $agent->id ? $task : null;
@@ -803,7 +803,7 @@ final class A2aServer implements JobRuns {
      * @param array<array-key, mixed> $params
      * @return array<string, mixed>
      */
-    private function file(Principal $agent, mixed $id, array $params): array {
+    private function file(Member $agent, mixed $id, array $params): array {
         $fileId = isset($params['id']) && is_string($params['id']) ? $params['id'] : '';
         $file = $fileId === '' ? null : $this->files?->download($agent->id, $fileId);
         if ($file === null) {
@@ -832,7 +832,7 @@ final class A2aServer implements JobRuns {
      *
      * @return array<string, mixed>
      */
-    public function upload(Principal $agent, string $contentType, string $body): array {
+    public function upload(Member $agent, string $contentType, string $body): array {
         if ($this->files === null) {
             return ['error' => 'files are not taken here'];
         }
@@ -848,7 +848,7 @@ final class A2aServer implements JobRuns {
      *
      * @return array{name: string, mediaType: string, bytes: string}|null
      */
-    public function download(Principal $agent, string $id): ?array {
+    public function download(Member $agent, string $id): ?array {
         return $this->files?->download($agent->id, $id);
     }
 
@@ -872,7 +872,7 @@ final class A2aServer implements JobRuns {
      *
      * @param list<array{name: string, bytes: string, mediaType?: string}> $files
      */
-    private function keep(Principal $agent, string $taskId, array $files): string {
+    private function keep(Member $agent, string $taskId, array $files): string {
         if ($files === []) {
             return '';
         }

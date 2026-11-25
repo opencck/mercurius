@@ -11,39 +11,39 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 
 /**
  * spec: brief/participants.md#доступ-к-проектам-и-передача
  */
 final class ProjectSharingTest extends AsyncTestCase {
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private InMemoryProjectRepository $projects;
     private InMemoryConversationRepository $conversations;
     private ProjectEditTool $edit;
     private ProjectTool $view;
-    private Principal $agent;
-    private Principal $user;
+    private Member $agent;
+    private Member $user;
 
     protected function setUp(): void {
         parent::setUp();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->agent = $this->principals->createAgent('helper', Role::admin());
         $visitor = $this->principals->createVisitor('telegram', '7', 'Анна');
-        $this->user = $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? self::fail('no user');
+        $this->user = $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? self::fail('no user');
         $this->projects = new InMemoryProjectRepository();
         $this->conversations = new InMemoryConversationRepository();
         $this->edit = new ProjectEditTool($this->projects, $this->conversations, principals: $this->principals);
         $this->view = new ProjectTool($this->projects, $this->conversations);
     }
 
-    private function as(Principal $who): ToolContext {
+    private function as(Member $who): ToolContext {
         return new ToolContext($who->id, $this->conversations->openConversation($who->id, 'test', 'chat-' . $who->id), $who, new NullCancellation());
     }
 

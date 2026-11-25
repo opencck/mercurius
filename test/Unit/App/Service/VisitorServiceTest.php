@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Service;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\VisitorService;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeTool;
@@ -60,7 +60,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         self::assertSame(['pv:2:a', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons(), 'the roles in their order, then refusal');
         self::assertContains(\Mercurius\I18n\t(VisitorService::WAITING), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
-        self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find(2)?->status);
+        self::assertSame(MemberStatus::Pending, $this->stack->principals->find(2)?->status);
     }
 
     public function testACardTheMessengerDidNotTakeIsSentAgain(): void {
@@ -90,7 +90,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $visitor = $this->stack->principals->find(2);
         self::assertNotNull($visitor);
         self::assertSame(Role::visitor(), $visitor->role);
-        self::assertSame(PrincipalStatus::Active, $visitor->status);
+        self::assertSame(MemberStatus::Active, $visitor->status);
         self::assertCount(1, $this->stack->llm->requests);
         self::assertSame([], $this->stack->llm->requests[0]->tools);
         self::assertSame('Разговор разрешён.', $this->stack->channel->answers[0][1]);
@@ -123,8 +123,8 @@ final class VisitorServiceTest extends AsyncTestCase {
         // spec: brief/participants.md#свои-роли
         Role::define('gate', 'Привратник', 15, [\OpenCCK\Domain\Entity\Permission::Admit, \OpenCCK\Domain\Entity\Permission::Tools]);
         try {
-            $this->stack->principals->put(new \OpenCCK\Domain\Entity\Principal(7, \OpenCCK\Domain\Entity\PrincipalKind::Human, Role::of('gate'), 'Привратник', PrincipalStatus::Active), 'telegram', '77');
-            $this->stack->principals->put(new \OpenCCK\Domain\Entity\Principal(6, \OpenCCK\Domain\Entity\PrincipalKind::Human, Role::user(), 'Пользователь', PrincipalStatus::Active), 'telegram', '66');
+            $this->stack->principals->put(new \OpenCCK\Domain\Entity\Member(7, \OpenCCK\Domain\Entity\MemberKind::Human, Role::of('gate'), 'Привратник', MemberStatus::Active), 'telegram', '77');
+            $this->stack->principals->put(new \OpenCCK\Domain\Entity\Member(6, \OpenCCK\Domain\Entity\MemberKind::Human, Role::user(), 'Пользователь', MemberStatus::Active), 'telegram', '66');
             $this->stack->say('привет', '99');
             $visitor = $this->stack->principals->findByIdentity('telegram', '99');
             self::assertNotNull($visitor);
@@ -134,10 +134,10 @@ final class VisitorServiceTest extends AsyncTestCase {
 
             $this->stack->press(sprintf('pv:%d:a', $visitor->id), '77');
             $this->stack->press(sprintf('pv:%d:u', $visitor->id), '66');
-            self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find($visitor->id)?->status, 'no role above their own, no press without the permission');
+            self::assertSame(MemberStatus::Pending, $this->stack->principals->find($visitor->id)?->status, 'no role above their own, no press without the permission');
 
             $this->stack->press(sprintf('pv:%d:t', $visitor->id), '77');
-            self::assertSame([Role::visitor(), PrincipalStatus::Active], [$this->stack->principals->find($visitor->id)?->role, $this->stack->principals->find($visitor->id)?->status]);
+            self::assertSame([Role::visitor(), MemberStatus::Active], [$this->stack->principals->find($visitor->id)?->role, $this->stack->principals->find($visitor->id)?->status]);
         } finally {
             Role::reset();
         }
@@ -149,7 +149,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->say('ну пожалуйста', '99');
         $this->stack->scheduler->awaitIdle();
 
-        self::assertSame(PrincipalStatus::Rejected, $this->stack->principals->find(2)?->status);
+        self::assertSame(MemberStatus::Rejected, $this->stack->principals->find(2)?->status);
         self::assertContains(\Mercurius\I18n\t(ChatService::REFUSAL), $this->stack->channel->texts('send'));
         self::assertSame([], $this->stack->llm->requests);
     }
@@ -160,7 +160,7 @@ final class VisitorServiceTest extends AsyncTestCase {
         $this->stack->press('pv:2:a');
 
         self::assertSame('Уже решено.', $this->stack->channel->answers[1][1]);
-        self::assertSame(PrincipalStatus::Rejected, $this->stack->principals->find(2)?->status);
+        self::assertSame(MemberStatus::Rejected, $this->stack->principals->find(2)?->status);
     }
 
     public function testPermissionsListsGrantsAndRevokes(): void {

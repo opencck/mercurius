@@ -15,8 +15,8 @@ use OpenCCK\App\Agent\Tool\ToolSearchTool;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use PHPUnit\Framework\TestCase;
@@ -143,7 +143,7 @@ final class ToolSearchTest extends TestCase {
 
     public function testSearchAndDescribeShowOnlyToolsOfTheParticipant(): void {
         $registry = self::registry();
-        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), self::policy());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation(), self::policy());
 
         $found = $registry->get(ToolSearchTool::SEARCH)?->execute(['queries' => ['github issue', 'secret drop']], $context);
         $described = $registry->get(ToolSearchTool::DESCRIBE)?->execute(['names' => ['mcp_github_create_issue', 'mcp_secret_drop']], $context);

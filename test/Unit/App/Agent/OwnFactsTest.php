@@ -8,7 +8,7 @@ use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Agent\CallbackRouter;
 use OpenCCK\App\Agent\MemoryCards;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\Proposals;
@@ -16,7 +16,7 @@ use Mercurius\Memory\Domain\ContentScreen;
 use Mercurius\Memory\Domain\TextAnalyzer;
 use OpenCCK\Test\Support\FakeChannel;
 use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * A participant approves the facts of their own memory: the card goes to their private chat and their press decides
@@ -26,12 +26,12 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
  */
 final class OwnFactsTest extends AsyncTestCase {
     public function testAParticipantDecidesAProposalOfTheirOwnMemory(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $vasya = $principals->createVisitor('telegram', '77', 'Вася');
-        $principals->decideVisitor($vasya->id, Role::user(), PrincipalStatus::Active);
+        $principals->decideVisitor($vasya->id, Role::user(), MemberStatus::Active);
         $petya = $principals->createVisitor('telegram', '88', 'Петя');
-        $principals->decideVisitor($petya->id, Role::user(), PrincipalStatus::Active);
+        $principals->decideVisitor($petya->id, Role::user(), MemberStatus::Active);
         $store = new InMemoryMemoryStore();
         $proposals = new Proposals($store, new TextAnalyzer(), new ContentScreen(), 'k');
         $channel = new FakeChannel(4096);

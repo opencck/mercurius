@@ -12,12 +12,12 @@ use OpenCCK\App\Agent\MemoryRulesNotice;
 use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryMemoryRuleRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 use Psr\Log\NullLogger;
 
@@ -32,8 +32,8 @@ final class MemoryRulesNoticeTest extends AsyncTestCase {
     private FakeChannel $channel;
     private InMemoryMemoryRuleRepository $rules;
     private InMemoryConversationRepository $conversations;
-    private InMemoryPrincipalRepository $principals;
-    private Principal $owner;
+    private InMemoryMemberRepository $principals;
+    private Member $owner;
     private bool $on = true;
     private MemoryRulesNotice $notice;
 
@@ -43,7 +43,7 @@ final class MemoryRulesNoticeTest extends AsyncTestCase {
         $this->channel = new FakeChannel();
         $this->rules = new InMemoryMemoryRuleRepository();
         $this->conversations = new InMemoryConversationRepository();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->owner = $this->principals->ensureOwner('telegram', '100', 'Owner');
         $this->notice = new MemoryRulesNotice(
             new ContextMemory($this->sandbox, static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), new InMemoryProjectRepository(), fn(): int => $this->owner->id),

@@ -14,8 +14,8 @@ use OpenCCK\App\Peer\A2aServer;
 use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\A2aTask;
 use OpenCCK\Test\Support\A2aWire;
@@ -69,7 +69,7 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('может подключаться', $network->allow('leader', $this->leaderKey->fingerprint(), Role::user()));
     }
 
-    private function network(InMemoryPeerRepository $peers, AgentStack $stack, AgentIdentity $key, string $self, ?Principal $owner, ?Vault $vault = null): PeerNetwork {
+    private function network(InMemoryPeerRepository $peers, AgentStack $stack, AgentIdentity $key, string $self, ?Member $owner, ?Vault $vault = null): PeerNetwork {
         return new PeerNetwork(
             $peers,
             $stack->principals,
@@ -81,7 +81,7 @@ final class AgentNetworkTest extends AsyncTestCase {
             $self,
             new NullLogger(),
             $key,
-            static fn(): ?Principal => $owner,
+            static fn(): ?Member => $owner,
         );
     }
 
@@ -89,7 +89,7 @@ final class AgentNetworkTest extends AsyncTestCase {
      * A signed request as the leader sends it.
      *
      * @param array<string, mixed> $call
-     * @return array{Principal|null, int, string}
+     * @return array{Member|null, int, string}
      */
     private function authenticate(array $call, ?AgentIdentity $key = null, string $token = self::ENTRANCE, ?string $nonce = null, ?int $at = null, string $audience = self::FOLLOWER): array {
         $key ??= $this->leaderKey;
@@ -105,7 +105,7 @@ final class AgentNetworkTest extends AsyncTestCase {
         ], 'POST', '/a2a', $body);
     }
 
-    private function leaderAgent(): Principal {
+    private function leaderAgent(): Member {
         [$agent] = $this->authenticate(['jsonrpc' => '2.0', 'id' => 0, 'method' => 'GetTask', 'params' => []]);
         self::assertNotNull($agent);
         return $agent;
@@ -145,7 +145,7 @@ final class AgentNetworkTest extends AsyncTestCase {
 
         [$agent, $status] = $this->authenticate($call);
         self::assertSame(200, $status);
-        self::assertSame([PrincipalKind::Agent, 'leader'], [$agent?->kind, $agent?->displayName]);
+        self::assertSame([MemberKind::Agent, 'leader'], [$agent?->kind, $agent?->displayName]);
 
         self::assertSame(401, $this->authenticate($call, token: 'wrong')[1], 'the entrance needs the token from .env');
         [, $status, $why] = $this->authenticate($call, AgentIdentity::generate());
@@ -207,7 +207,7 @@ final class AgentNetworkTest extends AsyncTestCase {
                 return new \Amp\Http\Client\Response('1.1', 200, null, [], json_encode($this->server->card($nonce), JSON_THROW_ON_ERROR), $request);
             }
         };
-        $network = new PeerNetwork(new InMemoryPeerRepository(), $leader->principals, $vault, new A2aClient(new HttpClient($relay, []), $this->leaderKey), $leader->conversations, $leader->transcript, $leader->channel, self::LEADER, new NullLogger(), $this->leaderKey, static fn(): Principal => $owner);
+        $network = new PeerNetwork(new InMemoryPeerRepository(), $leader->principals, $vault, new A2aClient(new HttpClient($relay, []), $this->leaderKey), $leader->conversations, $leader->transcript, $leader->channel, self::LEADER, new NullLogger(), $this->leaderKey, static fn(): Member => $owner);
 
         try {
             $network->add($owner, 'm', 'https://m.example', 'm-entrance');

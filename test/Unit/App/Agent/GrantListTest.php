@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Agent;
 use Mercurius\Messenger\Button;
 use OpenCCK\App\Agent\GrantList;
 use OpenCCK\Test\Support\InMemoryApprovalRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,7 +21,7 @@ final class GrantListTest extends TestCase {
 
     protected function setUp(): void {
         $this->approvals = new InMemoryApprovalRepository();
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $principals->ensureOwner('telegram', '42', 'Owner');
         $this->list = new GrantList($this->approvals, $principals);
     }

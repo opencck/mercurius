@@ -16,8 +16,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeSandbox;
 use PHPUnit\Framework\TestCase;
@@ -34,7 +34,7 @@ final class FileToolsTest extends TestCase {
         return new ToolContext(
             3,
             1,
-            new Principal(7, PrincipalKind::Human, Role::owner(), null),
+            new Member(7, MemberKind::Human, Role::owner(), null),
             new NullCancellation(),
             new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $sandbox, true),
             'c1',

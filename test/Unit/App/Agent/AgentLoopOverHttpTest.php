@@ -15,8 +15,8 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\StopReason;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -60,7 +60,7 @@ final class AgentLoopOverHttpTest extends AsyncTestCase {
         $run = $this->runs->start($this->conversationId, 1, 'a/m', new RunLimits(30, 100_000, 900, 120));
         self::assertNotNull($run);
         $this->transcript->appendUser($this->conversationId, $run->id, 'задача');
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, true), $owner, $this->observer, new NullCancellation());
     }
 

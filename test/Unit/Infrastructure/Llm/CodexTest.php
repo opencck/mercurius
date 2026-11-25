@@ -15,12 +15,12 @@ use Mercurius\Llm\LlmException;
 use Mercurius\Llm\Message;
 use OpenCCK\App\Service\CodexCommands;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount;
 use OpenCCK\Infrastructure\Llm\ChatGpt\CodexCatalog;
 use OpenCCK\Infrastructure\Llm\ChatGpt\CodexClient;
 use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
 use Psr\Log\NullLogger;
 
@@ -33,12 +33,12 @@ use function Mercurius\I18n\t;
  */
 final class CodexTest extends AsyncTestCase {
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
 
     protected function setUp(): void {
         parent::setUp();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Owner');
+        $this->owner = (new InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Owner');
     }
 
     /**
@@ -53,7 +53,7 @@ final class CodexTest extends AsyncTestCase {
 
     private function account(CodexHttpFake $http): CodexAccount {
         $owner = $this->owner;
-        return new CodexAccount(new HttpClient($http, []), $this->vault, static fn(): Principal => $owner);
+        return new CodexAccount(new HttpClient($http, []), $this->vault, static fn(): Member => $owner);
     }
 
     public function testADeviceCodeSignInKeepsTheTokensInTheVault(): void {

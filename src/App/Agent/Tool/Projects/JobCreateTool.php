@@ -66,7 +66,7 @@ final class JobCreateTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall,
      *
      * spec: brief/scheduler.md#задания-проекта
      */
-    public function prepare(array $args, \OpenCCK\Domain\Entity\Principal $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+    public function prepare(array $args, \OpenCCK\Domain\Entity\Member $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
         $name = trim(Args::string($args, 'project') ?? '');
         unset($args['project_id'], $args['card']);
         if ($name === '') {

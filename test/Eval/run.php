@@ -25,7 +25,7 @@ use OpenCCK\App\Eval\EvalRunner;
 use OpenCCK\App\Eval\EvalTask;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryLlmCallRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryRunRepository;
 use OpenCCK\Test\Support\InMemoryTranscriptRepository;
 
@@ -51,7 +51,7 @@ $settings = LlmSettings::fromEnv($_ENV);
 $key = $settings->openRouterKey() ?? throw new RuntimeException('OPENROUTER_API_KEY is not set');
 $llm = new RetryingClient(new OpenRouterClient(HttpClients::create($settings->routeUri()), $key, appName: 'Mercurius eval'));
 $judge = $option('judge');
-$owner = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+$owner = (new InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Владелец');
 $runner = new EvalRunner($llm, $judge === null ? null : $llm, $judge, new InMemoryRunRepository(), new InMemoryTranscriptRepository(), new InMemoryConversationRepository(), new InMemoryLlmCallRepository(), $owner);
 
 $baseline = null;

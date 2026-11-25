@@ -7,8 +7,8 @@ namespace OpenCCK\Test\Integration;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Postgres\PostgresConnection;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
 use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
@@ -20,13 +20,13 @@ use OpenCCK\Test\Support\TestDatabase;
  */
 final class PostgresServersTest extends AsyncTestCase {
     private PostgresConnection $db;
-    private Principal $owner;
+    private Member $owner;
 
     protected function setUp(): void {
         parent::setUp();
         $this->db = TestDatabase::connect();
         [$id] = TestDatabase::conversation($this->db);
-        $this->owner = new Principal(max(1, $id), PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(max(1, $id), MemberKind::Human, Role::owner(), null);
     }
 
     protected function tearDown(): void {

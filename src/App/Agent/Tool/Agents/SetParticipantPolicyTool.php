@@ -15,7 +15,7 @@ use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -32,7 +32,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
      * @param (\Closure(int): bool)|null $privateChat whether a conversation is the owner's private chat; null — not checked
      */
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly ?\Closure $privateChat = null,
     ) {}

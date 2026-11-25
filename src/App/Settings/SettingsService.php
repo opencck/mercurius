@@ -7,7 +7,7 @@ namespace OpenCCK\App\Settings;
 use Closure;
 use DomainException;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\SettingRepository;
 use SensitiveParameter;
 
@@ -25,7 +25,7 @@ final class SettingsService {
     /**
      * @param array<array-key, mixed> $env .env as read at the start
      * @param Closure(array<array-key, mixed>): ?string $validate the start checks; a message when the settings would not start
-     * @param Closure(): ?Principal $owner the reader of secret values
+     * @param Closure(): ?Member $owner the reader of secret values
      */
     public function __construct(
         private readonly SettingRepository $settings,
@@ -120,7 +120,7 @@ final class SettingsService {
      *
      * @throws DomainException with what is wrong
      */
-    public function set(Principal $who, string $key, #[SensitiveParameter] string $value): string {
+    public function set(Member $who, string $key, #[SensitiveParameter] string $value): string {
         $key = strtoupper(trim($key));
         $value = trim($value);
         // a stored key a release renamed or removed: an empty value takes it away
@@ -165,7 +165,7 @@ final class SettingsService {
     }
 
     /** A secret setting takes the value of a vault secret the owner put with /secret: the value never enters the dialog. */
-    public function setFromSecret(Principal $who, string $key, string $secretName): string {
+    public function setFromSecret(Member $who, string $key, string $secretName): string {
         $value = $this->vault->reveal($secretName, $who);
         if ($value === null) {
             throw new DomainException(sprintf(t('settings.settings_service.sekreta_net_vladelets_kladet_ego'), $secretName, $secretName));

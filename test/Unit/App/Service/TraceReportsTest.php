@@ -10,9 +10,9 @@ use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\Domain\Agent\TraceSpan;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeTraceReports;
@@ -279,8 +279,8 @@ final class TraceReportsTest extends AsyncTestCase {
         // spec: brief/participants.md#свои-роли
         Role::define('analyst', 'Аналитик', 15, [Permission::Reports]);
         try {
-            $this->stack->principals->put(new Principal(5, PrincipalKind::Human, Role::of('analyst'), 'Аналитик', PrincipalStatus::Active), 'telegram', '55');
-            $this->stack->chat->useRunVisibility(static fn(int $runId, Principal $viewer): bool => $runId !== 42);
+            $this->stack->principals->put(new Member(5, MemberKind::Human, Role::of('analyst'), 'Аналитик', MemberStatus::Active), 'telegram', '55');
+            $this->stack->chat->useRunVisibility(static fn(int $runId, Member $viewer): bool => $runId !== 42);
             $this->traces->openRun(42, 'openrouter:x/model');
             $this->traces->closeRun(42, TraceSpan::OK, 100, null);
             $this->traces->openRun(43, 'openrouter:x/model');

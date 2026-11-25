@@ -9,7 +9,7 @@ use Mercurius\Peer\AgentIdentity;
 use Closure;
 use DomainException;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 use function Mercurius\I18n\t;
 
@@ -28,7 +28,7 @@ final class AgentKeys implements IdentityKeys {
     /** @var array<string, AgentIdentity> */
     private array $loaded = [];
 
-    /** @param Closure(): ?Principal $owner the owner holds the keys in the vault */
+    /** @param Closure(): ?Member $owner the owner holds the keys in the vault */
     public function __construct(
         private readonly Vault $vault,
         private readonly Closure $owner,
@@ -36,7 +36,7 @@ final class AgentKeys implements IdentityKeys {
     ) {}
 
     /** The main key from the vault, made and kept there on the first start. */
-    public static function loadMain(Vault $vault, Principal $owner): AgentIdentity {
+    public static function loadMain(Vault $vault, Member $owner): AgentIdentity {
         $pem = $vault->reveal(self::VAULT_NAME, $owner);
         if ($pem === null) {
             $pem = AgentIdentity::generate()->privatePem();

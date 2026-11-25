@@ -19,7 +19,7 @@ use OpenCCK\App\Service\SystemPrompt;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\LlmCallRepository;
 use OpenCCK\Domain\Repository\RunRepository;
@@ -50,7 +50,7 @@ final class EvalRunner {
         private readonly ConversationRepository $conversations,
         private readonly LlmCallRepository $calls,
         /** the owner the tasks run as */
-        private readonly Principal $owner,
+        private readonly Member $owner,
         /** a judge of another kind (a judging service); null — the judge model, when set */
         private readonly ?EvalJudge $judge = null,
     ) {}

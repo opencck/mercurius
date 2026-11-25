@@ -11,8 +11,8 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
@@ -28,12 +28,12 @@ final class ServerEditToolsTest extends TestCase {
     private InMemoryServerRepository $servers;
     private Vault $vault;
     private ToolContext $context;
-    private Principal $owner;
+    private Member $owner;
 
     protected function setUp(): void {
         $this->servers = new InMemoryServerRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $this->context = new ToolContext(1, 1, $this->owner, new NullCancellation(), approved: true);
         $this->vault->put('web-pass', 'password', 'x', $this->owner);
         $this->vault->put('web-key', 'private_key', 'y', $this->owner);

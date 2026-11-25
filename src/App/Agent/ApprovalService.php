@@ -20,9 +20,9 @@ use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Agent\Approval;
 use OpenCCK\Domain\Agent\ApprovalStatus;
 use OpenCCK\Domain\Agent\Run;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ApprovalRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Revolt\EventLoop;
@@ -56,7 +56,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
     /** @param positive-int $timeoutSeconds AGENT_APPROVAL_TIMEOUT */
     public function __construct(
         private readonly ApprovalRepository $approvals,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
         private readonly int $timeoutSeconds,
@@ -77,7 +77,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
         $this->resume = $resume;
     }
 
-    public function request(Run $run, ValidatedCall $call, Principal $principal, ?Principal $decider = null): void {
+    public function request(Run $run, ValidatedCall $call, Member $principal, ?Member $decider = null): void {
         // spec: brief/skills-mcp.md#ящики-участников-и-проектов — the card of a participant's own thing goes to that participant
         $chat = $decider === null ? OwnerDirectory::chat($this->ownerChatId) : $this->privateChat($decider);
         $args = $call->args ?? [];
@@ -196,7 +196,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
     }
 
     /** The private chat of a person; an agent and a person with no chat have none. */
-    private function privateChat(Principal $decider): ?string {
+    private function privateChat(Member $decider): ?string {
         if ($this->participantChannel === null || $decider->isAgent()) {
             return null;
         }
@@ -434,7 +434,7 @@ final class ApprovalService implements ApprovalGate, CallbackHandler, TakesOwnPr
      *
      * spec: brief/agent-loop.md#разрешения-навсегда
      */
-    public function allow(Principal $owner, string $argument): string {
+    public function allow(Member $owner, string $argument): string {
         $parts = preg_split('~\s+~', trim($argument)) ?: [];
         $outside = strtolower((string) end($parts)) === 'outside';
         if ($outside) {

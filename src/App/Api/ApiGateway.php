@@ -10,7 +10,7 @@ use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\Websocket\Connection;
 use Mercurius\Messenger\Websocket\WebsocketChannel;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 /**
  * The WebSocket API between a connection and the agent: a participant who came with a key gets their own private chat
@@ -41,7 +41,7 @@ final class ApiGateway {
      * @param int $apiKey the number of the key the connection came with: a revoke of that key closes it
      * @param (Closure(): void)|null $close closes the connection
      */
-    public function open(Principal $principal, Connection $connection, int $apiKey = 0, ?Closure $close = null): ApiSession {
+    public function open(Member $principal, Connection $connection, int $apiKey = 0, ?Closure $close = null): ApiSession {
         $userId = 'p' . $principal->id;
         $this->keys->principals()->bindIdentity($principal->id, WebsocketChannel::NAME, $userId);
         $chatId = WebsocketChannel::PREFIX . $userId;

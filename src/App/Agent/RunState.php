@@ -8,7 +8,7 @@ use Amp\Cancellation;
 use Mercurius\Llm\Message;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\Run;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 /**
  * Everything one run's iterations share. Phases read and update it instead of passing locals around.
@@ -73,7 +73,7 @@ final class RunState {
         public Run $run,
         /** a tool the owner grants during the run joins it (request_tool) */
         public ParticipantPolicy $policy,
-        public readonly Principal $principal,
+        public readonly Member $principal,
         public readonly RunObserver $observer,
         public readonly Cancellation $cancellation,
         public readonly string $systemPrompt,

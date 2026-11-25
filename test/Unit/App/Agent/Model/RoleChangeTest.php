@@ -15,8 +15,8 @@ use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Agent\RoutingDecision;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -36,8 +36,8 @@ final class RoleChangeTest extends AsyncTestCase {
     private InMemoryModelStores $stores;
     private InMemoryConversationRepository $conversations;
     private ModelRoles $roles;
-    private Principal $owner;
-    private Principal $agent;
+    private Member $owner;
+    private Member $agent;
 
     protected function setUp(): void {
         parent::setUp();
@@ -47,8 +47,8 @@ final class RoleChangeTest extends AsyncTestCase {
         $this->conversations = new InMemoryConversationRepository();
         $this->roles = new ModelRoles($this->stores, $this->stores, conversations: new RoleConversations($this->conversations, $this->stores, new NullLogger()));
         $this->roles->seed();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Владелец');
-        $this->agent = new Principal(2, PrincipalKind::Human, Role::user(), 'Участник');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Владелец');
+        $this->agent = new Member(2, MemberKind::Human, Role::user(), 'Участник');
         $this->stores->set(ModelRole::STRONG, ModelRef::parse(self::A), 'начальное', ModelRole::SET_BY_AGENT);
     }
 

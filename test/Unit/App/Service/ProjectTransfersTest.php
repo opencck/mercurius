@@ -10,24 +10,24 @@ use DomainException;
 use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\ProjectTransfers;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 
 /**
  * spec: brief/participants.md#доступ-к-проектам-и-передача
  */
 final class ProjectTransfersTest extends AsyncTestCase {
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private InMemoryProjectRepository $projects;
     private InMemoryConversationRepository $conversations;
-    private Principal $owner;
-    private Principal $agent;
-    private Principal $user;
+    private Member $owner;
+    private Member $agent;
+    private Member $user;
     /** @var list<array{int, int, int}> */
     private array $moved = [];
     /** @var list<array{int, string, int}> who was told, what, how many buttons */
@@ -37,11 +37,11 @@ final class ProjectTransfersTest extends AsyncTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->owner = $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->agent = $this->principals->createAgent('helper', Role::admin());
         $visitor = $this->principals->createVisitor('telegram', '7', 'Анна');
-        $this->user = $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? self::fail('no user');
+        $this->user = $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? self::fail('no user');
         $this->projects = new InMemoryProjectRepository();
         $this->conversations = new InMemoryConversationRepository();
         $this->transfers = new ProjectTransfers(
@@ -50,18 +50,18 @@ final class ProjectTransfersTest extends AsyncTestCase {
             function (int $from, int $to, int $project): void {
                 $this->moved[] = [$from, $to, $project];
             },
-            function (Principal $to, string $text, array $buttons): void {
+            function (Member $to, string $text, array $buttons): void {
                 $this->told[] = [$to->id, $text, count($buttons)];
             },
         );
         $this->edit = new ProjectEditTool($this->projects, $this->conversations, principals: $this->principals, transfers: $this->transfers);
     }
 
-    private function as(Principal $who): ToolContext {
+    private function as(Member $who): ToolContext {
         return new ToolContext($who->id, $this->conversations->openConversation($who->id, 'test', 'chat-' . $who->id), $who, new NullCancellation());
     }
 
-    private function project(string $name, ?Principal $of): Project {
+    private function project(string $name, ?Member $of): Project {
         return $this->projects->create($name, 'цель', $of?->id);
     }
 

@@ -14,11 +14,11 @@ use Mercurius\Messenger\MembershipHandler;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Group\Group;
 use OpenCCK\Domain\Repository\GroupRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 
 use function Mercurius\I18n\t;
@@ -71,7 +71,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
 
     public function __construct(
         private readonly GroupRepository $groups,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
         private readonly string $botId,
@@ -95,7 +95,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     /**
      * What to do with a group message: null — nothing (silent); otherwise who speaks and the message for the agent.
      *
-     * @return array{Principal, IncomingMessage, bool}|null the speaker, the message for the agent, whether it may stay silent
+     * @return array{Member, IncomingMessage, bool}|null the speaker, the message for the agent, whether it may stay silent
      */
     public function route(IncomingMessage $message): ?array {
         // spec: brief/channels.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
@@ -179,7 +179,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if (!$addressed && $principal?->role !== \OpenCCK\Domain\Entity\Role::owner() && $this->overDailyTokens($message, $group)) {
             return null;
         }
-        if ($principal === null || $principal->status !== PrincipalStatus::Active) {
+        if ($principal === null || $principal->status !== MemberStatus::Active) {
             return null;
         }
         $text = $this->strip(trim($message->text));
@@ -295,7 +295,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     private function topicOpened(IncomingMessage $message, array $opened): void {
         $thread = MessageMeta::topicKey($message);
         $principal = $this->principals->findByIdentity($message->channel, $message->userId);
-        if ($this->forum === null || $thread === '' || $principal === null || $principal->status !== PrincipalStatus::Active) {
+        if ($this->forum === null || $thread === '' || $principal === null || $principal->status !== MemberStatus::Active) {
             return;
         }
         /** @var mixed $name */

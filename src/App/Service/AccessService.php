@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OpenCCK\App\Service;
 
 use Mercurius\Messenger\IncomingMessage;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 /**
  * Who is writing — a person or another agent. The owner is recognised by the configured channel account
@@ -17,13 +17,13 @@ use OpenCCK\Domain\Repository\PrincipalRepository;
  */
 final class AccessService {
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly string $ownerChannel,
         private readonly string $ownerExternalId,
         private readonly ?VisitorService $visitors = null,
     ) {}
 
-    public function resolve(string $channel, string $externalId, ?string $displayName): ?Principal {
+    public function resolve(string $channel, string $externalId, ?string $displayName): ?Member {
         $principal = $this->principals->findByIdentity($channel, $externalId);
         if ($principal !== null) {
             return $principal;
@@ -34,7 +34,7 @@ final class AccessService {
         return null;
     }
 
-    public function resolveMessage(IncomingMessage $message): ?Principal {
+    public function resolveMessage(IncomingMessage $message): ?Member {
         $principal = $this->resolve($message->channel, $message->userId, $message->displayName ?? $message->userName);
         if ($principal !== null || $this->visitors === null || !$message->isPrivateChat) {
             return $principal;

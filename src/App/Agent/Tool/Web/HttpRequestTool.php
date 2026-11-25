@@ -56,9 +56,9 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         ?\OpenCCK\Domain\Repository\HttpCookieRepository $cookies = null,
         /** @var (\Closure(ToolContext): string)|null whose cookies a call uses: a project, else the participant ("p<id>") */
         private readonly ?\Closure $cookieScope = null,
-        /** @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): ?int)|null the project of a conversation where the participant may change things; null — no secrets of projects */
+        /** @var (\Closure(int, \OpenCCK\Domain\Entity\Member): ?int)|null the project of a conversation where the participant may change things; null — no secrets of projects */
         private readonly ?\Closure $projectOf = null,
-        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        private readonly ?\OpenCCK\Domain\Repository\MemberRepository $principals = null,
     ) {
         $this->cookies = $cookies ?? new \OpenCCK\Infrastructure\Repository\InMemoryHttpCookieRepository();
     }
@@ -87,7 +87,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
      *
      * spec: brief/participants.md#секреты-проекта
      */
-    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Principal $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
+    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Member $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
         unset($args[self::SECRET_OWNER], $args[self::SECRET_PROJECT]);
         $vault = $this->vault;
         $project = $this->projectOf === null || $vault === null ? null : ($this->projectOf)($conversationId, $principal);
@@ -105,7 +105,7 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         return $args;
     }
 
-    public function decider(array $args): ?\OpenCCK\Domain\Entity\Principal {
+    public function decider(array $args): ?\OpenCCK\Domain\Entity\Member {
         return isset($args[self::SECRET_OWNER]) && is_int($args[self::SECRET_OWNER]) ? $this->principals?->find($args[self::SECRET_OWNER]) : null;
     }
 

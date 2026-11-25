@@ -22,8 +22,8 @@ use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Project\Project;
@@ -44,9 +44,9 @@ final class MailboxesTest extends AsyncTestCase {
     private InMemoryMailboxRepository $repository;
     private Vault $vault;
     private Mailboxes $mailboxes;
-    private Principal $owner;
-    private Principal $mailer;
-    private Principal $plain;
+    private Member $owner;
+    private Member $mailer;
+    private Member $plain;
     /** the project of the conversation, by its id */
     private ?Project $project = null;
     /** @var array<int, string> the level of a participant in the project, by their id */
@@ -65,8 +65,8 @@ final class MailboxesTest extends AsyncTestCase {
         $principals = $this->stack->principals;
         $this->owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $role = Role::define('mailer', 'Почта', 15, [Permission::Mail]);
-        $this->mailer = $principals->decideVisitor($principals->createVisitor('telegram', '7', 'Mailer')->id, $role, PrincipalStatus::Active) ?? self::fail('no participant');
-        $this->plain = $principals->decideVisitor($principals->createVisitor('telegram', '8', 'Plain')->id, Role::user(), PrincipalStatus::Active) ?? self::fail('no participant');
+        $this->mailer = $principals->decideVisitor($principals->createVisitor('telegram', '7', 'Mailer')->id, $role, MemberStatus::Active) ?? self::fail('no participant');
+        $this->plain = $principals->decideVisitor($principals->createVisitor('telegram', '8', 'Plain')->id, Role::user(), MemberStatus::Active) ?? self::fail('no participant');
 
         $this->repository = new InMemoryMailboxRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), str_repeat('k', SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES));
@@ -77,8 +77,8 @@ final class MailboxesTest extends AsyncTestCase {
             $this->vault,
             $principals,
             new AddressGuard(static fn(string $host): array => $host === 'inner.example.com' ? ['10.0.0.5'] : ['93.184.216.34']),
-            fn(int $conversationId, Principal $who): ?Project => $this->project,
-            fn(Project $project, Principal $who): ?ProjectLevel => $project->levelOf($who, $this->levels[$who->id] ?? null),
+            fn(int $conversationId, Member $who): ?Project => $this->project,
+            fn(Project $project, Member $who): ?ProjectLevel => $project->levelOf($who, $this->levels[$who->id] ?? null),
         );
     }
 
@@ -114,7 +114,7 @@ final class MailboxesTest extends AsyncTestCase {
         return new MailTool($inner, $remote, $this->mailboxes);
     }
 
-    private function context(Principal $who): ToolContext {
+    private function context(Member $who): ToolContext {
         return new ToolContext(1, 1, $who, new NullCancellation(), $this->stack->policies->forPrincipal($who));
     }
 
@@ -284,7 +284,7 @@ final class MailboxesTest extends AsyncTestCase {
         $probed = [];
         $tool = new MailboxTool(
             $this->mailboxes,
-            fn(string $name, Principal $who): ?Project => null,
+            fn(string $name, Member $who): ?Project => null,
             /** @param array<non-empty-string, string> $account */
             static function (array $account, Cancellation $cancellation) use (&$probed): ?string {
                 $probed[] = $account['x-mail-user'];

@@ -10,8 +10,8 @@ use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\Web\WebReadTool;
 use OpenCCK\App\Web\TextExtractor;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeHttpClient;
 use ZipArchive;
@@ -52,7 +52,7 @@ final class WebToolsTest extends AsyncTestCase {
         $long = '<html><body><main><p>' . str_repeat('а', 20_000) . '</p><p>КОНЕЦ</p></main></body></html>';
         $http = new FakeHttpClient(['https://example.com/long' => [200, ['content-type' => 'text/html'], $long]]);
         $tool = new WebReadTool($http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), new TextExtractor());
-        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
 
         $first = $tool->execute(['url' => 'https://example.com/long'], $context);
         self::assertStringNotContainsString('КОНЕЦ', $first->content);
@@ -72,7 +72,7 @@ final class WebToolsTest extends AsyncTestCase {
             'https://evil.example/' => [302, ['location' => 'http://intranet/admin'], ''],
         ]);
         $tool = new WebReadTool($http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), new TextExtractor());
-        $context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
+        $context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
 
         $result = $tool->execute(['url' => 'https://site.example/a'], $context);
         self::assertStringStartsWith("https://site.example/b\nHTTP 200\nЗаголовок: Цены", $result->content);
@@ -91,7 +91,7 @@ final class WebToolsTest extends AsyncTestCase {
             $used = $permitted;
             return $http;
         });
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $args = ['url' => 'http://nas.home.lan/'];
 
         self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args));

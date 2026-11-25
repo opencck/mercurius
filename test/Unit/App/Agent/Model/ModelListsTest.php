@@ -10,8 +10,8 @@ use OpenCCK\App\Agent\Model\ModelLists;
 use OpenCCK\App\Agent\Model\ModelRoles;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ModelRole;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryModelStores;
 use PHPUnit\Framework\TestCase;
@@ -59,7 +59,7 @@ final class ModelListsTest extends TestCase {
         $lists = ModelLists::fromEnv(['LLM_MAIN_MODELS' => 'author/a,author/b'], 'author/a');
         $roles = new ModelRoles($catalog, $catalog, ['openrouter'], null, $lists);
         $roles->seed();
-        $agent = new Principal(2, PrincipalKind::Agent, Role::admin(), 'agent');
+        $agent = new Member(2, MemberKind::Agent, Role::admin(), 'agent');
 
         self::assertSame('openrouter:author/a', (string) $roles->model(ModelRole::MAIN), 'the first of the list until the agent chooses');
         $roles->set(ModelRole::MAIN, 'author/b', 'быстрее на этой задаче', $agent, false);

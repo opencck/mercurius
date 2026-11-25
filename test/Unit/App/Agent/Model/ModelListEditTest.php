@@ -17,11 +17,11 @@ use OpenCCK\App\Settings\SettingsService;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryModelStores;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
 use OpenCCK\Test\Support\InMemorySettingRepository;
 
@@ -39,7 +39,7 @@ final class ModelListEditTest extends AsyncTestCase {
     private ModelLists $lists;
     private ModelRoles $roles;
     private ModelListEditor $editor;
-    private Principal $owner;
+    private Member $owner;
     private float $now = 1000.0;
 
     protected function setUp(): void {
@@ -49,15 +49,15 @@ final class ModelListEditTest extends AsyncTestCase {
             self::info('author/a'), self::info('author/b'), self::info('author/c'),
             new ModelInfo('author/notools', 'author/notools', 100000, 0.000001, 0.000002, ['text'], ['text'], [], 4096),
         ]);
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $this->owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $owner = $this->owner;
-        $this->settings = new SettingsService(new InMemorySettingRepository(), new Vault(new InMemorySecretRepository(), random_bytes(32)), ['LLM_MAIN_MODELS' => 'author/a'], static fn(array $env): ?string => null, static fn(): Principal => $owner);
+        $this->settings = new SettingsService(new InMemorySettingRepository(), new Vault(new InMemorySecretRepository(), random_bytes(32)), ['LLM_MAIN_MODELS' => 'author/a'], static fn(array $env): ?string => null, static fn(): Member => $owner);
         $this->lists = ModelLists::live(fn(string $setting): ?string => $this->settings->current($setting), 'author/a', fn(): float => $this->now);
         $this->roles = new ModelRoles($this->catalog, $this->catalog, ['openrouter'], null, $this->lists);
         $this->roles->seed();
         $this->editor = $editor = new ModelListEditor($this->settings, $this->lists, $this->roles);
-        $this->roles->widenWith(static function (string $role, string $model, Principal $by) use ($editor): void {
+        $this->roles->widenWith(static function (string $role, string $model, Member $by) use ($editor): void {
             $editor->change($by, $role, 'add', [$model]);
         });
     }
@@ -118,7 +118,7 @@ final class ModelListEditTest extends AsyncTestCase {
         self::assertSame('openrouter:author/b', (string) $this->roles->model(ModelRole::MAIN));
         self::assertTrue($this->lists->allows(ModelRole::MAIN, \OpenCCK\Domain\Agent\ModelRef::parse('author/b')));
 
-        $agent = new Principal(2, PrincipalKind::Agent, Role::admin(), 'agent');
+        $agent = new Member(2, MemberKind::Agent, Role::admin(), 'agent');
         try {
             $this->roles->set(ModelRole::MAIN, 'author/c', 'хочу другую модель', $agent, false);
             self::fail('another participant widened the list');
@@ -130,7 +130,7 @@ final class ModelListEditTest extends AsyncTestCase {
     public function testTheToolEditsTheListsOfEveryCategoryOnlyForTheOwner(): void {
         $tool = new ModelListTool($this->editor);
         $owner = new ToolContext($this->owner->id, 1, $this->owner, new NullCancellation());
-        $guest = new Principal(9, PrincipalKind::Human, Role::user(), null);
+        $guest = new Member(9, MemberKind::Human, Role::user(), null);
 
         self::assertSame(DangerClass::Read, $tool->danger(['action' => 'list']));
         self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'add', 'category' => 'main', 'models' => ['author/b']]));

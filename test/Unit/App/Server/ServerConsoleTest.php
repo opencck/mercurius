@@ -17,8 +17,8 @@ use OpenCCK\App\Server\UnknownHostKey;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Server\Server;
 use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
@@ -30,7 +30,7 @@ final class ServerConsoleTest extends AsyncTestCase {
     private InMemoryServerRepository $servers;
     private InMemoryCommandAuditRepository $audit;
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
     /** @var list<array{string, string, string}> server, kind, command */
     private array $ran = [];
     /** @var list<array{string, string, bool}> */
@@ -47,7 +47,7 @@ final class ServerConsoleTest extends AsyncTestCase {
         $this->servers = new InMemoryServerRepository();
         $this->audit = new InMemoryCommandAuditRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $this->answer = new RemoteResult(0, "ok\n", '', false, 12);
         $secret = $this->vault->put('web-pass', 'password', 'hunter2-long-pass', $this->owner);
         $this->servers->add('web', '10.0.0.5', 22, 'deploy', $secret, 'prod');
@@ -160,7 +160,7 @@ final class ServerConsoleTest extends AsyncTestCase {
     }
 
     public function testAnotherParticipantCannotUseTheOwnersSecret(): void {
-        $guest = new Principal(2, PrincipalKind::Human, Role::user(), 'Гость');
+        $guest = new Member(2, MemberKind::Human, Role::user(), 'Гость');
 
         [$ok, $text] = $this->console()->run($guest, null, 'web', 'uptime', 30, new NullCancellation());
 

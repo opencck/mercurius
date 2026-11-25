@@ -9,22 +9,22 @@ use OpenCCK\App\Agent\Media\InboxCleaner;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * Files that came in stay MEDIA_INBOX_DAYS: then the days' folders of inbox/ go, as each participant, in their home.
  */
 final class InboxCleanerTest extends AsyncTestCase {
     public function testOldDaysOfTheInboxGoForEveryoneWithASandbox(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '55', 'Гость');
-        $user = $principals->decideVisitor($principals->createVisitor('telegram', '56', 'Костя')->id, Role::user(), PrincipalStatus::Active);
+        $user = $principals->decideVisitor($principals->createVisitor('telegram', '56', 'Костя')->id, Role::user(), MemberStatus::Active);
         $sandbox = new FakeSandbox();
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4));
 

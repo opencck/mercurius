@@ -18,7 +18,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -78,7 +78,7 @@ final class AttachmentIntake {
     }
 
     /** @param int|null $conversationId where the spend of the models is counted */
-    public function intake(Principal $principal, ParticipantPolicy $policy, IncomingMessage $message, Cancellation $cancellation, ?int $conversationId = null): IntakeResult {
+    public function intake(Member $principal, ParticipantPolicy $policy, IncomingMessage $message, Cancellation $cancellation, ?int $conversationId = null): IntakeResult {
         // the files of the message, then those of the message it replies to (a question to a photo sent earlier), once each
         $files = [];
         $replied = [];
@@ -152,7 +152,7 @@ final class AttachmentIntake {
         return in_array($attachment->kind, [AttachmentKind::Voice, AttachmentKind::VideoNote], true) && !$attachment->forwarded;
     }
 
-    private function content(Principal $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
+    private function content(Member $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
         $category = self::category($attachment);
         $model = self::MODEL[$category] ?? null;
         if ($model !== null) {
@@ -173,7 +173,7 @@ final class AttachmentIntake {
      * answers — at once if the participant's way for this kind is "auto" (and a recording is not too long); else a note
      * how to ask. The principles of choosing come along: the agent picks a model by them for questions about details.
      */
-    private function understand(Principal $principal, Attachment $attachment, string $category, string $model, string $name, string $bytes, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
+    private function understand(Member $principal, Attachment $attachment, string $category, string $model, string $name, string $bytes, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
         $pref = $this->prefs?->of($principal->id, $category) ?? new \OpenCCK\Domain\Media\MediaPref($category, in_array($category, $this->settings->auto, true) ? 'auto' : 'demand');
         $principles = $this->principles($model, $pref->rules);
         if ($pref->mode === 'off') {
@@ -256,7 +256,7 @@ final class AttachmentIntake {
     }
 
     /** Keeps the file under a free name in the folder; null — not kept (the reason is logged). */
-    private function keep(Principal $principal, SandboxLimits $limits, string $folder, string $name, string $bytes, Cancellation $cancellation): ?string {
+    private function keep(Member $principal, SandboxLimits $limits, string $folder, string $name, string $bytes, Cancellation $cancellation): ?string {
         if ($this->sandbox === null) {
             return null;
         }

@@ -10,7 +10,7 @@ declare(strict_types=1);
  */
 
 use Mercurius\Messenger\Telegram\TelegramChannel;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Http\HttpClients;
 
 /**
@@ -27,7 +27,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\ParticipantInbox $participantInbox
  * @var OpenCCK\App\Service\PolicyService $policies
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
  * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
@@ -51,7 +51,7 @@ $agentIdentity = $vault->enabled()
     : \Mercurius\Peer\AgentIdentity::generate();
 // spec: brief/network.md#вход-по-websocket-и-несколько-ключей — keys the agent makes itself, the
 // transport of a neighbour from its card: a WebSocket opened with the entrance token, or HTTP
-$agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Principal => $ownerDirectory->principal(), $agentIdentity);
+$agentKeys = new \OpenCCK\App\Peer\AgentKeys($vault, static fn(): ?Member => $ownerDirectory->principal(), $agentIdentity);
 // native WebSocket pings from this side too: every 10 s; three unanswered — the connection is dead and is closed
 // spec: brief/internet.md#между-агентами — files go ahead by POST /a2a/files (http, by default) or as bytes over a WebSocket (ws):
 // then a message after the handshake may reach 28 MB
@@ -87,7 +87,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
     $selfUrl ?? 'local:' . $telegram->ownerId,
     $logger,
     $agentIdentity,
-    static fn(): ?Principal => $ownerDirectory->principal(),
+    static fn(): ?Member => $ownerDirectory->principal(),
     $agentKeys,
     $a2aLinks,
     $sandbox,
@@ -95,7 +95,7 @@ $peerNetwork = new \OpenCCK\App\Peer\PeerNetwork(
 );
 // spec: brief/participants.md#доступ-к-проектам-и-передача — what the code tells a participant reaches an agent over the
 //       network of agents, as it reaches a person in their private chat
-$participantInbox->useAgents(static function (Principal $agent, string $text) use ($peerNetwork, $ownerDirectory): bool {
+$participantInbox->useAgents(static function (Member $agent, string $text) use ($peerNetwork, $ownerDirectory): bool {
     $owner = $ownerDirectory->principal();
     if ($owner === null || $agent->displayName === null || !in_array($agent->displayName, $peerNetwork->names(), true)) {
         return false;
@@ -191,7 +191,7 @@ if ($a2aServer !== null) {
     // spec: brief/participants.md#права-проекта — a task of an agent in a project runs with the project's rights
     $a2aServer->useProjectPolicies($projectPolicies, $projectRepository);
     $a2aServer->useStreams($placeStreams);
-    $a2aServer->useSkills(static function (Principal $agent) use ($tools, $policies): array {
+    $a2aServer->useSkills(static function (Member $agent) use ($tools, $policies): array {
         $skills = [];
         foreach (array_slice($tools->definitions($policies->forPrincipal($agent)), 0, 30) as $definition) {
             $skills[] = ['id' => $definition->name, 'name' => $definition->name, 'description' => mb_substr(trim(explode("\n", $definition->description)[0]), 0, 160)];

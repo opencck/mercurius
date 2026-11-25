@@ -10,7 +10,7 @@ use Closure;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -63,7 +63,7 @@ final class SkillLibrary {
      *
      * @return array{source: string, revision: string, target: array{owner: int, dir: string, limits: SandboxLimits}}|null
      */
-    public function origin(Principal $who, ?Project $project, string $name, Cancellation $cancellation): ?array {
+    public function origin(Member $who, ?Project $project, string $name, Cancellation $cancellation): ?array {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->sandbox === null || !$this->changeable($who, $project, $skill)) {
             return null;
@@ -94,7 +94,7 @@ final class SkillLibrary {
      *
      * @return list<array{id: int, at: int, source: string, created: bool}>
      */
-    public function history(Principal $who, ?Project $project, string $name): array {
+    public function history(Member $who, ?Project $project, string $name): array {
         $skill = $this->catalog($who, $project)[$name] ?? null;
         if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $this->edits === null) {
             return [];
@@ -106,7 +106,7 @@ final class SkillLibrary {
      * Brings a skill's folder back to what it held before edit $id: the files of that time are written, files added
      * since go; an edit that made the skill removes it. The rollback is an edit too. Null when done, else why not.
      */
-    public function rollback(Principal $who, ?Project $project, string $name, int $id, Cancellation $cancellation): ?string {
+    public function rollback(Member $who, ?Project $project, string $name, int $id, Cancellation $cancellation): ?string {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         $edit = $this->edits?->find($id);
         if ($skill === null || $skill['dir'] === null || $skill['owner'] === null || $edit === null
@@ -190,7 +190,7 @@ final class SkillLibrary {
      * @param array<string, array{description: string, where: string, dir: ?string, owner: ?int}>|null $catalog
      * @return array<string, array{views: int, last: ?int, created: int, pinned: bool, off: bool}>
      */
-    public function stats(Principal $who, ?Project $project, ?array $catalog = null): array {
+    public function stats(Member $who, ?Project $project, ?array $catalog = null): array {
         if ($this->usage === null) {
             return [];
         }
@@ -227,12 +227,12 @@ final class SkillLibrary {
      *
      * @return list<string>
      */
-    public function unused(Principal $who, ?Project $project): array {
+    public function unused(Member $who, ?Project $project): array {
         return array_keys(array_filter($this->stats($who, $project), static fn(array $use): bool => self::stale($use)));
     }
 
     /** Pins a skill (never marked stale) or turns it off (out of the index); false — no such skill or no count. */
-    public function mark(Principal $who, ?Project $project, string $name, string $mark, bool $on): bool {
+    public function mark(Member $who, ?Project $project, string $name, string $mark, bool $on): bool {
         $skill = $this->catalog($who, $project)[$name] ?? null;
         if ($skill === null || $this->usage === null || !$this->changeable($who, $project, $skill)) {
             return false;
@@ -250,7 +250,7 @@ final class SkillLibrary {
      *
      * @param Closure(int, SandboxLimits): void $before
      */
-    public function remove(Principal $who, ?Project $project, string $name, Closure $before, Cancellation $cancellation): ?string {
+    public function remove(Member $who, ?Project $project, string $name, Closure $before, Cancellation $cancellation): ?string {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         if ($skill === null) {
             return sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name);
@@ -267,19 +267,19 @@ final class SkillLibrary {
         return $outcome->exitCode === 0 ? null : trim($outcome->stderr);
     }
 
-    /** @var (Closure(Project, Principal): ?string)|null the level a participant was given in a project; null — nobody but its owner */
+    /** @var (Closure(Project, Member): ?string)|null the level a participant was given in a project; null — nobody but its owner */
     private ?Closure $given = null;
 
     /**
      * spec: brief/participants.md#доступ-к-проектам-и-передача — the skills of a project are open to its members
      *
-     * @param Closure(Project, Principal): ?string $given
+     * @param Closure(Project, Member): ?string $given
      */
     public function useMembers(Closure $given): void {
         $this->given = $given;
     }
 
-    private function levelOf(Project $project, Principal $who): ?\OpenCCK\Domain\Project\ProjectLevel {
+    private function levelOf(Project $project, Member $who): ?\OpenCCK\Domain\Project\ProjectLevel {
         return $project->levelOf($who, $this->given === null ? null : ($this->given)($project, $who));
     }
 
@@ -298,7 +298,7 @@ final class SkillLibrary {
      *
      * @return list<array{dir: string, owner: int, label: string}>
      */
-    public function places(Principal $who, ?Project $project): array {
+    public function places(Member $who, ?Project $project): array {
         if (!$who->role->may(Permission::Skills)) {
             return [];
         }
@@ -322,7 +322,7 @@ final class SkillLibrary {
      *
      * @param array{description: string, where: string, dir: ?string, owner: ?int} $skill
      */
-    private function changeable(Principal $who, ?Project $project, array $skill): bool {
+    private function changeable(Member $who, ?Project $project, array $skill): bool {
         if ($skill['dir'] === null || $skill['owner'] === null) {
             return true;
         }
@@ -343,7 +343,7 @@ final class SkillLibrary {
      *
      * @throws \RuntimeException why there is no archive
      */
-    public function export(Principal $who, ?Project $project, string $name, Cancellation $cancellation): string {
+    public function export(Member $who, ?Project $project, string $name, Cancellation $cancellation): string {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         if ($skill === null) {
             throw new \RuntimeException(sprintf(t('service.skill_commands.skilla_net_skills_spisok'), $name));
@@ -389,7 +389,7 @@ final class SkillLibrary {
      *
      * @return array<string, array{description: string, where: string, dir: ?string, owner: ?int}>
      */
-    public function catalog(Principal $who, ?Project $project, ?Cancellation $cancellation = null): array {
+    public function catalog(Member $who, ?Project $project, ?Cancellation $cancellation = null): array {
         $found = [];
         foreach ($this->builtin as $name => $bundle) {
             $found[$name] = ['description' => $bundle->description, 'where' => t('skill.library.builtin'), 'dir' => null, 'owner' => null];
@@ -404,7 +404,7 @@ final class SkillLibrary {
     }
 
     /** The index for the system prompt; empty when there are no skills. */
-    public function index(Principal $who, ?Project $project): string {
+    public function index(Member $who, ?Project $project): string {
         if (!$who->role->may(Permission::Skills)) {
             return '';
         }
@@ -427,7 +427,7 @@ final class SkillLibrary {
      *
      * @return array{text: string, files: list<string>}|null
      */
-    public function view(Principal $who, ?Project $project, string $name, ?string $file, Cancellation $cancellation): ?array {
+    public function view(Member $who, ?Project $project, string $name, ?string $file, Cancellation $cancellation): ?array {
         $skill = $this->catalog($who, $project, $cancellation)[$name] ?? null;
         if ($skill === null) {
             return null;
@@ -497,7 +497,7 @@ final class SkillLibrary {
      *
      * @return array{owner: int, dir: string, limits: SandboxLimits}|null
      */
-    public function target(Principal $who, ?Project $project, string $where): ?array {
+    public function target(Member $who, ?Project $project, string $where): ?array {
         if ($this->sandbox === null || !$who->role->may(Permission::Skills)) {
             return null;
         }

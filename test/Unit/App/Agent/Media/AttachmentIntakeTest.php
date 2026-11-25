@@ -17,8 +17,8 @@ use OpenCCK\App\Agent\Sandbox\CommandOutcome;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use OpenCCK\Infrastructure\Media\DocsService;
@@ -34,13 +34,13 @@ use OpenCCK\Test\Support\FakeSandbox;
 final class AttachmentIntakeTest extends AsyncTestCase {
     private FakeChannel $channel;
     private FakeSandbox $sandbox;
-    private Principal $owner;
+    private Member $owner;
 
     protected function setUp(): void {
         parent::setUp();
         $this->channel = new FakeChannel();
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Сергей');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Сергей');
     }
 
     /** @param array<string, string> $env */

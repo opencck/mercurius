@@ -10,7 +10,7 @@ use Mercurius\Messenger\Attachment;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
@@ -41,7 +41,7 @@ final class ProjectArchiveCommands {
     ) {}
 
     /** The answer now; the archive or the outcome comes later to the same chat. */
-    public function export(Principal $who, string $chatId, #[\SensitiveParameter] string $argument): string {
+    public function export(Member $who, string $chatId, #[\SensitiveParameter] string $argument): string {
         if (preg_match('~^(.+?)\s+(\S+)$~su', trim($argument), $m) !== 1) {
             return t('project.archive.export_usage');
         }
@@ -78,7 +78,7 @@ final class ProjectArchiveCommands {
         return sprintf(t('project.archive.started'), $project->name);
     }
 
-    public function import(Principal $who, string $chatId, #[\SensitiveParameter] string $password, ?Attachment $file): string {
+    public function import(Member $who, string $chatId, #[\SensitiveParameter] string $password, ?Attachment $file): string {
         $password = trim($password);
         if (!$who->role->may(Permission::Projects)) {
             return t('project.archive.no_power');

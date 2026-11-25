@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\ParticipantClock;
 use OpenCCK\Domain\Agent\ConversationMeta;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\ContextLimitRepository;
 use OpenCCK\Test\Support\AgentStack;
@@ -38,7 +38,7 @@ final class ContextLimitsTest extends AsyncTestCase {
         $this->limits = new InMemoryContextLimitRepository();
     }
 
-    private function as(Principal $who, string $chat): ToolContext {
+    private function as(Member $who, string $chat): ToolContext {
         return new ToolContext($who->id, $this->stack->conversations->openConversation($who->id, 'telegram', $chat), $who, new NullCancellation());
     }
 

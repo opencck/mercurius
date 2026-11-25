@@ -27,8 +27,8 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role as ParticipantRole;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -80,7 +80,7 @@ final class ContextCompactionLoopTest extends AsyncTestCase {
         $run = $this->runs->start(1, 1, 'test/model', new RunLimits(30, 1_000_000, 900, 120));
         self::assertNotNull($run);
         $this->transcript->appendUser(1, $run->id, $task);
-        $owner = new Principal(1, PrincipalKind::Human, ParticipantRole::owner(), null);
+        $owner = new Member(1, MemberKind::Human, ParticipantRole::owner(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, false), $owner, new RecordingObserver(), new NullCancellation());
     }
 

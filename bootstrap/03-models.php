@@ -52,7 +52,7 @@ $toolReliableSources = $providerClients->toolReliable;
 $codexAccount = null;
 $modelProviders = $llmSettings->providers();
 if ($vault->enabled()) {
-    $codexAccount = new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount($modelHttp, $vault, static fn(): ?\OpenCCK\Domain\Entity\Principal => $ownerDirectory->principal());
+    $codexAccount = new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexAccount($modelHttp, $vault, static fn(): ?\OpenCCK\Domain\Entity\Member => $ownerDirectory->principal());
     $clients[\OpenCCK\Domain\Agent\ModelRef::CHATGPT] = new \Mercurius\Llm\RetryingClient(new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexClient($modelHttp, $codexAccount, $version), onRetry: $onRetry);
     $catalogSources[\OpenCCK\Domain\Agent\ModelRef::CHATGPT] = (new \OpenCCK\Infrastructure\Llm\ChatGpt\CodexCatalog($modelHttp, $codexAccount))->fetch(...);
     $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::CHATGPT;
@@ -109,7 +109,7 @@ $modelLists = \OpenCCK\App\Agent\Model\ModelLists::live(static fn(string $settin
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger), $modelLists);
 $modelListEditor = new \OpenCCK\App\Agent\Model\ModelListEditor($settingsService, $modelLists, $modelRoles);
 // a model the owner names for a role joins its list through the editor
-$modelRoles->widenWith(static function (string $role, string $model, \OpenCCK\Domain\Entity\Principal $by) use ($modelListEditor): void {
+$modelRoles->widenWith(static function (string $role, string $model, \OpenCCK\Domain\Entity\Member $by) use ($modelListEditor): void {
     $modelListEditor->change($by, $role, 'add', [$model]);
 });
 $modelRoles->seed();

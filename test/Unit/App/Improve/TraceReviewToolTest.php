@@ -9,8 +9,8 @@ use Amp\PHPUnit\AsyncTestCase;
 use DateTimeImmutable;
 use OpenCCK\App\Agent\Tool\Self\TraceReviewTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\TraceReviewRepository;
 
@@ -33,7 +33,7 @@ final class TraceReviewToolTest extends AsyncTestCase {
             }
         };
         $tool = new TraceReviewTool($repo);
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
+        $owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
 
         $result = $tool->execute(['days' => 3], new ToolContext(1, 1, $owner, new NullCancellation()));
 
@@ -49,7 +49,7 @@ final class TraceReviewToolTest extends AsyncTestCase {
         self::assertTrue($tool->untrusted());
         self::assertEqualsWithDelta((new DateTimeImmutable('-3 days'))->getTimestamp(), $repo->since?->getTimestamp() ?? 0, 5);
 
-        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
+        $user = new Member(5, MemberKind::Human, Role::user(), 'Вася');
         self::assertTrue($tool->execute([], new ToolContext(1, 1, $user, new NullCancellation()))->isError);
     }
 }

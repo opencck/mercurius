@@ -37,7 +37,7 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
     public const FILES_MAX = 10;
     public const FILE_CHARS = 50_000;
 
-    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Principal): ?Project $projectOf the project of a conversation: one named, else the active one */
+    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Member): ?Project $projectOf the project of a conversation: one named, else the active one */
     public function __construct(
         private readonly SkillLibrary $library,
         private readonly Closure $projectOf,

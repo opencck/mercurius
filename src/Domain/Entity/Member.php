@@ -10,14 +10,14 @@ namespace OpenCCK\Domain\Entity;
  *
  * spec: brief/participants.md#участники-люди-и-агенты
  */
-final class Principal {
+final class Member {
     /** @param positive-int $id */
     public function __construct(
         public readonly int $id,
-        public readonly PrincipalKind $kind,
+        public readonly MemberKind $kind,
         public readonly Role $role,
         public readonly ?string $displayName,
-        public readonly PrincipalStatus $status = PrincipalStatus::Active,
+        public readonly MemberStatus $status = MemberStatus::Active,
     ) {}
 
     public function isOwner(): bool {
@@ -25,6 +25,6 @@ final class Principal {
     }
 
     public function isAgent(): bool {
-        return $this->kind === PrincipalKind::Agent;
+        return $this->kind === MemberKind::Agent;
     }
 }

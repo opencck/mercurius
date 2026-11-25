@@ -6,8 +6,8 @@ namespace OpenCCK\Test\Unit\App\Vault;
 
 use DomainException;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemorySecretRepository;
 use PHPUnit\Framework\TestCase;
@@ -15,14 +15,14 @@ use PHPUnit\Framework\TestCase;
 final class VaultTest extends TestCase {
     private InMemorySecretRepository $store;
     private Vault $vault;
-    private Principal $owner;
-    private Principal $user;
+    private Member $owner;
+    private Member $user;
 
     protected function setUp(): void {
         $this->store = new InMemorySecretRepository();
         $this->vault = new Vault($this->store, random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
-        $this->user = new Principal(2, PrincipalKind::Human, Role::user(), 'u');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->user = new Member(2, MemberKind::Human, Role::user(), 'u');
     }
 
     public function testValuesAreStoredEncryptedAndReadByAuthorAndOwner(): void {
@@ -31,9 +31,9 @@ final class VaultTest extends TestCase {
         self::assertStringNotContainsString('p@ss-word-1', $this->store->secrets[1]['ciphertext']);
         self::assertSame('p@ss-word-1', $this->vault->reveal('DB', $this->user));
         self::assertSame('p@ss-word-1', $this->vault->reveal('db', $this->owner));
-        self::assertNull($this->vault->reveal('db', new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
+        self::assertNull($this->vault->reveal('db', new Member(3, MemberKind::Human, Role::user(), 'x')));
         self::assertSame([['name' => 'db', 'kind' => 'password']], $this->vault->names($this->user));
-        self::assertSame([], $this->vault->names(new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
+        self::assertSame([], $this->vault->names(new Member(3, MemberKind::Human, Role::user(), 'x')));
     }
 
     public function testTheOwnerDoesNotReadTheSecretsOfAFormerOwner(): void {
@@ -76,7 +76,7 @@ final class VaultTest extends TestCase {
     public function testOnlyTheAuthorOrTheOwnerRemoves(): void {
         $this->vault->put('a', 'password', 'x', $this->user);
 
-        self::assertFalse($this->vault->remove('a', new Principal(3, PrincipalKind::Human, Role::user(), 'x')));
+        self::assertFalse($this->vault->remove('a', new Member(3, MemberKind::Human, Role::user(), 'x')));
         self::assertTrue($this->vault->remove('a', $this->owner));
         self::assertNull($this->vault->reveal('a', $this->user));
     }

@@ -6,14 +6,14 @@ namespace OpenCCK\App\Service;
 
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Domain\Repository\MailboxRepository;
 use OpenCCK\Domain\Repository\PlaceStreamRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
 use function Mercurius\I18n\t;
@@ -28,7 +28,7 @@ final class OwnerOverview {
     private const JOBS = 20;
 
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly ProjectRepository $projects,
         private readonly JobRepository $jobs,
         private readonly PolicyService $policies,
@@ -40,7 +40,7 @@ final class OwnerOverview {
         private readonly ?ProjectPolicies $rights = null,
     ) {}
 
-    public function show(Principal $owner, string $argument): string {
+    public function show(Member $owner, string $argument): string {
         if (!$owner->isOwner()) {
             return t('overview.owner_only');
         }
@@ -61,7 +61,7 @@ final class OwnerOverview {
         return implode("\n", $lines) . "\n\n" . t('overview.hint_all');
     }
 
-    private function participant(Principal $who): string {
+    private function participant(Member $who): string {
         $policy = $this->policies->forPrincipal($who);
         $parts = [sprintf(t('overview.head'), $who->displayName ?? '—', $who->id, $who->role->value, $who->status->value)];
         $parts[] = sprintf(t('overview.rights'), $policy->tools === null ? t('overview.all_tools') : (string) count($policy->tools), $policy->run->maxTurns, $policy->run->tokenBudget, $policy->dailySpendUsd > 0 ? sprintf('$%.2f', $policy->dailySpendUsd) : '—');
@@ -94,7 +94,7 @@ final class OwnerOverview {
     }
 
     /** A participant by "#id", an id or a name. */
-    private function find(string $named): ?Principal {
+    private function find(string $named): ?Member {
         $id = ltrim($named, '#');
         if (ctype_digit($id)) {
             return $this->principals->find((int) $id);

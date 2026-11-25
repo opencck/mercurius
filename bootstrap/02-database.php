@@ -12,7 +12,7 @@ declare(strict_types=1);
 use Mercurius\Messenger\Telegram\TelegramChannel;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Config\AgentSettings;
 use OpenCCK\Infrastructure\Config\Config;
 use OpenCCK\Infrastructure\Config\ConfigException;
@@ -25,7 +25,7 @@ use OpenCCK\Infrastructure\Config\VaultSettings;
 use OpenCCK\Infrastructure\Database\Database;
 use OpenCCK\Infrastructure\Database\Migrator;
 use OpenCCK\Infrastructure\Http\HttpClients;
-use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresMemberRepository;
 use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
 
 /**
@@ -68,7 +68,7 @@ $logger->info('Migrations checked', ['applied' => $applied]);
 
 // spec: brief/operations.md#настройки-агента — settings from the dialog over .env; a stored value is checked by the start checks
 // when it is kept, and once more here: if they fail, the agent starts on .env and says why.
-$principals = new PostgresPrincipalRepository($db, TelegramChannel::NAME);
+$principals = new PostgresMemberRepository($db, TelegramChannel::NAME);
 // spec: brief/participants.md#несколько-пользователей — TELEGRAM_ADMIN_ID is the first owner; ownership may pass on, the owner is asked here
 $ownerDirectory = new \OpenCCK\App\Service\OwnerDirectory($principals, TelegramChannel::NAME, $telegram->ownerId);
 // spec: brief/participants.md#несколько-пользователей — the owner reads every secret but a former owner's
@@ -107,7 +107,7 @@ $settingsService = new \OpenCCK\App\Settings\SettingsService(
     $vault,
     $_ENV,
     $validateSettings,
-    static fn(): ?Principal => $ownerDirectory->principal(),
+    static fn(): ?Member => $ownerDirectory->principal(),
 );
 $overlay = $settingsService->overlay();
 // spec: brief/operations.md#настройки-агента — a stored key the release no longer has is not applied; it is named

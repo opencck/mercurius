@@ -10,7 +10,7 @@ use InvalidArgumentException;
 use Mercurius\Messenger\IncomingMessage;
 use OpenCCK\App\Skill\SkillImporter;
 use OpenCCK\App\Skill\SkillLibrary;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 
 use function Mercurius\I18n\t;
@@ -31,7 +31,7 @@ final class SkillCommands {
         private readonly ?\OpenCCK\App\Agent\Sandbox\Checkpoints $checkpoints = null,
     ) {}
 
-    public function list(Principal $who, IncomingMessage $message): string {
+    public function list(Member $who, IncomingMessage $message): string {
         $project = $this->project($message);
         $catalog = $this->library->catalog($who, $project);
         if ($catalog === []) {
@@ -46,7 +46,7 @@ final class SkillCommands {
         return t('service.skill_commands.skilly') . implode("\n", $lines) . t('service.skill_commands.usage_files');
     }
 
-    public function skill(Principal $who, IncomingMessage $message, string $argument): string {
+    public function skill(Member $who, IncomingMessage $message, string $argument): string {
         $parts = preg_split('~\s+~', trim($argument)) ?: [];
         $name = $parts[0] ?? '';
         $action = $parts[1] ?? 'show';

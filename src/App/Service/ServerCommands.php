@@ -7,7 +7,7 @@ namespace OpenCCK\App\Service;
 use DomainException;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\CommandAuditRepository;
 use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
@@ -44,7 +44,7 @@ final class ServerCommands {
      *
      * @return array{\OpenCCK\Domain\Project\Project, string}|null the project and the rest of the command
      */
-    private function projectOf(Principal $principal, string $argument): ?array {
+    private function projectOf(Member $principal, string $argument): ?array {
         if ($this->projects === null || preg_match('~^([^:\n]{1,100}):(?:\s+(.*))?$~su', $argument, $m) !== 1) {
             return null;
         }
@@ -58,7 +58,7 @@ final class ServerCommands {
      *
      * spec: brief/participants.md#секреты-проекта
      */
-    private function projectSecret(Principal $principal, \OpenCCK\Domain\Project\Project $project, #[SensitiveParameter] string $rest): string {
+    private function projectSecret(Member $principal, \OpenCCK\Domain\Project\Project $project, #[SensitiveParameter] string $rest): string {
         if (!$project->visibleTo($principal)) {
             return sprintf(t('service.server_commands.project_secret_owner_only'), $project->name);
         }
@@ -89,7 +89,7 @@ final class ServerCommands {
         return sprintf(t($existed ? 'service.server_commands.project_secret_updated' : 'service.server_commands.project_secret_saved'), $name, $project->name, $site);
     }
 
-    public function secret(Principal $principal, #[SensitiveParameter] string $argument): string {
+    public function secret(Member $principal, #[SensitiveParameter] string $argument): string {
         $argument = trim($argument);
         $named = $this->projectOf($principal, $argument);
         if ($named !== null) {
@@ -118,7 +118,7 @@ final class ServerCommands {
     /**
      * Keeps the text of a message that carried a secret; returns the name it is kept under, null when it could not be.
      */
-    public function stash(Principal $principal, #[SensitiveParameter] string $text, string $messageId): ?string {
+    public function stash(Member $principal, #[SensitiveParameter] string $text, string $messageId): ?string {
         $name = 'msg-' . (preg_replace('~[^A-Za-z0-9]~', '', $messageId) ?? '');
         try {
             $this->vault->put($name, 'token', $text, $principal);
@@ -128,7 +128,7 @@ final class ServerCommands {
         }
     }
 
-    public function secrets(Principal $principal, string $argument = ''): string {
+    public function secrets(Member $principal, string $argument = ''): string {
         if (!$this->vault->enabled()) {
             return t('service.server_commands.hranilische_sekretov_vyklyucheno_v_env');
         }

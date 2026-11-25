@@ -11,16 +11,16 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 final class ParticipantsToolTest extends AsyncTestCase {
     public function testTheOwnerDecidesTheRoleOfAParticipantWithoutACard(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей Иванов');
         $roman = $principals->createVisitor('telegram', '529769761', 'Roman');
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
@@ -33,10 +33,10 @@ final class ParticipantsToolTest extends AsyncTestCase {
         $inGroup = new ParticipantsTool($principals, $policies, privateChat: static fn(int $conversation): bool => false);
         self::assertTrue($inGroup->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError, 'only in the private chat of the owner');
         self::assertFalse($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'user'], $context)->isError);
-        self::assertSame([Role::user(), PrincipalStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
+        self::assertSame([Role::user(), MemberStatus::Active], [$principals->find($roman->id)?->role, $principals->find($roman->id)?->status]);
 
         $tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'rejected'], $context);
-        self::assertSame(PrincipalStatus::Rejected, $principals->find($roman->id)?->status, 'a decision can be changed');
+        self::assertSame(MemberStatus::Rejected, $principals->find($roman->id)?->status, 'a decision can be changed');
         self::assertTrue($tool->execute(['action' => 'decide', 'id' => $owner->id, 'role' => 'user'], $context)->isError, 'the owner stays the owner');
         self::assertTrue($tool->execute(['action' => 'decide', 'id' => $roman->id, 'role' => 'admin'], new ToolContext(1, 2, $roman, new NullCancellation()))->isError, 'only the owner decides');
     }
@@ -46,9 +46,9 @@ final class ParticipantsToolTest extends AsyncTestCase {
         Role::define('trader', 'Трейдер', 15, [Permission::Tools]);
         Role::define('steward', 'Распорядитель', 16, [Permission::Tools, Permission::Participants]);
         try {
-            $principals = new InMemoryPrincipalRepository();
+            $principals = new InMemoryMemberRepository();
             $owner = $principals->ensureOwner('telegram', '42', 'Владелец');
-            $steward = new Principal(2, PrincipalKind::Human, Role::of('steward'), 'Распорядитель', PrincipalStatus::Active);
+            $steward = new Member(2, MemberKind::Human, Role::of('steward'), 'Распорядитель', MemberStatus::Active);
             $principals->put($steward, 'telegram', '2');
             $guest = $principals->createVisitor('telegram', '3', 'Гость');
             $tool = new ParticipantsTool($principals, new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120)));
@@ -69,10 +69,10 @@ final class ParticipantsToolTest extends AsyncTestCase {
     }
 
     public function testTheOwnerFindsAParticipantByNameWithHisRights(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей Иванов');
         $visitor = $principals->createVisitor('telegram', '100200300', 'Сергей Петров');
-        $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
+        $principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active);
         $policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $tool = new ParticipantsTool($principals, $policies);
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
@@ -89,7 +89,7 @@ final class ParticipantsToolTest extends AsyncTestCase {
     }
 
     public function testAnAgentIsShownWithItsKeyAndFoundByIt(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $main = $principals->createAgent('mercurius', Role::user());
         $orphan = $principals->createAgent('mercurius-03b8330c', Role::admin());

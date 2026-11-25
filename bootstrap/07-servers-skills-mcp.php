@@ -22,7 +22,7 @@ use OpenCCK\App\Agent\Tool\Web\TcpProbeTool;
 use OpenCCK\App\Mcp\McpManager;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\CommandPolicy\SshCommandClassifier;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Http\HttpClients;
 use Mercurius\Mcp\HttpMcpClient;
 use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
@@ -43,7 +43,7 @@ use OpenCCK\Infrastructure\Ssh\AmpSshShell;
  * @var Amp\Http\Client\HttpClient $modelHttp
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var OpenCCK\Infrastructure\Config\SandboxSettings $sandboxSettings
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
@@ -105,8 +105,8 @@ if ($sandbox !== null) {
         };
         try {
             $people = array_values(array_map(
-                static fn(Principal $p): int => $p->id,
-                array_filter($principals->all(), static fn(Principal $p): bool => $p->role->may(\OpenCCK\Domain\Entity\Permission::Skills)),
+                static fn(Member $p): int => $p->id,
+                array_filter($principals->all(), static fn(Member $p): bool => $p->role->may(\OpenCCK\Domain\Entity\Permission::Skills)),
             ));
             $owner = $ownerDirectory->principal()?->id;
             $projects = [];
@@ -124,7 +124,7 @@ if ($sandbox !== null) {
     })->ignore();
 }
 // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a project named by the agent (a private chat about it), else the conversation's active one
-$skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $skillProjects): ?\OpenCCK\Domain\Project\Project {
+$skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\Domain\Entity\Member $who) use ($conversations, $skillProjects): ?\OpenCCK\Domain\Project\Project {
     if ($name !== null && trim($name) !== '') {
         return $skillProjects->byName(trim($name), \OpenCCK\Domain\Project\Project::scopeOf($who));
     }
@@ -134,9 +134,9 @@ $skillProjectOf = static function (int $conversationId, ?string $name, \OpenCCK\
 $skillUsage = new \OpenCCK\Infrastructure\Repository\PostgresSkillUsageRepository($db);
 $skillLibrary->useUsage($skillUsage);
 // spec: brief/participants.md#доступ-к-проектам-и-передача — the skills of a project are open to its members
-$skillLibrary->useMembers(static fn(\OpenCCK\Domain\Project\Project $project, \OpenCCK\Domain\Entity\Principal $who): ?string => $skillProjects->memberLevel($project->id, $who->id));
+$skillLibrary->useMembers(static fn(\OpenCCK\Domain\Project\Project $project, \OpenCCK\Domain\Entity\Member $who): ?string => $skillProjects->memberLevel($project->id, $who->id));
 $skillLibrary->useEdits(new \OpenCCK\Infrastructure\Repository\PostgresSkillEditRepository($db));
-$tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, static fn(\OpenCCK\Domain\Entity\Principal $who): array => $skillProjects->all(20, \OpenCCK\Domain\Project\Project::scopeOf($who))));
+$tools->register(new SkillViewTool($skillLibrary, $skillProjectOf, static fn(\OpenCCK\Domain\Entity\Member $who): array => $skillProjects->all(20, \OpenCCK\Domain\Project\Project::scopeOf($who))));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillSaveTool($skillLibrary, $skillProjectOf));
 // spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — ordinary SKILL.md skills of other agents, through the SSRF guard
 $skillHttp = HttpClients::guarded($addressGuard);
@@ -166,7 +166,7 @@ $mcpManager = new McpManager(
     $mcpClient,
     $vault,
     $tools,
-    static fn(): ?Principal => $ownerDirectory->principal(),
+    static fn(): ?Member => $ownerDirectory->principal(),
     static function (string $text) use ($channel, $ownerDirectory): void {
         $channel->send(new OutgoingMessage($ownerDirectory->chatId(), $text));
     },
@@ -194,12 +194,12 @@ if ($mailToken !== null) {
         $vault,
         $principals,
         $addressGuard,
-        static fn(int $conversationId, Principal $who): ?\OpenCCK\Domain\Project\Project => $skillProjectOf($conversationId, null, $who),
-        static fn(\OpenCCK\Domain\Project\Project $project, Principal $who): ?\OpenCCK\Domain\Project\ProjectLevel => $project->levelOf($who, $skillProjects->memberLevel($project->id, $who->id)),
+        static fn(int $conversationId, Member $who): ?\OpenCCK\Domain\Project\Project => $skillProjectOf($conversationId, null, $who),
+        static fn(\OpenCCK\Domain\Project\Project $project, Member $who): ?\OpenCCK\Domain\Project\ProjectLevel => $project->levelOf($who, $skillProjects->memberLevel($project->id, $who->id)),
     );
     $tools->register(new \OpenCCK\App\Mail\MailboxTool(
         $mailboxes,
-        static fn(string $name, Principal $who): ?\OpenCCK\Domain\Project\Project => $skillProjects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($who)),
+        static fn(string $name, Member $who): ?\OpenCCK\Domain\Project\Project => $skillProjects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($who)),
         /** @param array<non-empty-string, string> $account */
         static function (#[\SensitiveParameter] array $account, \Amp\Cancellation $cancellation) use ($mcpClient, $mailServer, $mailToken): ?string {
             try {

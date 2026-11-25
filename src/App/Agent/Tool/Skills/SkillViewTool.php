@@ -27,11 +27,11 @@ use function Mercurius\I18n\t;
 final class SkillViewTool implements Tool {
     public const NAME = 'skill_view';
 
-    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Principal): ?Project $projectOf the project of a conversation: one named, else the active one */
+    /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Member): ?Project $projectOf the project of a conversation: one named, else the active one */
     public function __construct(
         private readonly SkillLibrary $library,
         private readonly Closure $projectOf,
-        /** @var (Closure(\OpenCCK\Domain\Entity\Principal): list<Project>)|null the projects a participant works with; null — a missing skill is not looked for elsewhere */
+        /** @var (Closure(\OpenCCK\Domain\Entity\Member): list<Project>)|null the projects a participant works with; null — a missing skill is not looked for elsewhere */
         private readonly ?Closure $projectsOf = null,
     ) {}
 

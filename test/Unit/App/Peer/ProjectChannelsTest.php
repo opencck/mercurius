@@ -20,7 +20,7 @@ use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectLevel;
@@ -48,9 +48,9 @@ final class ProjectChannelsTest extends AsyncTestCase {
     private InMemoryProjectRepository $projects;
     private InMemoryProjectLinkRepository $links;
     private ProjectChannels $channels;
-    private Principal $owner;
-    private Principal $agent;
-    private Principal $other;
+    private Member $owner;
+    private Member $agent;
+    private Member $other;
     private Project $project;
     /** @var list<array{int, string, array<string, mixed>}> */
     private array $pushed = [];
@@ -93,7 +93,7 @@ final class ProjectChannelsTest extends AsyncTestCase {
      * @param array<string, mixed> $params
      * @return array<string, mixed>
      */
-    private function call(A2aServer $server, Principal $agent, string $method, array $params = []): array {
+    private function call(A2aServer $server, Member $agent, string $method, array $params = []): array {
         [, $answer] = $server->handle($agent, ['jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => $params]);
         return $answer;
     }
@@ -104,7 +104,7 @@ final class ProjectChannelsTest extends AsyncTestCase {
      * @param array<string, mixed> $params
      * @return list<array{id: int, name: string, access: string, subscribed: bool, working: bool}>|null null — the call was refused
      */
-    private function listed(A2aServer $server, Principal $agent, string $method, array $params = []): ?array {
+    private function listed(A2aServer $server, Member $agent, string $method, array $params = []): ?array {
         $answer = $this->call($server, $agent, $method, $params);
         if (isset($answer['error'])) {
             return null;
@@ -290,7 +290,7 @@ final class ProjectChannelsTest extends AsyncTestCase {
             $http,
             new AddressGuard(static fn(string $host): array => ['93.184.216.34']),
             $vault,
-            projectOf: function (int $conversationId, Principal $who) use (&$inProject): ?int {
+            projectOf: function (int $conversationId, Member $who) use (&$inProject): ?int {
                 /** @var bool $inProject */
                 return $inProject && $who->id === $this->agent->id ? $this->project->id : null;
             },
@@ -329,7 +329,7 @@ final class ProjectChannelsTest extends AsyncTestCase {
             $http,
             new AddressGuard(static fn(string $host): array => ['93.184.216.34']),
             $vault,
-            projectOf: fn(int $conversationId, Principal $who): int => $this->project->id,
+            projectOf: fn(int $conversationId, Member $who): int => $this->project->id,
             principals: $this->stack->principals,
         );
 
@@ -347,7 +347,7 @@ final class ProjectChannelsTest extends AsyncTestCase {
             new FakeChannel(),
             '42',
             projectOf: fn(int $conversationId): ?int => $conversationId === 7 ? $this->project->id : null,
-            holderOf: fn(int $projectId, Principal $who): int => $this->owner->id,
+            holderOf: fn(int $projectId, Member $who): int => $this->owner->id,
             principals: $this->stack->principals,
         );
 

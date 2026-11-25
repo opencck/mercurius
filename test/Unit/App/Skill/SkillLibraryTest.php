@@ -22,8 +22,8 @@ use OpenCCK\App\Skill\SkillLibrary;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Test\Support\FakeHttpClient;
@@ -39,16 +39,16 @@ use OpenCCK\Test\Support\InMemorySkillUsageRepository;
  */
 final class SkillLibraryTest extends AsyncTestCase {
     private FakeSandbox $sandbox;
-    private Principal $owner;
-    private Principal $user;
+    private Member $owner;
+    private Member $user;
     /** @var array<string, Project> */
     private array $projects = [];
 
     protected function setUp(): void {
         parent::setUp();
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
-        $this->user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
+        $this->user = new Member(5, MemberKind::Human, Role::user(), 'Вася');
         $this->projects['Сайт'] = new Project(12, 'Сайт', '', Project::ACTIVE, '', time());
     }
 
@@ -91,13 +91,13 @@ final class SkillLibraryTest extends AsyncTestCase {
         return new SkillLibrary($builtin, $this->sandbox, static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), static fn(): int => 1);
     }
 
-    private function context(Principal $who): ToolContext {
+    private function context(Member $who): ToolContext {
         return new ToolContext(1, 1, $who, new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
     }
 
-    /** @return \Closure(int, ?string, Principal): ?Project */
+    /** @return \Closure(int, ?string, Member): ?Project */
     private function projectOf(): \Closure {
-        return fn(int $conversation, ?string $name, Principal $who): ?Project => $name !== null && $name !== '' ? ($this->projects[$name] ?? null) : null;
+        return fn(int $conversation, ?string $name, Member $who): ?Project => $name !== null && $name !== '' ? ($this->projects[$name] ?? null) : null;
     }
 
     public function testThePlacesAddUpAndTheNearestWins(): void {
@@ -123,7 +123,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         self::assertStringContainsString('seo', $library->index($this->owner, $this->projects['Сайт']));
 
         self::assertArrayNotHasKey('seo', $library->catalog($this->user, $this->projects['Сайт']), 'a project the participant cannot see gives nothing');
-        self::assertSame('', $library->index(new Principal(9, PrincipalKind::Human, Role::visitor(), 'Гость'), null));
+        self::assertSame('', $library->index(new Member(9, MemberKind::Human, Role::visitor(), 'Гость'), null));
     }
 
     public function testAFolderSkillIsCheckedForTheIndexAndForEachFileItGives(): void {
@@ -210,7 +210,7 @@ final class SkillLibraryTest extends AsyncTestCase {
         // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — a skill with a project named goes into that project;
         //       a skill that is not in this chat but is in a project of the participant is pointed at
         $library = $this->library();
-        $projects = fn(Principal $who): array => array_values($this->projects);
+        $projects = fn(Member $who): array => array_values($this->projects);
         $view = new SkillViewTool($library, $this->projectOf(), $projects);
         $save = new SkillSaveTool($library, $this->projectOf());
 
@@ -388,7 +388,7 @@ description: Отчёт
         $this->sandbox->files[5]['.mercurius/skills/mine-only/SKILL.md'] = self::skill('mine-only', 'Личный скилл Васи');
         $library = $this->library();
         $library->useUsage(new InMemorySkillUsageRepository());
-        $library->useMembers(static fn(Project $p, Principal $who): ?string => $who->id === 5 ? 'write' : null);
+        $library->useMembers(static fn(Project $p, Member $who): ?string => $who->id === 5 ? 'write' : null);
 
         $catalog = $library->catalog($this->user, $project);
         self::assertArrayHasKey('digest', $catalog);

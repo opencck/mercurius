@@ -30,7 +30,7 @@ final class SpendingTool implements Tool {
         /** finds the run that wrote a message of the chat */
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $messages = null,
         private readonly ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null,
-        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        private readonly ?\OpenCCK\Domain\Repository\MemberRepository $principals = null,
         /** the owner's zone: periods are their days */
         private readonly string $timezone = 'UTC',
     ) {}
@@ -135,7 +135,7 @@ final class SpendingTool implements Tool {
         return $day === false || $day->format('Y-m-d') !== trim($text) ? false : $day;
     }
 
-    private function person(string $name): ?\OpenCCK\Domain\Entity\Principal {
+    private function person(string $name): ?\OpenCCK\Domain\Entity\Member {
         $key = mb_strtolower(ltrim($name, '#@'));
         $people = $this->principals?->all() ?? [];
         foreach ($people as $p) {
@@ -143,7 +143,7 @@ final class SpendingTool implements Tool {
                 return $p;
             }
         }
-        $found = array_values(array_filter($people, static fn(\OpenCCK\Domain\Entity\Principal $p): bool => $key !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $key)));
+        $found = array_values(array_filter($people, static fn(\OpenCCK\Domain\Entity\Member $p): bool => $key !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $key)));
         return count($found) === 1 ? $found[0] : null;
     }
     public function execute(array $args, ToolContext $context): ToolResult {

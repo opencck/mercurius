@@ -14,10 +14,10 @@ use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -54,7 +54,7 @@ final class VisitorService implements CallbackHandler {
     private int $nextSummary = 1;
 
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
         private readonly LoggerInterface $logger = new NullLogger(),
@@ -69,7 +69,7 @@ final class VisitorService implements CallbackHandler {
      * @param string|null $groupChat the chat of that group: after a few strangers of one group the next ones share a
      *                               summary card (spec: brief/channels.md#группа — one card of strangers in a big group)
      */
-    public function admit(IncomingMessage $message, ?string $group = null, ?string $groupChat = null): Principal {
+    public function admit(IncomingMessage $message, ?string $group = null, ?string $groupChat = null): Member {
         $visitor = $this->principals->createVisitor($message->channel, $message->userId, $message->displayName ?? $message->userName);
         if ($group !== null && $groupChat !== null) {
             $shown = $this->singles[$groupChat] ?? 0;
@@ -106,7 +106,7 @@ final class VisitorService implements CallbackHandler {
     private function admitters(string $channel): array {
         $chats = [];
         foreach ($this->principals->all() as $p) {
-            if (!$p->isOwner() && $p->status === PrincipalStatus::Active && $p->role->may(Permission::Admit)) {
+            if (!$p->isOwner() && $p->status === MemberStatus::Active && $p->role->may(Permission::Admit)) {
                 $chat = $this->principals->externalId($p->id, $channel);
                 if ($chat !== null) {
                     $chats[] = $chat;
@@ -117,12 +117,12 @@ final class VisitorService implements CallbackHandler {
     }
 
     /** Who pressed: the owner (null) or a participant whose role may admit visitors; false — nobody who may. */
-    private function presser(IncomingCallback $callback): Principal|false|null {
+    private function presser(IncomingCallback $callback): Member|false|null {
         if ($callback->userId === OwnerDirectory::chat($this->ownerChatId)) {
             return null;
         }
         $who = $this->principals->findByIdentity($callback->channel, $callback->userId);
-        return $who !== null && $who->status === PrincipalStatus::Active && ($who->isOwner() || $who->role->may(Permission::Admit)) ? ($who->isOwner() ? null : $who) : false;
+        return $who !== null && $who->status === MemberStatus::Active && ($who->isOwner() || $who->role->may(Permission::Admit)) ? ($who->isOwner() ? null : $who) : false;
     }
 
     public function handleCallback(IncomingCallback $callback): void {
@@ -145,14 +145,14 @@ final class VisitorService implements CallbackHandler {
             return;
         }
         [$role, $status, $outcome] = match (true) {
-            $named !== null => [$named, PrincipalStatus::Active, sprintf(t('service.visitor.role_given'), RoleCatalog::label($named))],
-            ($match[2] ?? '') === 't' => [Role::visitor(), PrincipalStatus::Active, t('service.visitor.razgovor_razreshen')],
-            ($match[2] ?? '') === 'u' => [Role::user(), PrincipalStatus::Active, t('service.visitor.naznachen_polzovatelem')],
-            ($match[2] ?? '') === 'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
-            default => [Role::visitor(), PrincipalStatus::Rejected, t('service.visitor.otkazano')],
+            $named !== null => [$named, MemberStatus::Active, sprintf(t('service.visitor.role_given'), RoleCatalog::label($named))],
+            ($match[2] ?? '') === 't' => [Role::visitor(), MemberStatus::Active, t('service.visitor.razgovor_razreshen')],
+            ($match[2] ?? '') === 'u' => [Role::user(), MemberStatus::Active, t('service.visitor.naznachen_polzovatelem')],
+            ($match[2] ?? '') === 'a' => [Role::admin(), MemberStatus::Active, t('service.visitor.naznachen_administratorom')],
+            default => [Role::visitor(), MemberStatus::Rejected, t('service.visitor.otkazano')],
         };
         // a participant who admits gives no role with a permission they lack
-        if ($presser !== null && $status === PrincipalStatus::Active && array_diff(array_map(static fn(Permission $p): string => $p->value, $role->permissions()), array_map(static fn(Permission $p): string => $p->value, $presser->role->permissions())) !== []) {
+        if ($presser !== null && $status === MemberStatus::Active && array_diff(array_map(static fn(Permission $p): string => $p->value, $role->permissions()), array_map(static fn(Permission $p): string => $p->value, $presser->role->permissions())) !== []) {
             $this->channel->answerCallback($callback->callbackId, t('tool.participants.above_own'), true);
             return;
         }
@@ -165,7 +165,7 @@ final class VisitorService implements CallbackHandler {
         if ($callback->messageId !== null) {
             $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.visitor.sobesednik'), self::who($decided, null, null), $outcome));
         }
-        if ($status === PrincipalStatus::Active) {
+        if ($status === MemberStatus::Active) {
             $this->tell($decided, $callback->channel, match (true) {
                 $role === Role::admin() => \Mercurius\I18n\t(self::LET_IN_ADMIN),
                 $role->may(\OpenCCK\Domain\Entity\Permission::Tools) => \Mercurius\I18n\t(self::LET_IN_USER),
@@ -176,7 +176,7 @@ final class VisitorService implements CallbackHandler {
     }
 
     /** Adds a stranger to the summary card of the group: sent once, then edited. */
-    private function summarize(string $chat, string $title, Principal $visitor, IncomingMessage $message): void {
+    private function summarize(string $chat, string $title, Member $visitor, IncomingMessage $message): void {
         $id = $this->summaryOf[$chat] ?? null;
         if ($id === null) {
             $id = $this->nextSummary++;
@@ -215,7 +215,7 @@ final class VisitorService implements CallbackHandler {
         }
         $decided = 0;
         foreach ($summary['visitors'] as $visitorId) {
-            $principal = $this->principals->decideVisitor($visitorId, Role::visitor(), $talk ? PrincipalStatus::Active : PrincipalStatus::Rejected);
+            $principal = $this->principals->decideVisitor($visitorId, Role::visitor(), $talk ? MemberStatus::Active : MemberStatus::Rejected);
             if ($principal !== null) {
                 $decided++;
                 if ($talk) {
@@ -253,14 +253,14 @@ final class VisitorService implements CallbackHandler {
     }
 
     /** A private chat with a person has the id of their account (Telegram), so the message goes there. */
-    private function tell(Principal $visitor, string $channel, string $text): void {
+    private function tell(Member $visitor, string $channel, string $text): void {
         $chatId = $this->principals->externalId($visitor->id, $channel);
         if ($chatId === null || !$this->channel->send(new OutgoingMessage($chatId, $text))->success) {
             $this->logger->warning('Visitor was not told about the decision', ['visitor' => $visitor->id]);
         }
     }
 
-    private static function who(Principal $principal, ?string $userName, ?string $userId): string {
+    private static function who(Member $principal, ?string $userName, ?string $userId): string {
         return trim(sprintf(
             t('service.visitor.uchastnik'),
             $principal->displayName ?? t('service.visitor.bez_imeni'),

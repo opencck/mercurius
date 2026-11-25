@@ -31,7 +31,7 @@ use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Service\SkillCommands;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\App\Service\VisitorService;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Http\HttpClients;
 use OpenCCK\Infrastructure\Repository\PostgresEpisodeRepository;
 use OpenCCK\Infrastructure\Repository\PostgresTraceReportRepository;
@@ -98,7 +98,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresPeerRepository $peerRepository
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var array{host: string, port: int<1, 65535>, user: string, password: string, name: string} $postgresAccess
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  * @var OpenCCK\App\Service\ProjectTransfers $projectTransfers
@@ -214,7 +214,7 @@ $recipients->usePlaces(static function () use ($groupRepository, $projectReposit
     return $places;
 });
 // what the agent sent to a place on a request from another chat is a note in the conversation of that place
-$recipients->useRecorder(static function (string $chat, ?string $thread, string $what, \OpenCCK\Domain\Entity\Principal $by) use ($conversations, $transcript): void {
+$recipients->useRecorder(static function (string $chat, ?string $thread, string $what, \OpenCCK\Domain\Entity\Member $by) use ($conversations, $transcript): void {
     $transcript->appendUser(
         $conversations->openConversation($by->id, TelegramChannel::NAME, $chat, $thread ?? ''),
         null,
@@ -436,7 +436,7 @@ $chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
     PATH_ROOT . '/storage/app/import',
 ));
 // spec: brief/participants.md#свои-роли — a holder of reports does not see the private chats of others
-$chat->useRunVisibility(static function (int $runId, Principal $viewer) use ($runs, $conversations): bool {
+$chat->useRunVisibility(static function (int $runId, Member $viewer) use ($runs, $conversations): bool {
     $run = $runs->find($runId);
     $meta = $run === null ? null : $conversations->meta($run->conversationId);
     return $run !== null && $meta !== null && ($run->principalId === $viewer->id || str_starts_with($meta->chatId, '-'));

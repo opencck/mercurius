@@ -10,7 +10,7 @@ use OpenCCK\App\Agent\ProjectContext;
 use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\MemoryContext;
@@ -22,10 +22,10 @@ use OpenCCK\Test\Support\InMemoryProjectRepository;
  */
 final class MultiUserTest extends AsyncTestCase {
     public function testAUserWorksWithTheirOwnProjectsOnly(): void {
-        $principals = new \OpenCCK\Test\Support\InMemoryPrincipalRepository();
+        $principals = new \OpenCCK\Test\Support\InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '7', 'Сергей');
-        $user = $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
+        $user = $principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active);
         self::assertNotNull($user);
         $projects = new InMemoryProjectRepository();
         $conversations = new InMemoryConversationRepository();

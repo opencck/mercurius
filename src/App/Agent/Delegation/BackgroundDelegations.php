@@ -16,7 +16,7 @@ use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\Delegation;
 use OpenCCK\Domain\Agent\DelegationTask;
 use OpenCCK\Domain\Repository\DelegationRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -55,7 +55,7 @@ final class BackgroundDelegations {
         private readonly WorkerRunner $workers,
         private readonly DelegationRepository $delegations,
         private readonly RunRepository $runs,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly LoggerInterface $logger,
     ) {}

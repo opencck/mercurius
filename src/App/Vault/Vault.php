@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Vault;
 
 use DomainException;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\SecretRepository;
 use SensitiveParameter;
 
@@ -44,7 +44,7 @@ final class Vault {
     }
 
     /** Whether the reader may use the secret as their own, without opening it. */
-    public function readable(string $name, Principal $reader): bool {
+    public function readable(string $name, Member $reader): bool {
         $secret = $this->secrets->find($name);
         return $secret !== null && $this->mayRead($secret['principal'], $reader);
     }
@@ -87,7 +87,7 @@ final class Vault {
      *
      * @throws DomainException when the vault is off, the name, site or value is wrong
      */
-    public function putProject(int $projectId, string $name, string $site, #[SensitiveParameter] string $value, Principal $author): bool {
+    public function putProject(int $projectId, string $name, string $site, #[SensitiveParameter] string $value, Member $author): bool {
         $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
@@ -125,7 +125,7 @@ final class Vault {
      * brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a wrong value is fixed by sending it again); without it an
      * existing name is refused.
      */
-    public function put(string $name, string $kind, #[SensitiveParameter] string $value, Principal $author, bool $replace = false): int {
+    public function put(string $name, string $kind, #[SensitiveParameter] string $value, Member $author, bool $replace = false): int {
         $key = $this->key ?? throw new DomainException(t('vault.vault.hranilische_sekretov_vyklyucheno_v_env'));
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('vault.vault.imya_sekreta_bukvy_tsifry_tochka'));
@@ -151,11 +151,11 @@ final class Vault {
     /**
      * The value, for code that uses it right now; null when there is no such secret or the reader may not have it.
      */
-    public function reveal(string $name, Principal $reader): ?string {
+    public function reveal(string $name, Member $reader): ?string {
         return self::known($this->open($this->secrets->find($name), $reader));
     }
 
-    public function revealById(int $id, Principal $reader): ?string {
+    public function revealById(int $id, Member $reader): ?string {
         return self::known($this->open($this->secrets->byId($id), $reader));
     }
 
@@ -168,7 +168,7 @@ final class Vault {
     }
 
     /** @return list<array{name: string, kind: string}> what the reader may see, names and kinds only */
-    public function names(Principal $reader): array {
+    public function names(Member $reader): array {
         $found = [];
         foreach ($this->secrets->all() as $secret) {
             if ($this->mayRead($secret['principal'], $reader)) {
@@ -178,7 +178,7 @@ final class Vault {
         return $found;
     }
 
-    public function remove(string $name, Principal $who): bool {
+    public function remove(string $name, Member $who): bool {
         $secret = $this->secrets->find($name);
         if ($secret === null || !$this->mayRead($secret['principal'], $who)) {
             return false;
@@ -195,12 +195,12 @@ final class Vault {
      *
      * spec: brief/participants.md#несколько-пользователей — the personal stays with the former owner
      */
-    private function mayRead(?int $author, Principal $reader): bool {
+    private function mayRead(?int $author, Member $reader): bool {
         return $author === $reader->id || ($reader->isOwner() && ($this->hidden === null || !($this->hidden)($author)));
     }
 
     /** @param array{id: int, name: string, kind: string, nonce: string, ciphertext: string, principal: ?int}|null $secret */
-    private function open(?array $secret, Principal $reader): ?string {
+    private function open(?array $secret, Member $reader): ?string {
         return $secret === null || !$this->mayRead($secret['principal'], $reader) ? null : $this->decrypt($secret);
     }
 

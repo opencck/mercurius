@@ -10,7 +10,7 @@ use Mercurius\Peer\A2aSocket;
 use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\A2aTask;
 use OpenCCK\Test\Support\AgentStack;
@@ -53,7 +53,7 @@ final class A2aSocketTest extends AsyncTestCase {
         $this->requests = new \OpenCCK\App\Peer\AgentRequests($peers, $follower->principals, $follower->channel, '42', retryDelays: []);
         $this->server = new A2aServer($peers, $follower->principals, $follower->loop, $follower->runs, $follower->transcript, $follower->conversations, $policies, 'test/model', 'https://follower.example', 'Follower', 'test', new NullLogger(), $this->followerKey, 'entrance', sandbox: $this->sandbox, requests: $this->requests);
         $follower->scheduler->useJobRuns($this->server);
-        $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \Mercurius\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Principal => null);
+        $network = new PeerNetwork($peers, $follower->principals, new Vault(new InMemorySecretRepository(), random_bytes(32)), new \Mercurius\Peer\A2aClient(new \Amp\Http\Client\HttpClient(new \OpenCCK\Test\Support\FakeHttpClient(), []), $this->followerKey), $follower->conversations, $follower->transcript, $follower->channel, 'https://follower.example', new NullLogger(), $this->followerKey, static fn(): ?Member => null);
         $network->allow('leader', $this->leaderKey->fingerprint(), Role::user());
     }
 
@@ -88,7 +88,7 @@ final class A2aSocketTest extends AsyncTestCase {
 
     public function testAnAgentThatProvedItsKeyGetsTheExtendedCard(): void {
         // spec: brief/network.md#опознание-агентов-ключи-ecdsa — the extended card lists the skills of the agent's policy, after the key
-        $this->server->useSkills(static fn(\OpenCCK\Domain\Entity\Principal $agent): array => [['id' => 'web_search', 'name' => 'web_search', 'description' => 'Ищет в сети']]);
+        $this->server->useSkills(static fn(\OpenCCK\Domain\Entity\Member $agent): array => [['id' => 'web_search', 'name' => 'web_search', 'description' => 'Ищет в сети']]);
         $capabilities = $this->server->card()['capabilities'] ?? [];
         self::assertTrue(is_array($capabilities) && ($capabilities['extendedAgentCard'] ?? false) === true, 'the public card says there is more');
         [$end] = $this->connection();

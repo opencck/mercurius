@@ -55,7 +55,7 @@ use Mercurius\Memory\Infrastructure\PostgresMemoryStore;
  * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository $routingDecisions
  * @var OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository $runMessages
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
@@ -133,7 +133,7 @@ try {
 $projectRepository = new PostgresProjectRepository($db);
 // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
 // those who may see the project
-$audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...), static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId) use ($projectRepository): ?int {
+$audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...), static function (\OpenCCK\Domain\Entity\Member $principal, string $channel, string $chatId, string $threadId) use ($projectRepository): ?int {
     if (!$principal->role->may(\OpenCCK\Domain\Entity\Permission::Projects)) {
         return null;
     }
@@ -163,11 +163,11 @@ if ($sandbox !== null) {
         $projectRepository,
         static fn(): ?int => $ownerDirectory->principal()?->id,
     );
-    $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Principal $principal) use ($contextMemory): string {
+    $scheduler->useMemoryFile(static function (\OpenCCK\Domain\Entity\Member $principal) use ($contextMemory): string {
         $place = $contextMemory->personal($principal);
         return $place === null ? '' : $contextMemory->read($place);
     }, $memorySettings->fileLimit);
-    $scheduler->usePlaceMemory(static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId, bool $private) use ($contextMemory): string {
+    $scheduler->usePlaceMemory(static function (\OpenCCK\Domain\Entity\Member $principal, string $channel, string $chatId, string $threadId, bool $private) use ($contextMemory): string {
         $place = $contextMemory->shared($principal, $channel, $chatId, $threadId, $private);
         return $place === null ? '' : $contextMemory->read($place);
     });
@@ -268,7 +268,7 @@ $sleepAuto = static function () use ($settingsService): array {
     $list = array_map('trim', explode(',', strtolower($settingsService->current('MEMORY_SLEEP_AUTO') ?? '')));
     return array_values(array_intersect(\Mercurius\Memory\Domain\SleepEdit::KINDS, $list));
 };
-$memoryCards->useAlways(static function (\OpenCCK\Domain\Entity\Principal $owner, string $kind) use ($settingsService, $sleepAuto): void {
+$memoryCards->useAlways(static function (\OpenCCK\Domain\Entity\Member $owner, string $kind) use ($settingsService, $sleepAuto): void {
     $settingsService->set($owner, 'MEMORY_SLEEP_AUTO', implode(',', array_values(array_unique([...$sleepAuto(), $kind]))));
 });
 // spec: brief/models.md#списки-моделей-по-категориям — sleep runs while the owner lists a model for it, read at each pass

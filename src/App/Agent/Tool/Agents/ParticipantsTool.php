@@ -12,11 +12,11 @@ use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -32,19 +32,19 @@ final class ParticipantsTool implements Tool {
      *
      * spec: brief/participants.md#свои-роли
      *
-     * @return array<string, array{Role, PrincipalStatus}> role argument => [role, status]
+     * @return array<string, array{Role, MemberStatus}> role argument => [role, status]
      */
     private static function decisions(): array {
-        $decisions = ['talk' => [Role::visitor(), PrincipalStatus::Active]];
+        $decisions = ['talk' => [Role::visitor(), MemberStatus::Active]];
         foreach (Role::assignable() as $role) {
-            $decisions[$role->value] = [$role, PrincipalStatus::Active];
+            $decisions[$role->value] = [$role, MemberStatus::Active];
         }
-        $decisions['rejected'] = [Role::visitor(), PrincipalStatus::Rejected];
+        $decisions['rejected'] = [Role::visitor(), MemberStatus::Rejected];
         return $decisions;
     }
 
     /** The owner, or a participant whose role has the permission over participants. */
-    private static function manages(Principal $who): bool {
+    private static function manages(Member $who): bool {
         return $who->isOwner() || $who->role->may(Permission::Participants);
     }
 
@@ -52,7 +52,7 @@ final class ParticipantsTool implements Tool {
 
     /** @param (\Closure(): list<array{name: string, fingerprint: string, principal: int, revoked: bool}>)|null $keys the keys of agents */
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly ?\Closure $keys = null,
         /** @var (\Closure(int): bool)|null whether a conversation is the owner's private chat; null — not checked */
@@ -111,14 +111,14 @@ final class ParticipantsTool implements Tool {
             return $this->decide($context->principal, Args::int($args, 'id'), $query, Args::string($args, 'role') ?? '');
         }
         $keys = $this->keysByAgent();
-        $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $query === ''
+        $found = array_values(array_filter($this->principals->all(), static fn(Member $p): bool => $query === ''
             || (string) $p->id === $query
             || str_contains(mb_strtolower($p->displayName ?? ''), $query)
             || str_contains(mb_strtolower($keys[$p->id] ?? ''), $query)));
         if ($found === []) {
             return ToolResult::ok($query === '' ? t('tool.participants.uchastnikov_net') : sprintf(t('tool.participants.uchastnika_net'), $query));
         }
-        return ToolResult::ok(implode("\n", array_map(fn(Principal $p): string => $this->line($p, $keys), $found)));
+        return ToolResult::ok(implode("\n", array_map(fn(Member $p): string => $this->line($p, $keys), $found)));
     }
 
     /**
@@ -127,12 +127,12 @@ final class ParticipantsTool implements Tool {
      *
      * spec: brief/participants.md#участники-люди-и-агенты — roles are the owner's decision
      */
-    private function decide(Principal $who, ?int $id, string $query, string $role): ToolResult {
+    private function decide(Member $who, ?int $id, string $query, string $role): ToolResult {
         $decision = self::decisions()[$role] ?? null;
         if ($decision === null) {
             return ToolResult::error(t('tool.participants.bad_role'));
         }
-        $found = array_values(array_filter($this->principals->all(), static fn(Principal $p): bool => $id !== null
+        $found = array_values(array_filter($this->principals->all(), static fn(Member $p): bool => $id !== null
             ? $p->id === $id
             : $query !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $query)));
         if (count($found) !== 1) {
@@ -164,16 +164,16 @@ final class ParticipantsTool implements Tool {
     }
 
     /** @param array<int, string> $keys */
-    private function line(Principal $p, array $keys = []): string {
+    private function line(Member $p, array $keys = []): string {
         $head = sprintf(
             t('tool.participants.rol'),
             $p->id,
             $p->displayName ?? t('tool.participants.bez_imeni'),
-            $p->kind === PrincipalKind::Agent ? t('tool.participants.agent') : t('tool.participants.chelovek'),
+            $p->kind === MemberKind::Agent ? t('tool.participants.agent') : t('tool.participants.chelovek'),
             $p->role->value,
             $p->status->value,
         );
-        if ($p->kind === PrincipalKind::Agent && $this->keys !== null) {
+        if ($p->kind === MemberKind::Agent && $this->keys !== null) {
             $head .= isset($keys[$p->id]) ? sprintf(t('tool.participants.key'), $keys[$p->id]) : t('tool.participants.no_key');
         }
         if ($p->isOwner()) {

@@ -10,7 +10,7 @@ use OpenCCK\App\Eval\EvalTask;
 use OpenCCK\App\Improve\PromptGate;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryLlmCallRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryRunRepository;
 use OpenCCK\Test\Support\InMemoryTranscriptRepository;
 use OpenCCK\Test\Support\ScriptedLlm;
@@ -24,7 +24,7 @@ final class PromptGateTest extends AsyncTestCase {
 
     private function runner(): EvalRunner {
         $this->agent = new ScriptedLlm([]);
-        $owner = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+        $owner = (new InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Владелец');
         return new EvalRunner($this->agent, new ScriptedLlm([]), 'judge/model', new InMemoryRunRepository(), new InMemoryTranscriptRepository(), new InMemoryConversationRepository(), new InMemoryLlmCallRepository(), $owner);
     }
 

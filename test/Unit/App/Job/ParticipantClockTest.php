@@ -12,8 +12,8 @@ use OpenCCK\App\Agent\Tool\Memory\MyPreferencesTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Job\ParticipantClock;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryJobRepository;
@@ -32,7 +32,7 @@ final class ParticipantClockTest extends AsyncTestCase {
         $prefs = new InMemoryParticipantPrefRepository();
         $clock = new ParticipantClock($prefs, new DateTimeZone('+03:00'), [23, 8]);
         $tool = new MyPreferencesTool($prefs, $clock);
-        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
+        $user = new Member(5, MemberKind::Human, Role::user(), 'Вася');
         $context = new ToolContext(1, 1, $user, new NullCancellation());
 
         self::assertSame('+03:00', $clock->zone(5)->getName(), 'the owner\'s zone by default');
@@ -60,7 +60,7 @@ final class ParticipantClockTest extends AsyncTestCase {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Отчёт пользователя')]));
         $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
         $user = $stack->principals->createVisitor('telegram', '77', 'Вася');
-        $stack->principals->decideVisitor($user->id, Role::user(), \OpenCCK\Domain\Entity\PrincipalStatus::Active);
+        $stack->principals->decideVisitor($user->id, Role::user(), \OpenCCK\Domain\Entity\MemberStatus::Active);
         $prefs->save($user->id, 'Asia/Bangkok', '22-7');
         $jobs = new InMemoryJobRepository();
         $clock = new ParticipantClock($prefs, new DateTimeZone('+03:00'), [23, 8]);

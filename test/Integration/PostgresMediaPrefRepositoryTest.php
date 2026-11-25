@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Integration;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\Domain\Media\MediaPref;
 use OpenCCK\Infrastructure\Repository\PostgresMediaPrefRepository;
-use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresMemberRepository;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
@@ -16,7 +16,7 @@ use OpenCCK\Test\Support\TestDatabase;
 final class PostgresMediaPrefRepositoryTest extends AsyncTestCase {
     public function testAWayPerKindIsKeptChangedAndRemoved(): void {
         $db = TestDatabase::connect();
-        $someone = (new PostgresPrincipalRepository($db, 'telegram'))->createVisitor('telegram', 'media-' . bin2hex(random_bytes(4)), 'Костя');
+        $someone = (new PostgresMemberRepository($db, 'telegram'))->createVisitor('telegram', 'media-' . bin2hex(random_bytes(4)), 'Костя');
         $prefs = new PostgresMediaPrefRepository($db);
 
         $prefs->save($someone->id, new MediaPref('image', 'demand', 'openrouter:anthropic/claude-haiku-5.5', 'чеки — haiku'));

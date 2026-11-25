@@ -10,8 +10,8 @@ use DateTimeImmutable;
 use OpenCCK\App\Agent\Tool\Messaging\ChannelPostTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Group\PublicChannel;
 use OpenCCK\Test\Support\FakeChannel;
@@ -33,7 +33,7 @@ final class ChannelPostToolTest extends AsyncTestCase {
         $this->channels->save(new PublicChannel('telegram', '-1002', 'Блог', true, true, false, true));
         $this->channels->save(new PublicChannel('telegram', '-1003', 'Старый', false, false, false, false));
         $this->tool = new ChannelPostTool($this->chat, $this->channels);
-        $this->context = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
+        $this->context = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
     }
 
     public function testChangesAreIrreversibleAndGrantedPerActionAndChannel(): void {

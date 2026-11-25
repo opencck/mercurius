@@ -16,7 +16,7 @@ use OpenCCK\Domain\Job\Job;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryApprovalRepository;
 use OpenCCK\Test\Support\InMemoryJobRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryProjectLinkRepository;
 use OpenCCK\Test\Support\InMemoryProjectPolicyRepository;
 use OpenCCK\Test\Support\InMemoryProjectPrefRepository;
@@ -29,14 +29,14 @@ use OpenCCK\Test\Support\InMemorySecretRepository;
  * spec: brief/participants.md#экспорт-и-импорт-проекта
  */
 final class ProjectArchiveTest extends AsyncTestCase {
-    /** @return array{ProjectArchive, InMemoryProjectRepository, InMemoryProjectPolicyRepository, InMemoryProjectPrefRepository, InMemoryApprovalRepository, InMemoryJobRepository, FakeSandbox, InMemoryPrincipalRepository, Vault, InMemoryProjectLinkRepository} */
+    /** @return array{ProjectArchive, InMemoryProjectRepository, InMemoryProjectPolicyRepository, InMemoryProjectPrefRepository, InMemoryApprovalRepository, InMemoryJobRepository, FakeSandbox, InMemoryMemberRepository, Vault, InMemoryProjectLinkRepository} */
     private function instance(string $folder): array {
         $projects = new InMemoryProjectRepository();
         $policies = new InMemoryProjectPolicyRepository();
         $prefs = new InMemoryProjectPrefRepository();
         $approvals = new InMemoryApprovalRepository();
         $jobs = new InMemoryJobRepository();
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $principals->ensureOwner('telegram', '42', 'Owner');
         $sandbox = new FakeSandbox();
         $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));

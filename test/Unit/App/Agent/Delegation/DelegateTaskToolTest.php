@@ -654,7 +654,7 @@ final class DelegateTaskToolTest extends AsyncTestCase {
     public function testWorkerReportOfAnotherTaskIsRefused(): void {
         $stack = $this->stack(new ScriptedLlm());
         $tool = new \OpenCCK\App\Agent\Delegation\WorkerReportTool($stack->runs, $stack->transcript);
-        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Владелец');
+        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Владелец');
 
         $result = $tool->execute(['run' => 99], new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $owner, new \Amp\NullCancellation()));
 
@@ -702,8 +702,8 @@ final class DelegateTaskToolTest extends AsyncTestCase {
         self::assertNotNull($worker);
         $stack->transcript->appendAssistant(2, $worker->id, 'данные владельца', []);
         $tool = new \OpenCCK\App\Agent\Delegation\WorkerReportTool($stack->runs, $stack->transcript);
-        $guest = new \OpenCCK\Domain\Entity\Principal(7, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Гость');
-        $owner = new \OpenCCK\Domain\Entity\Principal(1, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Владелец');
+        $guest = new \OpenCCK\Domain\Entity\Member(7, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Гость');
+        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::owner(), 'Владелец');
 
         $byGuest = $tool->execute(['run' => $worker->id], new \OpenCCK\App\Agent\Tool\ToolContext(99, 1, $guest, new \Amp\NullCancellation()));
         $byOwner = $tool->execute(['run' => $worker->id], new \OpenCCK\App\Agent\Tool\ToolContext(99, 1, $owner, new \Amp\NullCancellation()));

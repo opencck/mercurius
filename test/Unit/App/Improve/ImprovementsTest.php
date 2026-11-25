@@ -13,8 +13,8 @@ use OpenCCK\App\Improve\GateVerdict;
 use OpenCCK\App\Improve\Improvements;
 use OpenCCK\App\Improve\PromptNotes;
 use OpenCCK\App\Service\PromptCommands;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\InMemoryImprovementRepository;
@@ -30,7 +30,7 @@ final class ImprovementsTest extends AsyncTestCase {
     private InMemoryImprovementRepository $store;
     private FakeChannel $channel;
     private PromptNotes $notes;
-    private Principal $owner;
+    private Member $owner;
     /** @var list<array{string, string}> what the gate was asked to compare: [current, candidate] */
     private array $gated = [];
     private ?GateVerdict $verdict = null;
@@ -42,7 +42,7 @@ final class ImprovementsTest extends AsyncTestCase {
         $this->store = new InMemoryImprovementRepository();
         $this->channel = new FakeChannel(4096);
         $this->notes = new PromptNotes($this->store);
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Owner');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Owner');
     }
 
     private function improvements(): Improvements {
@@ -225,7 +225,7 @@ final class ImprovementsTest extends AsyncTestCase {
 
     public function testOnlyTheOwnerProposesAndASecretIsNotAProposal(): void {
         $tool = new ImprovementProposeTool($this->improvements());
-        $user = new Principal(5, PrincipalKind::Human, Role::user(), 'Вася');
+        $user = new Member(5, MemberKind::Human, Role::user(), 'Вася');
 
         self::assertTrue($tool->execute(['kind' => 'idea', 'title' => 'x', 'text' => 'y', 'reason' => 'z'], new ToolContext(1, 1, $user, new NullCancellation()))->isError);
         self::assertTrue($tool->execute(['kind' => 'prompt', 'title' => 'x', 'text' => 'token=ghp_abcdefghijklmnopqrstuvwxyz0123', 'reason' => 'z'], new ToolContext(1, 1, $this->owner, new NullCancellation()))->isError);

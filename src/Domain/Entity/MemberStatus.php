@@ -7,7 +7,7 @@ namespace OpenCCK\Domain\Entity;
 /**
  * spec: brief/participants.md#участники-люди-и-агенты — a new visitor waits for the owner's decision
  */
-enum PrincipalStatus: string {
+enum MemberStatus: string {
     case Active = 'active';
     case Pending = 'pending';
     case Rejected = 'rejected';

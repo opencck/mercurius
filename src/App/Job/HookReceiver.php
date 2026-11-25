@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Repository\JobRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Revolt\EventLoop;
 
@@ -46,7 +46,7 @@ final class HookReceiver {
         private readonly JobRepository $jobs,
         private readonly JobScheduler $scheduler,
         private readonly Vault $vault,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly LoggerInterface $logger,
         ?Closure $now = null,
     ) {

@@ -140,7 +140,7 @@ final class JobManageTool implements Tool {
     }
 
     /** A job is managed by whoever set it, by the owner of the agent, and by those who change its project. */
-    private function manages(Job $job, \OpenCCK\Domain\Entity\Principal $who): bool {
+    private function manages(Job $job, \OpenCCK\Domain\Entity\Member $who): bool {
         if ($who->isOwner() || $job->principalId === $who->id) {
             return true;
         }
@@ -308,10 +308,10 @@ final class JobManageTool implements Tool {
     }
 
     private ?\OpenCCK\Domain\Repository\ConversationRepository $conversations = null;
-    private ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null;
+    private ?\OpenCCK\Domain\Repository\MemberRepository $principals = null;
 
     /** spec: brief/scheduler.md#место-итога-задания — the place of the call, and the participants the owner picks by */
-    public function usePlaces(\OpenCCK\Domain\Repository\ConversationRepository $conversations, \OpenCCK\Domain\Repository\PrincipalRepository $principals): void {
+    public function usePlaces(\OpenCCK\Domain\Repository\ConversationRepository $conversations, \OpenCCK\Domain\Repository\MemberRepository $principals): void {
         $this->conversations = $conversations;
         $this->principals = $principals;
     }

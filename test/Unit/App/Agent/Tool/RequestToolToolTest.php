@@ -13,8 +13,8 @@ use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
@@ -26,7 +26,7 @@ final class RequestToolToolTest extends AsyncTestCase {
     private ToolRegistry $registry;
     private PolicyService $policies;
     private RequestToolTool $tool;
-    private Principal $agent;
+    private Member $agent;
 
     protected function setUp(): void {
         parent::setUp();
@@ -36,7 +36,7 @@ final class RequestToolToolTest extends AsyncTestCase {
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 100_000, 900, 120));
         $this->tool = new RequestToolTool($this->registry, $this->policies);
         $this->registry->register($this->tool);
-        $this->agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'mercurius-second');
+        $this->agent = new Member(7, MemberKind::Agent, Role::admin(), 'mercurius-second');
     }
 
     private function context(): ToolContext {

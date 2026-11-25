@@ -12,8 +12,8 @@ use Mercurius\Search\SearchUsage;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\Web\WebSearchTool;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryLlmCallRepository;
 use OpenCCK\Test\Support\InMemoryRunRepository;
@@ -45,7 +45,7 @@ final class WebSearchToolTest extends TestCase {
         $tool = new WebSearchTool(self::provider(new SearchUsage('perplexity/sonar', 1200, 300, 0.0123)));
         $tool->useAccounting($calls, $runs);
 
-        $result = $tool->execute(['query' => 'php 8.6'], new ToolContext($run->id, 5, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation()));
+        $result = $tool->execute(['query' => 'php 8.6'], new ToolContext($run->id, 5, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation()));
 
         self::assertFalse($result->isError);
         self::assertCount(1, $calls->calls);
@@ -62,7 +62,7 @@ final class WebSearchToolTest extends TestCase {
         $tool = new WebSearchTool(self::provider(null));
         $tool->useAccounting($calls, $runs);
 
-        $tool->execute(['query' => 'php 8.6'], new ToolContext($run->id, 5, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation()));
+        $tool->execute(['query' => 'php 8.6'], new ToolContext($run->id, 5, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation()));
 
         self::assertSame([], $calls->calls);
         self::assertSame(0, $runs->find($run->id)?->tokensUsed);

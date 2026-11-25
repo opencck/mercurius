@@ -11,8 +11,8 @@ use Mercurius\Todo\Infrastructure\InMemoryTodoStore;
 use OpenCCK\App\Agent\ConversationPlan;
 use OpenCCK\App\Agent\Tool\Todo\TodoListTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\ScriptedLlm;
@@ -24,7 +24,7 @@ use OpenCCK\Test\Support\ScriptedLlm;
  */
 final class TodoListToolTest extends AsyncTestCase {
     private function context(int $conversation): ToolContext {
-        return new ToolContext(1, $conversation, new Principal(1, PrincipalKind::Human, Role::owner(), null), new NullCancellation());
+        return new ToolContext(1, $conversation, new Member(1, MemberKind::Human, Role::owner(), null), new NullCancellation());
     }
 
     /** @return array{todos: list<array<string, string>>, revision: int, summary: array<string, int>} */

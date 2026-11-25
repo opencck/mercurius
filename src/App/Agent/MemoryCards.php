@@ -11,8 +11,8 @@ use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\OwnerDirectory;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Mercurius\Memory\App\Audience;
 use Mercurius\Memory\App\Proposals;
 use Mercurius\Memory\Domain\Fact;
@@ -37,7 +37,7 @@ final class MemoryCards implements CallbackHandler {
 
     /** @var (\Closure(int, string): int)|null in how many days the person said a text in their own messages */
     private ?\Closure $days = null;
-    /** @var (\Closure(Principal, string): void)|null lets sleep make a kind of edits by itself from now on */
+    /** @var (\Closure(Member, string): void)|null lets sleep make a kind of edits by itself from now on */
     private ?\Closure $always = null;
 
     /**
@@ -45,7 +45,7 @@ final class MemoryCards implements CallbackHandler {
      * its kind of edit.
      *
      * spec: brief/memory.md#постоянное-разрешение
-     * @param \Closure(Principal, string): void $always the owner and the kind (SleepEdit::COPY, MERGE)
+     * @param \Closure(Member, string): void $always the owner and the kind (SleepEdit::COPY, MERGE)
      */
     public function useAlways(\Closure $always): void {
         $this->always = $always;
@@ -68,7 +68,7 @@ final class MemoryCards implements CallbackHandler {
         private readonly MemoryStore $store,
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 

@@ -13,8 +13,8 @@ use Mercurius\Memory\Infrastructure\InMemoryMemoryStore;
 use OpenCCK\App\Agent\Tool\Memory\MemoryAliasTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use PHPUnit\Framework\TestCase;
 
@@ -26,8 +26,8 @@ use PHPUnit\Framework\TestCase;
 final class MemoryAliasToolTest extends TestCase {
     public function testTheAgentAddsAGroupForTheOwnerOnly(): void {
         $tool = new MemoryAliasTool(new Aliases(new InMemoryAliasStore(), new TextAnalyzer(), new InMemoryMemoryStore(), new ContentScreen()));
-        $owner = new ToolContext(1, 1, new Principal(1, PrincipalKind::Human, Role::owner(), 'owner'), new NullCancellation());
-        $guest = new ToolContext(2, 2, new Principal(5, PrincipalKind::Human, Role::admin(), 'guest'), new NullCancellation());
+        $owner = new ToolContext(1, 1, new Member(1, MemberKind::Human, Role::owner(), 'owner'), new NullCancellation());
+        $guest = new ToolContext(2, 2, new Member(5, MemberKind::Human, Role::admin(), 'guest'), new NullCancellation());
 
         self::assertFalse($tool->execute(['action' => 'add', 'words' => ['прокс', 'proxmox']], $owner)->isError);
         self::assertTrue($tool->execute(['action' => 'add', 'words' => ['кубер', 'kubernetes']], $guest)->isError);

@@ -11,7 +11,7 @@ use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
 /**
@@ -39,7 +39,7 @@ final class ContextMemory {
     ) {}
 
     /** The person's own file: in their sandbox folder, when they have one. */
-    public function personal(Principal $principal): ?MemoryPlace {
+    public function personal(Member $principal): ?MemoryPlace {
         return ($this->limitsOf)($principal->id) === null ? null : new MemoryPlace($principal->id, self::FILE, MemoryPlace::PERSON);
     }
 
@@ -47,7 +47,7 @@ final class ContextMemory {
      * The file of the place a conversation is in: the project's when the chat (or topic, or task) is bound to one the
      * person has access to; else, outside a private chat, the place's own. A private chat without a project has none.
      */
-    public function shared(Principal $principal, string $channel, string $chatId, string $threadId, bool $private): ?MemoryPlace {
+    public function shared(Member $principal, string $channel, string $chatId, string $threadId, bool $private): ?MemoryPlace {
         $project = $principal->role->may(Permission::Projects) ? $this->projects->active($channel, $chatId, $threadId) : null;
         if ($project !== null) {
             if ($project->levelOf($principal, $this->projects->memberLevel($project->id, $principal->id)) === null) {

@@ -7,8 +7,8 @@ namespace OpenCCK\Test\Unit\App\Service;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
@@ -30,7 +30,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testASecretIsStoredAndItsMessageDeleted(): void {
         $this->stack->say('/secret web-pass Sup3r-secret-pass');
 
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         self::assertSame('Sup3r-secret-pass', $this->vault->reveal('web-pass', $owner));
         self::assertCount(1, $this->stack->channel->deleted, 'the message with the secret is gone');
         $replies = implode("\n", $this->stack->channel->texts('send'));
@@ -45,8 +45,8 @@ final class ServerCommandsTest extends AsyncTestCase {
         $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
         $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
         $commands->useProjects($projects);
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
-        $anna = new Principal(7, PrincipalKind::Human, Role::user(), 'Анна');
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
         $project = $projects->create('Job Hunt', '');
         $projects->share($project->id, $anna->id, 'write', 1);
 
@@ -68,7 +68,7 @@ final class ServerCommandsTest extends AsyncTestCase {
         $this->stack->say('/secret web-pass wrong-value-1');
         $this->stack->say('/secret web-pass right-value-2');
 
-        self::assertSame('right-value-2', $this->vault->reveal('web-pass', new Principal(1, PrincipalKind::Human, Role::owner(), null)));
+        self::assertSame('right-value-2', $this->vault->reveal('web-pass', new Member(1, MemberKind::Human, Role::owner(), null)));
         self::assertStringContainsString('Секрет «web-pass» обновлён (пароль)', implode("\n", $this->stack->channel->texts('send')));
     }
 
@@ -76,7 +76,7 @@ final class ServerCommandsTest extends AsyncTestCase {
         // spec: brief/operations.md#команды-в-одном-сообщении — seven secrets in one message are seven secrets
         $this->stack->say("/secret a-pass value-one-1\n/secret b-pass   value-two-2\n/secret c-pass value-three-3");
 
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         self::assertSame('value-one-1', $this->vault->reveal('a-pass', $owner));
         self::assertSame('value-two-2', $this->vault->reveal('b-pass', $owner));
         self::assertSame('value-three-3', $this->vault->reveal('c-pass', $owner));
@@ -91,7 +91,7 @@ final class ServerCommandsTest extends AsyncTestCase {
         $this->stack->say("/secret fv-pass first-pass-1\nсохранил тебе пароль от сервера\nкоторый firstvps\nпроверь\n\n/secret birma-pass second-pass-2\nи вот ещё\nсекрет от birma");
         $this->stack->scheduler->awaitIdle();
 
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         self::assertSame('first-pass-1', $this->vault->reveal('fv-pass', $owner));
         self::assertSame('second-pass-2', $this->vault->reveal('birma-pass', $owner));
         $seen = implode("\n", array_map(static fn(array $m): string => $m['message']->content, $this->stack->transcript->messages));
@@ -105,7 +105,7 @@ final class ServerCommandsTest extends AsyncTestCase {
         $key = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n/AAAABG5vbmUAAAAEbm9uZQ\n-----END OPENSSH PRIVATE KEY-----";
         $this->stack->say("/secret srv-key $key\n/secret other-pass other-value-1");
 
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         self::assertSame($key, $this->vault->reveal('srv-key', $owner));
         self::assertSame('other-value-1', $this->vault->reveal('other-pass', $owner));
     }
@@ -113,7 +113,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testInAGroupTheSecretIsRefusedButStillDeleted(): void {
         $this->stack->sayInGroup('/secret web-pass Sup3r-secret-pass');
 
-        self::assertSame([], $this->vault->names(new Principal(1, PrincipalKind::Human, Role::owner(), null)));
+        self::assertSame([], $this->vault->names(new Member(1, MemberKind::Human, Role::owner(), null)));
         self::assertCount(1, $this->stack->channel->deleted);
         self::assertStringContainsString('только в личном чате', implode("\n", $this->stack->channel->texts('send')));
     }

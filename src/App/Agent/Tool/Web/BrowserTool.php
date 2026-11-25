@@ -62,11 +62,11 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         /** BROWSER_CONFIRM: clicks and sending forms wait for the owner's card; off by default */
         private readonly bool $confirm = false,
         /**
-         * @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): ?int)|null whose set of profiles a project uses for this
+         * @var (\Closure(int, \OpenCCK\Domain\Entity\Member): ?int)|null whose set of profiles a project uses for this
          *      participant: the owner of the project for those who work in it; null — the participant's own
          */
         private readonly ?\Closure $holderOf = null,
-        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        private readonly ?\OpenCCK\Domain\Repository\MemberRepository $principals = null,
         /** the vault a password is typed from by its name; null — only a text is typed */
         private readonly ?\OpenCCK\App\Vault\Vault $vault = null,
     ) {}
@@ -77,7 +77,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      *
      * spec: brief/participants.md#ресурсы-проекта — what is done under someone's login is confirmed by them
      */
-    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Principal $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
+    public function prepareIn(array $args, \OpenCCK\Domain\Entity\Member $principal, int $conversationId, \Amp\Cancellation $cancellation): array {
         unset($args[self::HOLDER]);
         $project = $this->projectOf === null ? null : ($this->projectOf)($conversationId);
         $holder = $project === null || $this->holderOf === null ? null : ($this->holderOf)($project, $principal);
@@ -87,7 +87,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         return $args;
     }
 
-    public function decider(array $args): ?\OpenCCK\Domain\Entity\Principal {
+    public function decider(array $args): ?\OpenCCK\Domain\Entity\Member {
         return isset($args[self::HOLDER]) && is_int($args[self::HOLDER]) ? $this->principals?->find($args[self::HOLDER]) : null;
     }
 
@@ -197,7 +197,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
      *
      * spec: brief/internet.md#скрипты-браузера
      */
-    public function prepare(array $args, \OpenCCK\Domain\Entity\Principal $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+    public function prepare(array $args, \OpenCCK\Domain\Entity\Member $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
         if (Args::string($args, 'action') !== 'script') {
             return $args;
         }

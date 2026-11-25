@@ -8,11 +8,11 @@ use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\AgentRequests;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\InMemoryPeerRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * An agent the owner has not let in knocks like a stranger writing to the bot: the owner gets one card and decides —
@@ -21,7 +21,7 @@ use OpenCCK\Test\Support\InMemoryPrincipalRepository;
 final class AgentRequestsTest extends AsyncTestCase {
     private FakeChannel $channel;
     private InMemoryPeerRepository $peers;
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private AgentRequests $requests;
     private string $fingerprint;
     private \OpenCCK\Test\Support\InMemoryConversationRepository $conversations;
@@ -31,7 +31,7 @@ final class AgentRequestsTest extends AsyncTestCase {
         parent::setUp();
         $this->channel = new FakeChannel();
         $this->peers = new InMemoryPeerRepository();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
         $this->transcript = new \OpenCCK\Test\Support\InMemoryTranscriptRepository();
@@ -68,7 +68,7 @@ final class AgentRequestsTest extends AsyncTestCase {
         $id = $this->peers->principalByFingerprint($this->fingerprint);
         self::assertNotNull($id);
         $agent = $this->principals->find($id);
-        self::assertSame([PrincipalKind::Agent, Role::admin(), 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
+        self::assertSame([MemberKind::Agent, Role::admin(), 'claude-tester'], [$agent?->kind, $agent?->role, $agent?->displayName]);
         self::assertSame('edit', $this->channel->log[1][0] ?? null, 'the card shows the decision');
         self::assertNotNull($this->channel->answers[1][1] ?? null, 'a second press is already decided');
         self::assertSame(Role::admin(), $this->principals->find($id)?->role, 'the second press changes nothing');

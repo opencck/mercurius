@@ -14,8 +14,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemorySecretRepository;
@@ -28,17 +28,17 @@ final class GitToolTest extends AsyncTestCase {
     private const TOKEN = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';
     private FakeSandbox $sandbox;
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
 
     private function tool(): GitTool {
         $this->sandbox = new FakeSandbox();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->vault->put('github', 'token', self::TOKEN, $this->owner);
         return new GitTool($this->sandbox, $this->sandbox, $this->vault, 120);
     }
 
-    private function context(?Principal $who = null): ToolContext {
+    private function context(?Member $who = null): ToolContext {
         return new ToolContext(3, 9, $who ?? $this->owner, new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
     }
 
@@ -120,7 +120,7 @@ final class GitToolTest extends AsyncTestCase {
     public function testAnotherParticipantDoesNotGetTheOwnersSecret(): void {
         $tool = $this->tool();
 
-        $result = $tool->execute(['args' => ['pull'], 'secret' => 'github', 'origin' => 'https://github.com'], $this->context(new Principal(5, PrincipalKind::Human, Role::user(), null)));
+        $result = $tool->execute(['args' => ['pull'], 'secret' => 'github', 'origin' => 'https://github.com'], $this->context(new Member(5, MemberKind::Human, Role::user(), null)));
 
         self::assertTrue($result->isError);
         self::assertSame([], $this->sandbox->calls);

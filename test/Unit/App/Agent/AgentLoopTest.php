@@ -21,8 +21,8 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -43,7 +43,7 @@ final class AgentLoopTest extends AsyncTestCase {
     private InMemoryLlmCallRepository $calls;
     private ToolRegistry $registry;
     private RecordingObserver $observer;
-    private Principal $owner;
+    private Member $owner;
     private int $conversationId;
 
     protected function setUp(): void {
@@ -54,7 +54,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $this->calls = new InMemoryLlmCallRepository();
         $this->registry = new ToolRegistry();
         $this->observer = new RecordingObserver();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $this->conversationId = $this->conversations->openConversation(1, 'test', '1');
         $this->conversations->setMeta($this->conversationId, 'системный промпт', 'test/model');
     }
@@ -161,7 +161,7 @@ final class AgentLoopTest extends AsyncTestCase {
                 return 10;
             }
 
-            public function prepare(array $args, Principal $principal, ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+            public function prepare(array $args, Member $principal, ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
                 return ($args['path'] ?? '') === 'missing.js' ? 'no such file' : $args + ['source' => 'act()'];
             }
 
@@ -686,7 +686,7 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertSame(0.5, $capped->capTo(new ParticipantPolicy(null, new RunLimits(30, 100_000, 900, 120), null, true))->dailySpendUsd, 'the owner has no cap of their own');
         self::assertSame(0.5, $capped->toArray()['daily_spend_usd']);
 
-        $user = new \OpenCCK\Domain\Entity\Principal(5, \OpenCCK\Domain\Entity\PrincipalKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Вася');
+        $user = new \OpenCCK\Domain\Entity\Member(5, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Вася');
         $conversation = $this->conversations->openConversation(5, 'telegram', '5');
         $run = $this->runs->start($conversation, 5, 'm', new RunLimits(30, 100_000, 900, 120));
         self::assertNotNull($run);

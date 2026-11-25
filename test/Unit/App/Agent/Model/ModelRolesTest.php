@@ -12,16 +12,16 @@ use OpenCCK\App\Agent\Tool\Self\SetModelRoleTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ModelRole;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryModelStores;
 
 final class ModelRolesTest extends AsyncTestCase {
     private InMemoryModelStores $stores;
     private ModelRoles $roles;
-    private Principal $owner;
-    private Principal $user;
+    private Member $owner;
+    private Member $user;
 
     protected function setUp(): void {
         parent::setUp();
@@ -35,12 +35,12 @@ final class ModelRolesTest extends AsyncTestCase {
         ]);
         $this->roles = new ModelRoles($this->stores, $this->stores);
         $this->roles->seed();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), 'Владелец');
-        $this->user = new Principal(2, PrincipalKind::Human, Role::user(), 'Помощник');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), 'Владелец');
+        $this->user = new Member(2, MemberKind::Human, Role::user(), 'Помощник');
     }
 
     /** @param array<string, mixed> $args */
-    private function call(Principal $by, array $args): \OpenCCK\App\Agent\Tool\ToolResult {
+    private function call(Member $by, array $args): \OpenCCK\App\Agent\Tool\ToolResult {
         return (new SetModelRoleTool($this->roles))->execute($args, new ToolContext(1, 1, $by, new NullCancellation()));
     }
 

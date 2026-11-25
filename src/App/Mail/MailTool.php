@@ -15,7 +15,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Mcp\McpTool;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 use function Mercurius\I18n\t;
 
@@ -45,7 +45,7 @@ final class MailTool implements Tool, ReadsOutside, GrantKeyed, PreparesInConver
         return new ToolDefinition($definition->name, $definition->description, $schema);
     }
 
-    public function prepareIn(array $args, Principal $principal, int $conversationId, Cancellation $cancellation): array|string {
+    public function prepareIn(array $args, Member $principal, int $conversationId, Cancellation $cancellation): array|string {
         $name = isset($args['mailbox']) && is_string($args['mailbox']) ? $args['mailbox'] : null;
         $mailbox = $this->mailboxes->pick($principal, $conversationId, $name);
         if (is_string($mailbox)) {
@@ -75,7 +75,7 @@ final class MailTool implements Tool, ReadsOutside, GrantKeyed, PreparesInConver
         return $mailbox === null ? $this->remoteName : sprintf(t('mail.tool.describe'), $this->remoteName, $mailbox->name, $mailbox->from);
     }
 
-    public function decider(array $args): ?Principal {
+    public function decider(array $args): ?Member {
         $id = self::chosen($args);
         $mailbox = $id === null ? null : $this->mailboxes->find($id);
         return $mailbox === null ? null : $this->mailboxes->ownerOf($mailbox);

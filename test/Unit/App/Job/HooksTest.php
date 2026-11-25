@@ -10,7 +10,7 @@ use DateTimeZone;
 use OpenCCK\App\Job\HookReceiver;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Test\Support\AgentStack;
@@ -28,7 +28,7 @@ final class HooksTest extends AsyncTestCase {
     private DateTimeImmutable $now;
     private InMemoryJobRepository $jobs;
     private AgentStack $stack;
-    private Principal $owner;
+    private Member $owner;
     private JobScheduler $scheduler;
     private Vault $vault;
 

@@ -41,7 +41,7 @@ use OpenCCK\Domain\Agent\StoredToolCall;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Agent\TranscriptEntry;
 use OpenCCK\Domain\Entity\LlmCallRecord;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\LlmCallRepository;
@@ -179,7 +179,7 @@ final class AgentLoop {
     private readonly \OpenCCK\App\Agent\Tool\ResultBudget $budget;
 
     /** Runs until the run ends; on shutdown returns the run still running, to resume after restart. */
-    public function run(Run $run, ParticipantPolicy $policy, Principal $principal, RunObserver $observer, Cancellation $cancellation): Run {
+    public function run(Run $run, ParticipantPolicy $policy, Member $principal, RunObserver $observer, Cancellation $cancellation): Run {
         \OpenCCK\Infrastructure\Logger\RunContext::set($run->id);
         $meta = $this->conversations->meta($run->conversationId);
         $state = new RunState(

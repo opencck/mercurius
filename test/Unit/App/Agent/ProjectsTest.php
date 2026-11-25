@@ -12,8 +12,8 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\ProjectCommands;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Test\Support\AgentStack;
@@ -24,19 +24,19 @@ use OpenCCK\Test\Support\ScriptedLlm;
 final class ProjectsTest extends AsyncTestCase {
     private InMemoryProjectRepository $projects;
     private InMemoryConversationRepository $conversations;
-    private Principal $owner;
+    private Member $owner;
     private int $conversation;
 
     protected function setUp(): void {
         parent::setUp();
         $this->projects = new InMemoryProjectRepository();
         $this->conversations = new InMemoryConversationRepository();
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $this->conversation = $this->conversations->openConversation(1, 'telegram', '42');
     }
 
     /** @param array<string, mixed> $args */
-    private function edit(array $args, ?Principal $who = null): \OpenCCK\App\Agent\Tool\ToolResult {
+    private function edit(array $args, ?Member $who = null): \OpenCCK\App\Agent\Tool\ToolResult {
         return (new ProjectEditTool($this->projects, $this->conversations))->execute($args, new ToolContext(1, $this->conversation, $who ?? $this->owner, new NullCancellation()));
     }
 
@@ -108,7 +108,7 @@ final class ProjectsTest extends AsyncTestCase {
         self::assertStringContainsString('Главный проект', $block);
         self::assertStringNotContainsString('Чужое отношение', $block);
         self::assertStringNotContainsString('задач', $block, 'a project has no tasks of its own');
-        self::assertSame('', $context->block(new Principal(3, PrincipalKind::Human, Role::visitor(), null), 'telegram', '42'));
+        self::assertSame('', $context->block(new Member(3, MemberKind::Human, Role::visitor(), null), 'telegram', '42'));
         self::assertSame('', $context->block($this->owner, 'telegram', '43'));
     }
 

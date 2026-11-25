@@ -12,10 +12,10 @@ use Mercurius\Search\SearchProvider;
 use Mercurius\Search\SearchResult;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\Web\WebSearchTool;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Config\SearchSettings;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 final class SearchSettingsTest extends AsyncTestCase {
     public function testProvidersFollowTheOrderAndThoseWithoutSettingsAreSkipped(): void {
@@ -38,7 +38,7 @@ final class SearchSettingsTest extends AsyncTestCase {
     }
 
     public function testTheToolGivesTheTextOfTheSearchAndItsErrors(): void {
-        $owner = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Owner');
+        $owner = (new InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Owner');
         $context = new ToolContext(1, 1, $owner, new NullCancellation());
         $ok = new WebSearchTool(new class implements SearchProvider {
             public function name(): string {

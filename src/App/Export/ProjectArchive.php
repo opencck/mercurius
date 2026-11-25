@@ -13,14 +13,14 @@ use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\App\Service\ProjectPolicies;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\JobRepository;
 use OpenCCK\Domain\Repository\MailboxRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectLinkRepository;
 use OpenCCK\Domain\Repository\ProjectPolicyRepository;
 use OpenCCK\Domain\Repository\ProjectPrefRepository;
@@ -54,7 +54,7 @@ final class ProjectArchive {
         private readonly ProjectPrefRepository $prefs,
         private readonly ApprovalRepository $approvals,
         private readonly JobRepository $jobs,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly string $folder,
         private readonly ?Sandbox $sandbox = null,
         private readonly ?Closure $limitsOf = null,
@@ -118,7 +118,7 @@ final class ProjectArchive {
      *
      * @throws InvalidArgumentException a wrong password or not an archive of a project
      */
-    public function import(string $path, #[\SensitiveParameter] string $password, Principal $who, Cancellation $cancellation): string {
+    public function import(string $path, #[\SensitiveParameter] string $password, Member $who, Cancellation $cancellation): string {
         $plain = $path . '.json';
         try {
             ArchiveCrypto::decrypt($path, $plain, $password);
@@ -191,7 +191,7 @@ final class ProjectArchive {
     }
 
     /** @param array<array-key, mixed> $row */
-    private function job(array $row, Project $project, Principal $who): bool {
+    private function job(array $row, Project $project, Member $who): bool {
         $title = mb_substr(self::text($row, 'title'), 0, 100);
         $prompt = self::text($row, 'prompt');
         $schedule = self::text($row, 'schedule');

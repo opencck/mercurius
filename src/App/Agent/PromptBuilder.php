@@ -8,8 +8,8 @@ use DateTimeImmutable;
 use DateTimeZone;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Service\SystemPrompt;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 
 use function Mercurius\I18n\t;
@@ -32,8 +32,8 @@ final class PromptBuilder {
      * @param string $rules the section «Правила» of the MEMORY.md of this conversation, with its heading: instructions of
      *                      the person (or of the place), not reference data (spec: brief/memory.md#правила-и-заметки-memorymd)
      */
-    public static function system(Principal $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = '', string $rules = ''): string {
-        $who = $principal->displayName ?? ($principal->kind === PrincipalKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
+    public static function system(Member $principal, DateTimeImmutable $openedAt, string $core = '', string $project = '', string $skills = '', string $channel = '', string $notes = '', string $instance = '', string $rules = ''): string {
+        $who = $principal->displayName ?? ($principal->kind === MemberKind::Agent ? t('agent.prompt_builder.drugoy_agent_bez_imeni') : t('agent.prompt_builder.uchastnik_bez_imeni'));
         // spec: brief/participants.md#свои-роли — a role is named by the title the owner gave it
         $role = $principal->role->title() !== '' ? $principal->role->title() : match ($principal->role->value) {
             Role::OWNER => t('agent.prompt_builder.vladelets'),

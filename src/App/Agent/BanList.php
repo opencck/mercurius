@@ -10,10 +10,10 @@ use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\Domain\Agent\Ban;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ApprovalRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
 
@@ -33,13 +33,13 @@ final class BanList implements CallbackHandler {
 
     public function __construct(
         private readonly ApprovalRepository $approvals,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly LoggerInterface $logger,
         private readonly ?ProjectRepository $projects = null,
     ) {}
 
-    public function command(Principal $who, string $argument, string $chatId, ?string $replyTo): void {
+    public function command(Member $who, string $argument, string $chatId, ?string $replyTo): void {
         $argument = trim($argument);
         if ($argument === '') {
             [$text, $rows] = $this->view($who);
@@ -56,7 +56,7 @@ final class BanList implements CallbackHandler {
     }
 
     /** @param list<string> $parts the words of the command: an area, then what */
-    private function set(Principal $who, array $parts): string {
+    private function set(Member $who, array $parts): string {
         $kind = strtolower($parts[0] ?? '');
         $target = $parts[1] ?? '';
         $principalId = $kind === 'participant' ? $this->participant($target) : null;
@@ -99,7 +99,7 @@ final class BanList implements CallbackHandler {
         };
     }
 
-    private function remove(Principal $who, int $id): string {
+    private function remove(Member $who, int $id): string {
         $ban = null;
         foreach ($this->approvals->bans() as $one) {
             if ($one->id === $id) {
@@ -118,7 +118,7 @@ final class BanList implements CallbackHandler {
     }
 
     /** The owner of the agent lifts any; the owner of a project — a ban of their project set by someone but the owner of the agent. */
-    private function mayLift(Principal $who, Ban $ban): bool {
+    private function mayLift(Member $who, Ban $ban): bool {
         if ($who->isOwner()) {
             return true;
         }
@@ -134,7 +134,7 @@ final class BanList implements CallbackHandler {
     }
 
     /** Whether a participant sees a ban in their list: the owner of the agent all, the owner of a project those of it. */
-    private function sees(Principal $who, Ban $ban): bool {
+    private function sees(Member $who, Ban $ban): bool {
         if ($who->isOwner()) {
             return true;
         }
@@ -143,7 +143,7 @@ final class BanList implements CallbackHandler {
     }
 
     /** @return array{string, list<list<Button>>} */
-    private function view(Principal $who): array {
+    private function view(Member $who): array {
         $bans = array_values(array_filter($this->approvals->bans(), fn(Ban $b): bool => $this->sees($who, $b)));
         if ($bans === []) {
             return [t('agent.bans.empty') . "\n\n" . t('agent.bans.usage'), []];
@@ -197,7 +197,7 @@ final class BanList implements CallbackHandler {
     }
 
     /** "project:N" of a project the participant sees, by number or a one-word name; null — none. */
-    private function project(Principal $who, string $name): ?string {
+    private function project(Member $who, string $name): ?string {
         $project = ctype_digit($name) ? $this->projects?->find((int) $name) : $this->projects?->byName($name, Project::scopeOf($who));
         return $project === null || !$project->visibleTo($who) ? null : 'project:' . $project->id;
     }

@@ -6,7 +6,7 @@ namespace OpenCCK\App\Agent;
 
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
@@ -63,7 +63,7 @@ final class ProjectContext {
         return $this->projects->active($channel, $chatId, $threadId);
     }
 
-    public function block(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
+    public function block(Member $principal, string $channel, string $chatId, string $threadId = ''): string {
         if (!$principal->role->may(Permission::Projects)) {
             return '';
         }

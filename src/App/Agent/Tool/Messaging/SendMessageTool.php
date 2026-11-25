@@ -14,12 +14,12 @@ use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\MessageRelayRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -39,7 +39,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
     private const TEXT_MAX = 4000;
 
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly MessageRelayRepository $relays,
         private readonly string $channelName,
@@ -75,7 +75,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
             return DangerClass::Write;
         }
         $recipient = $this->recipient($args);
-        return $recipient instanceof Principal && $recipient->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
+        return $recipient instanceof Member && $recipient->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
     }
 
     public function grantKey(array $args): ?string {
@@ -92,7 +92,7 @@ final class SendMessageTool implements Tool, GrantKeyed {
         if (is_array($place)) {
             return sprintf(t('tool.send_message.describe_place'), $place['label'], mb_substr(Args::string($args, 'text') ?? '', 0, 500));
         }
-        $name = $recipient instanceof Principal ? ($recipient->displayName ?? '#' . $recipient->id) : (Args::string($args, 'to') ?? '');
+        $name = $recipient instanceof Member ? ($recipient->displayName ?? '#' . $recipient->id) : (Args::string($args, 'to') ?? '');
         return sprintf(t('tool.send_message.describe'), $name, mb_substr(Args::string($args, 'text') ?? '', 0, 500));
     }
 
@@ -201,9 +201,9 @@ final class SendMessageTool implements Tool, GrantKeyed {
      * The active person the call names: "owner", an id, or a name (exact first, then a part of it).
      *
      * @param array<string, mixed> $args
-     * @return Principal|string the recipient, or why there is none
+     * @return Member|string the recipient, or why there is none
      */
-    private function recipient(array $args): Principal|string {
+    private function recipient(array $args): Member|string {
         return (new Recipients($this->principals, $this->channelName))->find(Args::string($args, 'to') ?? '');
     }
 }

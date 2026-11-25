@@ -20,8 +20,8 @@ use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\SshCommandClassifier;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
@@ -33,7 +33,7 @@ use Psr\Log\NullLogger;
 final class ServerToolsTest extends AsyncTestCase {
     private InMemoryCommandAuditRepository $audit;
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
     private ServerConsole $console;
     /** @var list<array{string, ?string}> command, stdin */
     public array $ran = [];
@@ -43,7 +43,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $servers = new InMemoryServerRepository();
         $this->audit = new InMemoryCommandAuditRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
         $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass', 'password', 'login-password-1', $this->owner), 'prod');
         $this->vault->put('pg', 'password', 'pg-password-1', $this->owner);
         $test = $this;

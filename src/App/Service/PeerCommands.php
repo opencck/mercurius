@@ -6,7 +6,7 @@ namespace OpenCCK\App\Service;
 
 use DomainException;
 use OpenCCK\App\Peer\PeerNetwork;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\PeerRepository;
 
@@ -23,7 +23,7 @@ final class PeerCommands {
         private readonly PeerRepository $peers,
     ) {}
 
-    public function handle(Principal $owner, string $argument): string {
+    public function handle(Member $owner, string $argument): string {
         $parts = preg_split('~\s+~', trim($argument)) ?: [];
         $action = $parts[0] ?? '';
         try {

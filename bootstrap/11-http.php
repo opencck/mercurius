@@ -35,7 +35,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\App\Job\JobScheduler $jobScheduler
  * @var Monolog\Logger $logger
  * @var Mercurius\Messenger\Telegram\UpdateParser $parser
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\App\Agent\Tool\Messaging\Recipients $recipients
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Services\ServiceModules $serviceModules

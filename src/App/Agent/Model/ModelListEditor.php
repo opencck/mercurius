@@ -8,7 +8,7 @@ use DomainException;
 use InvalidArgumentException;
 use OpenCCK\App\Settings\SettingsService;
 use OpenCCK\Domain\Agent\ModelRef;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 
 use function Mercurius\I18n\t;
 
@@ -57,7 +57,7 @@ final class ModelListEditor {
      * @return string what the settings said: works at once or after a restart
      * @throws DomainException with what is wrong
      */
-    public function change(Principal $who, string $category, string $action, array $models): string {
+    public function change(Member $who, string $category, string $action, array $models): string {
         if (!$who->isOwner()) {
             throw new DomainException(t('model.lists.owner_only'));
         }

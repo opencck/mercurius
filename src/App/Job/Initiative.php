@@ -8,7 +8,7 @@ use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Repository\JobRepository;
@@ -49,7 +49,7 @@ final class Initiative {
      * Brings the owner's initiative job in line with the setting: '' pauses it; a schedule creates or reschedules it.
      * False when the schedule cannot be read; nothing is changed then.
      */
-    public function sync(Principal $owner, string $channel, string $chatId, string $schedule): bool {
+    public function sync(Member $owner, string $channel, string $chatId, string $schedule): bool {
         $schedule = trim($schedule);
         $job = null;
         foreach ($this->jobs->list($owner->id) as $candidate) {

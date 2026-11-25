@@ -14,13 +14,13 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * Everything the messenger can carry: photos, audio, video, voice, animations, a location, a contact, a poll, an
@@ -30,9 +30,9 @@ final class SendContentToolTest extends AsyncTestCase {
     private FakeChannel $channel;
     private FakeSandbox $sandbox;
     private InMemoryConversationRepository $conversations;
-    private InMemoryPrincipalRepository $principals;
-    private Principal $owner;
-    private Principal $kostya;
+    private InMemoryMemberRepository $principals;
+    private Member $owner;
+    private Member $kostya;
     private int $topic;
 
     protected function setUp(): void {
@@ -40,10 +40,10 @@ final class SendContentToolTest extends AsyncTestCase {
         $this->channel = new FakeChannel();
         $this->sandbox = new FakeSandbox();
         $this->conversations = new InMemoryConversationRepository();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->owner = $this->principals->ensureOwner('telegram', '42', 'Сергей');
         $visitor = $this->principals->createVisitor('telegram', '55', 'Konstantin');
-        $this->kostya = $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? $visitor;
+        $this->kostya = $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? $visitor;
         $this->topic = $this->conversations->openConversation($this->owner->id, 'telegram', '-100500', '119');
     }
 

@@ -16,14 +16,14 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\A2aTask;
 use OpenCCK\Domain\Peer\OutgoingTask;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PeerRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -68,7 +68,7 @@ final class PeerNetwork {
 
     public function __construct(
         private readonly PeerRepository $peers,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Vault $vault,
         private readonly A2aClient $client,
         private readonly ConversationRepository $conversations,
@@ -78,7 +78,7 @@ final class PeerNetwork {
         private readonly string $self,
         private readonly LoggerInterface $logger,
         private readonly AgentIdentity $identity,
-        /** @var Closure(): ?Principal the owner reads the tokens of neighbours */
+        /** @var Closure(): ?Member the owner reads the tokens of neighbours */
         private readonly Closure $owner,
         /** the keys this agent may present to neighbours; null — the main key only */
         private readonly ?AgentKeys $keys = null,
@@ -299,7 +299,7 @@ final class PeerNetwork {
     }
 
     /** A neighbour: its card is fetched, its public key pinned; the token of its entrance is a vault secret by name. */
-    public function add(Principal $owner, string $name, string $url, string $secret, string $key = ''): string {
+    public function add(Member $owner, string $name, string $url, string $secret, string $key = ''): string {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new DomainException(t('peer.peer_network.imya_soseda_latinitsa_tsifry_defis'));
         }
@@ -375,7 +375,7 @@ final class PeerNetwork {
      * @param list<string> $path the chain the current run came by (empty — from a person)
      * @param list<array{name: string, bytes: string}> $files
      */
-    public function delegate(Principal $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null, ?int $tokens = null, ?string $parentTask = null): OutgoingTask {
+    public function delegate(Member $who, string $peerName, string $task, string $channel, string $chatId, int $depth, array $path, array $files = [], ?int $leaderRun = null, bool $wait = false, ?string $contextId = null, ?int $tokens = null, ?string $parentTask = null): OutgoingTask {
         // spec: brief/network.md#вызов-и-раздача-соседям — the token cap, the leader's run and the task it works on go with the task
         $lead = [];
         if ($tokens !== null) {
@@ -390,7 +390,7 @@ final class PeerNetwork {
         $peer = $this->peers->peer($peerName);
         // spec: brief/network.md#подключения-агентов — an agent that connected here is reached over its connection
         $link = $peer === null ? $this->links?->named($peerName) : null;
-        if (!$who->isOwner() && $who->kind !== PrincipalKind::Agent) {
+        if (!$who->isOwner() && $who->kind !== MemberKind::Agent) {
             throw new DomainException(t('peer.peer_network.otdavat_zadachi_sosedyam_mozhet_vladelet'));
         }
         $messageId = 'msg-' . bin2hex(random_bytes(8));
@@ -465,7 +465,7 @@ final class PeerNetwork {
      *
      * spec: brief/network.md#вызов-и-раздача-соседям — the leader cancels a task (CancelTask)
      */
-    public function cancel(Principal $who, int $id): ?string {
+    public function cancel(Member $who, int $id): ?string {
         $out = $this->peers->findOutgoing($id);
         if ($out === null || (!$who->isOwner() && $out->principalId !== $who->id)) {
             return sprintf(t('peer.peer_network.no_task'), $id);

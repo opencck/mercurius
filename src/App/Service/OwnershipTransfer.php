@@ -10,10 +10,10 @@ use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\OutgoingMessage;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 
 use function Mercurius\I18n\t;
@@ -35,7 +35,7 @@ final class OwnershipTransfer implements CallbackHandler {
 
     /** @param (Closure(): int)|null $clock */
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly OwnerDirectory $owner,
         private readonly LoggerInterface $logger,
@@ -45,7 +45,7 @@ final class OwnershipTransfer implements CallbackHandler {
     }
 
     /** Shows the card for /owner <number>; the text to answer with when there is no card. */
-    public function ask(Principal $owner, string $chatId, string $argument): ?string {
+    public function ask(Member $owner, string $chatId, string $argument): ?string {
         if (!ctype_digit(trim($argument))) {
             return t('ownership.usage');
         }
@@ -94,7 +94,7 @@ final class OwnershipTransfer implements CallbackHandler {
         return sprintf(t('ownership.done'), $target->id, $target->displayName ?? '—');
     }
 
-    private function eligible(Principal $owner, Principal $target): bool {
-        return $target->id !== $owner->id && $target->kind === PrincipalKind::Human && $target->status === PrincipalStatus::Active;
+    private function eligible(Member $owner, Member $target): bool {
+        return $target->id !== $owner->id && $target->kind === MemberKind::Human && $target->status === MemberStatus::Active;
     }
 }

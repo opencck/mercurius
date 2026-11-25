@@ -12,11 +12,11 @@ use Mercurius\Messenger\Websocket\WebsocketChannel;
 use OpenCCK\App\Api\ApiGateway;
 use OpenCCK\App\Api\ApiKeys;
 use OpenCCK\App\Service\ApiKeyCommands;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryApiKeyRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\RecordingConnection;
 
 /**
@@ -26,9 +26,9 @@ use OpenCCK\Test\Support\RecordingConnection;
  * spec: brief/operations.md#второй-канал-websocket-api
  */
 final class ApiGatewayTest extends AsyncTestCase {
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private ApiKeys $keys;
-    private Principal $owner;
+    private Member $owner;
     /** @var list<IncomingMessage> */
     private array $messages = [];
     /** @var list<IncomingCallback> */
@@ -36,7 +36,7 @@ final class ApiGatewayTest extends AsyncTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->owner = $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->keys = new ApiKeys(new InMemoryApiKeyRepository(), $this->principals);
     }
@@ -58,14 +58,14 @@ final class ApiGatewayTest extends AsyncTestCase {
 
     public function testARevokedKeyAndARejectedParticipantDoNotConnect(): void {
         $user = $this->principals->createVisitor('telegram', '77', 'Вася');
-        $this->principals->decideVisitor($user->id, Role::user(), PrincipalStatus::Active);
+        $this->principals->decideVisitor($user->id, Role::user(), MemberStatus::Active);
         $key = $this->keys->issue($user, '');
         self::assertNotNull($this->keys->authenticate('Bearer ' . $key));
 
-        $this->principals->setRole($user->id, Role::user(), PrincipalStatus::Rejected);
+        $this->principals->setRole($user->id, Role::user(), MemberStatus::Rejected);
         self::assertNull($this->keys->authenticate('Bearer ' . $key), 'a rejected participant');
 
-        $this->principals->setRole($user->id, Role::user(), PrincipalStatus::Active);
+        $this->principals->setRole($user->id, Role::user(), MemberStatus::Active);
         self::assertTrue($this->keys->revoke(1));
         self::assertNull($this->keys->authenticate('Bearer ' . $key), 'a revoked key');
     }
@@ -73,7 +73,7 @@ final class ApiGatewayTest extends AsyncTestCase {
     public function testARevokedKeyClosesItsOpenConnectionsAndTheNextFrameIsNotTaken(): void {
         $gateway = $this->gateway(new WebsocketChannel());
         $user = $this->principals->createVisitor('telegram', '77', 'Вася');
-        $this->principals->decideVisitor($user->id, Role::user(), PrincipalStatus::Active);
+        $this->principals->decideVisitor($user->id, Role::user(), MemberStatus::Active);
         $first = $this->keys->session('Bearer ' . $this->keys->issue($user, 'laptop'));
         $second = $this->keys->session('Bearer ' . $this->keys->issue($user, 'phone'));
         self::assertNotNull($first);
@@ -97,7 +97,7 @@ final class ApiGatewayTest extends AsyncTestCase {
 
         $gateway->frame($phone, '{"type":"message","text":"три"}');
         self::assertCount(2, $this->messages);
-        $this->principals->setRole($user->id, Role::user(), PrincipalStatus::Rejected);
+        $this->principals->setRole($user->id, Role::user(), MemberStatus::Rejected);
         $gateway->frame($phone, '{"type":"message","text":"четыре"}');
         self::assertCount(2, $this->messages, 'a participant who is no longer active is not heard');
         self::assertSame(['laptop', 'phone'], $closed->getArrayCopy());

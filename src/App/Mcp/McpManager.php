@@ -11,7 +11,7 @@ use Closure;
 use DomainException;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Repository\McpServerRepository;
 use Psr\Log\LoggerInterface;
@@ -37,7 +37,7 @@ final class McpManager {
     private array $registered = [];
 
     /**
-     * @param Closure(): ?Principal $owner the owner, whose vault holds the servers' tokens
+     * @param Closure(): ?Member $owner the owner, whose vault holds the servers' tokens
      * @param Closure(string): void $tell writes to the owner
      */
     public function __construct(

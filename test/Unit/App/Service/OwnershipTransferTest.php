@@ -8,10 +8,10 @@ use Amp\PHPUnit\AsyncTestCase;
 use Mercurius\Messenger\IncomingCallback;
 use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\App\Service\OwnershipTransfer;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use Psr\Log\NullLogger;
 
 /**
@@ -20,7 +20,7 @@ use Psr\Log\NullLogger;
  * spec: brief/participants.md#несколько-пользователей
  */
 final class OwnershipTransferTest extends AsyncTestCase {
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private FakeChannel $channel;
     private OwnerDirectory $owner;
     private OwnershipTransfer $transfer;
@@ -28,10 +28,10 @@ final class OwnershipTransferTest extends AsyncTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '100', 'Первый');
         $next = $this->principals->createVisitor('telegram', '200', 'Второй');
-        $this->principals->decideVisitor($next->id, Role::user(), PrincipalStatus::Active);
+        $this->principals->decideVisitor($next->id, Role::user(), MemberStatus::Active);
         $this->channel = new FakeChannel();
         $this->owner = new OwnerDirectory($this->principals, 'telegram', '100');
         $this->transfer = new OwnershipTransfer($this->principals, $this->channel, $this->owner, new NullLogger(), fn(): int => $this->now);

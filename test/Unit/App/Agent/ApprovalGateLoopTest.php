@@ -19,8 +19,8 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\ToolCallStatus;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTool;
 use OpenCCK\Test\Support\InMemoryApprovalRepository;
@@ -69,7 +69,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
                 private readonly InMemoryTranscriptRepository $transcript,
             ) {}
 
-            public function request(Run $run, ValidatedCall $call, Principal $principal, ?Principal $decider = null): void {
+            public function request(Run $run, ValidatedCall $call, Member $principal, ?Member $decider = null): void {
                 $this->test->asked[] = $call->call->id;
                 $this->test->statesAtRequest[] = [$this->runs->find($run->id)?->status, $this->transcript->status($run->id, $call->call->id)];
                 $this->approvals->create($run->id, $call->call->id, $principal->id, $call->call->name, 'show', null, new \DateTimeImmutable('+30 minutes'));
@@ -86,7 +86,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
     }
 
     private function execute(AgentLoop $loop, Run $run, bool $mayAsk = true): Run {
-        $owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
+        $owner = new Member(1, MemberKind::Human, Role::owner(), null);
         return $loop->run($run, new ParticipantPolicy(null, $run->limits, null, $mayAsk), $owner, $this->observer, new NullCancellation());
     }
 
@@ -181,7 +181,7 @@ final class ApprovalGateLoopTest extends AsyncTestCase {
         $this->registry->register(new \OpenCCK\App\Agent\Tool\Agents\RequestToolTool($this->registry, $policies));
         $llm = new ScriptedLlm([ScriptedLlm::calls(new ToolCall('c1', 'request_tool', '{"tool":"read","reason":"нужно прочитать"}')), ScriptedLlm::text('выдали')]);
         $loop = $this->loop($llm);
-        $agent = new Principal(7, PrincipalKind::Agent, Role::admin(), 'rekryt');
+        $agent = new Member(7, MemberKind::Agent, Role::admin(), 'rekryt');
         $none = static fn(Run $run): ParticipantPolicy => new ParticipantPolicy([], $run->limits, null, false);
 
         $first = $this->start();

@@ -12,8 +12,8 @@ use Mercurius\Messenger\SendResult;
 use OpenCCK\App\Agent\Tool\Messaging\SendMessageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryMessageRelayRepository;
@@ -27,16 +27,16 @@ final class SendMessageToolTest extends AsyncTestCase {
     private AgentStack $stack;
     private InMemoryMessageRelayRepository $relays;
     private SendMessageTool $tool;
-    private Principal $roman;
+    private Member $roman;
 
     private function stack(ScriptedLlm $llm): void {
         $this->stack = new AgentStack($llm);
         $this->relays = new InMemoryMessageRelayRepository();
         $this->stack->principals->ensureOwner('telegram', '42', 'Сергей Иванов');
         $roman = $this->stack->principals->createVisitor('telegram', '77', 'Roman');
-        $this->roman = $this->stack->principals->decideVisitor($roman->id, Role::user(), PrincipalStatus::Active) ?? $roman;
+        $this->roman = $this->stack->principals->decideVisitor($roman->id, Role::user(), MemberStatus::Active) ?? $roman;
         $ivan = $this->stack->principals->createVisitor('telegram', '78', 'Сергей Петров');
-        $this->stack->principals->decideVisitor($ivan->id, Role::user(), PrincipalStatus::Active);
+        $this->stack->principals->decideVisitor($ivan->id, Role::user(), MemberStatus::Active);
         $this->tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram');
         $this->stack->registry->register($this->tool);
         $this->stack->useRelays($this->relays);
@@ -222,7 +222,7 @@ final class SendMessageToolTest extends AsyncTestCase {
             ['chat' => '-100700', 'thread' => null, 'label' => 'Команда', 'names' => []],
         ]);
         $noted = [];
-        $places->useRecorder(static function (string $chat, ?string $thread, string $what, Principal $by) use (&$noted): void {
+        $places->useRecorder(static function (string $chat, ?string $thread, string $what, Member $by) use (&$noted): void {
             $noted[] = [$chat, $thread, $what, $by->displayName];
         });
         $tool = new SendMessageTool($this->stack->principals, $this->stack->channel, $this->relays, 'telegram', null, null, $places);

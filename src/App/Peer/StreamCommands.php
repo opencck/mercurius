@@ -6,11 +6,11 @@ namespace OpenCCK\App\Peer;
 
 use Mercurius\Messenger\IncomingMessage;
 use OpenCCK\App\Service\MessageMeta;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Peer\PlaceStream;
 use OpenCCK\Domain\Repository\PlaceStreamRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
 
@@ -26,12 +26,12 @@ use function Mercurius\I18n\t;
 final class StreamCommands {
     public function __construct(
         private readonly PlaceStreamRepository $streams,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly LoggerInterface $logger,
         private readonly ?ProjectRepository $projects = null,
     ) {}
 
-    public function handle(Principal $who, IncomingMessage $message, string $command, string $argument): string {
+    public function handle(Member $who, IncomingMessage $message, string $command, string $argument): string {
         if (!$who->isOwner()) {
             return t('peer.streams.owner_only');
         }
@@ -90,10 +90,10 @@ final class StreamCommands {
     }
 
     /** An agent of the network by "#id" or its name. */
-    private function agent(string $named): ?Principal {
+    private function agent(string $named): ?Member {
         $id = ltrim($named, '#');
         foreach ($this->principals->all() as $principal) {
-            if ($principal->kind === PrincipalKind::Agent && (($id !== '' && ctype_digit($id) && $principal->id === (int) $id) || ($named !== '' && mb_strtolower((string) $principal->displayName) === mb_strtolower($named)))) {
+            if ($principal->kind === MemberKind::Agent && (($id !== '' && ctype_digit($id) && $principal->id === (int) $id) || ($named !== '' && mb_strtolower((string) $principal->displayName) === mb_strtolower($named)))) {
                 return $principal;
             }
         }

@@ -7,11 +7,11 @@ namespace OpenCCK\App\Peer;
 use Closure;
 use Mercurius\Llm\Role as MessageRole;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Repository\ConversationRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
@@ -46,7 +46,7 @@ final class ProjectEvents {
         private readonly ConversationRepository $conversations,
         private readonly TranscriptRepository $transcript,
         private readonly ProjectRepository $projects,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Closure $push,
         private readonly LoggerInterface $logger = new NullLogger(),
         /** @var (Closure(int, int): bool)|null whether an agent listens to a project; null — every agent of the project does */
@@ -66,7 +66,7 @@ final class ProjectEvents {
             $listeners = [];
             foreach ($this->streams?->listeners($meta->channel, $meta->chatId) ?? [] as $stream) {
                 $who = $stream->principalId === $run->principalId ? null : $this->principals->find($stream->principalId);
-                if ($who !== null && $stream->covers($meta->channel, $meta->chatId, $meta->threadId) && $who->status === PrincipalStatus::Active) {
+                if ($who !== null && $stream->covers($meta->channel, $meta->chatId, $meta->threadId) && $who->status === MemberStatus::Active) {
                     $listeners[$stream->principalId] = $stream->id;
                 }
             }
@@ -109,7 +109,7 @@ final class ProjectEvents {
     /**
      * The agents that work with a project, but for whoever wrote: its members and, when an agent owns it, the owner.
      *
-     * @return list<Principal>
+     * @return list<Member>
      */
     private function agentsOf(int $projectId, ?int $ownerId, int $author): array {
         $ids = array_map(static fn(array $m): int => $m['principalId'], $this->projects->members($projectId));
@@ -120,7 +120,7 @@ final class ProjectEvents {
         foreach (array_unique($ids) as $id) {
             $who = $id === $author ? null : $this->principals->find($id);
             // spec: brief/network.md#проект-как-канал-для-агентов — an event goes to those who subscribed
-            if ($who !== null && $who->kind === PrincipalKind::Agent && $who->status === PrincipalStatus::Active && ($this->subscribed === null || ($this->subscribed)($projectId, $who->id))) {
+            if ($who !== null && $who->kind === MemberKind::Agent && $who->status === MemberStatus::Active && ($this->subscribed === null || ($this->subscribed)($projectId, $who->id))) {
                 $found[] = $who;
             }
         }

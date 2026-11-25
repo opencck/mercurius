@@ -15,8 +15,8 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Memory\MemoryProposeTool;
 use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\StopReason;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Mercurius\Memory\App\Proposals;
@@ -76,8 +76,8 @@ final class FactNudge {
         $this->files = $files;
     }
 
-    public function afterRun(Run $run, Principal $principal): void {
-        if ($this->every <= 0 || $run->stopReason !== StopReason::Answered || $principal->kind === PrincipalKind::Agent) {
+    public function afterRun(Run $run, Member $principal): void {
+        if ($this->every <= 0 || $run->stopReason !== StopReason::Answered || $principal->kind === MemberKind::Agent) {
             return;
         }
         $meta = $this->conversations->meta($run->conversationId);
@@ -104,7 +104,7 @@ final class FactNudge {
         }
     }
 
-    private function review(Run $run, Principal $principal): void {
+    private function review(Run $run, Member $principal): void {
         $scopes = $this->audience->scopes($principal, $run->conversationId);
         if ($scopes === []) {
             return;
@@ -141,7 +141,7 @@ final class FactNudge {
     }
 
     /** @param list<string> $rules */
-    private function writeRules(Run $run, Principal $principal, array $rules): void {
+    private function writeRules(Run $run, Member $principal, array $rules): void {
         if ($rules === [] || $this->files === null) {
             return;
         }

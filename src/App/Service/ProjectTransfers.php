@@ -10,10 +10,10 @@ use Mercurius\Messenger\Button;
 use Mercurius\Messenger\CallbackHandler;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\IncomingCallback;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectTransfer;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -34,12 +34,12 @@ final class ProjectTransfers implements CallbackHandler {
     /**
      * @param (Closure(int, int, int): void)|null $move moves the folder of a project from the sandbox of one participant
      *        to that of another: from, to, project; throws when it could not; null — no sandbox, nothing to move
-     * @param (Closure(Principal, string, list<list<Button>>): void)|null $tell a message to a participant in their private
+     * @param (Closure(Member, string, list<list<Button>>): void)|null $tell a message to a participant in their private
      *        place, with buttons where the place has them; null — nobody is told
      */
     public function __construct(
         private readonly ProjectRepository $projects,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly ?Closure $move = null,
         private readonly ?Closure $tell = null,
         private readonly ?Channel $channel = null,
@@ -54,11 +54,11 @@ final class ProjectTransfers implements CallbackHandler {
     }
 
     /** The participant an owner id stands for: null is the owner of the agent. */
-    private function holder(?int $id): ?Principal {
+    private function holder(?int $id): ?Member {
         return $id === null ? $this->principals->owner() : $this->principals->find($id);
     }
 
-    private static function name(?Principal $who): string {
+    private static function name(?Member $who): string {
         return $who === null ? '—' : sprintf('%s (#%d)', $who->displayName ?? ($who->isOwner() ? t('tool.project_edit.agent_owner') : '—'), $who->id);
     }
 
@@ -67,7 +67,7 @@ final class ProjectTransfers implements CallbackHandler {
      *
      * @throws DomainException with the reason said to whoever asked
      */
-    public function offer(Project $project, Principal $to): ProjectTransfer {
+    public function offer(Project $project, Member $to): ProjectTransfer {
         $from = $this->holder($project->ownerId);
         if ($from !== null && $from->id === $to->id) {
             throw new DomainException(sprintf(t('tool.project_edit.share_owner'), self::name($to)));
@@ -87,7 +87,7 @@ final class ProjectTransfers implements CallbackHandler {
      *
      * @return list<array{ProjectTransfer, Project}>
      */
-    public function waitingFor(Principal $who): array {
+    public function waitingFor(Member $who): array {
         $found = [];
         foreach ($this->projects->offersTo($who->isOwner() ? null : $who->id) as $transfer) {
             $project = $this->projects->find($transfer->projectId);
@@ -105,7 +105,7 @@ final class ProjectTransfers implements CallbackHandler {
      * @return string what happened, for whoever decided
      * @throws DomainException with the reason; the offer goes on waiting
      */
-    public function decide(int $transferId, Principal $by, bool $accept): string {
+    public function decide(int $transferId, Member $by, bool $accept): string {
         $transfer = $this->projects->transfer($transferId);
         $project = $transfer === null ? null : $this->projects->find($transfer->projectId);
         if ($transfer === null || $project === null || $transfer->status !== ProjectTransfer::PENDING) {
@@ -155,7 +155,7 @@ final class ProjectTransfers implements CallbackHandler {
 " . sprintf(t('project.policy.narrowed'), $project->name, implode('; ', $changes));
     }
 
-    private function notify(?Principal $who, string $text): void {
+    private function notify(?Member $who, string $text): void {
         if ($who === null || $this->tell === null) {
             return;
         }

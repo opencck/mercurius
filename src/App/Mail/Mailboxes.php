@@ -9,12 +9,12 @@ use DomainException;
 use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Mail\Mailbox;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectLevel;
 use OpenCCK\Domain\Repository\MailboxRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -27,27 +27,27 @@ use function Mercurius\I18n\t;
  */
 final class Mailboxes {
     /**
-     * @param Closure(int, Principal): ?Project $projectOf the project of a conversation, for the one who talks in it
-     * @param Closure(Project, Principal): ?ProjectLevel $levelOf what the participant may do in the project
+     * @param Closure(int, Member): ?Project $projectOf the project of a conversation, for the one who talks in it
+     * @param Closure(Project, Member): ?ProjectLevel $levelOf what the participant may do in the project
      */
     public function __construct(
         private readonly MailboxRepository $mailboxes,
         private readonly Vault $vault,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly AddressGuard $addresses,
         private readonly Closure $projectOf,
         private readonly Closure $levelOf,
     ) {}
 
     /** spec: brief/participants.md#свои-роли — mail is a permission of a role; the owner has every permission */
-    public static function may(Principal $who): bool {
+    public static function may(Member $who): bool {
         return $who->role->may(Permission::Mail);
     }
 
     /**
      * @throws DomainException with the reason, in words for the participant
      */
-    public function add(Principal $owner, string $name, string $host, string $user, string $secret, ?int $imapPort = null, ?int $smtpPort = null, ?string $from = null, ?string $authservId = null): Mailbox {
+    public function add(Member $owner, string $name, string $host, string $user, string $secret, ?int $imapPort = null, ?int $smtpPort = null, ?string $from = null, ?string $authservId = null): Mailbox {
         if (!self::may($owner)) {
             throw new DomainException(t('mail.mailbox.no_power'));
         }
@@ -92,11 +92,11 @@ final class Mailboxes {
     }
 
     /** @return list<Mailbox> the participant's own mailboxes */
-    public function own(Principal $who): array {
+    public function own(Member $who): array {
         return $this->mailboxes->of($who->id);
     }
 
-    public function ownByName(Principal $who, string $name): ?Mailbox {
+    public function ownByName(Member $who, string $name): ?Mailbox {
         foreach ($this->mailboxes->of($who->id) as $mailbox) {
             if (mb_strtolower($mailbox->name) === mb_strtolower(trim($name))) {
                 return $mailbox;
@@ -105,7 +105,7 @@ final class Mailboxes {
         return null;
     }
 
-    public function remove(Principal $who, string $name): bool {
+    public function remove(Member $who, string $name): bool {
         $mailbox = $this->ownByName($who, $name);
         return $mailbox !== null && $this->mailboxes->remove($mailbox->id);
     }
@@ -116,7 +116,7 @@ final class Mailboxes {
      *
      * @throws DomainException
      */
-    public function toProject(Principal $who, string $name, ?Project $project): Mailbox {
+    public function toProject(Member $who, string $name, ?Project $project): Mailbox {
         $mailbox = $this->ownByName($who, $name) ?? throw new DomainException(sprintf(t('mail.mailbox.unknown'), trim($name)));
         if ($project !== null && ($this->levelOf)($project, $who)?->atLeast(ProjectLevel::Full) !== true) {
             throw new DomainException(sprintf(t('mail.mailbox.project_denied'), $project->name));
@@ -125,7 +125,7 @@ final class Mailboxes {
     }
 
     /** @return list<Mailbox> the mailboxes of the project of this conversation the participant may use */
-    public function ofConversation(Principal $who, int $conversationId): array {
+    public function ofConversation(Member $who, int $conversationId): array {
         $project = ($this->projectOf)($conversationId, $who);
         if ($project === null || ($this->levelOf)($project, $who)?->atLeast(ProjectLevel::Write) !== true) {
             return [];
@@ -139,7 +139,7 @@ final class Mailboxes {
      *
      * @return Mailbox|string the mailbox, or why there is none
      */
-    public function pick(Principal $who, int $conversationId, ?string $name): Mailbox|string {
+    public function pick(Member $who, int $conversationId, ?string $name): Mailbox|string {
         if (!self::may($who)) {
             return t('mail.mailbox.no_power');
         }
@@ -166,7 +166,7 @@ final class Mailboxes {
     }
 
     /** Whether the participant may use this very mailbox in this conversation: checked again when the call runs. */
-    public function usable(Principal $who, int $conversationId, int $mailboxId): ?Mailbox {
+    public function usable(Member $who, int $conversationId, int $mailboxId): ?Mailbox {
         if (!self::may($who)) {
             return null;
         }
@@ -183,7 +183,7 @@ final class Mailboxes {
     }
 
     /** Who decides what leaves the mailbox: the participant who connected it. */
-    public function ownerOf(Mailbox $mailbox): ?Principal {
+    public function ownerOf(Mailbox $mailbox): ?Member {
         return $this->principals->find($mailbox->ownerId);
     }
 

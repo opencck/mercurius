@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Integration;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\Infrastructure\Database\MigrationSet;
 use OpenCCK\Infrastructure\Database\Migrator;
-use OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository;
+use OpenCCK\Infrastructure\Repository\PostgresMemberRepository;
 use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
 use OpenCCK\Test\Support\TestDatabase;
 use Psr\Log\NullLogger;
@@ -60,7 +60,7 @@ final class UpgradeTest extends AsyncTestCase {
         self::assertContains(50, $applied, 'up to the newest migration');
         self::assertNotContains(self::PREVIOUS, $applied, 'the old ones are not applied again');
 
-        $principals = new PostgresPrincipalRepository($db, 'telegram');
+        $principals = new PostgresMemberRepository($db, 'telegram');
         self::assertSame($owner, $principals->findByIdentity('telegram', '42')?->id, 'the owner is the owner');
         self::assertSame('Владелец', $principals->find($owner)?->displayName);
         $project = (new PostgresProjectRepository($db))->byName('Меркурий');

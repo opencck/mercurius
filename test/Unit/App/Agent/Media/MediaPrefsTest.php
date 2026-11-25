@@ -10,8 +10,8 @@ use OpenCCK\App\Agent\Media\MediaPrefs;
 use OpenCCK\App\Agent\Tool\Files\MediaPrefsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Config\MediaSettings;
 use OpenCCK\Test\Support\InMemoryMediaPrefRepository;
@@ -23,14 +23,14 @@ use OpenCCK\Test\Support\InMemoryMediaPrefRepository;
 final class MediaPrefsTest extends AsyncTestCase {
     private InMemoryMediaPrefRepository $repository;
     private MediaPrefs $prefs;
-    private Principal $kostya;
+    private Member $kostya;
 
     protected function setUp(): void {
         parent::setUp();
         $this->repository = new InMemoryMediaPrefRepository();
         $settings = MediaSettings::fromEnv(['MEDIA_VISION_MODELS' => 'openrouter:z-ai/glm-5.3-flash, openrouter:anthropic/claude-haiku-5.5', 'MEDIA_AUTO' => 'voice,image,text,office']);
         $this->prefs = new MediaPrefs($this->repository, $settings);
-        $this->kostya = new Principal(5, PrincipalKind::Human, Role::user(), 'Костя');
+        $this->kostya = new Member(5, MemberKind::Human, Role::user(), 'Костя');
     }
 
     private function tool(): MediaPrefsTool {

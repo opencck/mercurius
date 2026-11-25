@@ -10,10 +10,10 @@ use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\MessageRelayRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -32,7 +32,7 @@ final class RelayService {
 
     public function __construct(
         private readonly MessageRelayRepository $relays,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly ConversationRepository $conversations,
         private readonly RunScheduler $scheduler,
         private readonly Channel $channel,
@@ -43,7 +43,7 @@ final class RelayService {
     ) {}
 
     /** True when the message answered a question and went back to who asked: it is not a request of its own then. */
-    public function answer(Principal $sender, IncomingMessage $message): bool {
+    public function answer(Member $sender, IncomingMessage $message): bool {
         $text = trim($message->text);
         $files = $message->attachments !== [] && $this->intake !== null && $this->policies !== null;
         if (!$message->isPrivateChat || ($text === '' && !$files) || str_starts_with($text, '/')) {

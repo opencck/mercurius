@@ -6,12 +6,12 @@ namespace OpenCCK\App\Agent\Tool\Messaging;
 
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\ConversationRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -29,7 +29,7 @@ final class Recipients {
     private ?\Closure $home = null;
 
     public function __construct(
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         /** the channel the people are written to in: their identities there are their chats */
         private readonly string $channel,
     ) {}
@@ -60,7 +60,7 @@ final class Recipients {
         $this->places = $places;
     }
 
-    /** @var (\Closure(string, ?string, string, Principal): void)|null */
+    /** @var (\Closure(string, ?string, string, Member): void)|null */
     private ?\Closure $recorder = null;
 
     /**
@@ -68,15 +68,15 @@ final class Recipients {
      *
      * spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе
      *
-     * @param \Closure(string, ?string, string, Principal): void $recorder chat, topic, what was sent, who asked
+     * @param \Closure(string, ?string, string, Member): void $recorder chat, topic, what was sent, who asked
      */
     public function useRecorder(\Closure $recorder): void {
         $this->recorder = $recorder;
     }
 
     /** Records what went to the place the name points to; a person or this chat is not a place — nothing is written. */
-    public function sent(?string $to, string $what, Principal $by): void {
-        if ($this->recorder === null || $to === null || trim($to) === '' || $this->find($to) instanceof Principal) {
+    public function sent(?string $to, string $what, Member $by): void {
+        if ($this->recorder === null || $to === null || trim($to) === '' || $this->find($to) instanceof Member) {
             return;
         }
         $place = $this->place($to);
@@ -126,7 +126,7 @@ final class Recipients {
     }
 
     /** The active person the name points to; the text — why there is none. */
-    public function find(string $to): Principal|string {
+    public function find(string $to): Member|string {
         return self::among($this->principals, $to, false);
     }
 
@@ -135,15 +135,15 @@ final class Recipients {
      *
      * spec: brief/participants.md#доступ-к-проектам-и-передача — access to a project is given to people and to agents alike
      */
-    public static function participant(PrincipalRepository $principals, string $to): Principal|string {
+    public static function participant(MemberRepository $principals, string $to): Member|string {
         return self::among($principals, $to, true);
     }
 
-    private static function among(PrincipalRepository $principals, string $to, bool $agents): Principal|string {
+    private static function among(MemberRepository $principals, string $to, bool $agents): Member|string {
         $to = trim($to);
         $people = array_values(array_filter(
             $principals->all(),
-            static fn(Principal $p): bool => ($agents || $p->kind === PrincipalKind::Human) && $p->status === PrincipalStatus::Active,
+            static fn(Member $p): bool => ($agents || $p->kind === MemberKind::Human) && $p->status === MemberStatus::Active,
         ));
         // a participant as the agent itself shows them — «#2 · Имя» in lists, «Имя (#2)» in refusals — is that number
         if (preg_match('~^#(\d{1,10})(?:\D|$)~u', $to, $shown) === 1 || preg_match('~\(#(\d{1,10})\)$~u', $to, $shown) === 1) {
@@ -151,7 +151,7 @@ final class Recipients {
         }
         $key = mb_strtolower(ltrim($to, '@#'));
         if (in_array($key, ['owner', 'владелец', 'владельцу'], true)) {
-            $owner = array_values(array_filter($people, static fn(Principal $p): bool => $p->role === Role::owner()));
+            $owner = array_values(array_filter($people, static fn(Member $p): bool => $p->role === Role::owner()));
             return $owner[0] ?? t('tool.send_message.no_owner');
         }
         if (ctype_digit($key)) {
@@ -161,15 +161,15 @@ final class Recipients {
                 }
             }
         }
-        $exact = array_values(array_filter($people, static fn(Principal $p): bool => mb_strtolower($p->displayName ?? '') === $key));
+        $exact = array_values(array_filter($people, static fn(Member $p): bool => mb_strtolower($p->displayName ?? '') === $key));
         $found = $exact !== [] ? $exact : array_values(array_filter(
             $people,
-            static fn(Principal $p): bool => $key !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $key),
+            static fn(Member $p): bool => $key !== '' && str_contains(mb_strtolower($p->displayName ?? ''), $key),
         ));
         if (count($found) === 1) {
             return $found[0];
         }
-        $names = implode(', ', array_map(static fn(Principal $p): string => sprintf('%s (#%d)', $p->displayName ?? '—', $p->id), $found === [] ? $people : $found));
+        $names = implode(', ', array_map(static fn(Member $p): string => sprintf('%s (#%d)', $p->displayName ?? '—', $p->id), $found === [] ? $people : $found));
         return sprintf(t($found === [] ? 'tool.send_message.unknown' : 'tool.send_message.ambiguous'), $to, $names);
     }
 
@@ -207,7 +207,7 @@ final class Recipients {
             return DangerClass::Write;
         }
         $person = $this->find($to);
-        return $person instanceof Principal && $person->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
+        return $person instanceof Member && $person->role === Role::owner() ? DangerClass::Write : DangerClass::Irreversible;
     }
 
     public function grantKey(?string $to): ?string {

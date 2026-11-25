@@ -6,10 +6,10 @@ namespace OpenCCK\App\Service;
 
 use InvalidArgumentException;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Project\ProjectLevel;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectPolicyRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
 use Psr\Log\LoggerInterface;
@@ -34,7 +34,7 @@ final class ProjectPolicies {
     public function __construct(
         private readonly ProjectPolicyRepository $repository,
         private readonly ProjectRepository $projects,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         /** @var \Closure(ParticipantPolicy): list<string> the registered tools a policy allows */
         private readonly \Closure $names,
@@ -68,7 +68,7 @@ final class ProjectPolicies {
      * The rights of a run in the project for one who writes there: the project's for a member, read-only for a reader;
      * null — no level in the project, the usual rights apply.
      */
-    public function forRun(Project $project, Principal $who): ?ParticipantPolicy {
+    public function forRun(Project $project, Member $who): ?ParticipantPolicy {
         $level = $project->levelOf($who, $this->projects->memberLevel($project->id, $who->id));
         if ($level === null) {
             return null;

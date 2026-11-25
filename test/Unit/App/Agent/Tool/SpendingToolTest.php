@@ -10,10 +10,10 @@ use OpenCCK\App\Agent\Tool\Self\SpendingTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeTraceReports;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryRunRepository;
 use OpenCCK\Test\Support\InMemoryTraceRepository;
 
@@ -22,7 +22,7 @@ use OpenCCK\Test\Support\InMemoryTraceRepository;
  */
 final class SpendingToolTest extends AsyncTestCase {
     public function testARunIsFoundByTheMessageItWrote(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $runs = new InMemoryRunRepository();
         $limits = new RunLimits(30, 100_000, 900, 120);
@@ -46,7 +46,7 @@ final class SpendingToolTest extends AsyncTestCase {
 
     public function testTheSpendOfATaskIsTheSumOfItsRuns(): void {
         // spec: brief/operations.md#расход-что-знает-агент — the spend of a task is counted from its runs, never estimated
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $figures = new FakeTraceReports();
         $row = static fn(int $id, float $cost): array => ['id' => $id, 'status' => 'done', 'reason' => 'answered', 'model' => 'openrouter:z-ai/glm-5.3-flash', 'turns' => 3, 'tokens' => 100_000, 'active_ms' => 5000, 'cost' => $cost, 'started' => '2026-11-19 15:34'];
@@ -64,10 +64,10 @@ final class SpendingToolTest extends AsyncTestCase {
     }
 
     public function testTheCurrentRunReportsWhatItHasSpentSoFar(): void {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $visitor = $principals->createVisitor('telegram', '7', 'Гость');
-        $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
+        $principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active);
         $user = $principals->find($visitor->id);
         self::assertNotNull($user);
         $runs = new InMemoryRunRepository();
@@ -89,12 +89,12 @@ final class SpendingToolTest extends AsyncTestCase {
         self::assertTrue($tool->execute(['action' => 'days'], $context)->isError, 'overall spend is the owner\'s');
     }
 
-    /** @return array{SpendingTool, FakeTraceReports, \OpenCCK\Domain\Entity\Principal, \OpenCCK\Domain\Entity\Principal, int} */
+    /** @return array{SpendingTool, FakeTraceReports, \OpenCCK\Domain\Entity\Member, \OpenCCK\Domain\Entity\Member, int} */
     private static function spendTool(): array {
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $owner = $principals->ensureOwner('telegram', '42', 'Сергей');
         $visitor = $principals->createVisitor('telegram', '7', 'Артур');
-        $user = $principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? $visitor;
+        $user = $principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? $visitor;
         $conversations = new \OpenCCK\Test\Support\InMemoryConversationRepository();
         $topic = $conversations->openConversation($owner->id, 'telegram', '-100500', '119');
         $figures = new FakeTraceReports();

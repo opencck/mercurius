@@ -12,7 +12,7 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\CommandPolicy\Classification;
 use OpenCCK\CommandPolicy\SshCommandClassifier;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\CommandAuditRepository;
 use OpenCCK\Domain\Repository\ServerRepository;
 use OpenCCK\Domain\Server\Server;
@@ -79,7 +79,7 @@ final class ServerConsole {
      *                       list runs — spec: brief/agent-loop.md#подтверждения-и-запреты, the owner decides even about those
      * @return array{bool, string} success and the text for the model (already masked)
      */
-    public function run(Principal $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation, bool $approved = false): array {
+    public function run(Member $principal, ?int $runId, string $serverName, string $command, int $timeout, Cancellation $cancellation, bool $approved = false): array {
         $server = $this->servers->byName($serverName);
         if ($server === null) {
             return [false, sprintf(t('server.server_console.servera_net_v_reestre'), $serverName)];
@@ -128,7 +128,7 @@ final class ServerConsole {
      *
      * @return array{bool, string}
      */
-    public function runPrepared(Principal $principal, ?int $runId, string $serverName, string $journalled, string $class, string $command, #[SensitiveParameter] ?string $stdin, int $timeout, Cancellation $cancellation): array {
+    public function runPrepared(Member $principal, ?int $runId, string $serverName, string $journalled, string $class, string $command, #[SensitiveParameter] ?string $stdin, int $timeout, Cancellation $cancellation): array {
         $server = $this->servers->byName($serverName);
         if ($server === null) {
             return [false, sprintf(t('server.server_console.servera_net_v_reestre'), $serverName)];
@@ -166,7 +166,7 @@ final class ServerConsole {
     /**
      * The login and the route of a server; a text when one of them is missing. A jump goes one server deep.
      */
-    private function connection(Server $server, Principal $principal, bool $mayJump): Connection|string {
+    private function connection(Server $server, Member $principal, bool $mayJump): Connection|string {
         if ($server->secretId === null) {
             return sprintf(t('server.server_console.u_servera_net_sekreta_dlya'), $server->name);
         }

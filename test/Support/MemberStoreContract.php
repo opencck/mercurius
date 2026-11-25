@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace OpenCCK\Test\Support;
 
 use Amp\PHPUnit\AsyncTestCase;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 /**
  * Behaviour of the participant store, run on the in-memory fake locally and on PostgreSQL on the server.
  */
-abstract class PrincipalStoreContract extends AsyncTestCase {
-    protected PrincipalRepository $principals;
+abstract class MemberStoreContract extends AsyncTestCase {
+    protected MemberRepository $principals;
     /** A channel identity unique to the test run, so PostgreSQL rows of earlier runs do not interfere. */
     protected string $externalId;
 
@@ -21,7 +21,7 @@ abstract class PrincipalStoreContract extends AsyncTestCase {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, 'Гость');
 
         self::assertSame(Role::visitor(), $visitor->role);
-        self::assertSame(PrincipalStatus::Pending, $visitor->status);
+        self::assertSame(MemberStatus::Pending, $visitor->status);
         self::assertSame($visitor->id, $this->principals->createVisitor('telegram', $this->externalId, 'Гость')->id);
         self::assertSame($visitor->id, $this->principals->findByIdentity('telegram', $this->externalId)?->id);
         self::assertSame($this->externalId, $this->principals->externalId($visitor->id, 'telegram'));
@@ -31,7 +31,7 @@ abstract class PrincipalStoreContract extends AsyncTestCase {
     public function testOwnershipPassesToAnActivePersonAndTheFormerOwnerBecomesAnAdmin(): void {
         $owner = $this->principals->ensureOwner('telegram', 'owner-' . $this->externalId, 'Владелец');
         $next = $this->principals->createVisitor('telegram', $this->externalId, 'Преемник');
-        $this->principals->decideVisitor($next->id, Role::user(), PrincipalStatus::Active);
+        $this->principals->decideVisitor($next->id, Role::user(), MemberStatus::Active);
         $agent = $this->principals->createAgent('agent-' . $this->externalId, Role::user());
         try {
             self::assertFalse($this->principals->transferOwnership($next->id, $owner->id), 'only the owner passes it on');
@@ -54,19 +54,19 @@ abstract class PrincipalStoreContract extends AsyncTestCase {
     public function testVisitorIsDecidedOnce(): void {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, 'Гость');
 
-        $decided = $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active);
+        $decided = $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active);
         self::assertNotNull($decided);
         self::assertSame(Role::user(), $decided->role);
-        self::assertSame(PrincipalStatus::Active, $decided->status);
-        self::assertNull($this->principals->decideVisitor($visitor->id, Role::admin(), PrincipalStatus::Active));
+        self::assertSame(MemberStatus::Active, $decided->status);
+        self::assertNull($this->principals->decideVisitor($visitor->id, Role::admin(), MemberStatus::Active));
         self::assertSame(Role::user(), $this->principals->find($visitor->id)?->role);
     }
 
     public function testRejectedVisitorStaysRejected(): void {
         $visitor = $this->principals->createVisitor('telegram', $this->externalId, null);
 
-        $this->principals->decideVisitor($visitor->id, Role::visitor(), PrincipalStatus::Rejected);
+        $this->principals->decideVisitor($visitor->id, Role::visitor(), MemberStatus::Rejected);
 
-        self::assertSame(PrincipalStatus::Rejected, $this->principals->findByIdentity('telegram', $this->externalId)?->status);
+        self::assertSame(MemberStatus::Rejected, $this->principals->findByIdentity('telegram', $this->externalId)?->status);
     }
 }

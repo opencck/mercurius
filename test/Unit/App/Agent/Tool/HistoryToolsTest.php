@@ -11,8 +11,8 @@ use OpenCCK\App\Agent\Tool\Memory\ExperienceSearchTool;
 use OpenCCK\App\Agent\Tool\Memory\HistorySearchTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\Experience;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
 use OpenCCK\Test\Support\InMemoryEpisodeRepository;
@@ -23,8 +23,8 @@ final class HistoryToolsTest extends AsyncTestCase {
     private InMemoryEpisodeRepository $episodes;
     private InMemoryExperienceRepository $experience;
     private ConversationAudience $audience;
-    private Principal $owner;
-    private Principal $guest;
+    private Member $owner;
+    private Member $guest;
 
     protected function setUp(): void {
         parent::setUp();
@@ -32,8 +32,8 @@ final class HistoryToolsTest extends AsyncTestCase {
         $this->episodes = new InMemoryEpisodeRepository();
         $this->experience = new InMemoryExperienceRepository();
         $this->audience = new ConversationAudience($this->conversations);
-        $this->owner = new Principal(1, PrincipalKind::Human, Role::owner(), null);
-        $this->guest = new Principal(2, PrincipalKind::Human, Role::user(), 'Гость');
+        $this->owner = new Member(1, MemberKind::Human, Role::owner(), null);
+        $this->guest = new Member(2, MemberKind::Human, Role::user(), 'Гость');
     }
 
     private function conversation(int $principal, string $chatId, bool $private): int {
@@ -46,7 +46,7 @@ final class HistoryToolsTest extends AsyncTestCase {
     }
 
     /** @param array<string, mixed> $args */
-    private function history(Principal $who, int $conversationId, array $args): string {
+    private function history(Member $who, int $conversationId, array $args): string {
         $result = (new HistorySearchTool($this->episodes, $this->audience))->execute($args, new ToolContext(1, $conversationId, $who, new NullCancellation()));
         return $result->content;
     }

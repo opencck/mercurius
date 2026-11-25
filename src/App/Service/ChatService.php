@@ -12,8 +12,8 @@ use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -90,10 +90,10 @@ final class ChatService implements MessageHandler {
         $this->ownership = $ownership;
     }
 
-    /** @var (\Closure(int, \OpenCCK\Domain\Entity\Principal): bool)|null whether a participant who is not the owner may see the trace of a run */
+    /** @var (\Closure(int, \OpenCCK\Domain\Entity\Member): bool)|null whether a participant who is not the owner may see the trace of a run */
     private ?\Closure $runVisible = null;
 
-    /** @param \Closure(int, \OpenCCK\Domain\Entity\Principal): bool $visible */
+    /** @param \Closure(int, \OpenCCK\Domain\Entity\Member): bool $visible */
     public function useRunVisibility(\Closure $visible): void {
         $this->runVisible = $visible;
     }
@@ -135,7 +135,7 @@ final class ChatService implements MessageHandler {
     }
 
     /** /models — the roles and their latest changes; /models rollback <number> — a role back to that record. */
-    private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Principal $who, string $argument): string {
+    private function modelsCommand(\OpenCCK\App\Agent\Model\ModelRoles $roles, Member $who, string $argument): string {
         $parts = preg_split('/\s+/', trim($argument)) ?: [];
         if (($parts[0] ?? '') === 'rollback') {
             return $roles->rollback((int) ltrim($parts[1] ?? '0', '#'), $who);
@@ -212,12 +212,12 @@ final class ChatService implements MessageHandler {
             return;
         }
         $principal = $this->access->resolveMessage($message);
-        if ($principal === null || $principal->status === PrincipalStatus::Rejected) {
+        if ($principal === null || $principal->status === MemberStatus::Rejected) {
             $this->logger->notice('Message from an unknown participant refused', ['channel' => $message->channel, 'user_id' => $message->userId]);
             $this->reply($message, t(self::REFUSAL));
             return;
         }
-        if ($principal->status === PrincipalStatus::Pending) {
+        if ($principal->status === MemberStatus::Pending) {
             $this->reply($message, \Mercurius\I18n\t(VisitorService::WAITING));
             return;
         }
@@ -228,7 +228,7 @@ final class ChatService implements MessageHandler {
         $this->proceed($principal, $message);
     }
 
-    private function proceed(Principal $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
+    private function proceed(Member $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
 
         $text = trim($message->text);
         if ($message->attachments === [] && $message->repliedAttachments === []) {
@@ -553,7 +553,7 @@ final class ChatService implements MessageHandler {
      *
      * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a secret that appeared in Telegram is deleted by the bot and kept in the vault
      */
-    private function withoutSecrets(Principal $principal, IncomingMessage $message): IncomingMessage {
+    private function withoutSecrets(Member $principal, IncomingMessage $message): IncomingMessage {
         if (!SecretMasker::carriesSecret($message->text) || $this->servers === null) {
             return $message;
         }
@@ -610,7 +610,7 @@ final class ChatService implements MessageHandler {
     }
 
     /** spec: brief/operations.md#команды-и-отчёты-владельца — reports for the owner; a long one goes as a file */
-    private function report(\OpenCCK\Domain\Entity\Principal $principal, string $command, string $argument, IncomingMessage $message): void {
+    private function report(\OpenCCK\Domain\Entity\Member $principal, string $command, string $argument, IncomingMessage $message): void {
         // spec: brief/participants.md#свои-роли — reports are a permission of a role too
         if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Permission::Reports)) || $this->reports === null) {
             $this->reply($message, t(self::OWNER_ONLY));

@@ -24,7 +24,7 @@ final class EvalTest extends AsyncTestCase {
     }
 
     private static function runner(ScriptedLlm $agent, ?ScriptedLlm $judge = null, ?string $model = null): EvalRunner {
-        $owner = (new \OpenCCK\Test\Support\InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+        $owner = (new \OpenCCK\Test\Support\InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Владелец');
         return new EvalRunner($agent, $judge, $model, new \OpenCCK\Test\Support\InMemoryRunRepository(), new \OpenCCK\Test\Support\InMemoryTranscriptRepository(), new \OpenCCK\Test\Support\InMemoryConversationRepository(), new \OpenCCK\Test\Support\InMemoryLlmCallRepository(), $owner);
     }
 
@@ -74,7 +74,7 @@ final class EvalTest extends AsyncTestCase {
                 return [0.6, 'по мнению судьи'];
             }
         };
-        $owner = (new \OpenCCK\Test\Support\InMemoryPrincipalRepository())->ensureOwner('telegram', '42', 'Владелец');
+        $owner = (new \OpenCCK\Test\Support\InMemoryMemberRepository())->ensureOwner('telegram', '42', 'Владелец');
         $runner = new EvalRunner($agent, null, null, new \OpenCCK\Test\Support\InMemoryRunRepository(), new \OpenCCK\Test\Support\InMemoryTranscriptRepository(), new \OpenCCK\Test\Support\InMemoryConversationRepository(), new \OpenCCK\Test\Support\InMemoryLlmCallRepository(), $owner, $judge);
 
         $result = $runner->runTask(self::task('action-project-card'), 'agent/model');

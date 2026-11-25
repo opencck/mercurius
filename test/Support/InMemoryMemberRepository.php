@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Support;
 
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
-final class InMemoryPrincipalRepository implements PrincipalRepository {
+final class InMemoryMemberRepository implements MemberRepository {
     /** @var array<string, int> channel:external id => principal id */
     public array $identities = [];
-    /** @var array<positive-int, Principal> */
+    /** @var array<positive-int, Member> */
     private array $principals = [];
     private ?int $ownerId = null;
 
-    public function find(int $id): ?Principal {
+    public function find(int $id): ?Member {
         return $this->principals[$id] ?? null;
     }
 
-    public function owner(): ?Principal {
+    public function owner(): ?Member {
         foreach ($this->principals as $principal) {
             if ($principal->role === Role::owner()) {
                 return $principal;
@@ -39,11 +39,11 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         }
         $old = $this->principals[$from] ?? null;
         $new = $this->principals[$to] ?? null;
-        if ($old === null || $new === null || $from === $to || !$old->isOwner() || $new->kind !== PrincipalKind::Human || $new->status !== PrincipalStatus::Active) {
+        if ($old === null || $new === null || $from === $to || !$old->isOwner() || $new->kind !== MemberKind::Human || $new->status !== MemberStatus::Active) {
             return false;
         }
-        $this->principals[$from] = new Principal($old->id, $old->kind, Role::admin(), $old->displayName, $old->status);
-        $this->principals[$to] = new Principal($new->id, $new->kind, Role::owner(), $new->displayName, $new->status);
+        $this->principals[$from] = new Member($old->id, $old->kind, Role::admin(), $old->displayName, $old->status);
+        $this->principals[$to] = new Member($new->id, $new->kind, Role::owner(), $new->displayName, $new->status);
         $this->ownerId = $to;
         $this->former[$from] = time();
         unset($this->former[$to]);
@@ -54,7 +54,7 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return $this->former;
     }
 
-    public function findByIdentity(string $channel, string $externalId): ?Principal {
+    public function findByIdentity(string $channel, string $externalId): ?Member {
         $id = $this->identities[$channel . ':' . $externalId] ?? null;
         return $id === null ? null : $this->find($id);
     }
@@ -72,41 +72,41 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return null;
     }
 
-    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal {
-        $owner = $this->ownerId === null ? $this->add(Role::owner(), $displayName, PrincipalStatus::Active) : $this->principals[$this->ownerId];
+    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Member {
+        $owner = $this->ownerId === null ? $this->add(Role::owner(), $displayName, MemberStatus::Active) : $this->principals[$this->ownerId];
         $this->ownerId = $owner->id;
         $this->identities[$channel . ':' . $externalId] ??= $owner->id;
         return $owner;
     }
 
-    public function createVisitor(string $channel, string $externalId, ?string $displayName): Principal {
+    public function createVisitor(string $channel, string $externalId, ?string $displayName): Member {
         $existing = $this->findByIdentity($channel, $externalId);
         if ($existing !== null) {
             return $existing;
         }
-        $visitor = $this->add(Role::visitor(), $displayName, PrincipalStatus::Pending);
+        $visitor = $this->add(Role::visitor(), $displayName, MemberStatus::Pending);
         $this->identities[$channel . ':' . $externalId] = $visitor->id;
         return $visitor;
     }
 
-    public function decideVisitor(int $id, Role $role, PrincipalStatus $status): ?Principal {
+    public function decideVisitor(int $id, Role $role, MemberStatus $status): ?Member {
         $current = $this->principals[$id] ?? null;
-        if ($current === null || $current->status !== PrincipalStatus::Pending) {
+        if ($current === null || $current->status !== MemberStatus::Pending) {
             return null;
         }
-        return $this->principals[$current->id] = new Principal($current->id, $current->kind, $role, $current->displayName, $status);
+        return $this->principals[$current->id] = new Member($current->id, $current->kind, $role, $current->displayName, $status);
     }
 
-    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal {
+    public function setRole(int $id, Role $role, MemberStatus $status): ?Member {
         $current = $this->principals[$id] ?? null;
         if ($current === null || $current->isOwner()) {
             return null;
         }
-        return $this->principals[$current->id] = new Principal($current->id, $current->kind, $role, $current->displayName, $status);
+        return $this->principals[$current->id] = new Member($current->id, $current->kind, $role, $current->displayName, $status);
     }
 
     /** Puts a ready participant in the store, bound to a channel identity. */
-    public function put(Principal $principal, string $channel, string $externalId): void {
+    public function put(Member $principal, string $channel, string $externalId): void {
         $this->principals[$principal->id] = $principal;
         $this->identities[$channel . ':' . $externalId] = $principal->id;
     }
@@ -116,15 +116,15 @@ final class InMemoryPrincipalRepository implements PrincipalRepository {
         return array_values($this->principals);
     }
 
-    public function createAgent(string $name, Role $role): Principal {
+    public function createAgent(string $name, Role $role): Member {
         $existing = $this->findByIdentity('a2a', $name);
         $id = $existing !== null ? $existing->id : ($this->principals === [] ? 1 : max(array_keys($this->principals)) + 1);
         $this->identities['a2a:' . $name] = $id;
-        return $this->principals[$id] = new Principal($id, PrincipalKind::Agent, $role, $name, PrincipalStatus::Active);
+        return $this->principals[$id] = new Member($id, MemberKind::Agent, $role, $name, MemberStatus::Active);
     }
 
-    private function add(Role $role, ?string $displayName, PrincipalStatus $status): Principal {
+    private function add(Role $role, ?string $displayName, MemberStatus $status): Member {
         $id = $this->principals === [] ? 1 : max(array_keys($this->principals)) + 1;
-        return $this->principals[$id] = new Principal($id, PrincipalKind::Human, $role, $displayName, $status);
+        return $this->principals[$id] = new Member($id, MemberKind::Human, $role, $displayName, $status);
     }
 }

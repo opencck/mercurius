@@ -11,7 +11,7 @@ use Closure;
 use Mercurius\Llm\ErrorKind;
 use Mercurius\Llm\LlmException;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use SensitiveParameter;
 use Throwable;
 
@@ -37,7 +37,7 @@ final class CodexAccount {
     private const REFRESH_SKEW = 120;
     private const WAIT_SECONDS = 900;
 
-    /** @param Closure(): ?Principal $owner the owner holds the tokens in the vault */
+    /** @param Closure(): ?Member $owner the owner holds the tokens in the vault */
     public function __construct(
         private readonly HttpClient $http,
         private readonly Vault $vault,

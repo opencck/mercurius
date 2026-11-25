@@ -28,9 +28,9 @@ use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ConversationRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\RunRepository;
 use OpenCCK\Domain\Repository\TranscriptRepository;
 use Mercurius\Memory\App\MemoryContext;
@@ -69,7 +69,7 @@ final class RunScheduler {
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
-    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Principal, quiet: bool, outside: list<string>, future: Future<void>}> */
+    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Member, quiet: bool, outside: list<string>, future: Future<void>}> */
     private array $pending = [];
     /** @var array<int, ChannelRunObserver> the observer of each run that paused for the owner: its message is updated once decided */
     private array $waiting = [];
@@ -107,7 +107,7 @@ final class RunScheduler {
         private readonly RunRepository $runs,
         private readonly TranscriptRepository $transcript,
         private readonly ConversationRepository $conversations,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly PolicyService $policies,
         private readonly Channel $channel,
         private readonly string $model,
@@ -156,7 +156,7 @@ final class RunScheduler {
      *
      * spec: brief/agent-loop.md#запуск-начатый-внешними-данными
      */
-    private function othersSpoke(\OpenCCK\Domain\Agent\ConversationMeta $meta, Principal $principal): bool {
+    private function othersSpoke(\OpenCCK\Domain\Agent\ConversationMeta $meta, Member $principal): bool {
         if (!str_starts_with($meta->chatId, '-')) {
             return false;
         }
@@ -179,7 +179,7 @@ final class RunScheduler {
     }
 
     /** The policy a participant's run in a conversation gets now: for a background delegation after a restart. */
-    public function policyFor(int $conversationId, Principal $principal): ParticipantPolicy {
+    public function policyFor(int $conversationId, Member $principal): ParticipantPolicy {
         return $this->policyIn($conversationId, $principal);
     }
 
@@ -188,7 +188,7 @@ final class RunScheduler {
         return $meta === null || $this->projectPolicies === null ? null : $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId);
     }
 
-    private function policyIn(int $conversationId, Principal $principal): ParticipantPolicy {
+    private function policyIn(int $conversationId, Member $principal): ParticipantPolicy {
         $policy = $this->policies->forPrincipal($principal);
         $meta = $this->conversations->meta($conversationId);
         // spec: brief/participants.md#права-проекта — in a project the project's rights, whoever of its members writes
@@ -215,10 +215,10 @@ final class RunScheduler {
                 continue;
             }
             // a member of the project does not narrow its rights: the owner of the project set them; anyone else does
-            if ($members !== null && $speaker !== null && $speaker->status === \OpenCCK\Domain\Entity\PrincipalStatus::Active && $this->projectPolicies?->forRun($members, $speaker) !== null) {
+            if ($members !== null && $speaker !== null && $speaker->status === \OpenCCK\Domain\Entity\MemberStatus::Active && $this->projectPolicies?->forRun($members, $speaker) !== null) {
                 continue;
             }
-            if ($speaker === null || $speaker->status !== \OpenCCK\Domain\Entity\PrincipalStatus::Active) {
+            if ($speaker === null || $speaker->status !== \OpenCCK\Domain\Entity\MemberStatus::Active) {
                 $visitor ??= $this->policies->visitor();
                 $policy = $policy->narrowedBy($visitor, keepApproval: $principal->isOwner());
                 continue;
@@ -229,7 +229,7 @@ final class RunScheduler {
     }
 
     /** What someone who joins a run brings: the project's rights for its member, their own otherwise. */
-    private function joinerCap(int $conversationId, Principal $principal): ParticipantPolicy {
+    private function joinerCap(int $conversationId, Member $principal): ParticipantPolicy {
         $project = $this->projectAt($this->conversations->meta($conversationId));
         $inProject = $project === null ? null : $this->projectPolicies?->forRun($project, $principal);
         return $inProject ?? $this->policies->forPrincipal($principal);
@@ -279,7 +279,7 @@ final class RunScheduler {
     }
 
     /** @param string|null $outside where the text came from when it is not the agent's own (a worker's report) */
-    public function deliver(Principal $principal, int $conversationId, string $text, \Closure $onDelivered, ?string $outside = null): void {
+    public function deliver(Member $principal, int $conversationId, string $text, \Closure $onDelivered, ?string $outside = null): void {
         $id = $this->nextDelivery++;
         $this->deliveries[$id] = async(function () use ($id, $principal, $conversationId, $text, $onDelivered, $outside): void {
             try {
@@ -324,7 +324,7 @@ final class RunScheduler {
      * @param string|null $outside where the data from outside in the message came from (files, someone's answer): the
      *        run that takes it is marked; null — the message is the participant's own words
      */
-    public function submit(Principal $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
+    public function submit(Member $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
         // spec: brief/channels.md#форум-темы--проекты — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
@@ -604,7 +604,7 @@ final class RunScheduler {
         return $meta->threadId !== '' ? $meta->threadId : ($this->threads[$conversationId] ?? null);
     }
 
-    private function project(Principal $principal, string $channel, string $chatId, string $threadId = ''): string {
+    private function project(Member $principal, string $channel, string $chatId, string $threadId = ''): string {
         if ($this->projects === null) {
             return '';
         }
@@ -616,13 +616,13 @@ final class RunScheduler {
         }
     }
 
-    /** @var list<Closure(Run, Principal): void> told when a run ends, in the background */
+    /** @var list<Closure(Run, Member): void> told when a run ends, in the background */
     private array $afterRun = [];
 
     /**
      * Something to do after a run ended (the background proposal of facts): it does not hold the conversation.
      *
-     * @param Closure(Run, Principal): void $then
+     * @param Closure(Run, Member): void $then
      */
     public function useAfterRun(Closure $then): void {
         $this->afterRun[] = $then;
@@ -662,7 +662,7 @@ final class RunScheduler {
         }
     }
 
-    private function core(Principal $principal, int $conversationId): string {
+    private function core(Member $principal, int $conversationId): string {
         $place = $this->placeMemory($principal, $conversationId)[1];
         if (!$this->audience()->isPrivate($conversationId)) {
             return $place;
@@ -675,7 +675,7 @@ final class RunScheduler {
      *
      * spec: brief/participants.md#несколько-пользователей — a participant gets their own layer 1, never the owner's
      */
-    public function coreOf(Principal $principal): string {
+    public function coreOf(Member $principal): string {
         if ($this->memory === null && $this->memoryFile === null) {
             return '';
         }
@@ -697,12 +697,12 @@ final class RunScheduler {
      *
      * spec: brief/memory.md#правила-и-заметки-memorymd — the rules are instructions of the person, apart from the reference data
      */
-    private function rules(Principal $principal, int $conversationId): string {
+    private function rules(Member $principal, int $conversationId): string {
         $own = $this->audience()->isPrivate($conversationId) ? $this->memoryFile($principal)[0] : '';
         return implode("\n\n", array_filter([$own, $this->placeMemory($principal, $conversationId)[0]], static fn(string $p): bool => $p !== ''));
     }
 
-    /** @var (Closure(Principal, string, string, string, bool): string)|null the MEMORY.md of the place of a conversation */
+    /** @var (Closure(Member, string, string, string, bool): string)|null the MEMORY.md of the place of a conversation */
     private ?Closure $placeFile = null;
 
     /**
@@ -711,7 +711,7 @@ final class RunScheduler {
      *
      * spec: brief/memory.md#файл-памяти-места
      *
-     * @param Closure(Principal, string, string, string, bool): string $read the person, channel, chat, topic and whether
+     * @param Closure(Member, string, string, string, bool): string $read the person, channel, chat, topic and whether
      *        the chat is private; the text of the file, '' — none
      */
     public function usePlaceMemory(Closure $read): void {
@@ -719,7 +719,7 @@ final class RunScheduler {
     }
 
     /** @return array{string, string} the rules block and the notes block of the place's file */
-    private function placeMemory(Principal $principal, int $conversationId): array {
+    private function placeMemory(Member $principal, int $conversationId): array {
         $meta = $this->placeFile === null ? null : $this->conversations->meta($conversationId);
         if ($this->placeFile === null || $meta === null) {
             return ['', ''];
@@ -733,7 +733,7 @@ final class RunScheduler {
         return self::memoryBlocks($file, $this->memoryFileLimit, 'place');
     }
 
-    /** @var (Closure(Principal): string)|null the participant's MEMORY.md; null — no such file */
+    /** @var (Closure(Member): string)|null the participant's MEMORY.md; null — no such file */
     private ?Closure $memoryFile = null;
     private int $memoryFileLimit = 4000;
 
@@ -744,7 +744,7 @@ final class RunScheduler {
      *
      * spec: brief/memory.md#правила-и-заметки-memorymd — two sections, the limit, how full
      *
-     * @param Closure(Principal): string $read the file, '' when there is none
+     * @param Closure(Member): string $read the file, '' when there is none
      * @param positive-int $limit characters
      */
     public function useMemoryFile(Closure $read, int $limit): void {
@@ -753,7 +753,7 @@ final class RunScheduler {
     }
 
     /** @return array{string, string} the block of the rules, the block of the notes; '' — none */
-    private function memoryFile(Principal $principal): array {
+    private function memoryFile(Member $principal): array {
         if ($this->memoryFile === null) {
             return ['', ''];
         }
@@ -798,7 +798,7 @@ final class RunScheduler {
      * spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a change of the catalog in the middle of a conversation is a one-off note on the
      *       next message, the prompt stays as it was
      */
-    private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
+    private function withSkillNote(Member $principal, ConversationMeta $meta, int $conversationId, string $text): string {
         if ($this->skills === null || !$principal->role->may(Permission::Skills)) {
             return $text;
         }
@@ -815,7 +815,7 @@ final class RunScheduler {
         return $before === null || $before === $now ? $text : $text . "\n\n" . t('skill.library.changed') . "\n" . ($now === '' ? '—' : $now);
     }
 
-    private function withFacts(Principal $principal, ConversationMeta $meta, string $text): string {
+    private function withFacts(Member $principal, ConversationMeta $meta, string $text): string {
         if ($this->memory === null) {
             return $text;
         }
@@ -840,7 +840,7 @@ final class RunScheduler {
      * @param list<string> $outside where the outside data of the text came from: the run starts marked
      * @return int|null the run the text started; null when it joined another run or nothing started
      */
-    private function start(Principal $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = []): ?int {
+    private function start(Member $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = []): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
@@ -915,7 +915,7 @@ final class RunScheduler {
         $this->launch($run, $principal, $observer);
     }
 
-    private function launch(Run $run, Principal $principal, ChannelRunObserver $observer): void {
+    private function launch(Run $run, Member $principal, ChannelRunObserver $observer): void {
         $conversationId = $run->conversationId;
         $cancellation = new DeferredCancellation();
         $policy = $this->policyIn($conversationId, $principal);
@@ -984,7 +984,7 @@ final class RunScheduler {
     }
 
     /** Steering notes that came after the run's last iteration start the next run instead of being lost. */
-    private function carryOver(Run $run, Principal $principal): void {
+    private function carryOver(Run $run, Member $principal): void {
         try {
             $left = $this->transcript->consumeInbox($run->id);
             if ($left === [] || $run->stopReason === StopReason::Stopped) {

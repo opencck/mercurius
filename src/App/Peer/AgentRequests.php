@@ -16,7 +16,7 @@ use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\AgentRequest;
 use OpenCCK\Domain\Repository\PeerRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -40,7 +40,7 @@ final class AgentRequests implements CallbackHandler {
 
     public function __construct(
         private readonly PeerRepository $peers,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly Channel $channel,
         private readonly OwnerDirectory|string $ownerChatId,
         private readonly LoggerInterface $logger = new NullLogger(),

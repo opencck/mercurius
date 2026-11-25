@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Unit\App\Agent;
 
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\BanList;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
@@ -22,7 +22,7 @@ final class BanListTest extends AsyncTestCase {
     public function testTheOwnerOfAProjectBansInTheirProjectAndDoesNotLiftTheBanOfTheAgentsOwner(): void {
         $stack = new AgentStack(new ScriptedLlm([]));
         $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
-        $anna = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '7', 'Анна')->id, Role::user(), PrincipalStatus::Active);
+        $anna = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '7', 'Анна')->id, Role::user(), MemberStatus::Active);
         self::assertNotNull($anna);
         $projects = new InMemoryProjectRepository();
         $project = $projects->create('Сайт', '', $anna->id);

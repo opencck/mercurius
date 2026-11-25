@@ -66,7 +66,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var string|null $openAiKey
  * @var string|null $openRouterKey
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
- * @var OpenCCK\Infrastructure\Repository\PostgresPrincipalRepository $principals
+ * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresRoutingDecisionRepository $routingDecisions
  * @var OpenCCK\Infrastructure\Config\SandboxSettings $sandboxSettings
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
@@ -145,7 +145,7 @@ $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context
 };
 $tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope,
     // spec: brief/participants.md#ресурсы-проекта — the project of a chat, for those who may change things in it: its secrets serve them
-    static function (int $conversationId, \OpenCCK\Domain\Entity\Principal $who) use ($conversations, $httpCookieProjects): ?int {
+    static function (int $conversationId, \OpenCCK\Domain\Entity\Member $who) use ($conversations, $httpCookieProjects): ?int {
         $meta = $conversations->meta($conversationId);
         $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
         if ($project === null) {
@@ -296,7 +296,7 @@ if ($serviceModules->add(BrowserTool::MODULE, $browserUrl, $browserToken) && $br
         \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'BROWSER_CONFIRM') === '1',
         // spec: brief/internet.md#входы-в-браузере-и-профиль-проекта — the profiles of a project are those of its owner for everyone
         //       who works in it: the owner logs in once, the jobs and the members of the project use that login
-        static function (int $projectId, \OpenCCK\Domain\Entity\Principal $who) use ($httpCookieProjects, $principals): ?int {
+        static function (int $projectId, \OpenCCK\Domain\Entity\Member $who) use ($httpCookieProjects, $principals): ?int {
             $project = $httpCookieProjects->find($projectId);
             $level = $project?->levelOf($who, $httpCookieProjects->memberLevel($projectId, $who->id));
             if ($project === null || $level?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) !== true) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\App\Agent;
 
 use OpenCCK\Domain\Agent\HistoryScope;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use Mercurius\Memory\App\Audience;
 
@@ -21,7 +21,7 @@ final class ConversationAudience {
 
     /**
      * @param (\Closure(): list<int>)|null $formerOwners participants who owned the agent before: their conversations stay theirs
-     * @param (\Closure(Principal, string, string, string): ?int)|null $project the active project of a chat (channel, chat,
+     * @param (\Closure(Member, string, string, string): ?int)|null $project the active project of a chat (channel, chat,
      *        topic) the participant may see; null — no projects
      */
     public function __construct(
@@ -43,7 +43,7 @@ final class ConversationAudience {
     }
 
     /** @return list<string> memory scopes this conversation may read; [] when the conversation is gone */
-    public function scopes(Principal $principal, int $conversationId): array {
+    public function scopes(Member $principal, int $conversationId): array {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             return [];
@@ -57,7 +57,7 @@ final class ConversationAudience {
      * Past conversations this one may search: the owner in a private chat — all of them, anyone else and any group —
      * this chat's only. Null when the conversation is gone.
      */
-    public function history(Principal $principal, int $conversationId): ?HistoryScope {
+    public function history(Member $principal, int $conversationId): ?HistoryScope {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             return null;

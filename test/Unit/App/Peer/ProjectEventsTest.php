@@ -7,7 +7,7 @@ namespace OpenCCK\Test\Unit\App\Peer;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Peer\ProjectEvents;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
@@ -19,8 +19,8 @@ use OpenCCK\Test\Support\ScriptedLlm;
 final class ProjectEventsTest extends AsyncTestCase {
     private AgentStack $stack;
     private InMemoryProjectRepository $projects;
-    private Principal $owner;
-    private Principal $agent;
+    private Member $owner;
+    private Member $agent;
     /** @var list<array{int, string, array{project: mixed, place: mixed, run: int, from: string, text: string, answer: string, status: string, at: string}}> */
     private array $pushed = [];
     private ProjectEvents $events;
@@ -51,7 +51,7 @@ final class ProjectEventsTest extends AsyncTestCase {
     }
 
     /** A finished run of $who in a chat: what was asked and what was answered. */
-    private function exchange(Principal $who, string $chat, string $thread, string $asked, string $answered): int {
+    private function exchange(Member $who, string $chat, string $thread, string $asked, string $answered): int {
         $conversation = $this->stack->conversations->openConversation($who->id, 'telegram', $chat, $thread);
         $run = $this->stack->runs->start($conversation, $who->id, 'test/model', new RunLimits(30, 100_000, 900, 120)) ?? self::fail('no run');
         $this->stack->transcript->appendUser($conversation, $run->id, $asked);

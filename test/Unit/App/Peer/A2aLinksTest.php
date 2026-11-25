@@ -12,7 +12,7 @@ use OpenCCK\App\Peer\A2aServer;
 use Mercurius\Peer\AgentIdentity;
 use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Peer\A2aTask;
 use OpenCCK\Test\Support\A2aWire;
@@ -31,7 +31,7 @@ use function Amp\delay;
  * task over its own connection, and a live connection is used instead of opening another.
  */
 final class A2aLinksTest extends AsyncTestCase {
-    /** @var array<string, array{stack: AgentStack, server: A2aServer, network: PeerNetwork, links: A2aLinks, key: AgentIdentity, owner: Principal, peers: InMemoryPeerRepository, requests: \OpenCCK\App\Peer\AgentRequests}> */
+    /** @var array<string, array{stack: AgentStack, server: A2aServer, network: PeerNetwork, links: A2aLinks, key: AgentIdentity, owner: Member, peers: InMemoryPeerRepository, requests: \OpenCCK\App\Peer\AgentRequests}> */
     private array $agents = [];
     public int $connects = 0;
 
@@ -60,7 +60,7 @@ final class A2aLinksTest extends AsyncTestCase {
             return $mine;
         };
         $client = new A2aClient(new HttpClient(new A2aWire($server), []), $key, null, $connect, $links, $server->handlerFor(...));
-        $network = new PeerNetwork($peers, $stack->principals, $vault, $client, $stack->conversations, $stack->transcript, $stack->channel, $url, new NullLogger(), $key, static fn(): Principal => $owner, null, $links);
+        $network = new PeerNetwork($peers, $stack->principals, $vault, $client, $stack->conversations, $stack->transcript, $stack->channel, $url, new NullLogger(), $key, static fn(): Member => $owner, null, $links);
         $this->agents[$name] = ['stack' => $stack, 'server' => $server, 'network' => $network, 'links' => $links, 'key' => $key, 'owner' => $owner, 'peers' => $peers, 'requests' => $requests];
     }
 

@@ -12,8 +12,8 @@ use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
 use OpenCCK\Test\Support\FakeSandbox;
@@ -37,7 +37,7 @@ final class SendFileToolTest extends AsyncTestCase {
     }
 
     private function context(int $conversation, bool $withSandbox = true): ToolContext {
-        return new ToolContext(3, $conversation, new Principal(7, PrincipalKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $withSandbox ? new SandboxLimits(100, 10, 5, 1000, 1) : null, true), 'c1');
+        return new ToolContext(3, $conversation, new Member(7, MemberKind::Human, Role::owner(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $withSandbox ? new SandboxLimits(100, 10, 5, 1000, 1) : null, true), 'c1');
     }
 
     public function testTheFileGoesToTheTopicItWasAskedIn(): void {

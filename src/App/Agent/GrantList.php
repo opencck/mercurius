@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use Mercurius\Messenger\Button;
 use OpenCCK\Domain\Agent\Grant;
 use OpenCCK\Domain\Repository\ApprovalRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 
 use function Mercurius\I18n\t;
 
@@ -43,7 +43,7 @@ final class GrantList {
     /** @param (Closure(): DateTimeImmutable)|null $now */
     public function __construct(
         private readonly ApprovalRepository $approvals,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         ?Closure $now = null,
     ) {
         $this->now = $now ?? static fn(): DateTimeImmutable => new DateTimeImmutable();

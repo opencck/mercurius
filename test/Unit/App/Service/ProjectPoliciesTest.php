@@ -9,12 +9,12 @@ use OpenCCK\App\Service\PolicyService;
 use OpenCCK\App\Service\ProjectPolicies;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Test\Support\InMemoryPolicyRepository;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemoryProjectPolicyRepository;
 use OpenCCK\Test\Support\InMemoryProjectRepository;
 use PHPUnit\Framework\TestCase;
@@ -29,17 +29,17 @@ final class ProjectPoliciesTest extends TestCase {
     private const TOOLS = ['read_file', 'web_read', 'ssh_run', 'http_request'];
 
     private InMemoryProjectRepository $projects;
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private InMemoryProjectPolicyRepository $stored;
     private PolicyService $policies;
     private ProjectPolicies $rights;
-    private Principal $alice;
-    private Principal $bob;
+    private Member $alice;
+    private Member $bob;
     private Project $project;
 
     protected function setUp(): void {
         $this->projects = new InMemoryProjectRepository();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->policies = new PolicyService(new InMemoryPolicyRepository(), new RunLimits(30, 1_000_000, 900, 120));
         $this->alice = $this->participant('51', 'Алиса');
@@ -63,9 +63,9 @@ final class ProjectPoliciesTest extends TestCase {
         return $sandbox === null ? null : $sandbox->memoryBytes;
     }
 
-    private function participant(string $id, string $name): Principal {
+    private function participant(string $id, string $name): Member {
         $visitor = $this->principals->createVisitor('telegram', $id, $name);
-        return $this->principals->decideVisitor($visitor->id, Role::user(), PrincipalStatus::Active) ?? throw new \RuntimeException('no participant');
+        return $this->principals->decideVisitor($visitor->id, Role::user(), MemberStatus::Active) ?? throw new \RuntimeException('no participant');
     }
 
     public function testANewProjectHasTheRightsOfItsOwner(): void {

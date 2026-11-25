@@ -8,7 +8,7 @@ use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\ProjectContext;
 use OpenCCK\App\Service\ProjectPolicies;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\FakeTool;
@@ -35,8 +35,8 @@ final class ProjectRightsRunTest extends AsyncTestCase {
         foreach (['read_file', 'web_read', 'ssh_run'] as $name) {
             $stack->registry->register(new FakeTool($name));
         }
-        $alice = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '51', 'Алиса')->id, Role::user(), PrincipalStatus::Active);
-        $bob = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '52', 'Боб')->id, Role::user(), PrincipalStatus::Active);
+        $alice = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '51', 'Алиса')->id, Role::user(), MemberStatus::Active);
+        $bob = $stack->principals->decideVisitor($stack->principals->createVisitor('telegram', '52', 'Боб')->id, Role::user(), MemberStatus::Active);
         self::assertNotNull($alice);
         self::assertNotNull($bob);
         $stack->policies->update($alice, ['tools' => ['read_file', 'web_read', 'ssh_run']]);

@@ -9,23 +9,23 @@ use DateTimeImmutable;
 use Mercurius\Messenger\IncomingCallback;
 use Mercurius\Messenger\IncomingMessage;
 use OpenCCK\App\Service\VisitorService;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeChannel;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 
 /**
  * In a big group the owner gets one card of strangers instead of a card per stranger: the first strangers of a group
  * get their own cards, the next ones are gathered on one card that is edited, with buttons for all of them at once.
  */
 final class VisitorGroupSummaryTest extends AsyncTestCase {
-    private InMemoryPrincipalRepository $principals;
+    private InMemoryMemberRepository $principals;
     private FakeChannel $channel;
     private VisitorService $visitors;
 
     protected function setUp(): void {
         parent::setUp();
-        $this->principals = new InMemoryPrincipalRepository();
+        $this->principals = new InMemoryMemberRepository();
         $this->principals->ensureOwner('telegram', '42', 'Owner');
         $this->channel = new FakeChannel(4096);
         $this->visitors = new VisitorService($this->principals, $this->channel, '42', retryDelays: []);
@@ -64,10 +64,10 @@ final class VisitorGroupSummaryTest extends AsyncTestCase {
         $fourth = $this->principals->findByIdentity('telegram', '104');
         $first = $this->principals->findByIdentity('telegram', '101');
         self::assertNotNull($third);
-        self::assertSame(PrincipalStatus::Active, $third->status);
+        self::assertSame(MemberStatus::Active, $third->status);
         self::assertSame(Role::visitor(), $third->role);
-        self::assertSame(PrincipalStatus::Active, $fourth?->status);
-        self::assertSame(PrincipalStatus::Pending, $first?->status, 'a stranger with an own card waits for that card');
+        self::assertSame(MemberStatus::Active, $fourth?->status);
+        self::assertSame(MemberStatus::Pending, $first?->status, 'a stranger with an own card waits for that card');
         self::assertSame([], $this->channel->buttons[$summaryId], 'the decided summary has no buttons left');
     }
 

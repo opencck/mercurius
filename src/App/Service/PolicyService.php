@@ -9,7 +9,7 @@ use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
 use OpenCCK\Domain\Entity\Permission;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\PolicyRepository;
 
@@ -64,7 +64,7 @@ final class PolicyService {
      *
      * spec: brief/skills-mcp.md#ящики-участников-и-проектов — who has the permission of mail uses IMAP and SMTP
      */
-    private static function withMail(Principal $principal, ParticipantPolicy $policy): ParticipantPolicy {
+    private static function withMail(Member $principal, ParticipantPolicy $policy): ParticipantPolicy {
         if (!$principal->role->may(Permission::Mail)) {
             return $policy;
         }
@@ -85,7 +85,7 @@ final class PolicyService {
         return (new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false))->capTo($this->owner());
     }
 
-    public function forPrincipal(Principal $principal): ParticipantPolicy {
+    public function forPrincipal(Member $principal): ParticipantPolicy {
         $owner = $this->owner();
         if ($principal->isOwner()) {
             return $owner;
@@ -112,7 +112,7 @@ final class PolicyService {
      * @throws DomainException when the target is the owner
      * @throws \InvalidArgumentException on bad overrides
      */
-    public function update(Principal $target, array $overrides): ParticipantPolicy {
+    public function update(Member $target, array $overrides): ParticipantPolicy {
         if ($target->isOwner()) {
             throw new DomainException('The owner policy is set in the environment and cannot be changed');
         }

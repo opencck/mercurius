@@ -8,7 +8,7 @@ use DomainException;
 use OpenCCK\App\Settings\Restarter;
 use OpenCCK\App\Settings\SettingsCatalog;
 use OpenCCK\App\Settings\SettingsService;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use SensitiveParameter;
 
 use function Mercurius\I18n\t;
@@ -36,7 +36,7 @@ final class SettingsCommands {
         return count($parts) === 2 && SettingsCatalog::secret(strtoupper($parts[0]));
     }
 
-    public function set(Principal $who, #[SensitiveParameter] string $argument): string {
+    public function set(Member $who, #[SensitiveParameter] string $argument): string {
         $parts = preg_split('~\s+~', trim($argument), 2) ?: [];
         if (($parts[0] ?? '') === '') {
             return t('service.settings_commands.set_klyuch_znachenie_naprimer_set');

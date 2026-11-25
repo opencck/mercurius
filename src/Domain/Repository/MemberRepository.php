@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OpenCCK\Domain\Repository;
 
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalStatus;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberStatus;
 use OpenCCK\Domain\Entity\Role;
 
-interface PrincipalRepository {
-    public function find(int $id): ?Principal;
+interface MemberRepository {
+    public function find(int $id): ?Member;
 
-    /** @return list<Principal> every participant, by id */
+    /** @return list<Member> every participant, by id */
     public function all(): array;
 
-    public function findByIdentity(string $channel, string $externalId): ?Principal;
+    public function findByIdentity(string $channel, string $externalId): ?Member;
 
     /** The participant who owns the agent now; null before the first owner wrote. */
-    public function owner(): ?Principal;
+    public function owner(): ?Member;
 
     /**
      * Ownership passes to an active person: the owner becomes an admin. What the agent has goes with it (its key, its
@@ -37,21 +37,21 @@ interface PrincipalRepository {
     public function bindIdentity(int $principalId, string $channel, string $externalId): void;
 
     /** Creates the owner (a person) and binds the identity; returns the existing owner when there already is one. */
-    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Principal;
+    public function ensureOwner(string $channel, string $externalId, ?string $displayName): Member;
 
     /** Creates a pending visitor (a person) and binds the identity; returns the existing participant when the identity is taken. */
-    public function createVisitor(string $channel, string $externalId, ?string $displayName): Principal;
+    public function createVisitor(string $channel, string $externalId, ?string $displayName): Member;
 
     /**
      * A connecting agent of the network under its name (channel "a2a"); an existing one keeps its id and gets the role.
      *
      * spec: brief/network.md#как-сделано-связь-двух-агентов — a connected agent is a participant of kind agent
      */
-    public function createAgent(string $name, Role $role): Principal;
+    public function createAgent(string $name, Role $role): Member;
 
     /** The owner's decision on a pending visitor, taken atomically; null when it was already decided. */
-    public function decideVisitor(int $id, Role $role, PrincipalStatus $status): ?Principal;
+    public function decideVisitor(int $id, Role $role, MemberStatus $status): ?Member;
 
     /** Sets the role and status of a participant whatever they were; the owner is never changed (null). */
-    public function setRole(int $id, Role $role, PrincipalStatus $status): ?Principal;
+    public function setRole(int $id, Role $role, MemberStatus $status): ?Member;
 }

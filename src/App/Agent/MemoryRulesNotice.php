@@ -14,10 +14,10 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Service\OwnerDirectory;
 use OpenCCK\Domain\Agent\Run;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\MemoryRuleRepository;
-use OpenCCK\Domain\Repository\PrincipalRepository;
+use OpenCCK\Domain\Repository\MemberRepository;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -44,7 +44,7 @@ final class MemoryRulesNotice implements CallbackHandler {
         private readonly ConversationRepository $conversations,
         private readonly ConversationAudience $audience,
         private readonly Channel $channel,
-        private readonly PrincipalRepository $principals,
+        private readonly MemberRepository $principals,
         private readonly OwnerDirectory $owner,
         private readonly Closure $enabled,
         private readonly LoggerInterface $logger,
@@ -52,7 +52,7 @@ final class MemoryRulesNotice implements CallbackHandler {
         private readonly string $channelName = 'telegram',
     ) {}
 
-    public function afterRun(Run $run, Principal $principal): void {
+    public function afterRun(Run $run, Member $principal): void {
         try {
             if (!($this->enabled)()) {
                 $this->rules->forget();

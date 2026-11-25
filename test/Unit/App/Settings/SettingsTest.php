@@ -14,22 +14,22 @@ use OpenCCK\App\Settings\Restarter;
 use OpenCCK\App\Settings\SettingsService;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Test\Support\InMemoryPrincipalRepository;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Test\Support\InMemoryMemberRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
 use OpenCCK\Test\Support\InMemorySettingRepository;
 
 final class SettingsTest extends AsyncTestCase {
     private InMemorySettingRepository $store;
     private Vault $vault;
-    private Principal $owner;
+    private Member $owner;
     private SettingsService $settings;
 
     protected function setUp(): void {
         parent::setUp();
         $this->store = new InMemorySettingRepository();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
-        $principals = new InMemoryPrincipalRepository();
+        $principals = new InMemoryMemberRepository();
         $this->owner = $principals->ensureOwner('telegram', '42', 'Owner');
         $owner = $this->owner;
         $this->settings = new SettingsService(
@@ -38,7 +38,7 @@ final class SettingsTest extends AsyncTestCase {
             ['OPENROUTER_API_KEY' => 'sk-env', 'QUIET_HOURS' => '23-8', 'TELEGRAM_BOT_TOKEN' => 't'],
             // the start checks: a bad zone does not start
             static fn(array $env): ?string => isset($env['OWNER_TIMEZONE']) && $env['OWNER_TIMEZONE'] === 'Mars/Base' ? 'OWNER_TIMEZONE is invalid' : null,
-            static fn(): Principal => $owner,
+            static fn(): Member => $owner,
         );
     }
 
@@ -125,8 +125,8 @@ final class SettingsTest extends AsyncTestCase {
         self::assertFalse($tool->execute(['action' => 'set', 'key' => 'TAVILY_API_KEY', 'secret' => 'tavily'], $context)->isError);
         self::assertSame('tvly-value', $this->settings->overlay()['TAVILY_API_KEY']);
 
-        $guest = (new InMemoryPrincipalRepository())->ensureOwner('telegram', '43', 'x');
-        $notOwner = new Principal($guest->id + 1, $guest->kind, \OpenCCK\Domain\Entity\Role::user(), 'Гость');
+        $guest = (new InMemoryMemberRepository())->ensureOwner('telegram', '43', 'x');
+        $notOwner = new Member($guest->id + 1, $guest->kind, \OpenCCK\Domain\Entity\Role::user(), 'Гость');
         self::assertTrue($tool->execute(['action' => 'list'], new ToolContext(1, 1, $notOwner, new NullCancellation()))->isError);
 
         $tool->execute(['action' => 'restart'], $context);

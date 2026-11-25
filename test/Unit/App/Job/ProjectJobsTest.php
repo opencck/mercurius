@@ -14,7 +14,7 @@ use OpenCCK\App\Agent\Tool\Projects\JobManageTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Job\JobScheduler;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Principal;
+use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Test\Support\AgentStack;
@@ -31,8 +31,8 @@ final class ProjectJobsTest extends AsyncTestCase {
     private InMemoryJobRepository $jobs;
     private InMemoryProjectRepository $projects;
     private AgentStack $stack;
-    private Principal $owner;
-    private Principal $agent;
+    private Member $owner;
+    private Member $agent;
     /** @var list<array{int, string}> who was told what in their private place */
     private array $told = [];
 
@@ -64,14 +64,14 @@ final class ProjectJobsTest extends AsyncTestCase {
             fn(): DateTimeImmutable => $this->now,
         );
         $scheduler->useProjects($this->projects);
-        $scheduler->useInbox(function (Principal $to, string $text): bool {
+        $scheduler->useInbox(function (Member $to, string $text): bool {
             $this->told[] = [$to->id, $text];
             return true;
         });
         return $scheduler;
     }
 
-    private function as(Principal $who, string $channel = 'a2a'): ToolContext {
+    private function as(Member $who, string $channel = 'a2a'): ToolContext {
         return new ToolContext($who->id, $this->stack->conversations->openConversation($who->id, $channel, 'chat-' . $who->id), $who, new NullCancellation());
     }
 
@@ -101,7 +101,7 @@ final class ProjectJobsTest extends AsyncTestCase {
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));
         $project = $this->projects->create('Поиск', 'работа');
         $seen = [];
-        $scheduler->usePlaceMemory(function (Principal $who, string $channel, string $chat) use (&$seen): array {
+        $scheduler->usePlaceMemory(function (Member $who, string $channel, string $chat) use (&$seen): array {
             $seen[] = [$channel, $this->projects->active($channel, $chat)?->name];
             return ['ПРАВИЛА ПРОЕКТА: откликаться только на удалёнку', 'ЗАМЕТКИ ПРОЕКТА'];
         });

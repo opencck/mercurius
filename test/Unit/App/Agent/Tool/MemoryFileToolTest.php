@@ -11,8 +11,8 @@ use OpenCCK\App\Agent\Tool\Memory\MemoryFileTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Principal;
-use OpenCCK\Domain\Entity\PrincipalKind;
+use OpenCCK\Domain\Entity\Member;
+use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryConversationRepository;
@@ -38,8 +38,8 @@ final class MemoryFileToolTest extends TestCase {
             new ConversationAudience($conversations),
         );
         $group = $conversations->openConversation(7, 'telegram', '-100');
-        $member = new ToolContext(1, $group, new Principal(7, PrincipalKind::Human, Role::admin(), 'member'), new NullCancellation());
-        $stranger = new ToolContext(2, $conversations->openConversation(9, 'telegram', '-100'), new Principal(9, PrincipalKind::Human, Role::admin(), 'stranger'), new NullCancellation());
+        $member = new ToolContext(1, $group, new Member(7, MemberKind::Human, Role::admin(), 'member'), new NullCancellation());
+        $stranger = new ToolContext(2, $conversations->openConversation(9, 'telegram', '-100'), new Member(9, MemberKind::Human, Role::admin(), 'stranger'), new NullCancellation());
 
         $saved = $tool->execute(['action' => 'write', 'content' => "## Правила\nВсё по-английски"], $member);
 

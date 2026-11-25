@@ -55,7 +55,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         /** in a forum a project gets a topic; null — no forum topics */
         private readonly ?\OpenCCK\App\Service\ForumTopics $forum = null,
         /** the participants a project is shared with; null — no sharing here */
-        private readonly ?\OpenCCK\Domain\Repository\PrincipalRepository $principals = null,
+        private readonly ?\OpenCCK\Domain\Repository\MemberRepository $principals = null,
         /** handing a project over with the taker's consent; null — not here */
         private readonly ?\OpenCCK\App\Service\ProjectTransfers $transfers = null,
     ) {}
@@ -351,7 +351,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         return $active !== null && $this->levelOf($active, $context->principal) !== null ? $active : null;
     }
 
-    private function levelOf(Project $project, \OpenCCK\Domain\Entity\Principal $who): ?ProjectLevel {
+    private function levelOf(Project $project, \OpenCCK\Domain\Entity\Member $who): ?ProjectLevel {
         return $project->levelOf($who, $this->projects->memberLevel($project->id, $who->id));
     }
 
