@@ -31,6 +31,11 @@ final class InMemoryMemberRepository implements MemberRepository {
         return null;
     }
 
+    public function owners(): array {
+        ksort($this->principals);
+        return array_values(array_filter($this->principals, static fn(Member $p): bool => $p->isOwner() && $p->status === MemberStatus::Active));
+    }
+
     public function countActivePeople(array $roles): int {
         return count(array_filter($this->principals, static fn(Member $p): bool => $p->kind === MemberKind::Human
             && $p->status === MemberStatus::Active && in_array($p->role->value, $roles, true)));

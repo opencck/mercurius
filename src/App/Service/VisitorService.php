@@ -118,7 +118,7 @@ final class VisitorService implements CallbackHandler {
 
     /** Who pressed: the owner (null) or a participant whose role may admit visitors; false — nobody who may. */
     private function presser(IncomingCallback $callback): Member|false|null {
-        if ($callback->userId === OwnerDirectory::chat($this->ownerChatId)) {
+        if (OwnerDirectory::isOwner($this->ownerChatId, $callback->userId)) {
             return null;
         }
         $who = $this->principals->findByIdentity($callback->channel, $callback->userId);

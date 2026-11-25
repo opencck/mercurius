@@ -258,7 +258,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     }
 
     public function handleCallback(IncomingCallback $callback): void {
-        if ($callback->chatId !== OwnerDirectory::chat($this->ownerChatId) || preg_match('/^gr:(-?\d+):([mfrn]|u[1-9]\d{0,9})$/', $callback->data, $m) !== 1) {
+        if (!OwnerDirectory::isOwner($this->ownerChatId, $callback->chatId) || preg_match('/^gr:(-?\d+):([mfrn]|u[1-9]\d{0,9})$/', $callback->data, $m) !== 1) {
             $this->channel->answerCallback($callback->callbackId);
             return;
         }

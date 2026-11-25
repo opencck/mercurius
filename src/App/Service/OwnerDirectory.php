@@ -8,13 +8,16 @@ use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\MemberRepository;
 
 /**
- * Who the owner is now and where to reach them. The owner from the configuration is only the first one: ownership may
- * pass to another participant, so cards, notices and the check of who pressed a button ask here at that moment.
+ * Who the owners are now and where to reach them. The account from the configuration is only the first one: any person
+ * whose role has the permission owner is an owner, so cards, notices and the check of who pressed a button ask here at
+ * that moment.
  *
- * spec: brief/participants.md#несколько-пользователей — the owner passes ownership on; the first owner comes from the configuration
+ * spec: brief/participants.md#свои-роли — owners are the people whose role has the permission owner
  */
 final class OwnerDirectory {
     private ?Member $owner = null;
+    /** @var list<Member>|null */
+    private ?array $owners = null;
     /** @var list<int>|null */
     private ?array $former = null;
 
@@ -29,7 +32,47 @@ final class OwnerDirectory {
         return $this->owner ??= $this->principals->owner();
     }
 
-    /** The owner's account in the channel: their private chat. */
+    /** @return list<Member> the owners now, by id */
+    public function owners(): array {
+        return $this->owners ??= $this->principals->owners();
+    }
+
+    /**
+     * The private chats of the owners in the channel, by the owners' order; before any owner wrote — the account from
+     * the configuration.
+     *
+     * @return list<string>
+     */
+    public function chatIds(): array {
+        $chats = [];
+        foreach ($this->owners() as $owner) {
+            $chat = $this->principals->externalId($owner->id, $this->channel);
+            if ($chat !== null && !in_array($chat, $chats, true)) {
+                $chats[] = $chat;
+            }
+        }
+        return $chats === [] && $this->initialId !== '' ? [$this->initialId] : $chats;
+    }
+
+    /** Whether an account is an owner's: their chat in the channel, or `p<id>` of the WebSocket API. */
+    public function isOwnerAccount(string $userId): bool {
+        if (in_array($userId, $this->chatIds(), true)) {
+            return true;
+        }
+        foreach ($this->owners() as $owner) {
+            if ($userId === 'p' . $owner->id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A service built with a fixed account (tests, a single owner) or with the directory. */
+    public static function isOwner(self|string $owner, string $userId): bool {
+        return is_string($owner) ? $userId === $owner : $owner->isOwnerAccount($userId);
+    }
+
+    /** The first owner's account in the channel: their private chat. */
     public function chatId(): string {
         $owner = $this->principal();
         return ($owner === null ? null : $this->principals->externalId($owner->id, $this->channel)) ?? $this->initialId;
@@ -51,6 +94,7 @@ final class OwnerDirectory {
     /** After ownership passed on: the next question reads the owner anew. */
     public function forget(): void {
         $this->owner = null;
+        $this->owners = null;
         $this->former = null;
     }
 

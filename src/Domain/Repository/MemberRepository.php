@@ -20,6 +20,13 @@ interface MemberRepository {
     public function owner(): ?Member;
 
     /**
+     * spec: brief/participants.md#свои-роли — every active person whose role has the permission owner
+     *
+     * @return list<Member> by id
+     */
+    public function owners(): array;
+
+    /**
      * spec: brief/participants.md#свои-роли — the agent keeps at least one owner
      *
      * @param list<string> $roles

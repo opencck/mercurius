@@ -35,12 +35,8 @@ final class CallbackRouter implements CallbackHandler {
     ) {}
 
     private function byOwner(string $userId): bool {
-        if ($userId === OwnerDirectory::chat($this->ownerUserId)) {
-            return true;
-        }
-        // the owner's id in the WebSocket API follows the owner too
-        $owner = $this->ownerUserId instanceof OwnerDirectory ? $this->ownerUserId->principal() : null;
-        return $owner !== null ? $userId === 'p' . $owner->id : in_array($userId, $this->otherOwnerIds, true);
+        // spec: brief/participants.md#свои-роли — any owner presses, in Telegram or in the WebSocket API
+        return OwnerDirectory::isOwner($this->ownerUserId, $userId) || (is_string($this->ownerUserId) && in_array($userId, $this->otherOwnerIds, true));
     }
 
     public function handleCallback(IncomingCallback $callback): void {

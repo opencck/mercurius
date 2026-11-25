@@ -24,6 +24,15 @@ final class PostgresMemberRepository implements MemberRepository {
         return $row === null ? null : self::hydrate($row);
     }
 
+    public function owners(): array {
+        $found = [];
+        foreach ($this->db->query("SELECT id, kind, role, display_name, status FROM principals
+             WHERE kind = 'human' AND status = 'active' AND role IN (SELECT name FROM participant_roles WHERE 'owner' = ANY(permissions)) ORDER BY id") as $row) {
+            $found[] = self::hydrate($row);
+        }
+        return $found;
+    }
+
     public function countActivePeople(array $roles): int {
         if ($roles === []) {
             return 0;
