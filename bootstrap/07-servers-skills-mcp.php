@@ -191,11 +191,12 @@ $mcpManager = new McpManager(
 // spec: brief/skills-mcp.md#подстановка-секретов — an approved entry gets the secrets it names from the layers of its
 //       context; the wider layers only where they are turned on
 $secretInheritance = new \OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository($db);
-$mcpManager->useSecrets(new \OpenCCK\App\Mcp\McpSecrets(
+$mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $vault,
     static fn(int $project): ?int => $skillProjects->find($project)?->ownerId,
     $secretInheritance,
-));
+);
+$mcpManager->useSecrets($mcpSecrets);
 // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
 $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {
@@ -204,7 +205,11 @@ if ($sandbox !== null) {
 // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — .mcp.json of each member and project: read at start, once a
 //       minute and at once after a write; an entry works only while its hash is the approved one
 $mcpFiles = null;
+$mcpCards = null;
 if ($sandbox !== null) {
+    // the card of an entry needs the files to approve by; the files send cards: the holder is filled just below
+    /** @var \ArrayObject<string, \OpenCCK\App\Mcp\McpEntryCards> $mcpCardsHolder */
+    $mcpCardsHolder = new \ArrayObject();
     $mcpFiles = new \OpenCCK\App\Mcp\McpFiles(
         $sandbox,
         static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
@@ -218,11 +223,23 @@ if ($sandbox !== null) {
             $project = $skillProjects->find($projectId);
             return $project === null ? null : ($project->ownerId ?? $ownerDirectory->principal()?->id);
         },
-        static function (string $text) use ($channel): void {
-            $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));
+        static function (string $context, \OpenCCK\App\Mcp\McpEntry $entry) use ($mcpCardsHolder): void {
+            $cards = $mcpCardsHolder['cards'] ?? null;
+            if ($cards instanceof \OpenCCK\App\Mcp\McpEntryCards) {
+                $cards->ask($context, $entry);
+            }
         },
         $logger,
     );
+    // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the owners approve an entry from its card
+    $mcpCards = new \OpenCCK\App\Mcp\McpEntryCards(
+        $channel,
+        $ownerDirectory,
+        $mcpFiles,
+        $mcpSecrets,
+        static fn(\Mercurius\Messenger\IncomingCallback $press): ?Member => $principals->findByIdentity($channel->name(), $press->userId),
+    );
+    $mcpCardsHolder['cards'] = $mcpCards;
     $mcpContexts = static function () use ($principals, $skillProjects): array {
         $contexts = [];
         foreach ($principals->all() as $member) {

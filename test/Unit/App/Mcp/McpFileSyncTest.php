@@ -42,6 +42,8 @@ final class McpFileSyncTest extends AsyncTestCase {
     /** @var \ArrayObject<int, array{string, array<string, string>, ?string}> url, headers and token of each request */
     private \ArrayObject $seen;
     private Vault $vault;
+    private \OpenCCK\Test\Support\FakeChannel $channel;
+    private ?\OpenCCK\App\Mcp\McpEntryCards $cards = null;
     /** @var list<string> */
     private array $told = [];
 
@@ -92,13 +94,85 @@ final class McpFileSyncTest extends AsyncTestCase {
             $manager,
             new McpEntryGuard(),
             static fn(int $project): ?int => $project === 5 ? 7 : null,
-            function (string $text): void {
-                $this->told[] = $text;
+            function (string $context, McpEntry $entry): void {
+                $this->told[] = $context . '|' . $entry->name;
+                $this->cards?->ask($context, $entry);
             },
             new NullLogger(),
         );
         $manager->useFiles($this->files->keeps(...));
-        $manager->useSecrets(new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 7 : null, new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository()));
+        $secrets = new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 7 : null, new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository());
+        $manager->useSecrets($secrets);
+        $this->channel = new \OpenCCK\Test\Support\FakeChannel();
+        $reader = new Member(9, MemberKind::Human, Role::reader(), 'Reader');
+        $this->cards = new \OpenCCK\App\Mcp\McpEntryCards(
+            $this->channel,
+            '42',
+            $this->files,
+            $secrets,
+            fn(\Mercurius\Messenger\IncomingCallback $c): ?Member => match ($c->userId) {
+                '1' => $this->owner,
+                '9' => $reader,
+                default => null,
+            },
+        );
+    }
+
+    /** @return list<string> the data of the buttons of the last card */
+    private function lastCard(): array {
+        $buttons = end($this->channel->buttons);
+        self::assertNotFalse($buttons, 'a card was sent');
+        return array_map(static fn(\Mercurius\Messenger\Button $b): string => $b->data, $buttons[0]);
+    }
+
+    private function press(string $data, string $who): void {
+        $this->cards?->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'c' . mt_rand(), '42', $who, null, '1', $data, 'u' . mt_rand()));
+    }
+
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the card names the secrets and their layers */
+    public function testANewEntryBringsACardWithItsSecrets(): void {
+        $this->vault->put('tok', 'token', 'secret-value-1', $this->owner);
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"command": "npx", "args": ["--key={tok}"], "env": {"OTHER": "{gone}"}}}}');
+
+        $this->files->sync('member:1');
+
+        $text = implode("\n", $this->channel->texts('send'));
+        foreach (['docs', 'member:1', "npx '--key={tok}'", 'tok', 'gone'] as $part) {
+            self::assertStringContainsString($part, $text);
+        }
+        self::assertStringNotContainsString('secret-value-1', $text, 'a name, never a value');
+        self::assertMatchesRegularExpression('~^mc:a:[0-9a-f]{12}:member:1\|docs$~', $this->lastCard()[0]);
+    }
+
+    public function testAPressForAnEntryThatChangedSinceIsRefused(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp"}}}');
+        $this->files->sync('member:1');
+        $old = $this->lastCard()[0];
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://b.example/mcp"}}}');
+        $this->files->sync('member:1');
+
+        $this->press($old, '1');
+        self::assertNull($this->servers->find('member:1', 'docs')?->approvedHash, 'the old card approves nothing');
+
+        $this->press($this->lastCard()[0], '1');
+        $docs = $this->servers->find('member:1', 'docs');
+        self::assertSame([McpServer::CONNECTED, 'https://b.example/mcp'], [$docs?->status, $docs?->url]);
+    }
+
+    public function testOnlyAMemberWithTheMcpPermissionApproves(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://a.example/mcp"}}}');
+        $this->files->sync('member:1');
+        $card = $this->lastCard();
+        $approve = $card[0] ?? '';
+        $refuse = $card[1] ?? '';
+
+        $this->press($approve, '9');
+        $this->press($approve, '77');
+        self::assertNull($this->servers->find('member:1', 'docs')?->approvedHash);
+
+        $this->press($refuse, '1');
+        $docs = $this->servers->find('member:1', 'docs');
+        self::assertSame([McpServer::PENDING, null], [$docs?->status, $docs?->approvedHash], 'refused: still waits, nothing approved');
     }
 
     /** spec: brief/skills-mcp.md#подстановка-секретов */
@@ -310,8 +384,7 @@ final class McpFileSyncTest extends AsyncTestCase {
         $this->files->sync('project:5');
 
         self::assertSame(McpServer::PENDING, $this->servers->find('project:5', 'docs')?->status);
-        self::assertCount(1, $this->told, 'once per new entry');
-        self::assertStringContainsString('docs', $this->told[0]);
+        self::assertSame(['project:5|docs'], $this->told, 'once per new entry');
     }
 
     public function testConnectionsWithoutAFileAreWrittenToItOnce(): void {

@@ -35,7 +35,7 @@ final class McpFiles {
     /**
      * @param Closure(int): ?SandboxLimits $limitsOf the sandbox of a member, null — none
      * @param Closure(int): ?int $projectOwner the member whose folder holds a project, null — no such project
-     * @param Closure(string): void $tell writes to the owners
+     * @param Closure(string, McpEntry): void $tell a new or changed entry waits: the owners get a card
      */
     public function __construct(
         private readonly Sandbox $sandbox,
@@ -125,7 +125,7 @@ final class McpFiles {
     /**
      * The connections of the context brought to its file.
      *
-     * @return list<string> names of the entries that wait for approval
+     * @return array<string, McpEntry> the entries that wait for approval, by name
      */
     public function sync(string $context): array {
         if (!$this->keeps($context)) {
@@ -157,7 +157,7 @@ final class McpFiles {
             unset($connections[$name]);
             try {
                 if ($this->reconcile($context, $entry, $server)) {
-                    $waiting[] = $name;
+                    $waiting[$name] = $entry;
                 }
             } catch (Throwable $e) {
                 $this->logger->warning('A .mcp.json entry was not brought in', ['context' => $context, 'entry' => $name, 'error' => $e::class]);
@@ -274,20 +274,37 @@ final class McpFiles {
         ]);
     }
 
-    /** @param list<string> $waiting */
+    /**
+     * Each entry that waits gets one card, and a changed one a card of its own.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a new or changed entry waits for approval; the owners hear of it
+     *
+     * @param array<string, McpEntry> $waiting
+     */
     private function tellAbout(string $context, array $waiting): void {
-        if (!str_starts_with($context, 'project:')) {
-            return;
+        foreach ($waiting as $name => $entry) {
+            $key = $context . '|' . $name . '|' . $entry->hash();
+            if (isset($this->told[$key])) {
+                continue;
+            }
+            $this->told[$key] = true;
+            try {
+                ($this->tell)($context, $entry);
+            } catch (Throwable $e) {
+                $this->logger->warning('The card of an MCP entry was not sent', ['context' => $context, 'entry' => $name, 'error' => $e::class]);
+            }
         }
-        $new = array_values(array_filter($waiting, fn(string $name): bool => !isset($this->told[$context . '|' . $name])));
-        if ($new === []) {
-            return;
-        }
-        foreach ($new as $name) {
-            $this->told[$context . '|' . $name] = true;
-        }
-        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — in a project MCP is off until allowed: the owners hear of it
-        ($this->tell)(sprintf(t('mcp.files.project_waiting'), $context, implode(', ', $new), $context, $new[0]));
+    }
+
+    /** The entry the file of the context holds now under this name; null — none, or the file was not read. */
+    public function current(string $context, string $name): ?McpEntry {
+        $file = $this->load($context);
+        return $file instanceof McpFile && !$file->broken ? ($file->entries[$name] ?? null) : null;
+    }
+
+    /** The entry is not approved: it keeps waiting, its tools out, with who refused it. */
+    public function refuse(string $context, string $name, Member $by): void {
+        $this->manager->hold($context, $name, McpServer::PENDING, sprintf(t('mcp.cards.refused_reason'), $by->displayName ?? (string) $by->id));
     }
 
     /**
