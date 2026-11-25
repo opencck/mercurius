@@ -38,6 +38,84 @@ final class ServerCommands {
         $this->projects = $projects;
     }
 
+    private ?\OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit = null;
+
+    /** spec: brief/skills-mcp.md#подстановка-секретов — "/secret … inherit …" turns the wider layers on and off */
+    public function useInheritance(\OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit): void {
+        $this->inherit = $inherit;
+    }
+
+    /**
+     * "/secret *: <name> <value>" keeps a secret of the agent, "*: - <name>" removes it, "*:" lists the names. Only the
+     * owners of the agent: it is the widest layer, inherited by the contexts they turn it on for.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     */
+    private function agentSecret(Member $principal, #[SensitiveParameter] string $rest): string {
+        if (!$principal->isOwner()) {
+            return t('service.server_commands.agent_secret_owner_only');
+        }
+        if ($rest === '') {
+            $names = $this->vault->agentNames();
+            return $names === [] ? t('service.server_commands.agent_secrets_none') : t('service.server_commands.agent_secrets') . implode(', ', array_column($names, 'name'));
+        }
+        if (str_starts_with($rest, '- ')) {
+            $name = trim(substr($rest, 2));
+            return sprintf(t($this->vault->removeAgent($name) ? 'service.server_commands.agent_secret_removed' : 'service.server_commands.agent_secret_none'), $name);
+        }
+        $parts = preg_split('~\s+~', $rest, 2) ?: [];
+        if (count($parts) < 2 || trim($parts[1]) === '') {
+            return t('service.server_commands.agent_secret_usage');
+        }
+        try {
+            $existed = $this->vault->putAgent($parts[0], trim($parts[1]), $principal);
+        } catch (DomainException $e) {
+            return $e->getMessage();
+        }
+        return sprintf(t($existed ? 'service.server_commands.agent_secret_updated' : 'service.server_commands.agent_secret_saved'), $parts[0]);
+    }
+
+    /**
+     * "inherit" — what a context inherits; "inherit owner|agent on|off" turns a layer on or off. A project inherits its
+     * owner's secrets when its owner says so, the agent's when an owner of the agent does; a member's personal context
+     * inherits the agent's when an owner of the agent turns it on for them ("inherit agent on <number>", without a
+     * number — for oneself).
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов — off by default
+     */
+    private function inherit(Member $principal, ?\OpenCCK\Domain\Project\Project $project, string $rest): string {
+        if ($this->inherit === null) {
+            return t('service.server_commands.inherit_off');
+        }
+        $parts = preg_split('~\s+~', trim($rest)) ?: [];
+        // another member's context is named by number, and only by an owner of the agent
+        $other = $principal->isOwner() && isset($parts[3]) && ctype_digit($parts[3]) ? $parts[3] : (string) $principal->id;
+        $context = $project === null ? 'member:' . $other : 'project:' . $project->id;
+        if (count($parts) === 1) {
+            return $this->inheritState($context, $project);
+        }
+        $layer = $parts[1] ?? '';
+        $on = ($parts[2] ?? '') === 'on';
+        if (!in_array($layer, $project === null ? ['agent'] : ['owner', 'agent'], true) || !in_array($parts[2] ?? '', ['on', 'off'], true)) {
+            return t($project === null ? 'service.server_commands.inherit_usage_member' : 'service.server_commands.inherit_usage_project');
+        }
+        // the owner's own secrets go to their project by their word; the agent's — only by an owner of the agent
+        $may = $layer === 'owner' ? ($project?->visibleTo($principal) ?? false) : $principal->isOwner();
+        if (!$may) {
+            return t($layer === 'owner' ? 'service.server_commands.inherit_owner_only' : 'service.server_commands.inherit_agent_only');
+        }
+        $this->inherit->set($context, $layer === 'owner' ? 'owner' : 'agent', $on);
+        return $this->inheritState($context, $project);
+    }
+
+    private function inheritState(string $context, ?\OpenCCK\Domain\Project\Project $project): string {
+        $now = $this->inherit?->of($context) ?? ['owner' => false, 'agent' => false];
+        $word = static fn(bool $on): string => t($on ? 'service.server_commands.inherit_on_word' : 'service.server_commands.inherit_off_word');
+        return $project === null
+            ? sprintf(t('service.server_commands.inherit_state_member'), $context, $word($now['agent']))
+            : sprintf(t('service.server_commands.inherit_state_project'), $project->name, $word($now['owner']), $word($now['agent']));
+    }
+
     /**
      * The project a command names before a colon: a project the participant sees by that name; null — the text is a
      * personal secret (its value may hold a colon). A project shared with the participant is named too, to be refused.
@@ -59,6 +137,9 @@ final class ServerCommands {
      * spec: brief/participants.md#секреты-проекта
      */
     private function projectSecret(Member $principal, \OpenCCK\Domain\Project\Project $project, #[SensitiveParameter] string $rest): string {
+        if ($rest === 'inherit' || str_starts_with($rest, 'inherit ')) {
+            return $this->inherit($principal, $project, $rest);
+        }
         if (!$project->visibleTo($principal)) {
             return sprintf(t('service.server_commands.project_secret_owner_only'), $project->name);
         }
@@ -91,6 +172,12 @@ final class ServerCommands {
 
     public function secret(Member $principal, #[SensitiveParameter] string $argument): string {
         $argument = trim($argument);
+        if ($argument === '*:' || str_starts_with($argument, '*: ')) {
+            return $this->agentSecret($principal, trim(substr($argument, 2)));
+        }
+        if ($argument === 'inherit' || str_starts_with($argument, 'inherit ')) {
+            return $this->inherit($principal, null, $argument);
+        }
         $named = $this->projectOf($principal, $argument);
         if ($named !== null) {
             return $this->projectSecret($principal, $named[0], $named[1]);
@@ -131,6 +218,9 @@ final class ServerCommands {
     public function secrets(Member $principal, string $argument = ''): string {
         if (!$this->vault->enabled()) {
             return t('service.server_commands.hranilische_sekretov_vyklyucheno_v_env');
+        }
+        if (trim($argument) === '*') {
+            return $this->agentSecret($principal, '');
         }
         // spec: brief/participants.md#секреты-проекта — "/secrets <project>" lists the names of a project's secrets for its owner
         $named = trim($argument) === '' ? null : $this->projectOf($principal, trim($argument) . ':');

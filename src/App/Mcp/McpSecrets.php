@@ -9,8 +9,9 @@ use OpenCCK\App\Vault\Vault;
 
 /**
  * The secrets of an entry, from the layers of its context: in a project — the project, its owner, the agent; in a
- * personal context — the member, the agent; elsewhere — the agent. The approval of the entry is the consent to the
- * names it carries: its card says which layer each comes from.
+ * personal context — the member, the agent. A wider layer counts only when the context inherits it, off by default:
+ * the project owner shares their own with the project, an owner of the agent shares the agent's with a project or a
+ * member. The approval of the entry is the consent to the names it carries: its card says which layer each comes from.
  *
  * spec: brief/skills-mcp.md#подстановка-секретов
  */
@@ -19,11 +20,12 @@ final class McpSecrets {
     public function __construct(
         private readonly Vault $vault,
         private readonly Closure $projectOwner,
+        private readonly \OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit,
     ) {}
 
     public function render(McpEntry $entry, string $context): McpRendered {
-        [$project, $owner] = $this->layersOf($context);
-        return $entry->render(fn(string $name): ?string => $this->vault->layered($name, $project, $owner)[0] ?? null);
+        [$project, $owner, $withOwner, $withAgent] = $this->layersOf($context);
+        return $entry->render(fn(string $name): ?string => $this->vault->layered($name, $project, $owner, $withOwner, $withAgent)[0] ?? null);
     }
 
     /**
@@ -32,22 +34,24 @@ final class McpSecrets {
      * @return array<string, ?string>
      */
     public function layers(McpEntry $entry, string $context): array {
-        [$project, $owner] = $this->layersOf($context);
+        [$project, $owner, $withOwner, $withAgent] = $this->layersOf($context);
         $layers = [];
         foreach ($entry->placeholders() as $name) {
-            $layers[$name] = $this->vault->layered($name, $project, $owner)[1] ?? null;
+            $layers[$name] = $this->vault->layered($name, $project, $owner, $withOwner, $withAgent)[1] ?? null;
         }
         return $layers;
     }
 
-    /** @return array{?int, int} the project and the owner of the context; 0 — no owner layer */
+    /** @return array{?int, int, bool, bool} the project, the owner of the context, and whether the owner's and the agent's layers count */
     private function layersOf(string $context): array {
+        $inherits = $this->inherit->of($context);
         if (preg_match('~^member:(\d+)$~', $context, $m) === 1) {
-            return [null, (int) $m[1]];
+            // one's own secrets always; the agent's when an owner of the agent turned them on
+            return [null, (int) $m[1], true, $inherits['agent']];
         }
         if (preg_match('~^project:(\d+)$~', $context, $m) === 1) {
-            return [(int) $m[1], ($this->projectOwner)((int) $m[1]) ?? 0];
+            return [(int) $m[1], ($this->projectOwner)((int) $m[1]) ?? 0, $inherits['owner'], $inherits['agent']];
         }
-        return [null, 0];
+        return [null, 0, false, false];
     }
 }

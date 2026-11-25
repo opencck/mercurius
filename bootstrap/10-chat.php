@@ -404,6 +404,8 @@ $chat->useOwnership($ownership);
 $chat->useRoles($roleCatalog);
 // spec: brief/participants.md#секреты-проекта — "/secret <project>: …" keeps a secret of a project
 $serverCommands->useProjects($projectRepository);
+/** @var OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository $secretInheritance */
+$serverCommands->useInheritance($secretInheritance);
 // spec: brief/agent-loop.md#запреты — bans by command and from a card; a project's owner bans in their project
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);

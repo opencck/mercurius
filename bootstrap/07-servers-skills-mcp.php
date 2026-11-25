@@ -188,6 +188,14 @@ $mcpManager = new McpManager(
     $logger,
     stdio: $stdioMcp !== null,
 );
+// spec: brief/skills-mcp.md#подстановка-секретов — an approved entry gets the secrets it names from the layers of its
+//       context; the wider layers only where they are turned on
+$secretInheritance = new \OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository($db);
+$mcpManager->useSecrets(new \OpenCCK\App\Mcp\McpSecrets(
+    $vault,
+    static fn(int $project): ?int => $skillProjects->find($project)?->ownerId,
+    $secretInheritance,
+));
 // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
 $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {

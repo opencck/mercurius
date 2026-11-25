@@ -98,7 +98,7 @@ final class McpFileSyncTest extends AsyncTestCase {
             new NullLogger(),
         );
         $manager->useFiles($this->files->keeps(...));
-        $manager->useSecrets(new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 7 : null));
+        $manager->useSecrets(new McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 7 : null, new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository()));
     }
 
     /** spec: brief/skills-mcp.md#подстановка-секретов */

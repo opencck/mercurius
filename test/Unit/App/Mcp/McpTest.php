@@ -109,7 +109,7 @@ final class McpTest extends AsyncTestCase {
             },
             new NullLogger(),
         );
-        $manager->useSecrets(new \OpenCCK\App\Mcp\McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 3 : null));
+        $manager->useSecrets(new \OpenCCK\App\Mcp\McpSecrets($this->vault, static fn(int $project): ?int => $project === 5 ? 3 : null, new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository()));
         return new McpCommands($manager, $this->servers, $files, static fn(int $project): ?int => $project === 5 ? 3 : null);
     }
 

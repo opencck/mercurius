@@ -134,26 +134,27 @@ final class Vault {
 
     /**
      * The value an entry of .mcp.json gets by a name, from the narrowest layer of its context that has it: the
-     * project, the owner of the context (of the project, or the member of a personal context), the agent. Null — no
-     * layer has it. Only code that calls the server asks; the value is remembered for masking.
+     * project, the owner of the context (of the project, or the member of a personal context), the agent. A wider
+     * layer counts only when the context inherits it ($owner, $agent). Null — no layer has it. Only code that calls
+     * the server asks; the value is remembered for masking.
      *
      * spec: brief/skills-mcp.md#подстановка-секретов
      *
      * @return array{string, string}|null the value and its layer
      */
-    public function layered(string $name, ?int $projectId, int $ownerId): ?array {
+    public function layered(string $name, ?int $projectId, int $ownerId, bool $owner, bool $agent): ?array {
         $project = $projectId === null ? null : $this->decrypt($this->secrets->findIn($name, $projectId));
         if ($project !== null && $project !== '') {
             return [(string) self::known($project), self::LAYER_PROJECT];
         }
-        $personal = $this->secrets->find($name);
+        $personal = $owner ? $this->secrets->find($name) : null;
         $owned = $personal !== null && $personal['principal'] === $ownerId ? $this->decrypt($personal) : null;
         if ($owned !== null && $owned !== '') {
             return [(string) self::known($owned), self::LAYER_OWNER];
         }
-        $agent = $this->decrypt($this->secrets->findAgent($name));
-        if ($agent !== null && $agent !== '') {
-            return [(string) self::known($agent), self::LAYER_AGENT];
+        $shared = $agent ? $this->decrypt($this->secrets->findAgent($name)) : null;
+        if ($shared !== null && $shared !== '') {
+            return [(string) self::known($shared), self::LAYER_AGENT];
         }
         return null;
     }

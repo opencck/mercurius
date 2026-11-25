@@ -27,6 +27,52 @@ final class ServerCommandsTest extends AsyncTestCase {
         $this->stack->useServers(new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository()));
     }
 
+    /** spec: brief/skills-mcp.md#подстановка-секретов — the layer of the agent, kept by its owners */
+    public function testAnOwnerKeepsASecretOfTheAgentAndAMemberIsRefused(): void {
+        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
+        $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
+
+        $commands->secret($owner, '*: api-key agent value');
+        self::assertSame([['name' => 'api-key', 'kind' => 'password']], $this->vault->agentNames());
+        self::assertStringContainsString('api-key', $commands->secrets($owner, '*'));
+        $refused = $commands->secret($anna, '*: api-key mine');
+        self::assertSame(['agent value', Vault::LAYER_AGENT], $this->vault->layered('api-key', null, 1, owner: false, agent: true), $refused);
+        self::assertStringNotContainsString('api-key', $commands->secrets($anna, '*'));
+
+        $commands->secret($owner, '*: - api-key');
+        self::assertSame([], $this->vault->agentNames());
+    }
+
+    /** spec: brief/skills-mcp.md#подстановка-секретов — inheritance is off until turned on by whoever may */
+    public function testInheritanceIsTurnedOnByWhoeverMay(): void {
+        $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
+        $inherit = new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository();
+        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $commands->useProjects($projects);
+        $commands->useInheritance($inherit);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
+        $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
+        $project = $projects->create('Job Hunt', '', ownerId: 7);
+
+        self::assertSame(['owner' => false, 'agent' => false], $inherit->of('project:' . $project->id), 'off by default');
+        $commands->secret($anna, 'Job Hunt: inherit owner on');
+        $commands->secret($anna, 'Job Hunt: inherit agent on');
+        self::assertSame(['owner' => true, 'agent' => false], $inherit->of('project:' . $project->id), 'the project owner shares their own, not the agent\'s');
+        $commands->secret($owner, 'Job Hunt: inherit agent on');
+        self::assertTrue($inherit->of('project:' . $project->id)['agent']);
+
+        $commands->secret($anna, 'inherit agent on');
+        self::assertFalse($inherit->of('member:7')['agent'], 'a member does not open the agent\'s secrets to themselves');
+        $commands->secret($owner, 'inherit agent on 7');
+        self::assertTrue($inherit->of('member:7')['agent']);
+        $commands->secret($owner, 'inherit agent on');
+        self::assertTrue($inherit->of('member:1')['agent'], 'an owner turns it on for themselves');
+        $commands->secret($owner, 'inherit agent off 7');
+        self::assertFalse($inherit->of('member:7')['agent']);
+        self::assertStringContainsString('секреты агента наследуются', $commands->secret($owner, 'inherit'), 'the state of their own context');
+    }
+
     public function testASecretIsStoredAndItsMessageDeleted(): void {
         $this->stack->say('/secret web-pass Sup3r-secret-pass');
 

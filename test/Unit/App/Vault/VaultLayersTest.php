@@ -28,21 +28,31 @@ final class VaultLayersTest extends TestCase {
 
     public function testTheNarrowestLayerWins(): void {
         $this->vault->putAgent('token', 'agent-value', $this->owner);
-        self::assertSame(['agent-value', Vault::LAYER_AGENT], $this->vault->layered('TOKEN', 5, 2));
+        self::assertSame(['agent-value', Vault::LAYER_AGENT], $this->vault->layered('TOKEN', 5, 2, owner: true, agent: true));
 
         $this->vault->put('token', 'token', 'user-value', $this->user);
-        self::assertSame(['user-value', Vault::LAYER_OWNER], $this->vault->layered('token', 5, 2));
+        self::assertSame(['user-value', Vault::LAYER_OWNER], $this->vault->layered('token', 5, 2, owner: true, agent: true));
 
         $this->vault->putProject(5, 'token', 'example.com', 'project-value', $this->owner);
-        self::assertSame(['project-value', Vault::LAYER_PROJECT], $this->vault->layered('token', 5, 2));
-        self::assertSame(['user-value', Vault::LAYER_OWNER], $this->vault->layered('token', null, 2), 'a personal context has no project layer');
+        self::assertSame(['project-value', Vault::LAYER_PROJECT], $this->vault->layered('token', 5, 2, owner: true, agent: true));
+        self::assertSame(['user-value', Vault::LAYER_OWNER], $this->vault->layered('token', null, 2, owner: true, agent: true), 'a personal context has no project layer');
+    }
+
+    /** spec: brief/skills-mcp.md#подстановка-секретов — the wider layers are not inherited until turned on */
+    public function testWiderLayersAreOffUntilTurnedOn(): void {
+        $this->vault->putAgent('token', 'agent-value', $this->owner);
+        $this->vault->put('key', 'token', 'user-value', $this->user);
+
+        self::assertNull($this->vault->layered('token', 5, 2, owner: true, agent: false));
+        self::assertNull($this->vault->layered('key', 5, 2, owner: false, agent: true), 'the owner of the project keeps their secrets to themselves');
+        self::assertSame(['agent-value', Vault::LAYER_AGENT], $this->vault->layered('token', 5, 2, owner: false, agent: true));
     }
 
     public function testAnotherMembersSecretIsNotTaken(): void {
         $this->vault->put('token', 'token', 'user-value', $this->user);
 
-        self::assertNull($this->vault->layered('token', null, 1), 'the secret of member 2 is not in the context of member 1');
-        self::assertNull($this->vault->layered('token', 6, 1));
+        self::assertNull($this->vault->layered('token', null, 1, owner: true, agent: true), 'the secret of member 2 is not in the context of member 1');
+        self::assertNull($this->vault->layered('token', 6, 1, owner: true, agent: true));
     }
 
     public function testAnAgentSecretHasItsOwnName(): void {
@@ -50,7 +60,7 @@ final class VaultLayersTest extends TestCase {
         self::assertFalse($this->vault->putAgent('token', 'agent-value', $this->owner), 'the same name in another layer is another secret');
         self::assertTrue($this->vault->putAgent('token', 'agent-value-2', $this->owner), 'again — replaced');
 
-        self::assertSame(['agent-value-2', Vault::LAYER_AGENT], $this->vault->layered('token', null, 1));
+        self::assertSame(['agent-value-2', Vault::LAYER_AGENT], $this->vault->layered('token', null, 1, owner: true, agent: true));
         self::assertSame('user-value', $this->vault->reveal('token', $this->user), 'the personal one is untouched');
         self::assertSame([['name' => 'token', 'kind' => 'password']], $this->vault->agentNames());
         self::assertSame([['name' => 'token', 'kind' => 'token']], $this->vault->names($this->user), 'the agent secret is not a personal one');
