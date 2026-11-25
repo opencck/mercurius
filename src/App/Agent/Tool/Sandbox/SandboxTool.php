@@ -65,12 +65,15 @@ abstract class SandboxTool implements Tool {
     }
 
     /**
-     * A grant in the owners' area is a grant there only: a grant given in one's own folder does not reach the root.
+     * A grant in the owners' area is a grant there only: neither a grant of any call of the tool, nor of a job or a
+     * project, nor one given in one's own folder reaches the root.
+     *
+     * spec: brief/agent-loop.md#разрешения-навсегда
      *
      * @param array<string, mixed> $args
      */
-    protected static function areaGrant(array $args, ?string $key): ?string {
-        return $key === null || !self::inOwnersArea($args) ? $key : $key . ' @owners';
+    protected static function areaGrant(array $args, ?string $key, string $tool): ?string {
+        return self::inOwnersArea($args) ? \OpenCCK\App\Agent\GrantKeys::OWNERS_AREA . ($key ?? 'tool:' . $tool) : $key;
     }
 
     /**

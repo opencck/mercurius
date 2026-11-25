@@ -19,7 +19,9 @@ use function Mercurius\I18n\t;
  */
 final class GrantKeys {
     /** Keys of what stays apart: a wider grant or a grant of an area never covers them. */
-    private const STRICT = ['ssh-never:', 'ssh-sudo:', 'file-write-never:'];
+    private const STRICT = ['ssh-never:', 'ssh-sudo:', 'file-write-never:', self::OWNERS_AREA];
+    /** a call in the owners' area of the sandbox: it reaches every member's folder, only its own grant lets it run */
+    public const OWNERS_AREA = 'owners-area:';
 
     /**
      * @param string $exact the key of this call
@@ -84,6 +86,9 @@ final class GrantKeys {
 
     /** What a key allows, in words, for a button and the list of grants. */
     public static function label(string $key): string {
+        if (str_starts_with($key, self::OWNERS_AREA)) {
+            return sprintf(t('agent.grants.in_owners_area'), self::label(substr($key, strlen(self::OWNERS_AREA))));
+        }
         if (str_starts_with($key, 'tool:')) {
             return sprintf(t('agent.grants.any_call'), substr($key, 5));
         }

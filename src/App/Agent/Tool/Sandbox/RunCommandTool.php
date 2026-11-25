@@ -186,7 +186,7 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
-        return self::areaGrant($args, $this->ownGrantKey($args));
+        return self::areaGrant($args, $this->ownGrantKey($args), self::NAME);
     }
 
     public function describe(array $args): string {

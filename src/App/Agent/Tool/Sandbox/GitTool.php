@@ -249,7 +249,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
-        return self::areaGrant($args, $this->ownGrantKey($args));
+        return self::areaGrant($args, $this->ownGrantKey($args), 'git');
     }
 
     public function describe(array $args): string {

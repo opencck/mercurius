@@ -14,7 +14,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
 
 use function Mercurius\I18n\t;
 
-final class WriteFileTool extends SandboxTool {
+final class WriteFileTool extends SandboxTool implements \OpenCCK\App\Agent\Tool\GrantKeyed {
     public const NAME = 'write_file';
 
     /** \var (\Closure(int, string): void)|null told of a written .mcp.json: the member and the path */
@@ -114,5 +114,15 @@ final class WriteFileTool extends SandboxTool {
 
     public function danger(array $args): DangerClass {
         return self::areaDanger($args, $this->ownDanger($args));
+    }
+
+    /** @param array<string, mixed> $args a write in the owners' area has a grant of its own; in one's folder — as before */
+    public function grantKey(array $args): ?string {
+        return self::areaGrant($args, null, 'write_file');
+    }
+
+    /** @param array<string, mixed> $args */
+    public function describe(array $args): string {
+        return self::areaLabel($args, 'write_file ' . (\OpenCCK\App\Agent\Tool\Args::string($args, 'path') ?? ''));
     }
 }

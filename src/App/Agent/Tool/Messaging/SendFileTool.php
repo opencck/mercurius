@@ -127,7 +127,7 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
-        return self::areaGrant($args, $this->ownGrantKey($args));
+        return self::areaGrant($args, $this->ownGrantKey($args), 'send_file');
     }
 
     public function describe(array $args): string {

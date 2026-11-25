@@ -106,6 +106,16 @@ final class FileToolsTest extends TestCase {
         self::assertNotSame($run->grantKey(['command' => 'rm -rf build']), $run->grantKey(['command' => 'rm -rf build', 'area' => 'owners']), 'a grant in one\'s folder is not a grant in the owners\' area');
         self::assertStringContainsString('общей области владельцев', $run->describe(['command' => 'rm -rf build', 'area' => 'owners']));
 
+        // spec: brief/agent-loop.md#разрешения-навсегда — a grant of any call or of an area does not reach the owners' area
+        foreach ([[$run, 'run_command', ['command' => 'rm -rf build', 'area' => 'owners']], [$write, 'write_file', ['path' => 'a.md', 'content' => 'x', 'area' => 'owners']], [new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($this->sandbox, $this->sandbox, new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32)), 120), 'git', ['args' => ['commit', '-m', 'x'], 'area' => 'owners']]] as [$tool, $name, $args]) {
+            self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args), $name . ' changes the owners\' area: a card');
+            $keys = \OpenCCK\App\Agent\GrantKeys::of($tool, $args, $name);
+            self::assertStringStartsWith('owners-area:', $keys->exact, $name);
+            $candidates = $keys->candidates($name, ['job:5']);
+            self::assertNotContains('tool:' . $name, $candidates, $name . ': not a grant of any call');
+            self::assertNotContains('area:job:5', $candidates, $name . ': not a grant of the whole job');
+        }
+
         $member = new ToolContext(3, 1, new Member(8, MemberKind::Human, Role::user(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true), 'c2');
         $calls = count($this->sandbox->calls);
         self::assertTrue((new ReadFileTool($this->sandbox))->execute(['path' => 'notes.md', 'area' => 'owners'], $member)->isError);
