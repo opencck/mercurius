@@ -13,9 +13,10 @@ use OpenCCK\Domain\Repository\McpServerRepository;
 use function Mercurius\I18n\t;
 
 /**
- * The owner connects MCP servers from the chat: the list, adding, approving (turning on), turning off, removing.
+ * MCP servers from the chat: the list, adding, approving (turning on), turning off, removing.
  *
- * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — managed from the channel, the owner only
+ * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — managed from the channel
+ * spec: brief/participants.md#свои-роли — by whoever has the permission mcp
  */
 final class McpCommands {
     public function __construct(

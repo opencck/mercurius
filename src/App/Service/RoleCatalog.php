@@ -159,6 +159,17 @@ final class RoleCatalog {
         return sprintf(t('roles.removed'), $name);
     }
 
+    /**
+     * The role of the one the agent talks to and its permissions, for self_info: an owner sees owner and every other
+     * permission listed.
+     *
+     * spec: brief/participants.md#свои-роли
+     */
+    public static function ofMember(Role $role): string {
+        $permissions = $role->permissions();
+        return sprintf(t('self.limits.role'), self::label($role), $permissions === [] ? t('roles.no_powers') : implode(', ', array_map(static fn(Permission $p): string => $p->value, $permissions)));
+    }
+
     /** How a role is called to people: the title the owner gave, the translation of a built-in role, its name. */
     public static function label(Role $role): string {
         return $role->title() !== '' ? $role->title() : match ($role->value) {

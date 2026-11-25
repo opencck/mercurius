@@ -55,6 +55,12 @@ final class RoleCatalogTest extends TestCase {
         self::assertTrue(Role::of('chief')->isOwner());
     }
 
+    public function testDescribeNamesTheRoleAndItsPermissions(): void {
+        self::assertSame(sprintf(t('self.limits.role'), t('service.visitor.admin'), implode(', ', array_map(static fn(Permission $p): string => $p->value, Permission::cases()))), RoleCatalog::ofMember(Role::admin()));
+        self::assertStringContainsString('mcp', RoleCatalog::ofMember(Role::admin()), 'an owner has the permission mcp too');
+        self::assertSame(sprintf(t('self.limits.role'), t('service.visitor.reader'), t('roles.no_powers')), RoleCatalog::ofMember(Role::reader()));
+    }
+
     public function testSetAcceptsPermissionsAndOldPowersKey(): void {
         $this->catalog->add('one', 'Один');
         $this->catalog->add('two', 'Два');

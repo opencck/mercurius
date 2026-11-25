@@ -127,7 +127,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
                 . ' ' . \Mercurius\I18n\t($settingsService->current('MEMORY_SLEEP_TRANSLATE') === '1' ? 'self.modules.sleep_translate_on' : 'self.modules.sleep_translate_off')
                 . ' ' . ($sleepAuto() === [] ? \Mercurius\I18n\t('self.modules.sleep_auto_none') : sprintf(\Mercurius\I18n\t('self.modules.sleep_auto'), implode(', ', $sleepAuto()))));
     },
-    'limits' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.limits') . "\n" . ($c->policy === null ? '—' : json_encode($c->policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
+    // spec: brief/participants.md#свои-роли — the role and its permissions of the one the agent talks to
+    'limits' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.limits') . "\n" . \OpenCCK\App\Service\RoleCatalog::ofMember($c->principal->role) . "\n" . ($c->policy === null ? '—' : json_encode($c->policy->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
     'skills' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.skills'),
     'self_improvement' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.self_improvement'),
     // spec: brief/participants.md#доступ-к-проектам-и-передача — how projects are shared and handed over, on demand

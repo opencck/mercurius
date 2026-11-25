@@ -90,6 +90,11 @@ final class AgentStack {
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, reports: $reports);
     }
 
+    /** The chat with the commands of MCP servers. */
+    public function useMcp(\OpenCCK\App\Service\McpCommands $mcp): void {
+        $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, mcp: $mcp);
+    }
+
     /** The chat with the commands of servers and secrets. */
     public function useServers(\OpenCCK\App\Service\ServerCommands $servers): void {
         $this->chat = new ChatService(new AccessService($this->principals, 'telegram', '42', $this->visitors), $this->conversations, $this->scheduler, $this->channel, $this->approvalService, servers: $servers);

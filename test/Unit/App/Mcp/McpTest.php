@@ -341,4 +341,31 @@ data: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"tools\":[{\"name\":\"echo\",\"
         self::assertCount(3, $http->requested, 'initialize, initialized, tools/list');
         self::assertSame([['jsonrpc' => '2.0', 'id' => 1, 'result' => []]], HttpMcpClient::messages('{"jsonrpc":"2.0","id":1,"result":[]}', 'application/json'));
     }
+
+    /** spec: brief/participants.md#свои-роли — MCP servers are managed by whoever has the permission mcp */
+    public function testUserWithMcpMayAdd(): void {
+        $stack = new \OpenCCK\Test\Support\AgentStack();
+        $stack->useMcp(new McpCommands($this->manager, $this->servers));
+        $ops = Role::define('ops', '', 15, [\OpenCCK\Domain\Entity\Permission::Mcp]);
+        $stack->principals->put(new Member(7, MemberKind::Human, $ops, 'Ops'), 'telegram', '77');
+        try {
+            $stack->say('/mcp add docs https://mcp.example.com/mcp', '77');
+
+            self::assertNotNull($this->servers->find('docs'));
+        } finally {
+            Role::reset();
+        }
+    }
+
+    public function testUserWithoutMcpIsRefused(): void {
+        $stack = new \OpenCCK\Test\Support\AgentStack();
+        $stack->useMcp(new McpCommands($this->manager, $this->servers));
+        $stack->principals->put(new Member(7, MemberKind::Human, Role::user(), 'User'), 'telegram', '77');
+
+        $stack->say('/mcp add docs https://mcp.example.com/mcp', '77');
+
+        self::assertNull($this->servers->find('docs'));
+        self::assertContains(\Mercurius\I18n\t(\OpenCCK\App\Service\ChatService::OWNER_ONLY), $stack->channel->texts('send'));
+    }
+
 }
