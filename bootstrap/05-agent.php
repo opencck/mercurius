@@ -146,7 +146,7 @@ $httpCookieScope = static function (\OpenCCK\App\Agent\Tool\ToolContext $context
     $project = $meta === null ? null : $httpCookieProjects->active($meta->channel, $meta->chatId, $meta->threadId);
     return $project === null ? 'p' . $context->principal->id : 'project:' . $project->id;
 };
-$tools->register(new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope,
+$tools->register($httpRequestTool = new HttpRequestTool(HttpClients::guarded($addressGuard), $addressGuard, $vault, $guardedClient, new \OpenCCK\Infrastructure\Repository\PostgresHttpCookieRepository($db), $httpCookieScope,
     // spec: brief/participants.md#ресурсы-проекта — the project of a chat, for those who may change things in it: its secrets serve them
     static function (int $conversationId, \OpenCCK\Domain\Entity\Member $who) use ($conversations, $httpCookieProjects): ?int {
         $meta = $conversations->meta($conversationId);

@@ -63,6 +63,21 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
         $this->cookies = $cookies ?? new \OpenCCK\Infrastructure\Repository\InMemoryHttpCookieRepository();
     }
 
+    /** @var (\Closure(string, string): ?string)|null a value from the wider layers of a context */
+    private ?\Closure $layers = null;
+
+    /**
+     * Secrets of the wider layers of the context, after the project's for its site and the caller's own: the owner of
+     * the project and the agent, only where the context inherits them.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @param \Closure(string, string): ?string $layers name and context (project:<id> or member:<id>) to a value
+     */
+    public function useLayers(\Closure $layers): void {
+        $this->layers = $layers;
+    }
+
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.http_request.http_zapros_k_publichnomu_adresu')
             . t('tool.http_request.content_type_i_telo_do'), [
@@ -265,6 +280,11 @@ final class HttpRequestTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool
                 $value = $this->vault?->revealShared($name, $project, $host);
             }
             $value ??= $this->vault?->reveal($name, $context->principal);
+            $layers = $this->layers;
+            if ($value === null && $layers !== null) {
+                $in = $this->projectOf === null ? null : ($this->projectOf)($context->conversationId, $context->principal);
+                $value = $layers($name, $in === null ? 'member:' . $context->principal->id : 'project:' . $in);
+            }
             if ($value === null) {
                 $names = $this->vault === null ? [] : array_column($this->vault->names($context->principal), 'name');
                 return ToolResult::error(sprintf(t('tool.http_request.no_secret'), $name, $names === [] ? '—' : implode(', ', $names)));

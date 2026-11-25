@@ -42,6 +42,15 @@ final class McpSecrets {
         return $layers;
     }
 
+    /**
+     * A value from the layers wider than the project's own: the owner of the context and the agent, each only where
+     * the context inherits it. For a request to a site, where a project's secret goes only to the site it is for.
+     */
+    public function outside(string $name, string $context): ?string {
+        [, $owner, $withOwner, $withAgent] = $this->layersOf($context);
+        return $this->vault->layered($name, null, $owner, $withOwner, $withAgent)[0] ?? null;
+    }
+
     /** @return array{?int, int, bool, bool} the project, the owner of the context, and whether the owner's and the agent's layers count */
     private function layersOf(string $context): array {
         $inherits = $this->inherit->of($context);

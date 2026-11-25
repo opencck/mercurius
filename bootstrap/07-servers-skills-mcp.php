@@ -197,6 +197,9 @@ $mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $secretInheritance,
 );
 $mcpManager->useSecrets($mcpSecrets);
+// spec: brief/skills-mcp.md#подстановка-секретов — a request to a site takes the same wider layers
+/** @var OpenCCK\App\Agent\Tool\Web\HttpRequestTool|null $httpRequestTool */
+$httpRequestTool?->useLayers($mcpSecrets->outside(...));
 // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the package of an npx/uvx server is looked up in OSV before /mcp on starts it
 $mcpManager->useOsv(new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger));
 if ($sandbox !== null) {

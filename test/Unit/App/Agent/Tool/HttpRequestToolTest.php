@@ -157,6 +157,33 @@ final class HttpRequestToolTest extends AsyncTestCase {
         self::assertCount(1, $this->http->requested);
     }
 
+    /** spec: brief/skills-mcp.md#подстановка-секретов — the wider layers of the context, only where turned on */
+    public function testWiderLayersOfSecretsAreTakenOnlyWhereTurnedOn(): void {
+        $vault = new \OpenCCK\App\Vault\Vault(new \OpenCCK\Test\Support\InMemorySecretRepository(), random_bytes(32));
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
+        $vault->putAgent('agent-tok', 'agent-value-1', $owner);
+        $vault->put('owner-tok', 'token', 'owner-value-1', new Member(2, MemberKind::Human, Role::user(), 'Project owner'));
+        $inherit = new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository();
+        $secrets = new \OpenCCK\App\Mcp\McpSecrets($vault, static fn(int $project): ?int => $project === 5 ? 2 : null, $inherit);
+        $this->http = new FakeHttpClient([
+            'http://echo.example/anything?secret=agent-value-1' => [200, ['content-type' => 'text/plain'], 'ok'],
+            'http://echo.example/anything?secret=owner-value-1' => [200, ['content-type' => 'text/plain'], 'ok'],
+        ]);
+        $tool = new HttpRequestTool($this->http, new AddressGuard(static fn(string $host): array => ['93.184.216.34']), $vault, projectOf: static fn(int $conversation, Member $who): int => 5);
+        $tool->useLayers($secrets->outside(...));
+        $member = new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::user(), 'Member'), new NullCancellation());
+        $call = static fn(string $name): array => ['url' => 'http://echo.example/anything?secret={{secret:' . $name . '}}'];
+
+        self::assertTrue($tool->execute($call('agent-tok'), $member)->isError, 'not inherited by default');
+        self::assertTrue($tool->execute($call('owner-tok'), $member)->isError);
+
+        $inherit->set('project:5', 'agent', true);
+        $inherit->set('project:5', 'owner', true, 2);
+        $tool->execute($call('agent-tok'), $member);
+        $tool->execute($call('owner-tok'), $member);
+        self::assertSame(['GET http://echo.example/anything?secret=agent-value-1', 'GET http://echo.example/anything?secret=owner-value-1'], $this->http->requested);
+    }
+
     public function testCookiesOfAHostAreKeptForTheParticipantWithoutShowingThem(): void {
         $this->http = new FakeHttpClient([
             'http://example.com/login' => [200, ['content-type' => 'application/json', 'set-cookie' => '3x-ui=SESSIONVALUE; Path=/; HttpOnly'], '{"success":true}'],
