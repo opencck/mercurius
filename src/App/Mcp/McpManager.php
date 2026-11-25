@@ -67,7 +67,9 @@ final class McpManager {
 
     /** Pause before the first retry of a server that did not answer, doubled each time up to RETRY_MAX. */
     private const RETRY_FIRST = 30.0;
-    private const RETRY_MAX = 900.0;
+    private const RETRY_MAX = 600.0;
+    /** an error that will not pass by itself waits a year: in effect, for the owner */
+    private const LASTING = 31536000.0;
     /** How often the tools of connected servers are listed again: a change is caught without a restart. */
     private const RESYNC = 900.0;
     private const RESOURCE_MAX = 100_000;
@@ -433,7 +435,28 @@ final class McpManager {
      * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — a server that did not answer is tried again after a
      *       growing pause; the connection is in error with why and when
      */
+    /**
+     * An error that will not pass by itself: no such command (exit 127), a refused login (HTTP 401, 403), a native
+     * module built for another Node. It is not tried again: the owner fixes it, then turns the entry on.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам
+     * ref: references/hermes-agent/tools/mcp_tool_node_abi.py@e96221fa:L16-L18 (_ABI_MARKERS) — NODE_MODULE_VERSION and
+     *      ERR_DLOPEN_FAILED; hermes then says how to rebuild the package, here the stderr tail goes into the reason
+     */
+    public static function lasting(Throwable $why): bool {
+        return preg_match('~\(\D{0,8}127\)|\bHTTP 40[13]\b|NODE_MODULE_VERSION|ERR_DLOPEN_FAILED~u', $why->getMessage()) === 1;
+    }
+
     private function markDown(McpServer $server, int $tries, ?Throwable $why = null): void {
+        if ($why !== null && self::lasting($why)) {
+            unset($this->down[$server->key()]);
+            if ($server->context !== '') {
+                // the next try is far away: neither a restart nor the minute pass over the file tries it; /mcp on or
+                // a change of the entry does
+                $this->servers->update($server->context, $server->name, McpServer::ERROR, null, mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($why->getMessage()), 0, 300), $this->now() + self::LASTING);
+            }
+            return;
+        }
         $pause = min(self::RETRY_FIRST * (float) (2 ** min($tries, 10)), self::RETRY_MAX);
         $next = $this->now() + $pause;
         $this->down[$server->key()] = [$tries, $next];

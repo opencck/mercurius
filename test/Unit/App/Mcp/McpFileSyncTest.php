@@ -68,6 +68,9 @@ final class McpFileSyncTest extends AsyncTestCase {
                 if (str_contains($server->endpointUrl(), 'down')) {
                     throw new \RuntimeException('no answer');
                 }
+                if (str_contains($server->endpointUrl(), 'refused') && count($this->called) > 1) {
+                    throw new \RuntimeException('MCP server answered HTTP 401');
+                }
                 return [['name' => 'search', 'description' => 'Searches', 'schema' => ['type' => 'object'], 'annotations' => ['readOnlyHint' => true]]];
             }
 
@@ -128,6 +131,25 @@ final class McpFileSyncTest extends AsyncTestCase {
 
     private function press(string $data, string $who): void {
         $this->cards?->handleCallback(new \Mercurius\Messenger\IncomingCallback('telegram', 'c' . mt_rand(), '42', $who, null, '1', $data, 'u' . mt_rand()));
+    }
+
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a refused login is not tried again */
+    public function testAnErrorThatWillNotPassIsNotTriedAgain(): void {
+        $this->file(1, '.mcp.json', '{"mcpServers": {"docs": {"url": "https://refused.example/mcp"}}}');
+        $this->files->sync('member:1');
+        $this->files->approve('member:1', 'docs', $this->owner);
+        $this->manager->resume('member:1', 'docs');
+        $calls = count($this->called);
+
+        $this->files->sync('member:1');
+        $this->manager->connectAll();
+        $this->manager->tick();
+
+        $docs = $this->servers->find('member:1', 'docs');
+        self::assertNotNull($docs);
+        self::assertSame(McpServer::ERROR, $docs->status);
+        self::assertStringContainsString('401', $docs->note);
+        self::assertCount($calls, $this->called, 'neither the minute pass nor a restart calls it again');
     }
 
     /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the owners' context keeps its file in the root */

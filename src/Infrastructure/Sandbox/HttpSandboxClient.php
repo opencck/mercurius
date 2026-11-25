@@ -142,6 +142,14 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
             // already gone
         }
     }
+
+    public function closeAll(int $principalId, SandboxLimits $limits): void {
+        try {
+            $this->call('close_all', $principalId, $limits, [], self::EXTRA_SECONDS, new NullCancellation());
+        } catch (SandboxFailure) {
+            // nothing to close, or an executor before this operation: the idle ones die by themselves
+        }
+    }
     /**
      * The working folders of all participants as tar.gz into $file, streamed: for the archive of the agent.
      *

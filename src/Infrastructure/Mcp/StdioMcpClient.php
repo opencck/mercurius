@@ -51,6 +51,10 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
     private array $opening = [];
     /** @var array<string, string> by server name: what the running process was started with */
     private array $started = [];
+    /** @var array<string, float> by server name: when its process was last asked */
+    private array $used = [];
+    /** a process nobody asked for this long is stopped; the next request starts it again */
+    public const IDLE_SECONDS = 600.0;
 
     /** @param (Closure(string): void)|null $onToolsChanged a server said its tools changed */
     public function __construct(
@@ -93,6 +97,25 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         return preg_match('~^[A-Z_][A-Z0-9_]{0,63}$~', $name) === 1 ? $name : 'MCP_TOKEN';
     }
 
+    /**
+     * Stops the processes nobody asked for IDLE_SECONDS; their tools stay registered, the next request starts them.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — started on demand, stopped when idle
+     *
+     * @return int how many were stopped
+     */
+    public function stopIdle(?float $now = null): int {
+        $now ??= microtime(true);
+        $stopped = 0;
+        foreach ($this->used as $server => $at) {
+            if ($now - $at >= self::IDLE_SECONDS && isset($this->sessions[$server])) {
+                $this->forget($server);
+                $stopped++;
+            }
+        }
+        return $stopped;
+    }
+
     public function forget(string $server): void {
         $session = $this->sessions[$server] ?? null;
         unset($this->sessions[$server]);
@@ -104,6 +127,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         if (!$server instanceof McpServer) {
             throw new \RuntimeException('stdio needs a registered server');
         }
+        $this->used[$server->key()] = microtime(true);
         $session = $this->sessions[$server->key()] ?? null;
         if ($session !== null && $session->alive() && ($this->started[$server->key()] ?? '') === self::startedWith($server)) {
             return $session;
@@ -138,6 +162,8 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         $command = trim(substr($server->url, strlen(self::PREFIX)));
         $env = $server->renderedHash !== null ? $server->env : ($token === null ? [] : [self::envName($server->secret) => $token]);
         $principal = self::PRINCIPAL_BASE + $server->id;
+        // what a restarted application left running for this server goes first
+        $this->sandbox->closeAll($principal, $this->limits);
         try {
             $id = $this->sandbox->spawn($principal, $this->limits, $command, $env, new TimeoutCancellation(60));
         } catch (SandboxFailure $e) {

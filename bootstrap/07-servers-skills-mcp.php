@@ -206,6 +206,12 @@ $mcpElicitations = new \OpenCCK\App\Mcp\McpElicitations(
         return [\OpenCCK\App\Service\OwnersChannel::OWNERS, null];
     },
 );
+// spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a process nobody asked for 10 minutes stops
+if ($stdioMcp !== null) {
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($stdioMcp): void {
+        $stdioMcp->stopIdle();
+    }));
+}
 $stdioMcp?->useElicitation(static function (string $key, array $params) use ($mcpElicitations): array {
     // a connection of a context is context|name; a built-in server has no context: the owners answer for it
     $parts = explode('|', $key, 2);

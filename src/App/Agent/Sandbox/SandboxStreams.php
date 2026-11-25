@@ -34,4 +34,7 @@ interface SandboxStreams {
     public function receive(int $principalId, SandboxLimits $limits, string $session, int $wait, Cancellation $cancellation): array;
 
     public function close(int $principalId, SandboxLimits $limits, string $session): void;
+
+    /** Closes every process of a holder, the ones a restarted application left behind among them. */
+    public function closeAll(int $principalId, SandboxLimits $limits): void;
 }

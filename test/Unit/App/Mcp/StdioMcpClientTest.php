@@ -104,6 +104,25 @@ final class StdioMcpClientTest extends AsyncTestCase {
         self::assertStringContainsString('"elicitation"', (string) json_encode($init[0] ?? []), 'the client says it can ask');
     }
 
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — stopped when idle, started on demand */
+    public function testAnIdleProcessStopsAndTheNextRequestStartsItAgain(): void {
+        $this->client->tools(self::server(), null, new NullCancellation());
+
+        self::assertSame(0, $this->client->stopIdle(microtime(true) + 60.0), 'busy a minute ago: kept');
+        self::assertSame(1, $this->client->stopIdle(microtime(true) + StdioMcpClient::IDLE_SECONDS + 1.0));
+        self::assertTrue($this->sandbox->closed['s1'] ?? false);
+
+        $this->client->call(self::server(), null, 'echo', ['q' => 'again'], new NullCancellation());
+        self::assertCount(2, $this->sandbox->spawned, 'a new process for the next request');
+    }
+
+    /** the processes a restarted application left behind are closed before a new one starts */
+    public function testTheProcessesLeftBehindAreClosedBeforeAStart(): void {
+        $this->client->tools(self::server(), null, new NullCancellation());
+
+        self::assertSame([StdioMcpClient::PRINCIPAL_BASE + 7], $this->sandbox->closedAll);
+    }
+
     public function testTheServerMayNotifyAndAsk(): void {
         $this->client->tools(self::server(), null, new NullCancellation());
 

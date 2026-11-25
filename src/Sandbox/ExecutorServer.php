@@ -140,6 +140,7 @@ final class ExecutorServer implements RequestHandler {
             'send' => $this->send($request),
             'receive' => $this->streams()->receive($id, $request->string('session'), max(1, $request->int('max_bytes', Streams::RECEIVE_MAX, 1, Streams::RECEIVE_MAX)), (float) $request->int('wait', 20, 0, Streams::WAIT_MAX)),
             'close' => ['closed' => $this->streams()->close($id, $request->string('session'))],
+            'close_all' => ['closed' => $this->streams()->closeAll($id)],
             default => throw new SandboxError(t('sandbox.executor_server.net_takoy_operatsii'), 404),
         };
     }

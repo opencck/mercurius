@@ -102,6 +102,23 @@ final class Streams {
         return true;
     }
 
+    /**
+     * Closes every session of a holder: the processes an application left behind when it restarted.
+     *
+     * spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — orphans are cleared before a new start
+     */
+    public function closeAll(int $principalId): int {
+        $closed = 0;
+        foreach ($this->sessions as $id => $session) {
+            if ($session->principalId === $principalId) {
+                unset($this->sessions[$id]);
+                $session->stop();
+                $closed++;
+            }
+        }
+        return $closed;
+    }
+
     /** Kills sessions nobody touched for IDLE_SECONDS. */
     public function reap(?float $now = null): int {
         $now ??= microtime(true);

@@ -100,6 +100,17 @@ final class StreamsTest extends SandboxTestCase {
         $this->streams->spawn(905, self::limits(), 'sleep 30', '.', []);
     }
 
+    /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — what a restarted application left behind */
+    public function testEveryProcessOfAHolderIsClosedAtOnce(): void {
+        $this->streams->spawn(908, self::limits(), 'sleep 30', '.', []);
+        $this->streams->spawn(908, self::limits(), 'sleep 30', '.', []);
+        $other = $this->streams->spawn(909, self::limits(), 'sleep 30', '.', []);
+
+        self::assertSame(2, $this->streams->closeAll(908));
+        self::assertSame(1, $this->streams->count(), 'another holder keeps its process');
+        $this->streams->close(909, $other);
+    }
+
     public function testAPathOrLoaderVariableIsRefused(): void {
         $this->expectException(SandboxError::class);
         $this->streams->spawn(907, self::limits(), 'true', '.', ['LD_PRELOAD' => '/tmp/x.so']);

@@ -68,6 +68,13 @@ final class FakeSandboxStreams implements SandboxStreams {
         $this->closed[$session] = true;
     }
 
+    /** @var list<int> holders whose processes were all closed */
+    public array $closedAll = [];
+
+    public function closeAll(int $principalId, SandboxLimits $limits): void {
+        $this->closedAll[] = $principalId;
+    }
+
     /** The server writes a line on its own: a notification or a request. */
     public function push(string $session, string $line): void {
         $this->output[$session] = ($this->output[$session] ?? '') . $line . "\n";
