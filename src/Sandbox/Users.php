@@ -50,7 +50,26 @@ final class Users {
             $this->must(['groupadd', '--gid', $id, $user]);
             $this->must(['useradd', '--uid', $id, '--gid', $id, '--no-create-home', '--home-dir', $home, '--shell', '/bin/bash', $user]);
         }
-        $this->must(['install', '-d', '-o', $id, '-g', $id, '-m', '0700', $home]);
+        if ($principalId !== Workspace::OWNERS) {
+            // the root stays root's: the owners enter it by the override of file rights, not as its owner
+            $this->must(['install', '-d', '-o', $id, '-g', $id, '-m', '0700', $home]);
+        }
+    }
+
+    /**
+     * Files the owners made in a member's folder become the member's: the folder stays theirs alone.
+     *
+     * spec: brief/agent-loop.md#раскладка-каталогов — a file made by the owners in a member's folder goes to its holder
+     */
+    public function handOver(): void {
+        $names = scandir($this->workspace->root);
+        foreach ($names === false ? [] : $names as $name) {
+            if (preg_match('~^p(\d+)$~', $name, $m) !== 1) {
+                continue;
+            }
+            $uid = (string) $this->workspace->uid((int) $m[1]);
+            $this->proc->run(['find', $this->workspace->root . '/' . $name, '-xdev', '-uid', (string) Workspace::OWNERS_UID, '-exec', 'chown', '-h', $uid . ':' . $uid, '{}', '+'], '/', 120);
+        }
     }
 
     /**

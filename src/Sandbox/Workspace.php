@@ -7,28 +7,33 @@ namespace OpenCCK\Sandbox;
 use function Mercurius\I18n\t;
 
 /**
- * Participants' homes in the sandbox: user p<id>, uid 20000 + id, home /workspace/p<id>.
+ * Participants' homes in the sandbox: user p<id>, uid 20000 + id, home /workspace/p<id>. The owners' area is the
+ * holder 0: user owners, uid 19999, home the root itself, where every member's folder lies.
  * resolve() is the first line of defence (lexical); the second is the kernel, because every operation runs as
  * the participant's user and homes are 0700.
  *
  * spec: brief/agent-loop.md#песочница — a home and a Unix user per participant
+ * spec: brief/agent-loop.md#раскладка-каталогов — the owners' area is the root
  */
 final class Workspace {
     public const UID_BASE = 20000;
+    /** the holder of the owners' area */
+    public const OWNERS = 0;
+    public const OWNERS_UID = 19999;
     private const MAX_PATH = 4096;
 
     public function __construct(public readonly string $root = '/workspace') {}
 
     public function user(int $principalId): string {
-        return 'p' . $principalId;
+        return $principalId === self::OWNERS ? 'owners' : 'p' . $principalId;
     }
 
     public function uid(int $principalId): int {
-        return self::UID_BASE + $principalId;
+        return $principalId === self::OWNERS ? self::OWNERS_UID : self::UID_BASE + $principalId;
     }
 
     public function home(int $principalId): string {
-        return $this->root . '/' . $this->user($principalId);
+        return $principalId === self::OWNERS ? $this->root : $this->root . '/' . $this->user($principalId);
     }
 
     /**

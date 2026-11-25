@@ -17,7 +17,12 @@ use function Mercurius\I18n\t;
  */
 final class Streams {
     public const PER_PRINCIPAL = 4;
+    /** in each pool: the members' processes and the MCP servers' are counted apart */
     public const TOTAL = 32;
+    /** holders from here on are the processes of MCP servers */
+    public const MCP_BASE = 900_000;
+    public const POOL_MEMBERS = 'members';
+    public const POOL_MCP = 'mcp';
     public const IDLE_SECONDS = 1800.0;
     public const BUFFER_BYTES = 4 * 1024 * 1024;
     public const RECEIVE_MAX = 1024 * 1024;
@@ -33,13 +38,20 @@ final class Streams {
         private readonly Workspace $workspace,
     ) {}
 
+    /** @return self::POOL_* the count a holder's sessions go into */
+    public static function pool(int $principalId): string {
+        return $principalId >= self::MCP_BASE ? self::POOL_MCP : self::POOL_MEMBERS;
+    }
+
     /**
      * @param array<string, string> $env extra variables (a server's token): they go into the environment of the
      *                                     process, never into its arguments, which other users could see in /proc
      * @throws SandboxError
      */
     public function spawn(int $principalId, SandboxLimits $limits, string $command, string $cwd, array $env): string {
-        if (count($this->sessions) >= self::TOTAL) {
+        // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — MCP servers have a count of their own
+        $pool = self::pool($principalId);
+        if (count(array_filter($this->sessions, static fn(StreamSession $s): bool => self::pool($s->principalId) === $pool)) >= self::TOTAL) {
             throw new SandboxError(sprintf(t('sandbox.streams.too_many'), self::TOTAL), 429);
         }
         $own = count(array_filter($this->sessions, static fn(StreamSession $s): bool => $s->principalId === $principalId));

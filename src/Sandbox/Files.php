@@ -85,6 +85,9 @@ final class Files implements FileStore {
         if ($result->exitCode !== 0) {
             throw new SandboxError(sprintf(t('sandbox.files.ne_udalos_zapisat'), $path, self::reason($result)), 409);
         }
+        if ($principalId === Workspace::OWNERS) {
+            $this->users->handOver();
+        }
     }
 
     public function replace(int $principalId, SandboxLimits $limits, string $path, string $old, string $new): void {
@@ -141,7 +144,8 @@ final class Files implements FileStore {
     /** @throws SandboxError */
     private function checkRoom(int $principalId, SandboxLimits $limits, int $adding): void {
         $this->users->ensure($principalId);
-        if ($this->usage($principalId) + $adding > $limits->diskBytes) {
+        // the owners' area has no quota of its own: its files lie in the members' folders and in the root
+        if ($principalId !== Workspace::OWNERS && $this->usage($principalId) + $adding > $limits->diskBytes) {
             throw new SandboxError(sprintf(
                 t('sandbox.files.rabochiy_katalog_zapolnen_limit_mb'),
                 intdiv($limits->diskBytes, 1024 * 1024),

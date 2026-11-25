@@ -17,6 +17,17 @@ final class WorkspaceTest extends TestCase {
         self::assertSame('/workspace/p7', $workspace->home(7));
     }
 
+    /** spec: brief/agent-loop.md#раскладка-каталогов — the owners' area is the root, worked in by a user of its own */
+    public function testTheOwnersAreaIsTheRoot(): void {
+        $workspace = new Workspace();
+
+        self::assertSame(['owners', 19999, '/workspace'], [$workspace->user(Workspace::OWNERS), $workspace->uid(Workspace::OWNERS), $workspace->home(Workspace::OWNERS)]);
+        self::assertSame('/workspace/p8/x', $workspace->resolve(Workspace::OWNERS, 'p8/x'), 'a member\'s folder from the root');
+        self::assertSame('/workspace', $workspace->resolve(Workspace::OWNERS, '.'));
+        $this->expectException(SandboxError::class);
+        $workspace->resolve(Workspace::OWNERS, '../etc');
+    }
+
     public function testResolveKeepsPathsInsideHome(): void {
         $workspace = new Workspace();
 
