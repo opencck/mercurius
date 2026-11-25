@@ -68,10 +68,16 @@ final class McpInstallTool implements Tool, GrantKeyed {
         return Args::string($args, 'action') === 'fetch' ? DangerClass::Write : DangerClass::Irreversible;
     }
 
-    public function grantKey(array $args): ?string {
-        // a source may be fetched again without a card once allowed; installing and approving are asked each time
+    public function grantKey(array $args): string {
+        // a source may be fetched again without a card once allowed; a grant of installing or approving names the exact
+        // plan or set, so it never reaches another one
+        $action = Args::string($args, 'action') ?? '';
         $url = Args::string($args, 'url');
-        return Args::string($args, 'action') === 'fetch' && $url !== null ? 'mcp-source:' . $url : null;
+        if ($action === 'fetch') {
+            return 'mcp-source:' . ($url ?? Args::string($args, 'path') ?? '');
+        }
+        $plan = json_encode([$args['name'] ?? null, $args['steps'] ?? null, $args['entry'] ?? null, $args['classes'] ?? null], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return sprintf('mcp-%s:%s %s', $action, Args::string($args, 'name') ?? '', substr(hash('sha256', (string) $plan), 0, 16));
     }
 
     public function describe(array $args): string {

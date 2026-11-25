@@ -39,6 +39,7 @@ final class McpSourcesTest extends AsyncTestCase {
         self::assertStringContainsString('ssh-mcp server', $fetched->overview);
         self::assertStringStartsWith('exec 0 ', $this->sandbox->calls[0] ?? '', 'the owners link the code at /workspace/mcp/<name>');
         self::assertStringContainsString("ln -sfn '../p800003' 'mcp/ssh-mcp'", $this->sandbox->calls[0] ?? '');
+        self::assertStringContainsString('chmod 711 mcp', $this->sandbox->calls[0] ?? '', 'every process passes through to the code');
         self::assertStringStartsWith('exec 800003 ', $this->sandbox->calls[1] ?? '');
         self::assertStringContainsString("git clone --quiet --depth 1 -- 'https://github.com/tufantunc/ssh-mcp' releases/.incoming", $this->sandbox->calls[1] ?? '');
         self::assertStringContainsString('mv releases/.incoming "releases/$short"', $this->sandbox->calls[1] ?? '');

@@ -48,8 +48,9 @@ final class McpManageTool implements Tool, GrantKeyed {
     }
 
     public function grantKey(array $args): ?string {
-        // «update for good» names the install; removing is asked each time
-        return Args::string($args, 'action') === 'update' ? 'mcp-update:' . (Args::string($args, 'name') ?? '') : null;
+        // a grant names the action and the install (and the context): «update for good» of one MCP reaches no other
+        $action = Args::string($args, 'action') ?? '';
+        return $action === 'list' ? null : trim(sprintf('mcp-%s:%s %s', $action, Args::string($args, 'name') ?? '', Args::string($args, 'context') ?? ''));
     }
 
     public function describe(array $args): string {
