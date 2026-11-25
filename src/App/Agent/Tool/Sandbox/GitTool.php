@@ -87,7 +87,8 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         if (self::secretOf($args) !== null) {
             return DangerClass::Irreversible;
         }
@@ -112,7 +113,8 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         return false;
     }
 
-    public function grantKey(array $args): ?string {
+    /** @param array<string, mixed> $args */
+    private function ownGrantKey(array $args): ?string {
         $secret = self::secretOf($args);
         if ($secret !== null) {
             $origin = self::origin(Args::string($args, 'origin') ?? '');
@@ -121,7 +123,8 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         return (new OutwardActionClassifier())->classify(self::command(self::args($args)))->key;
     }
 
-    public function describe(array $args): string {
+    /** @param array<string, mixed> $args */
+    private function ownDescribe(array $args): string {
         $secret = self::secretOf($args);
         $origin = self::origin(Args::string($args, 'origin') ?? '') ?? (Args::string($args, 'origin') ?? '?');
         return 'git ' . implode(' ', self::args($args)) . ($secret === null ? '' : ' (' . t('tool.git.with') . ' ' . $secret . ' → ' . $origin . ')');
@@ -243,5 +246,17 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             return null;
         }
         return 'https://' . strtolower($parts['host']) . (isset($parts['port']) ? ':' . $parts['port'] : '');
+    }
+
+    public function grantKey(array $args): ?string {
+        return self::areaGrant($args, $this->ownGrantKey($args));
+    }
+
+    public function describe(array $args): string {
+        return self::areaLabel($args, $this->ownDescribe($args));
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

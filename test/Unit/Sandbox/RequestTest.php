@@ -20,6 +20,7 @@ final class RequestTest extends TestCase {
         $request = Request::parse('exec', self::json(['principal_id' => 7, 'call_id' => 'c1', 'limits' => self::LIMITS, 'command' => 'ls', 'timeout' => 5]));
 
         self::assertSame(7, $request->principalId);
+        self::assertSame(0, Request::parse('exec', self::json(['principal_id' => 0, 'limits' => self::LIMITS, 'command' => 'ls']))->principalId, 'the owners\' area');
         self::assertSame('c1', $request->callId);
         self::assertSame(10, $request->limits->processes);
         self::assertSame('ls', $request->string('command'));

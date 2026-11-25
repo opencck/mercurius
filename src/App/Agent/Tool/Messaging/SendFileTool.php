@@ -66,15 +66,18 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         return $this->recipients?->danger(Args::string($args, 'to')) ?? DangerClass::Write;
     }
 
-    public function grantKey(array $args): ?string {
+    /** @param array<string, mixed> $args */
+    private function ownGrantKey(array $args): ?string {
         return $this->recipients?->grantKey(Args::string($args, 'to'));
     }
 
-    public function describe(array $args): string {
+    /** @param array<string, mixed> $args */
+    private function ownDescribe(array $args): string {
         return sprintf(t('tool.send_file.describe'), Args::string($args, 'path') ?? '', $this->recipients?->name(Args::string($args, 'to')) ?? '');
     }
 
@@ -121,5 +124,17 @@ final class SendFileTool extends SandboxTool implements GrantKeyed {
         }
         $this->recipients?->sent($to, sprintf(t('tool.send_message.with_files'), $name) . ($caption === '' ? '' : ' — ' . $caption), $context->principal);
         return ToolResult::ok(sprintf(t('tool.send_file.sent_as'), $name, strlen($bytes), $kind->value));
+    }
+
+    public function grantKey(array $args): ?string {
+        return self::areaGrant($args, $this->ownGrantKey($args));
+    }
+
+    public function describe(array $args): string {
+        return self::areaLabel($args, $this->ownDescribe($args));
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

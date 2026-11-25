@@ -12,7 +12,7 @@ use OpenCCK\Sandbox\Workspace;
 use PHPUnit\Framework\TestCase;
 
 /**
- * spec: brief/agent-loop.md#раскладка-каталогов — the owners read and write others' files, but not as root
+ * spec: brief/agent-loop.md#раскладка-каталогов — the owners read and write the members' files, but not as root
  */
 final class CommandArgvTest extends TestCase {
     private static function runner(): CommandRunner {
@@ -28,13 +28,12 @@ final class CommandArgvTest extends TestCase {
         self::assertSame([], array_values(array_filter($argv, static fn(string $a): bool => str_contains($a, 'caps'))));
     }
 
-    public function testAnOwnersCommandKeepsOnlyTheOverrideOfFileRights(): void {
+    /** spec: brief/agent-loop.md#раскладка-каталогов — the owners reach the members' files by ACL, the kernel checks every one */
+    public function testAnOwnersCommandHasNoCapabilitiesEither(): void {
         $argv = self::runner()->argv(Workspace::OWNERS, new SandboxLimits(100, 10, 5, 0, 1), '/workspace');
 
         self::assertContains('--reuid=19999', $argv);
-        self::assertContains('--inh-caps=+dac_override', $argv);
-        self::assertContains('--ambient-caps=+dac_override', $argv);
         self::assertContains('HOME=/workspace', $argv);
-        self::assertNotContains('--reuid=0', $argv);
+        self::assertSame([], array_values(array_filter($argv, static fn(string $a): bool => str_contains($a, 'caps'))), 'no capability: a link to a file of root gives nothing');
     }
 }

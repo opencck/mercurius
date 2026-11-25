@@ -59,7 +59,6 @@ final class CommandRunner implements Runner {
             $this->running[$principalId]--;
         }
         if ($principalId === Workspace::OWNERS) {
-            $this->users->handOver();
             // the area has no quota of its own: its files lie in the members' folders and in the root
             return new CommandResult($result->exitCode, $result->stdout, $result->stderr, $result->timedOut, $result->cancelled, $result->durationMs, false);
         }
@@ -142,11 +141,7 @@ final class CommandRunner implements Runner {
             // No single file may outgrow the participant's disk limit while a command runs.
             '--fsize=' . $limits->diskBytes,
             '--',
-            'setpriv', '--reuid=' . $uid, '--regid=' . $uid, '--clear-groups',
-            // spec: brief/agent-loop.md#раскладка-каталогов — the owners read and write every file of the area, and
-            //       that is all: no root, no other capability, the members' processes stay out of reach
-            ...($principalId === Workspace::OWNERS ? ['--inh-caps=+dac_override', '--ambient-caps=+dac_override'] : []),
-            '--',
+            'setpriv', '--reuid=' . $uid, '--regid=' . $uid, '--clear-groups', '--',
             'env', '-i',
             'HOME=' . $this->workspace->home($principalId),
             'USER=' . $this->workspace->user($principalId),

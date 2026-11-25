@@ -102,6 +102,10 @@ final class FileToolsTest extends TestCase {
         (new RunCommandTool($this->sandbox, 120))->execute(['command' => 'ls', 'area' => 'owners'], self::context());
         self::assertContains('exec 0 ls @. t120', $this->sandbox->calls);
 
+        $run = new RunCommandTool($this->sandbox, 120);
+        self::assertNotSame($run->grantKey(['command' => 'rm -rf build']), $run->grantKey(['command' => 'rm -rf build', 'area' => 'owners']), 'a grant in one\'s folder is not a grant in the owners\' area');
+        self::assertStringContainsString('общей области владельцев', $run->describe(['command' => 'rm -rf build', 'area' => 'owners']));
+
         $member = new ToolContext(3, 1, new Member(8, MemberKind::Human, Role::user(), null), new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true), 'c2');
         $calls = count($this->sandbox->calls);
         self::assertTrue((new ReadFileTool($this->sandbox))->execute(['path' => 'notes.md', 'area' => 'owners'], $member)->isError);

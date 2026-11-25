@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class McpFiles {
     /** the holder of the owners' area in the sandbox */
-    public const OWNERS_AREA = 0;
+    public const OWNERS_AREA = \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::OWNERS_AREA;
 
     /** @var array<string, true> context|name of new entries already told about */
     private array $told = [];

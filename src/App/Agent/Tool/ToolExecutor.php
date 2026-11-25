@@ -54,7 +54,9 @@ final class ToolExecutor {
         $timeout = new TimeoutCancellation($timeoutSeconds);
         // spec: brief/scheduler.md#снимки-рабочего-каталога — a snapshot before the first change a run makes in the working folder
         $limits = $context->policy?->sandbox;
-        if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read) {
+        if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read
+            // the owners' area holds every member's folder: it has no snapshot, a restore would undo the members' work
+            && !SandboxTool::worksInOwnersArea($call->args)) {
             $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
         }
 

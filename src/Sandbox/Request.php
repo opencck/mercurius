@@ -34,7 +34,8 @@ final class Request {
         $body = self::decode($json);
 
         $principal = $body['principal_id'] ?? null;
-        if (!is_int($principal) || $principal < 1) {
+        // 0 is the owners' area; members are numbered from 1
+        if (!is_int($principal) || $principal < 0) {
             throw new SandboxError(t('sandbox.request.ne_ukazan_uchastnik_principal_id'));
         }
         $callId = $body['call_id'] ?? '';

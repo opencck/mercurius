@@ -75,7 +75,7 @@ CMD ["composer", "test-integration"]
 FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        git curl ca-certificates unzip util-linux procps python3 python3-pip python3-venv nodejs npm \
+        git curl ca-certificates unzip util-linux procps acl python3 python3-pip python3-venv nodejs npm \
     && docker-php-ext-install pcntl sockets \
     && rm -rf /var/lib/apt/lists/* \
     && echo 'zend.assertions=-1' > /usr/local/etc/php/conf.d/mercurius.ini

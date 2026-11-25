@@ -66,7 +66,8 @@ final class WriteFileTool extends SandboxTool {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         return DangerClass::Write;
     }
 
@@ -109,5 +110,9 @@ final class WriteFileTool extends SandboxTool {
             return ToolResult::ok(sprintf(t('tool.write_file.fayl_izmenen'), $path));
         }
         return ToolResult::error(t('tool.write_file.ukazhi_content_ili_paru_old'));
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

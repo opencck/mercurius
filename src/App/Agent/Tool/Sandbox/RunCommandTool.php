@@ -73,7 +73,8 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         // a command with a secret can send it anywhere: always the owner's card
         return self::secretsOf($args) !== [] ? DangerClass::Irreversible : $this->classify($args)->danger;
     }
@@ -97,7 +98,8 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
         return $found;
     }
 
-    public function grantKey(array $args): ?string {
+    /** @param array<string, mixed> $args */
+    private function ownGrantKey(array $args): ?string {
         $secrets = self::secretsOf($args);
         if ($secrets !== []) {
             // spec: brief/agent-loop.md#разрешения-навсегда — a grant for these secrets in this exact command
@@ -107,12 +109,13 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
         }
         $found = $this->classify($args);
         // spec: brief/agent-loop.md#разрешения-навсегда — a command that has no key of its own is granted as this exact text
-        return $found->key ?? ($found->danger === \OpenCCK\Domain\Agent\DangerClass::Irreversible
+        return $found->key ?? ($this->danger($args) === \OpenCCK\Domain\Agent\DangerClass::Irreversible
             ? 'cmd:' . substr(hash('sha256', trim(Args::string($args, 'command') ?? '')), 0, 16)
             : null);
     }
 
-    public function describe(array $args): string {
+    /** @param array<string, mixed> $args */
+    private function ownDescribe(array $args): string {
         $secrets = self::secretsOf($args);
         $label = $this->classify($args)->label;
         if ($secrets === []) {
@@ -180,5 +183,17 @@ final class RunCommandTool extends SandboxTool implements GrantKeyed {
             $parts[] = t('tool.run_command.rabochiy_katalog_prevysil_limit_osvobodi');
         }
         return new ToolResult(implode("\n\n", $parts), $outcome->exitCode !== 0 || $outcome->timedOut);
+    }
+
+    public function grantKey(array $args): ?string {
+        return self::areaGrant($args, $this->ownGrantKey($args));
+    }
+
+    public function describe(array $args): string {
+        return self::areaLabel($args, $this->ownDescribe($args));
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

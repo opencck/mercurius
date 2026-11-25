@@ -33,7 +33,8 @@ final class ReadFileTool extends SandboxTool implements Unspillable {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         return DangerClass::Read;
     }
 
@@ -51,5 +52,9 @@ final class ReadFileTool extends SandboxTool implements Unspillable {
             $text .= ($text === '' ? '' : "\n") . sprintf(t('tool.read_file.pokazany_stroki_iz'), $start, max($start, $end), $read['totalLines']);
         }
         return ToolResult::ok($text);
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

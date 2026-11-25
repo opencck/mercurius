@@ -50,7 +50,7 @@ abstract class SandboxTool implements Tool {
     }
 
     /** @param array<string, mixed> $args */
-    private static function inOwnersArea(array $args): bool {
+    protected static function inOwnersArea(array $args): bool {
         return ($args['area'] ?? null) === 'owners';
     }
 
@@ -62,6 +62,38 @@ abstract class SandboxTool implements Tool {
      */
     protected function holder(array $args, ToolContext $context): int {
         return self::inOwnersArea($args) ? self::OWNERS_AREA : $context->principal->id;
+    }
+
+    /**
+     * A grant in the owners' area is a grant there only: a grant given in one's own folder does not reach the root.
+     *
+     * @param array<string, mixed> $args
+     */
+    protected static function areaGrant(array $args, ?string $key): ?string {
+        return $key === null || !self::inOwnersArea($args) ? $key : $key . ' @owners';
+    }
+
+    /**
+     * The card says the call works in the owners' area.
+     *
+     * @param array<string, mixed> $args
+     */
+    protected static function areaLabel(array $args, string $label): string {
+        return self::inOwnersArea($args) ? t('tool.sandbox.in_owners_area') . ' ' . $label : $label;
+    }
+
+    /**
+     * A change in the owners' area reaches every member's folder: it waits for the card of an owner, a read stays a read.
+     *
+     * @param array<string, mixed> $args
+     */
+    protected static function areaDanger(array $args, \OpenCCK\Domain\Agent\DangerClass $danger): \OpenCCK\Domain\Agent\DangerClass {
+        return self::inOwnersArea($args) && $danger === \OpenCCK\Domain\Agent\DangerClass::Write ? \OpenCCK\Domain\Agent\DangerClass::Irreversible : $danger;
+    }
+
+    /** @param array<string, mixed> $args whether a call works in the owners' area */
+    public static function worksInOwnersArea(array $args): bool {
+        return self::inOwnersArea($args);
     }
 
     /** @return array<string, mixed> the argument of the tools that may work in the owners' area */

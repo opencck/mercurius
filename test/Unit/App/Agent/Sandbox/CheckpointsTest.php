@@ -94,6 +94,18 @@ final class CheckpointsTest extends AsyncTestCase {
         self::assertCount(1, array_filter($this->commands(), static fn(string $c): bool => str_contains($c, 'commit')));
     }
 
+    /** spec: brief/agent-loop.md#раскладка-каталогов — the owners' area is every member's folder: no snapshot of it */
+    public function testAChangeInTheOwnersAreaTakesNoSnapshot(): void {
+        $checkpoints = new Checkpoints($this->sandbox);
+        $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);
+        $write = new WriteFileTool($this->sandbox);
+
+        $executor->run(new ValidatedCall(new ToolCall('c1', 'write_file', '{}'), $write, ['path' => 'a.txt', 'content' => 'x', 'area' => 'owners'], null, DangerClass::Write), self::context(), 10);
+
+        self::assertSame([], $this->commands());
+        self::assertContains('write 0 a.txt', $this->sandbox->calls);
+    }
+
     public function testReadsTakeNoSnapshot(): void {
         $checkpoints = new Checkpoints($this->sandbox);
         $executor = new ToolExecutor(sandbox: $this->sandbox, checkpoints: $checkpoints);

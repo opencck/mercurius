@@ -62,7 +62,8 @@ final class McpEntryCards implements CallbackHandler {
         }
         [, $action, $tag, $context, $name] = $m;
         $who = ($this->presser)($callback);
-        if ($who === null || !$who->role->may(Permission::Mcp)) {
+        // an entry of the owners' context gets the agent's secrets: an owner of the agent decides on it
+        if ($who === null || !$who->role->may(Permission::Mcp) || ($context === 'owners' && !$who->isOwner())) {
             $this->channel->answerCallback($callback->callbackId, t('mcp.cards.no_right'));
             return;
         }

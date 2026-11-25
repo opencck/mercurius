@@ -30,7 +30,8 @@ final class ListFilesTool extends SandboxTool {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         return DangerClass::Read;
     }
 
@@ -40,5 +41,9 @@ final class ListFilesTool extends SandboxTool {
             return ToolResult::ok(t('tool.list_files.katalog_pust'));
         }
         return ToolResult::ok(implode("\n", array_map(static fn(array $e): string => sprintf('%s %d %s', $e['type'], $e['size'], $e['path']), $entries)));
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

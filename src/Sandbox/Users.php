@@ -50,26 +50,43 @@ final class Users {
             $this->must(['groupadd', '--gid', $id, $user]);
             $this->must(['useradd', '--uid', $id, '--gid', $id, '--no-create-home', '--home-dir', $home, '--shell', '/bin/bash', $user]);
         }
-        if ($principalId !== Workspace::OWNERS) {
-            // the root stays root's: the owners enter it by the override of file rights, not as its owner
-            $this->must(['install', '-d', '-o', $id, '-g', $id, '-m', '0700', $home]);
+        if ($principalId === Workspace::OWNERS) {
+            // spec: brief/agent-loop.md#раскладка-каталогов — the root stays root's; the owners get it by ACL, and every
+            //       member's folder too: the kernel checks each file, so a link a member plants opens nothing more
+            $this->must(['setfacl', '-m', 'u:' . Workspace::OWNERS_UID . ':rwx', $home]);
+            $names = scandir($this->workspace->root);
+            foreach ($names === false ? [] : $names as $name) {
+                if (preg_match('~^p(\\d+)$~', $name, $m) === 1 && (int) $m[1] > 0) {
+                    $this->ensure((int) $m[1]);
+                }
+            }
+            return;
         }
+        // a folder is made without following a link: the owners write in the root and could plant p<number> there
+        if (is_link($home)) {
+            unlink($home);
+        }
+        if (!is_dir($home)) {
+            mkdir($home, 0700);
+        }
+        $this->must(['chown', '-h', $id . ':' . $id, $home]);
+        $this->share($principalId);
     }
 
     /**
-     * Files the owners made in a member's folder become the member's: the folder stays theirs alone.
+     * The member's folder opens to the owners by ACL, the new files in it to both by default ACL. It runs as the member:
+     * only the member's own files change, a link to anything else is not followed and changes nothing.
      *
-     * spec: brief/agent-loop.md#раскладка-каталогов — a file made by the owners in a member's folder goes to its holder
+     * spec: brief/agent-loop.md#раскладка-каталогов
      */
-    public function handOver(): void {
-        $names = scandir($this->workspace->root);
-        foreach ($names === false ? [] : $names as $name) {
-            if (preg_match('~^p(\d+)$~', $name, $m) !== 1) {
-                continue;
-            }
-            $uid = (string) $this->workspace->uid((int) $m[1]);
-            $this->proc->run(['find', $this->workspace->root . '/' . $name, '-xdev', '-uid', (string) Workspace::OWNERS_UID, '-exec', 'chown', '-h', $uid . ':' . $uid, '{}', '+'], '/', 120);
-        }
+    private function share(int $principalId): void {
+        $id = (string) $this->workspace->uid($principalId);
+        $owners = (string) Workspace::OWNERS_UID;
+        // a file the member keeps from the owners on purpose (an ACL taken off) stays so: the result is not checked
+        $this->proc->run([
+            'setpriv', '--reuid=' . $id, '--regid=' . $id, '--clear-groups', '--',
+            'setfacl', '-R', '-P', '-m', 'u:' . $owners . ':rwX,d:u:' . $owners . ':rwX,d:u:' . $id . ':rwX', $this->workspace->home($principalId),
+        ], '/', 600);
     }
 
     /**

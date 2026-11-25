@@ -43,7 +43,8 @@ final class SearchFilesTool extends SandboxTool {
         ]);
     }
 
-    public function danger(array $args): DangerClass {
+    /** @param array<string, mixed> $args */
+    private function ownDanger(array $args): DangerClass {
         return DangerClass::Read;
     }
 
@@ -65,5 +66,9 @@ final class SearchFilesTool extends SandboxTool {
 
     private static function quote(string $value): string {
         return "'" . str_replace("'", "'\''", $value) . "'";
+    }
+
+    public function danger(array $args): DangerClass {
+        return self::areaDanger($args, $this->ownDanger($args));
     }
 }

@@ -113,6 +113,7 @@ final class McpFileSyncTest extends AsyncTestCase {
             fn(\Mercurius\Messenger\IncomingCallback $c): ?Member => match ($c->userId) {
                 '1' => $this->owner,
                 '9' => $reader,
+                '8' => new Member(8, MemberKind::Human, Role::define('mcp-ops', '', 15, [\OpenCCK\Domain\Entity\Permission::Mcp]), 'Ops'),
                 default => null,
             },
         );
@@ -139,6 +140,17 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertSame(McpServer::PENDING, $this->servers->find('owners', 'shared')?->status);
         $this->files->approve('owners', 'shared', $this->owner);
         self::assertNotNull($this->registry->get('mcp_shared_search', $this->in('owners')));
+    }
+
+    public function testAnEntryOfTheOwnersContextIsApprovedByAnOwnerOnly(): void {
+        $this->file(0, '.mcp.json', '{"mcpServers": {"shared": {"url": "https://a.example/mcp"}}}');
+        $this->files->sync('owners');
+        $approve = $this->lastCard()[0] ?? '';
+
+        $this->press($approve, '8');
+        self::assertNull($this->servers->find('owners', 'shared')?->approvedHash, 'the permission mcp is not enough for the agent\'s secrets');
+        $this->press($approve, '1');
+        self::assertNotNull($this->servers->find('owners', 'shared')?->approvedHash);
     }
 
     /** An approved connection that has no stored entry yet gets it from the file, and keeps its secret. */
