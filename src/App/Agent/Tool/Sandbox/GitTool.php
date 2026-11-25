@@ -66,6 +66,8 @@ final class GitTool extends SandboxTool implements GrantKeyed {
         private readonly SandboxEnv $env,
         private readonly Vault $vault,
         private readonly int $defaultTimeout,
+        /** the account of the participants' SSH keys; null — git over SSH with a key is not offered */
+        private readonly ?\OpenCCK\Domain\Repository\SshKeyRepository $keys = null,
     ) {
         parent::__construct($sandbox);
     }
@@ -80,6 +82,7 @@ final class GitTool extends SandboxTool implements GrantKeyed {
                 'secret' => ['type' => 'string', 'maxLength' => 64, 'description' => t('tool.git.secret')],
                 'origin' => ['type' => 'string', 'maxLength' => 500, 'description' => t('tool.git.origin')],
                 'username' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.git.username')],
+                'ssh_key' => ['type' => 'string', 'maxLength' => 32, 'description' => t('tool.git.ssh_key')],
                 'timeout' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600],
             ],
             'required' => ['args'],
@@ -120,14 +123,19 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             $origin = self::origin(Args::string($args, 'origin') ?? '');
             return $origin === null ? null : sprintf('git-secret:%s %s', $secret, $origin);
         }
-        return (new OutwardActionClassifier())->classify(self::command(self::args($args)))->key;
+        $classified = (new OutwardActionClassifier())->classify(self::command(self::args($args)))->key;
+        // a grant with a key names the key: a grant of a plain clone does not reach a clone with the participant's key
+        $key = trim(Args::string($args, 'ssh_key') ?? '');
+        return $key === '' ? $classified : sprintf('git-key:%s %s', $key, $classified ?? (self::args($args)[0] ?? 'git'));
     }
 
     /** @param array<string, mixed> $args */
     private function ownDescribe(array $args): string {
         $secret = self::secretOf($args);
         $origin = self::origin(Args::string($args, 'origin') ?? '') ?? (Args::string($args, 'origin') ?? '?');
-        return 'git ' . implode(' ', self::args($args)) . ($secret === null ? '' : ' (' . t('tool.git.with') . ' ' . $secret . ' → ' . $origin . ')');
+        $key = trim(Args::string($args, 'ssh_key') ?? '');
+        return 'git ' . implode(' ', self::args($args)) . ($secret === null ? '' : ' (' . t('tool.git.with') . ' ' . $secret . ' → ' . $origin . ')')
+            . ($key === '' ? '' : ' (' . t('tool.git.with_key') . ' ~/.ssh/' . $key . ')');
     }
 
     public function timeout(): int {
@@ -179,8 +187,28 @@ final class GitTool extends SandboxTool implements GrantKeyed {
             $hidden = [$token, $basic];
             $hardened = self::HARDENED;
         }
+        // spec: brief/servers.md#ключи-ssh-в-песочнице — git over SSH with a key of the participant's ~/.ssh; its
+        //       passphrase comes from the vault into this one command for ssh to ask, and nothing git starts sees it
+        $keyName = trim(Args::string($args, 'ssh_key') ?? '');
+        if ($keyName !== '') {
+            if ($secret !== null || !in_array($list[0], self::NETWORK, true)) {
+                return ToolResult::error(sprintf(t('tool.git.key_commands'), implode(', ', self::NETWORK)));
+            }
+            $key = $this->keys?->find($context->principal->id, $keyName);
+            if ($key === null) {
+                return ToolResult::error(sprintf(t('tool.git.no_key'), $keyName));
+            }
+            $passphrase = $key->passphraseSecret === null ? null : $this->vault->reveal($key->passphraseSecret, $context->principal);
+            $env['GIT_SSH_COMMAND'] = 'ssh -i "$HOME/.ssh/' . $key->name . '" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=' . ($passphrase === null ? 'yes' : 'no');
+            if ($passphrase !== null && $passphrase !== '') {
+                $env += ['MERCURIUS_KEY_PASSPHRASE' => $passphrase, 'SSH_ASKPASS' => '/usr/local/bin/mercurius-askpass', 'SSH_ASKPASS_REQUIRE' => 'force'];
+                $hidden[] = $passphrase;
+                $env += ['GIT_CONFIG_NOSYSTEM' => '1', 'GIT_CONFIG_GLOBAL' => '/dev/null'];
+                $hardened = self::HARDENED;
+            }
+        }
         $check = '';
-        if ($secret === null && in_array($list[0], self::READS, true) && !self::startsProgram($list)) {
+        if ($secret === null && $keyName === '' && in_array($list[0], self::READS, true) && !self::startsProgram($list)) {
             // spec: brief/scheduler.md#git-с-доступом-из-хранилища — a read runs without a card: the settings of the
             //       repository and of the participant that start programs are off, and filters or diff programs in
             //       the repository config stop it (they cannot be turned off from the command line)

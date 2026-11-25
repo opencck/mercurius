@@ -170,6 +170,12 @@ final class ChatService implements MessageHandler {
         $this->projectArchives = $archives;
     }
 
+    private ?SshKeyCommands $sshKeys = null;
+
+    public function useSshKeys(SshKeyCommands $keys): void {
+        $this->sshKeys = $keys;
+    }
+
     public function useBans(\OpenCCK\App\Agent\BanList $bans): void {
         $this->bans = $bans;
     }
@@ -494,6 +500,22 @@ final class ChatService implements MessageHandler {
                 $command === '/server' => $this->servers->server(substr($text, strlen($command))),
                 default => $this->servers->audit(),
             });
+            return;
+        }
+        // spec: brief/servers.md#ключи-ssh-в-песочнице — one's own key goes into ~/.ssh past the model; the file leaves the chat
+        if ($command === '/sshkey' && $this->sshKeys !== null) {
+            $words = preg_split('~\s+~', trim(substr($text, strlen($command)))) ?: [];
+            $file = $message->attachments[0] ?? $message->repliedAttachments[0] ?? null;
+            if (!$message->isPrivateChat) {
+                $this->reply($message, t('sshkey.private_only'));
+            } elseif (strtolower($words[0] ?? '') !== 'add') {
+                $this->reply($message, t('sshkey.usage'));
+            } else {
+                $this->reply($message, $this->sshKeys->add($principal, $words[1] ?? '', $file));
+            }
+            if ($file !== null && !$this->deleteOnce($message)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
             return;
         }
         // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves as a sealed file; its password leaves the chat

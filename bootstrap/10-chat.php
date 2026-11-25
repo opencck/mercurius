@@ -113,6 +113,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository $runMessages
  * @var OpenCCK\Infrastructure\Repository\PostgresRunRepository $runs
  * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
+ * @var OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository|null $sshKeys
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\Infrastructure\Repository\PostgresServerRepository $serverRepository
  * @var OpenCCK\App\Settings\SettingsService $settingsService
@@ -415,6 +416,10 @@ $chat->useBans($banList);
 $chat->useOverview(new \OpenCCK\App\Service\OwnerOverview($principals, $projectRepository, $jobRepository, $policies, $approvalStore, $jobScheduler, $vault, new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db), $placeStreams, $projectPolicies));
 $chat->useStreams(new \OpenCCK\App\Peer\StreamCommands($placeStreams, $principals, $logger, $projectRepository));
 // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves to another instance as a sealed file
+// spec: brief/servers.md#ключи-ssh-в-песочнице — one's own key file goes into ~/.ssh past the model
+if ($sandbox !== null && $sshKeys !== null) {
+    $chat->useSshKeys(new \OpenCCK\App\Service\SshKeyCommands($channel, $sandbox, $sshKeys, static fn(\OpenCCK\Domain\Entity\Member $who): ?\OpenCCK\Domain\Agent\SandboxLimits => $policies->forPrincipal($who)->sandbox));
+}
 $chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
     new \OpenCCK\App\Export\ProjectArchive(
         $projectRepository,

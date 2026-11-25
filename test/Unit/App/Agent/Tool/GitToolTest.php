@@ -60,6 +60,35 @@ final class GitToolTest extends AsyncTestCase {
         self::assertStringContainsString('remote: ok', $result->content);
     }
 
+    /** spec: brief/servers.md#ключи-ssh-в-песочнице — git over SSH with a key of the participant; its passphrase from the vault */
+    public function testAKeyOfTheParticipantTakesGitOverSsh(): void {
+        $keys = new \OpenCCK\Test\Support\InMemorySshKeyRepository();
+        $keys->save(new \OpenCCK\Domain\Ssh\SshKey(1, 'deploy', 'SHA256:x', 'ssh-ed25519 AAAA'));
+        $this->tool();
+        $tool = new GitTool($this->sandbox, $this->sandbox, $this->vault, 120, $keys);
+
+        $result = $tool->execute(['args' => ['clone', 'git@github.com:opencck/private.git'], 'ssh_key' => 'deploy'], $this->context());
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame('ssh -i "$HOME/.ssh/deploy" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes', $this->sandbox->env['GIT_SSH_COMMAND'] ?? null);
+        self::assertArrayNotHasKey('MERCURIUS_KEY_PASSPHRASE', $this->sandbox->env);
+
+        $this->vault->put('deploy-pass', 'password', 'hunter22', $this->owner);
+        $keys->setPassphrase(1, 'deploy', 'deploy-pass');
+        $this->sandbox->outcome = new CommandOutcome(0, '', 'echo hunter22', false, false, 1);
+        $result = $tool->execute(['args' => ['fetch'], 'ssh_key' => 'deploy'], $this->context());
+
+        self::assertSame('hunter22', $this->sandbox->env['MERCURIUS_KEY_PASSPHRASE'] ?? null);
+        self::assertSame('/usr/local/bin/mercurius-askpass', $this->sandbox->env['SSH_ASKPASS'] ?? null);
+        self::assertSame('force', $this->sandbox->env['SSH_ASKPASS_REQUIRE'] ?? null);
+        self::assertStringNotContainsString('hunter22', $result->content, 'masked');
+        self::assertStringContainsString('core.hooksPath=/dev/null', implode("
+", $this->sandbox->calls), 'nothing git starts sees the passphrase');
+
+        self::assertTrue($tool->execute(['args' => ['fetch'], 'ssh_key' => 'none'], $this->context())->isError, 'no such key');
+        self::assertTrue($tool->execute(['args' => ['commit', '-m', 'x'], 'ssh_key' => 'deploy'], $this->context())->isError, 'a key only for the network');
+    }
+
     public function testWithoutASecretNothingIsAdded(): void {
         $tool = $this->tool();
 

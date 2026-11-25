@@ -51,6 +51,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\App\Agent\Model\ModelLists $modelLists
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
+ * @var OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository|null $sshKeys
  * @var OpenCCK\App\Vault\Vault $vault
  * @var non-empty-string $version
  * @var Mercurius\Messenger\Websocket\WebsocketChannel $wsChannel
@@ -177,6 +178,11 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'jobs' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.jobs'),
     // spec: brief/orchestration.md#этапы-и-план — how long work is kept: the plan and the workers
     'work' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.work'),
+    // spec: brief/servers.md#ключи-ssh-в-песочнице — how keys are made, brought and used; the caller's keys are read at the call
+    'ssh_keys' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($sshKeys): string {
+        $names = $sshKeys === null ? [] : array_map(static fn(\OpenCCK\Domain\Ssh\SshKey $k): string => $k->name . ' ' . $k->fingerprint, $sshKeys->of($c->principal->id));
+        return \Mercurius\I18n\t('self.ssh_keys') . ($names === [] ? \Mercurius\I18n\t('tool.ssh_key.none') : implode("\n", $names));
+    },
     // spec: brief/agent-loop.md#прокси-для-команд-песочницы — whether the door is open and where it leads, as of now
     'proxy' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \OpenCCK\Infrastructure\Proxy\DoorSettings::about($_ENV),
     // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — how an entry is written and approved; the connections of

@@ -219,6 +219,7 @@ $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::cr
 $a2aServer = null;
 $checkpoints = $sandbox === null ? null : new \OpenCCK\App\Agent\Sandbox\Checkpoints($sandbox, $logger);
 $recipients = new \OpenCCK\App\Agent\Tool\Messaging\Recipients($principals, TelegramChannel::NAME);
+$sshKeys = null;
 if ($sandbox !== null && $checkpoints !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\CheckpointTool($sandbox, $checkpoints));
     $tools->register(new ReadFileTool($sandbox));
@@ -228,7 +229,10 @@ if ($sandbox !== null && $checkpoints !== null) {
     $tools->register($writeFile);
     $tools->register($runCommandTool = new RunCommandTool($sandbox, $agentSettings->toolTimeout));
     // spec: brief/scheduler.md#git-с-доступом-из-хранилища — git with a token of the vault in the environment of one command
-    $tools->register($gitTool = new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout));
+    // spec: brief/servers.md#ключи-ssh-в-песочнице — keys of the participant's ~/.ssh, the private part stays in the sandbox
+    $sshKeys = new \OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository($db);
+    $tools->register($gitTool = new \OpenCCK\App\Agent\Tool\Sandbox\GitTool($sandbox, $sandbox, $vault, $agentSettings->toolTimeout, $sshKeys));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Sandbox\SshKeyTool($sandbox, $sandbox, $sshKeys, $vault));
     // spec: brief/agent-loop.md#песочница — a file the agent made goes to the chat it was asked in
     // spec: brief/internet.md#между-агентами — in a task of another agent a file goes with the answer
     $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\SendFileTool($sandbox, $channel, $conversations, $recipients, static function (int $runId, string $name, string $bytes) use (&$a2aServer): bool {

@@ -75,7 +75,7 @@ CMD ["composer", "test-integration"]
 FROM php:8.2-cli-bookworm@sha256:2867ae7fa1f7f248b94897c81d9154255526aec97b8493de708178700ebc147a AS sandbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        git curl ca-certificates unzip util-linux procps acl python3 python3-pip python3-venv nodejs npm \
+        git curl ca-certificates unzip util-linux procps acl openssh-client python3 python3-pip python3-venv nodejs npm \
     && docker-php-ext-install pcntl sockets \
     && rm -rf /var/lib/apt/lists/* \
     && echo 'zend.assertions=-1' > /usr/local/etc/php/conf.d/mercurius.ini
@@ -87,6 +87,10 @@ COPY --from=base /app/vendor ./vendor
 COPY composer.json ./
 COPY bootstrap/sandbox.php ./bootstrap/sandbox.php
 COPY src ./src
+# spec: brief/servers.md#ключи-ssh-в-песочнице — ssh asks this for a key's passphrase; the application puts the value
+#       into the environment of the one command that uses the key, the model never sees it
+RUN printf '#!/bin/sh\nprintf "%%s\\n" "$MERCURIUS_KEY_PASSPHRASE"\n' > /usr/local/bin/mercurius-askpass \
+    && chmod 0755 /usr/local/bin/mercurius-askpass
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM
