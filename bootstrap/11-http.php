@@ -43,6 +43,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\Infrastructure\Config\MediaSettings $mediaSettings
  * @var OpenCCK\Infrastructure\Config\TelegramSettings $telegram
  * @var OpenCCK\App\Agent\Tool\ToolRegistry $tools
+ * @var OpenCCK\App\Mcp\McpManager $mcpManager
  * @var Mercurius\Memory\App\Aliases $memoryAliases
  * @var Closure(): list<string> $sleepModels
  * @var Closure(): list<string> $sleepAuto
@@ -178,6 +179,17 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'work' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.work'),
     // spec: brief/agent-loop.md#прокси-для-команд-песочницы — whether the door is open and where it leads, as of now
     'proxy' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \OpenCCK\Infrastructure\Proxy\DoorSettings::about($_ENV),
+    // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — how an entry is written and approved; the connections of
+    //       the caller's context and their states are read at the call
+    'mcp' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($mcpServers, $mcpManager): string {
+        $context = $c->policy->mcpContext ?? 'member:' . $c->principal->id;
+        $lines = [];
+        foreach ($mcpServers->inContext($context) as $server) {
+            $tools = count($mcpManager->tools($server->key()));
+            $lines[] = '- ' . $server->name . ': ' . \Mercurius\I18n\t('service.mcp_commands.state.' . $server->status) . ($tools > 0 ? ', ' . $tools : '') . ($server->note === '' ? '' : ' (' . mb_substr($server->note, 0, 160) . ')');
+        }
+        return sprintf(\Mercurius\I18n\t('self.mcp'), $context) . "\n" . ($lines === [] ? \Mercurius\I18n\t('self.mcp.none') : implode("\n", $lines));
+    },
 ]));
 
 // spec: brief/operations.md#второй-канал-websocket-api — participants with a key talk to the agent over WebSocket
