@@ -11,7 +11,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\ApprovalService;
 use OpenCCK\App\Agent\RunScheduler;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Repository\ConversationRepository;
@@ -315,7 +315,7 @@ final class ChatService implements MessageHandler {
             // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a secret goes to the vault and its message leaves the chat
             $argument = substr($text, strlen($command));
             $carries = trim($argument) !== '' && !str_starts_with(trim($argument), '- ');
-            if (!$principal->role->may(Power::Secrets)) {
+            if (!$principal->role->may(Permission::Secrets)) {
                 $this->reply($message, t(self::OWNER_ONLY));
             } elseif (!$message->isPrivateChat) {
                 $this->reply($message, t(self::SECRET_PRIVATE));
@@ -483,7 +483,7 @@ final class ChatService implements MessageHandler {
             return;
         }
         if ($command === '/secrets' && $this->servers !== null) {
-            $this->reply($message, $principal->role->may(Power::Secrets) && $message->isPrivateChat ? $this->servers->secrets($principal, substr($text, strlen($command))) : t(self::SECRET_PRIVATE));
+            $this->reply($message, $principal->role->may(Permission::Secrets) && $message->isPrivateChat ? $this->servers->secrets($principal, substr($text, strlen($command))) : t(self::SECRET_PRIVATE));
             return;
         }
         if (in_array($command, ['/servers', '/server', '/audit'], true) && $this->servers !== null) {
@@ -561,7 +561,7 @@ final class ChatService implements MessageHandler {
         if ($masked === $message->text) {
             return $message;
         }
-        $name = $message->isPrivateChat && $principal->role->may(Power::Secrets) ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
+        $name = $message->isPrivateChat && $principal->role->may(Permission::Secrets) ? $this->servers->stash($principal, $message->text, $message->messageId) : null;
         $deleted = $this->deleteOnce($message);
         $this->reply($message, sprintf(
             t('service.chat.v_soobschenii_byl_sekret'),
@@ -611,8 +611,8 @@ final class ChatService implements MessageHandler {
 
     /** spec: brief/operations.md#команды-и-отчёты-владельца — reports for the owner; a long one goes as a file */
     private function report(\OpenCCK\Domain\Entity\Principal $principal, string $command, string $argument, IncomingMessage $message): void {
-        // spec: brief/participants.md#свои-роли — reports are a power of a role too
-        if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Power::Reports)) || $this->reports === null) {
+        // spec: brief/participants.md#свои-роли — reports are a permission of a role too
+        if ((!$principal->isOwner() && !$principal->role->may(\OpenCCK\Domain\Entity\Permission::Reports)) || $this->reports === null) {
             $this->reply($message, t(self::OWNER_ONLY));
             return;
         }

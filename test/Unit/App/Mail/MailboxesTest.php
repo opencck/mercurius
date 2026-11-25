@@ -21,7 +21,7 @@ use OpenCCK\App\Mcp\McpTool;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Agent\RunStatus;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
@@ -64,7 +64,7 @@ final class MailboxesTest extends AsyncTestCase {
         $this->stack->approvalService->useParticipantCards('telegram');
         $principals = $this->stack->principals;
         $this->owner = $principals->ensureOwner('telegram', '42', 'Owner');
-        $role = Role::define('mailer', 'Почта', 15, [Power::Mail]);
+        $role = Role::define('mailer', 'Почта', 15, [Permission::Mail]);
         $this->mailer = $principals->decideVisitor($principals->createVisitor('telegram', '7', 'Mailer')->id, $role, PrincipalStatus::Active) ?? self::fail('no participant');
         $this->plain = $principals->decideVisitor($principals->createVisitor('telegram', '8', 'Plain')->id, Role::user(), PrincipalStatus::Active) ?? self::fail('no participant');
 
@@ -124,7 +124,7 @@ final class MailboxesTest extends AsyncTestCase {
         self::assertSame([993, 465, 'me@example.com'], [$mailbox->imapPort, $mailbox->smtpPort, $mailbox->from]);
 
         foreach ([
-            'no power' => fn(): \OpenCCK\Domain\Mail\Mailbox => $this->mailboxes->add($this->plain, 'work', 'imap.example.com', 'me@example.com', 'mail-pass'),
+            'no permission' => fn(): \OpenCCK\Domain\Mail\Mailbox => $this->mailboxes->add($this->plain, 'work', 'imap.example.com', 'me@example.com', 'mail-pass'),
             'the secret of another participant' => fn(): \OpenCCK\Domain\Mail\Mailbox => $this->mailboxes->add($this->mailer, 'second', 'imap.example.com', 'me@example.com', 'owner-pass'),
             'no such secret' => fn(): \OpenCCK\Domain\Mail\Mailbox => $this->mailboxes->add($this->mailer, 'second', 'imap.example.com', 'me@example.com', 'nothing'),
             'an internal host' => fn(): \OpenCCK\Domain\Mail\Mailbox => $this->mailboxes->add($this->mailer, 'second', 'inner.example.com', 'me@example.com', 'mail-pass'),
@@ -145,7 +145,7 @@ final class MailboxesTest extends AsyncTestCase {
 
     public function testACallTakesTheMailboxOfTheProjectThenTheOwnOne(): void {
         self::assertIsString($this->mailboxes->pick($this->mailer, 1, null), 'nothing is connected');
-        self::assertIsString($this->mailboxes->pick($this->plain, 1, null), 'no power, no mail');
+        self::assertIsString($this->mailboxes->pick($this->plain, 1, null), 'no permission, no mail');
 
         $work = $this->mailboxes->add($this->mailer, 'work', 'imap.example.com', 'me@example.com', 'mail-pass');
         self::assertSame($work->id, self::id($this->mailboxes->pick($this->mailer, 1, null)));
@@ -248,7 +248,7 @@ final class MailboxesTest extends AsyncTestCase {
         $policy = $this->stack->policies->forPrincipal($this->mailer);
         self::assertTrue($policy->allowsTool('mcp_mail_mail_send'));
         self::assertTrue($policy->allowsTool(MailboxTool::NAME));
-        self::assertFalse($this->stack->policies->forPrincipal($this->plain)->allowsTool('mcp_mail_mail_list'), 'no power, no mail');
+        self::assertFalse($this->stack->policies->forPrincipal($this->plain)->allowsTool('mcp_mail_mail_list'), 'no permission, no mail');
     }
 
     public function testALetterIsConfirmedByTheOneWhoConnectedTheMailbox(): void {

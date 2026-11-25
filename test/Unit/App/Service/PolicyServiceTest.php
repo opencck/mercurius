@@ -45,7 +45,7 @@ final class PolicyServiceTest extends TestCase {
 
     public function testARoleGivesItsTemplateAndThePersonalSettingsLieOnTop(): void {
         // spec: brief/participants.md#свои-роли
-        $trader = Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
+        $trader = Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Permission::Tools]);
         $mute = Role::define('mute', 'Без инструментов', 16, []);
         $service = new PolicyService($this->repository, new RunLimits(30, 400_000, 900, 120), template: static fn(Role $role): array => match ($role->value) {
             'trader', 'mute' => ['tools' => ['web_search', 'http_request'], 'max_turns' => 5],
@@ -59,14 +59,14 @@ final class PolicyServiceTest extends TestCase {
             $this->repository->save(3, ['tools' => ['web_search']]);
             self::assertSame(['web_search'], $service->forPrincipal($this->principal($trader, 3))->tools, 'the personal settings lie on top');
 
-            self::assertSame([], $service->forPrincipal($this->principal($mute))->tools, 'a role without the power of tools gets none');
+            self::assertSame([], $service->forPrincipal($this->principal($mute))->tools, 'a role without the permission of tools gets none');
         } finally {
             Role::reset();
         }
     }
 
     public function testToolsOfAPowerStayOutOfARoleWithoutIt(): void {
-        // spec: brief/participants.md#свои-роли — publishing and managing participants are powers of a role
+        // spec: brief/participants.md#свои-роли — publishing and managing participants are permissions of a role
         $this->repository->save(2, ['tools' => ['channel_post', 'participants', 'web_search']]);
 
         self::assertSame(['web_search'], $this->service->forPrincipal($this->principal(Role::user()))->tools);

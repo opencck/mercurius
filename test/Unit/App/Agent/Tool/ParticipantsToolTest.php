@@ -10,7 +10,7 @@ use OpenCCK\App\Agent\Tool\Agents\ParticipantsTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\PrincipalStatus;
@@ -43,8 +43,8 @@ final class ParticipantsToolTest extends AsyncTestCase {
 
     public function testOwnRolesAreGivenAndAHolderOfThePowerGivesNoMoreThanTheirOwn(): void {
         // spec: brief/participants.md#свои-роли
-        Role::define('trader', 'Трейдер', 15, [Power::Tools]);
-        Role::define('steward', 'Распорядитель', 16, [Power::Tools, Power::Participants]);
+        Role::define('trader', 'Трейдер', 15, [Permission::Tools]);
+        Role::define('steward', 'Распорядитель', 16, [Permission::Tools, Permission::Participants]);
         try {
             $principals = new InMemoryPrincipalRepository();
             $owner = $principals->ensureOwner('telegram', '42', 'Владелец');

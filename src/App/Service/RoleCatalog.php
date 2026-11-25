@@ -7,14 +7,14 @@ namespace OpenCCK\App\Service;
 use InvalidArgumentException;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\RoleRepository;
 
 use function Mercurius\I18n\t;
 
 /**
- * The owner's list of roles: read at start and after every change, it gives the roles their titles, order and powers,
+ * The owner's list of roles: read at start and after every change, it gives the roles their titles, order and permissions,
  * and the policy service the template of each role.
  *
  * spec: brief/participants.md#свои-роли
@@ -29,7 +29,7 @@ final class RoleCatalog {
     public function __construct(private readonly RoleRepository $roles) {}
 
     /**
-     * spec: brief/participants.md#права-проекта — a change of a role's powers or template changes the rights of its holders
+     * spec: brief/participants.md#права-проекта — a change of a role's permissions or template changes the rights of its holders
      *
      * @param \Closure(): void $listener
      */
@@ -47,8 +47,8 @@ final class RoleCatalog {
         Role::clear();
         $this->templates = [];
         foreach ($this->roles->all() as $row) {
-            $powers = array_values(array_filter(array_map(static fn(string $p): ?Power => Power::tryFrom($p), $row['powers'])));
-            Role::define($row['name'], $row['title'], $row['position'], $powers);
+            $permissions = array_values(array_filter(array_map(static fn(string $p): ?Permission => Permission::tryFrom($p), $row['permissions'])));
+            Role::define($row['name'], $row['title'], $row['position'], $permissions);
             $this->templates[$row['name']] = $row['policy'];
         }
     }
@@ -58,7 +58,7 @@ final class RoleCatalog {
         return $this->templates[$role->value] ?? [];
     }
 
-    /** The list for the owner: name, title, place, powers, template. */
+    /** The list for the owner: name, title, place, permissions, template. */
     public function describe(): string {
         $lines = [];
         foreach (Role::assignable() as $role) {
@@ -68,14 +68,14 @@ final class RoleCatalog {
                 $role->position(),
                 $role->value,
                 $role->title() === '' ? '' : ' «' . $role->title() . '»',
-                $role->powers() === [] ? t('roles.no_powers') : implode(', ', array_map(static fn(Power $p): string => $p->value, $role->powers())),
+                $role->permissions() === [] ? t('roles.no_powers') : implode(', ', array_map(static fn(Permission $p): string => $p->value, $role->permissions())),
                 $template === [] ? '' : '; ' . json_encode($template, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             );
         }
         return t('roles.list') . "\n" . implode("\n", $lines) . "\n\n" . t('roles.help');
     }
 
-    /** Adds a role at the end of the list, without powers. */
+    /** Adds a role at the end of the list, without permissions. */
     public function add(string $name, string $title): string {
         self::checkName($name);
         if (Role::tryFrom($name) !== null && in_array(Role::of($name), Role::assignable(), true)) {
@@ -88,14 +88,14 @@ final class RoleCatalog {
     }
 
     /**
-     * Changes one field of a role: title, position, powers (a list by commas) or a field of the policy template
+     * Changes one field of a role: title, position, permissions (a list by commas) or a field of the policy template
      * (tools, max_turns, token_budget, run_timeout, tool_timeout, may_request_approval, daily_spend_usd).
      */
     public function set(string $name, string $field, string $value): string {
         $role = $this->existing($name);
         $title = $role->title();
         $position = $role->position();
-        $powers = array_map(static fn(Power $p): string => $p->value, $role->powers());
+        $permissions = array_map(static fn(Permission $p): string => $p->value, $role->permissions());
         $policy = $this->template($role);
         switch ($field) {
             case 'title':
@@ -107,10 +107,12 @@ final class RoleCatalog {
                 }
                 $position = (int) $value;
                 break;
+            // spec: brief/participants.md#свои-роли — the old key of a role's permissions is still accepted
+            case 'permissions':
             case 'powers':
-                $powers = [];
-                foreach (array_filter(array_map('trim', explode(',', $value))) as $power) {
-                    $powers[] = (Power::tryFrom($power) ?? throw new InvalidArgumentException(sprintf(t('roles.bad_power'), $power, implode(', ', array_map(static fn(Power $p): string => $p->value, Power::cases())))))->value;
+                $permissions = [];
+                foreach (array_filter(array_map('trim', explode(',', $value))) as $permission) {
+                    $permissions[] = (Permission::tryFrom($permission) ?? throw new InvalidArgumentException(sprintf(t('roles.bad_power'), $permission, implode(', ', array_map(static fn(Permission $p): string => $p->value, Permission::cases())))))->value;
                 }
                 break;
             default:
@@ -119,7 +121,7 @@ final class RoleCatalog {
                 // a bad field or value is refused here, before it is kept
                 ParticipantPolicy::fromArray($policy, new ParticipantPolicy([], new RunLimits(1, 1, 1, 1), null, false));
         }
-        $this->roles->save($name, $title, $position, array_values(array_unique($powers)), $policy);
+        $this->roles->save($name, $title, $position, array_values(array_unique($permissions)), $policy);
         $this->load();
         $this->changed();
         return sprintf(t('roles.changed'), $name);

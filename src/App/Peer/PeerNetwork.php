@@ -242,7 +242,7 @@ final class PeerNetwork {
             throw new DomainException(t('peer.peer_network.otpechatok_sha256_64_hex_ego'));
         }
         // spec: brief/participants.md#свои-роли — an agent takes a role of the list that may have tools
-        if (!in_array($role, Role::assignable(), true) || !$role->may(\OpenCCK\Domain\Entity\Power::Tools)) {
+        if (!in_array($role, Role::assignable(), true) || !$role->may(\OpenCCK\Domain\Entity\Permission::Tools)) {
             throw new DomainException(t('peer.peer_network.rol_agenta_user_ili_admin'));
         }
         $agent = $this->principals->createAgent($name, $role);

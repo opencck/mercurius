@@ -106,7 +106,7 @@ if ($sandbox !== null) {
         try {
             $people = array_values(array_map(
                 static fn(Principal $p): int => $p->id,
-                array_filter($principals->all(), static fn(Principal $p): bool => $p->role->may(\OpenCCK\Domain\Entity\Power::Skills)),
+                array_filter($principals->all(), static fn(Principal $p): bool => $p->role->may(\OpenCCK\Domain\Entity\Permission::Skills)),
             ));
             $owner = $ownerDirectory->principal()?->id;
             $projects = [];

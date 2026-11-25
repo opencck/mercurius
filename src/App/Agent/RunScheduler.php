@@ -27,7 +27,7 @@ use OpenCCK\Domain\Agent\Run;
 use OpenCCK\Domain\Agent\RunStatus;
 use OpenCCK\Domain\Agent\StopReason;
 use OpenCCK\Domain\Agent\ToolCallStatus;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ConversationRepository;
 use OpenCCK\Domain\Repository\PrincipalRepository;
@@ -799,7 +799,7 @@ final class RunScheduler {
      *       next message, the prompt stays as it was
      */
     private function withSkillNote(Principal $principal, ConversationMeta $meta, int $conversationId, string $text): string {
-        if ($this->skills === null || !$principal->role->may(Power::Skills)) {
+        if ($this->skills === null || !$principal->role->may(Permission::Skills)) {
             return $text;
         }
         try {
@@ -858,7 +858,7 @@ final class RunScheduler {
             //       stays; a change of the role moves the open conversation (RoleConversations), its next run reads it here
             $model = $this->router !== null ? (string) $this->router->choose($conversationId, $text) : $this->model;
             $skills = '';
-            if ($this->skills !== null && $principal->role->may(Power::Skills)) {
+            if ($this->skills !== null && $principal->role->may(Permission::Skills)) {
                 try {
                     $skills = $this->skills->index($principal, $this->projects?->active($meta->channel, $meta->chatId, $meta->threadId));
                     $this->skillSnapshots[$conversationId] = $skills;

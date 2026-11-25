@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace OpenCCK\Domain\Entity;
 
 /**
- * What a role lets a participant do beyond talking. The owner has every power.
+ * What a role lets a participant do beyond talking. The owner has every permission.
  *
  * spec: brief/participants.md#свои-роли
  */
-enum Power: string {
+enum Permission: string {
     /** the role may be given tools */
     case Tools = 'tools';
     /** skills in the context and their files */

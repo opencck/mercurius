@@ -14,7 +14,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Repository\PrincipalRepository;
 
 use function Mercurius\I18n\t;
@@ -74,7 +74,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
     }
 
     /**
-     * The owner changes anyone's settings; a participant whose role has the power over participants changes others',
+     * The owner changes anyone's settings; a participant whose role has the permission over participants changes others',
      * never the owner's or their own, and gives no tool they lack.
      *
      * spec: brief/participants.md#свои-роли
@@ -86,7 +86,7 @@ final class SetParticipantPolicyTool implements Tool, ChecksBeforeApproval {
         if ($who->isOwner()) {
             return null;
         }
-        if (!$who->role->may(Power::Participants)) {
+        if (!$who->role->may(Permission::Participants)) {
             return t('tool.set_participant_policy.prava_uchastnikov_menyaet_tolko_vladelet');
         }
         $target = Args::int($args, 'principal_id');

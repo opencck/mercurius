@@ -11,7 +11,7 @@ use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Service\PolicyService;
 use OpenCCK\Domain\Agent\DangerClass;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\PrincipalStatus;
@@ -43,9 +43,9 @@ final class ParticipantsTool implements Tool {
         return $decisions;
     }
 
-    /** The owner, or a participant whose role has the power over participants. */
+    /** The owner, or a participant whose role has the permission over participants. */
     private static function manages(Principal $who): bool {
-        return $who->isOwner() || $who->role->may(Power::Participants);
+        return $who->isOwner() || $who->role->may(Permission::Participants);
     }
 
     public const NAME = 'participants';
@@ -141,9 +141,9 @@ final class ParticipantsTool implements Tool {
         if ($found[0]->isOwner()) {
             return ToolResult::error(t('tool.participants.owner_stays'));
         }
-        // spec: brief/participants.md#свои-роли — a holder of the power changes others, not themselves, and
-        //       gives no role with a power they do not have
-        if (!$who->isOwner() && ($found[0]->id === $who->id || array_diff(self::names($decision[0]->powers()), self::names($who->role->powers())) !== [])) {
+        // spec: brief/participants.md#свои-роли — a holder of the permission changes others, not themselves, and
+        //       gives no role with a permission they do not have
+        if (!$who->isOwner() && ($found[0]->id === $who->id || array_diff(self::names($decision[0]->permissions()), self::names($who->role->permissions())) !== [])) {
             return ToolResult::error(t('tool.participants.above_own'));
         }
         $decided = $this->principals->setRole($found[0]->id, $decision[0], $decision[1]);
@@ -156,11 +156,11 @@ final class ParticipantsTool implements Tool {
     }
 
     /**
-     * @param list<Power> $powers
+     * @param list<Permission> $permissions
      * @return list<string>
      */
-    private static function names(array $powers): array {
-        return array_map(static fn(Power $p): string => $p->value, $powers);
+    private static function names(array $permissions): array {
+        return array_map(static fn(Permission $p): string => $p->value, $permissions);
     }
 
     /** @param array<int, string> $keys */

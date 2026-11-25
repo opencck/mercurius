@@ -34,7 +34,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
 
     public function testAHolderOfThePowerChangesOthersWithinTheirOwnTools(): void {
         // spec: brief/participants.md#свои-роли
-        $steward = Role::define('steward', 'Распорядитель', 16, [\OpenCCK\Domain\Entity\Power::Tools, \OpenCCK\Domain\Entity\Power::Participants]);
+        $steward = Role::define('steward', 'Распорядитель', 16, [\OpenCCK\Domain\Entity\Permission::Tools, \OpenCCK\Domain\Entity\Permission::Participants]);
         try {
             $own = new \OpenCCK\Domain\Agent\ParticipantPolicy(['web_search', 'set_participant_policy'], new RunLimits(30, 400_000, 900, 120), null, false);
             $as = static fn(int $id): ToolContext => new ToolContext(1, 1, new Principal(max(1, $id), PrincipalKind::Human, $steward, null), new NullCancellation(), $own);
@@ -43,7 +43,7 @@ final class SetParticipantPolicyToolTest extends TestCase {
             self::assertTrue($this->tool->execute(['principal_id' => 7, 'tools' => ['run_command']], $as(8))->isError, 'not a tool they lack');
             self::assertTrue($this->tool->execute(['principal_id' => 8, 'max_turns' => 5], $as(8))->isError, 'not their own');
             self::assertTrue($this->tool->execute(['principal_id' => 1, 'max_turns' => 5], $as(8))->isError, 'not the owner');
-            self::assertTrue($this->tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::user()))->isError, 'not without the power');
+            self::assertTrue($this->tool->execute(['principal_id' => 7, 'max_turns' => 5], self::context(Role::user()))->isError, 'not without the permission');
         } finally {
             Role::reset();
         }

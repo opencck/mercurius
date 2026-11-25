@@ -15,23 +15,23 @@ final class PostgresRoleRepository implements RoleRepository {
 
     public function all(): array {
         $roles = [];
-        foreach ($this->db->query('SELECT name, title, position, array_to_json(powers)::text AS powers, policy::text AS policy FROM participant_roles ORDER BY position, name') as $row) {
+        foreach ($this->db->query('SELECT name, title, position, array_to_json(permissions)::text AS permissions, policy::text AS policy FROM participant_roles ORDER BY position, name') as $row) {
             $name = $row['name'] ?? null;
             $title = $row['title'] ?? null;
             $position = $row['position'] ?? null;
             if (!is_string($name) || !is_string($title) || !is_int($position)) {
                 continue;
             }
-            $roles[] = ['name' => $name, 'title' => $title, 'position' => $position, 'powers' => self::strings($row['powers'] ?? null), 'policy' => self::object($row['policy'] ?? null)];
+            $roles[] = ['name' => $name, 'title' => $title, 'position' => $position, 'permissions' => self::strings($row['permissions'] ?? null), 'policy' => self::object($row['policy'] ?? null)];
         }
         return $roles;
     }
 
-    public function save(string $name, string $title, int $position, array $powers, array $policy): void {
+    public function save(string $name, string $title, int $position, array $permissions, array $policy): void {
         $this->db->execute(
-            'INSERT INTO participant_roles (name, title, position, powers, policy) VALUES (?, ?, ?, ?::text[], ?::jsonb)
-             ON CONFLICT (name) DO UPDATE SET title = excluded.title, position = excluded.position, powers = excluded.powers, policy = excluded.policy',
-            [$name, $title, $position, '{' . implode(',', $powers) . '}', json_encode((object) $policy, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)],
+            'INSERT INTO participant_roles (name, title, position, permissions, policy) VALUES (?, ?, ?, ?::text[], ?::jsonb)
+             ON CONFLICT (name) DO UPDATE SET title = excluded.title, position = excluded.position, permissions = excluded.permissions, policy = excluded.policy',
+            [$name, $title, $position, '{' . implode(',', $permissions) . '}', json_encode((object) $policy, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)],
         );
     }
 

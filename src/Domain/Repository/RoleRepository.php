@@ -10,16 +10,16 @@ namespace OpenCCK\Domain\Repository;
  * spec: brief/participants.md#свои-роли
  */
 interface RoleRepository {
-    /** @return list<array{name: string, title: string, position: int, powers: list<string>, policy: array<string, mixed>}> in their order */
+    /** @return list<array{name: string, title: string, position: int, permissions: list<string>, policy: array<string, mixed>}> in their order */
     public function all(): array;
 
     /**
      * Adds the role or replaces it.
      *
-     * @param list<string> $powers
+     * @param list<string> $permissions
      * @param array<string, mixed> $policy
      */
-    public function save(string $name, string $title, int $position, array $powers, array $policy): void;
+    public function save(string $name, string $title, int $position, array $permissions, array $policy): void;
 
     /** Removes a role no participant has; false when someone has it or there is no such role. */
     public function remove(string $name): bool;

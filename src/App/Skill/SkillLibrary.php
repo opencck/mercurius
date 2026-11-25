@@ -9,7 +9,7 @@ use Amp\NullCancellation;
 use Closure;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Project\Project;
 use Psr\Log\LoggerInterface;
@@ -299,7 +299,7 @@ final class SkillLibrary {
      * @return list<array{dir: string, owner: int, label: string}>
      */
     public function places(Principal $who, ?Project $project): array {
-        if (!$who->role->may(Power::Skills)) {
+        if (!$who->role->may(Permission::Skills)) {
             return [];
         }
         if ($project !== null && $this->levelOf($project, $who) !== null) {
@@ -405,7 +405,7 @@ final class SkillLibrary {
 
     /** The index for the system prompt; empty when there are no skills. */
     public function index(Principal $who, ?Project $project): string {
-        if (!$who->role->may(Power::Skills)) {
+        if (!$who->role->may(Permission::Skills)) {
             return '';
         }
         $catalog = $this->catalog($who, $project);
@@ -498,7 +498,7 @@ final class SkillLibrary {
      * @return array{owner: int, dir: string, limits: SandboxLimits}|null
      */
     public function target(Principal $who, ?Project $project, string $where): ?array {
-        if ($this->sandbox === null || !$who->role->may(Power::Skills)) {
+        if ($this->sandbox === null || !$who->role->may(Permission::Skills)) {
             return null;
         }
         $owner = $who->id;

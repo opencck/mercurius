@@ -94,7 +94,7 @@ $runs = new PostgresRunRepository($db);
 $runMessages = new \OpenCCK\Infrastructure\Repository\PostgresRunMessageRepository($db);
 $deliveryRepository = new \OpenCCK\Infrastructure\Repository\PostgresDeliveryRepository($db);
 $transcript = new PostgresTranscriptRepository($db);
-// spec: brief/participants.md#свои-роли — the owner's list of roles: titles, order, powers, templates
+// spec: brief/participants.md#свои-роли — the owner's list of roles: titles, order, permissions, templates
 $roleCatalog = new \OpenCCK\App\Service\RoleCatalog(new \OpenCCK\Infrastructure\Repository\PostgresRoleRepository($db));
 $roleCatalog->load();
 $policies = new PolicyService(new PostgresPolicyRepository($db), $agentSettings->ownerLimits(), $sandboxSettings->ownerLimits(), $roleCatalog->template(...));

@@ -106,7 +106,7 @@ final class VisitorServiceTest extends AsyncTestCase {
 
     public function testTheCardOffersTheOwnersOwnRolesAndThePressGivesOne(): void {
         // spec: brief/participants.md#свои-роли
-        Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Power::Tools]);
+        Role::define('trader', 'Трейдер', 15, [\OpenCCK\Domain\Entity\Permission::Tools]);
         try {
             $this->stack->say('привет', '99');
             self::assertSame(['pv:2:a', 'pv:2=trader', 'pv:2:u', 'pv:2:t', 'pv:2:r'], $this->lastButtons());
@@ -121,7 +121,7 @@ final class VisitorServiceTest extends AsyncTestCase {
 
     public function testAHolderOfTheAdmitPowerGetsTheCardAndDecidesWithinTheirPowers(): void {
         // spec: brief/participants.md#свои-роли
-        Role::define('gate', 'Привратник', 15, [\OpenCCK\Domain\Entity\Power::Admit, \OpenCCK\Domain\Entity\Power::Tools]);
+        Role::define('gate', 'Привратник', 15, [\OpenCCK\Domain\Entity\Permission::Admit, \OpenCCK\Domain\Entity\Permission::Tools]);
         try {
             $this->stack->principals->put(new \OpenCCK\Domain\Entity\Principal(7, \OpenCCK\Domain\Entity\PrincipalKind::Human, Role::of('gate'), 'Привратник', PrincipalStatus::Active), 'telegram', '77');
             $this->stack->principals->put(new \OpenCCK\Domain\Entity\Principal(6, \OpenCCK\Domain\Entity\PrincipalKind::Human, Role::user(), 'Пользователь', PrincipalStatus::Active), 'telegram', '66');
@@ -130,11 +130,11 @@ final class VisitorServiceTest extends AsyncTestCase {
             self::assertNotNull($visitor);
 
             $toGate = array_filter($this->stack->channel->log, static fn(array $e): bool => $e[0] === 'send' && $e[1] === '77' && str_starts_with($e[2], 'Новый собеседник'));
-            self::assertCount(1, $toGate, 'the holder of the power gets the card too');
+            self::assertCount(1, $toGate, 'the holder of the permission gets the card too');
 
             $this->stack->press(sprintf('pv:%d:a', $visitor->id), '77');
             $this->stack->press(sprintf('pv:%d:u', $visitor->id), '66');
-            self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find($visitor->id)?->status, 'no role above their own, no press without the power');
+            self::assertSame(PrincipalStatus::Pending, $this->stack->principals->find($visitor->id)?->status, 'no role above their own, no press without the permission');
 
             $this->stack->press(sprintf('pv:%d:t', $visitor->id), '77');
             self::assertSame([Role::visitor(), PrincipalStatus::Active], [$this->stack->principals->find($visitor->id)?->role, $this->stack->principals->find($visitor->id)?->status]);

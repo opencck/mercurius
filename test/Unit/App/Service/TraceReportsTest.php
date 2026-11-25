@@ -9,7 +9,7 @@ use DateTimeImmutable;
 use OpenCCK\App\Service\ChatService;
 use OpenCCK\App\Service\TraceReports;
 use OpenCCK\Domain\Agent\TraceSpan;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalKind;
 use OpenCCK\Domain\Entity\PrincipalStatus;
@@ -277,7 +277,7 @@ final class TraceReportsTest extends AsyncTestCase {
 
     public function testAHolderOfTheReportsPowerSeesReportsButNotTheTracesOfOthersPrivateChats(): void {
         // spec: brief/participants.md#свои-роли
-        Role::define('analyst', 'Аналитик', 15, [Power::Reports]);
+        Role::define('analyst', 'Аналитик', 15, [Permission::Reports]);
         try {
             $this->stack->principals->put(new Principal(5, PrincipalKind::Human, Role::of('analyst'), 'Аналитик', PrincipalStatus::Active), 'telegram', '55');
             $this->stack->chat->useRunVisibility(static fn(int $runId, Principal $viewer): bool => $runId !== 42);

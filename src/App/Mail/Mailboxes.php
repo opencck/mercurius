@@ -8,7 +8,7 @@ use Closure;
 use DomainException;
 use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\App\Vault\Vault;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Mail\Mailbox;
 use OpenCCK\Domain\Project\Project;
@@ -39,9 +39,9 @@ final class Mailboxes {
         private readonly Closure $levelOf,
     ) {}
 
-    /** spec: brief/participants.md#свои-роли — mail is a power of a role; the owner has every power */
+    /** spec: brief/participants.md#свои-роли — mail is a permission of a role; the owner has every permission */
     public static function may(Principal $who): bool {
-        return $who->role->may(Power::Mail);
+        return $who->role->may(Permission::Mail);
     }
 
     /**

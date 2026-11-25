@@ -10,7 +10,7 @@ use Closure;
 use OpenCCK\App\Agent\Sandbox\Sandbox;
 use OpenCCK\App\Agent\Sandbox\SandboxFailure;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Repository\ProjectRepository;
 
@@ -48,7 +48,7 @@ final class ContextMemory {
      * person has access to; else, outside a private chat, the place's own. A private chat without a project has none.
      */
     public function shared(Principal $principal, string $channel, string $chatId, string $threadId, bool $private): ?MemoryPlace {
-        $project = $principal->role->may(Power::Projects) ? $this->projects->active($channel, $chatId, $threadId) : null;
+        $project = $principal->role->may(Permission::Projects) ? $this->projects->active($channel, $chatId, $threadId) : null;
         if ($project !== null) {
             if ($project->levelOf($principal, $this->projects->memberLevel($project->id, $principal->id)) === null) {
                 return null;

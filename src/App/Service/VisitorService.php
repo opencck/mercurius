@@ -13,7 +13,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\SendErrorKind;
 use Mercurius\Messenger\SendResult;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\PrincipalStatus;
 use OpenCCK\Domain\Entity\Role;
@@ -106,7 +106,7 @@ final class VisitorService implements CallbackHandler {
     private function admitters(string $channel): array {
         $chats = [];
         foreach ($this->principals->all() as $p) {
-            if (!$p->isOwner() && $p->status === PrincipalStatus::Active && $p->role->may(Power::Admit)) {
+            if (!$p->isOwner() && $p->status === PrincipalStatus::Active && $p->role->may(Permission::Admit)) {
                 $chat = $this->principals->externalId($p->id, $channel);
                 if ($chat !== null) {
                     $chats[] = $chat;
@@ -122,7 +122,7 @@ final class VisitorService implements CallbackHandler {
             return null;
         }
         $who = $this->principals->findByIdentity($callback->channel, $callback->userId);
-        return $who !== null && $who->status === PrincipalStatus::Active && ($who->isOwner() || $who->role->may(Power::Admit)) ? ($who->isOwner() ? null : $who) : false;
+        return $who !== null && $who->status === PrincipalStatus::Active && ($who->isOwner() || $who->role->may(Permission::Admit)) ? ($who->isOwner() ? null : $who) : false;
     }
 
     public function handleCallback(IncomingCallback $callback): void {
@@ -151,8 +151,8 @@ final class VisitorService implements CallbackHandler {
             ($match[2] ?? '') === 'a' => [Role::admin(), PrincipalStatus::Active, t('service.visitor.naznachen_administratorom')],
             default => [Role::visitor(), PrincipalStatus::Rejected, t('service.visitor.otkazano')],
         };
-        // a participant who admits gives no role with a power they lack
-        if ($presser !== null && $status === PrincipalStatus::Active && array_diff(array_map(static fn(Power $p): string => $p->value, $role->powers()), array_map(static fn(Power $p): string => $p->value, $presser->role->powers())) !== []) {
+        // a participant who admits gives no role with a permission they lack
+        if ($presser !== null && $status === PrincipalStatus::Active && array_diff(array_map(static fn(Permission $p): string => $p->value, $role->permissions()), array_map(static fn(Permission $p): string => $p->value, $presser->role->permissions())) !== []) {
             $this->channel->answerCallback($callback->callbackId, t('tool.participants.above_own'), true);
             return;
         }
@@ -168,7 +168,7 @@ final class VisitorService implements CallbackHandler {
         if ($status === PrincipalStatus::Active) {
             $this->tell($decided, $callback->channel, match (true) {
                 $role === Role::admin() => \Mercurius\I18n\t(self::LET_IN_ADMIN),
-                $role->may(\OpenCCK\Domain\Entity\Power::Tools) => \Mercurius\I18n\t(self::LET_IN_USER),
+                $role->may(\OpenCCK\Domain\Entity\Permission::Tools) => \Mercurius\I18n\t(self::LET_IN_USER),
                 default => \Mercurius\I18n\t(self::LET_IN_TALK),
             });
         }

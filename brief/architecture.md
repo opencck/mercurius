@@ -14,7 +14,7 @@
 
 | Что | Классы | Примечание |
 |-----|--------|------------|
-| Участники | `Entity\Principal` (человек или агент), `PrincipalKind`, `PrincipalStatus`, `Role`, `Power` | Свои роли с правами (в коде пока `Power`, будет `Permission`); владелец — роль `owner`, первый — по `TELEGRAM_ADMIN_ID`, дальше `/owner` |
+| Участники | `Entity\Principal` (человек или агент), `PrincipalKind`, `PrincipalStatus`, `Role`, `Permission` | Свои роли с правами (`Permission`); владелец — роль `owner`, первый — по `TELEGRAM_ADMIN_ID`, дальше `/owner` |
 | Запуск | `Agent\Run`, `RunStatus`, `RunLimits`, `StopReason`, `Approval`, `ApprovalStatus`, `Grant`, `DangerClass`, `Delivery` | Запуск переживает перезапуск; подтверждение — приостановленный вызов; `Grant` — сохранённое «разрешать всегда» |
 | Политики и лимиты | `ParticipantPolicy`, `SandboxLimits`, `HistoryScope` | Права участника не шире прав владельца |
 | Модели | `ModelRef`, `ModelRole`, `ProviderProfile`, `RoutingDecision`, `PromptCache` | Провайдер — данные; роль модели и решение о выборе — в базе |

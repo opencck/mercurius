@@ -9,7 +9,7 @@ use InvalidArgumentException;
 use Mercurius\Messenger\Attachment;
 use Mercurius\Messenger\Channel;
 use Mercurius\Messenger\OutgoingMessage;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ProjectRepository;
@@ -80,7 +80,7 @@ final class ProjectArchiveCommands {
 
     public function import(Principal $who, string $chatId, #[\SensitiveParameter] string $password, ?Attachment $file): string {
         $password = trim($password);
-        if (!$who->role->may(Power::Projects)) {
+        if (!$who->role->may(Permission::Projects)) {
             return t('project.archive.no_power');
         }
         if ($file === null || $password === '') {

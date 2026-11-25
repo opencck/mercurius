@@ -92,7 +92,7 @@ final class AgentRequests implements CallbackHandler {
 
     /** @return list<Role> the roles an agent may take: those of the list that may have tools */
     private static function roles(): array {
-        return array_values(array_filter(Role::assignable(), static fn(Role $r): bool => $r->may(\OpenCCK\Domain\Entity\Power::Tools)));
+        return array_values(array_filter(Role::assignable(), static fn(Role $r): bool => $r->may(\OpenCCK\Domain\Entity\Permission::Tools)));
     }
 
     public function handleCallback(IncomingCallback $callback): void {

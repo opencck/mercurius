@@ -134,7 +134,7 @@ $projectRepository = new PostgresProjectRepository($db);
 // spec: brief/memory.md#проекты-и-отношение-участника-к-проекту — the facts of the active project of a chat, for
 // those who may see the project
 $audience = new ConversationAudience($conversations, $ownerDirectory->formerOwners(...), static function (\OpenCCK\Domain\Entity\Principal $principal, string $channel, string $chatId, string $threadId) use ($projectRepository): ?int {
-    if (!$principal->role->may(\OpenCCK\Domain\Entity\Power::Projects)) {
+    if (!$principal->role->may(\OpenCCK\Domain\Entity\Permission::Projects)) {
         return null;
     }
     $project = $projectRepository->active($channel, $chatId, $threadId);

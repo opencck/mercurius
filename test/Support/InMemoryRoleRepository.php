@@ -9,13 +9,13 @@ use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\RoleRepository;
 
 final class InMemoryRoleRepository implements RoleRepository {
-    /** @var array<string, array{name: string, title: string, position: int, powers: list<string>, policy: array<string, mixed>}> */
+    /** @var array<string, array{name: string, title: string, position: int, permissions: list<string>, policy: array<string, mixed>}> */
     public array $roles = [];
 
     /** @param (Closure(string): bool)|null $held whether a participant has the role */
     public function __construct(private readonly ?Closure $held = null) {
-        foreach (Role::BUILTIN as $name => [$title, $position, $powers]) {
-            $this->roles[$name] = ['name' => $name, 'title' => $title, 'position' => $position, 'powers' => $powers, 'policy' => []];
+        foreach (Role::BUILTIN as $name => [$title, $position, $permissions]) {
+            $this->roles[$name] = ['name' => $name, 'title' => $title, 'position' => $position, 'permissions' => $permissions, 'policy' => []];
         }
     }
 
@@ -25,8 +25,8 @@ final class InMemoryRoleRepository implements RoleRepository {
         return $roles;
     }
 
-    public function save(string $name, string $title, int $position, array $powers, array $policy): void {
-        $this->roles[$name] = ['name' => $name, 'title' => $title, 'position' => $position, 'powers' => $powers, 'policy' => $policy];
+    public function save(string $name, string $title, int $position, array $permissions, array $policy): void {
+        $this->roles[$name] = ['name' => $name, 'title' => $title, 'position' => $position, 'permissions' => $permissions, 'policy' => $policy];
     }
 
     public function remove(string $name): bool {

@@ -8,7 +8,7 @@ use DomainException;
 use OpenCCK\Domain\Agent\ParticipantPolicy;
 use OpenCCK\Domain\Agent\RunLimits;
 use OpenCCK\Domain\Agent\SandboxLimits;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Principal;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Domain\Repository\PolicyRepository;
@@ -46,30 +46,30 @@ final class PolicyService {
         }
     }
 
-    /** tools that are a power of a role, not only a tool */
+    /** tools that are a permission of a role, not only a tool */
     private const POWER_TOOLS = [
-        'channel_post' => Power::Publish,
-        'participants' => Power::Participants,
-        'set_participant_policy' => Power::Participants,
-        'mailbox_edit' => Power::Mail,
-        'mcp_mail_mail_folders' => Power::Mail,
-        'mcp_mail_mail_list' => Power::Mail,
-        'mcp_mail_mail_read' => Power::Mail,
-        'mcp_mail_mail_attachment' => Power::Mail,
-        'mcp_mail_mail_send' => Power::Mail,
+        'channel_post' => Permission::Publish,
+        'participants' => Permission::Participants,
+        'set_participant_policy' => Permission::Participants,
+        'mailbox_edit' => Permission::Mail,
+        'mcp_mail_mail_folders' => Permission::Mail,
+        'mcp_mail_mail_list' => Permission::Mail,
+        'mcp_mail_mail_read' => Permission::Mail,
+        'mcp_mail_mail_attachment' => Permission::Mail,
+        'mcp_mail_mail_send' => Permission::Mail,
     ];
 
     /**
-     * Mail comes with its power, whatever the list of tools of the role says.
+     * Mail comes with its permission, whatever the list of tools of the role says.
      *
-     * spec: brief/skills-mcp.md#ящики-участников-и-проектов — who has the power of mail uses IMAP and SMTP
+     * spec: brief/skills-mcp.md#ящики-участников-и-проектов — who has the permission of mail uses IMAP and SMTP
      */
     private static function withMail(Principal $principal, ParticipantPolicy $policy): ParticipantPolicy {
-        if (!$principal->role->may(Power::Mail)) {
+        if (!$principal->role->may(Permission::Mail)) {
             return $policy;
         }
-        foreach (self::POWER_TOOLS as $tool => $power) {
-            if ($power === Power::Mail) {
+        foreach (self::POWER_TOOLS as $tool => $permission) {
+            if ($permission === Permission::Mail) {
                 $policy = $policy->withTool($tool);
             }
         }
@@ -91,13 +91,13 @@ final class PolicyService {
             return $owner;
         }
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
-        // spec: brief/participants.md#свои-роли — without the power of tools a role talks, nothing more
-        if (!$principal->role->may(Power::Tools)) {
+        // spec: brief/participants.md#свои-роли — without the permission of tools a role talks, nothing more
+        if (!$principal->role->may(Permission::Tools)) {
             return self::withMail($principal, $base)->capTo($owner);
         }
         $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
-        // spec: brief/participants.md#свои-роли — a tool of a power stays out of a role without it
-        return self::withMail($principal, $policy)->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Power $p): bool => !$principal->role->may($p))));
+        // spec: brief/participants.md#свои-роли — a tool of a permission stays out of a role without it
+        return self::withMail($principal, $policy)->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Permission $p): bool => !$principal->role->may($p))));
     }
 
     /** @return array<string, mixed> */

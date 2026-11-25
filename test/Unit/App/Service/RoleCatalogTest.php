@@ -6,7 +6,7 @@ namespace OpenCCK\Test\Unit\App\Service;
 
 use InvalidArgumentException;
 use OpenCCK\App\Service\RoleCatalog;
-use OpenCCK\Domain\Entity\Power;
+use OpenCCK\Domain\Entity\Permission;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\InMemoryRoleRepository;
 use PHPUnit\Framework\TestCase;
@@ -30,24 +30,34 @@ final class RoleCatalogTest extends TestCase {
         Role::reset();
     }
 
+    public function testSetAcceptsPermissionsAndOldPowersKey(): void {
+        $this->catalog->add('one', 'Один');
+        $this->catalog->add('two', 'Два');
+        $this->catalog->set('one', 'permissions', 'tools');
+        $this->catalog->set('two', 'permissions', 'tools');
+
+        self::assertSame([Permission::Tools], Role::of('one')->permissions());
+        self::assertSame([Permission::Tools], Role::of('two')->permissions());
+    }
+
     public function testARoleIsAddedGivenPowersAndATemplateAndOrdered(): void {
         $this->catalog->add('trader', 'Трейдер');
-        $this->catalog->set('trader', 'powers', 'tools, reports');
+        $this->catalog->set('trader', 'permissions', 'tools, reports');
         $this->catalog->set('trader', 'tools', 'web_search,http_request');
         $this->catalog->set('trader', 'max_turns', '40');
         $this->catalog->set('trader', 'position', '5');
 
         $trader = Role::of('trader');
         self::assertSame('Трейдер', $trader->title());
-        self::assertTrue($trader->may(Power::Reports));
-        self::assertFalse($trader->may(Power::Secrets));
+        self::assertTrue($trader->may(Permission::Reports));
+        self::assertFalse($trader->may(Permission::Secrets));
         self::assertSame(['tools' => ['web_search', 'http_request'], 'max_turns' => 40], $this->catalog->template($trader));
         self::assertSame('trader', Role::assignable()[0]->value, 'first in the order');
 
         // read anew from the store, as after a restart
         Role::reset();
         (new RoleCatalog($this->store))->load();
-        self::assertTrue(Role::of('trader')->may(Power::Tools));
+        self::assertTrue(Role::of('trader')->may(Permission::Tools));
         self::assertStringContainsString('trader «Трейдер» — tools, reports', $this->catalog->describe());
     }
 
@@ -57,8 +67,8 @@ final class RoleCatalogTest extends TestCase {
         $stack->chat->useRoles($this->catalog);
 
         $stack->say('/role add trader Трейдер рынка');
-        $stack->say('/role set trader powers tools,reports');
-        $stack->say('/role set trader powers fly');
+        $stack->say('/role set trader permissions tools,reports');
+        $stack->say('/role set trader permissions fly');
         $stack->say('/roles');
         $stack->sayInGroup('/roles');
 
@@ -75,7 +85,7 @@ final class RoleCatalogTest extends TestCase {
             fn(): string => $this->catalog->add('owner', 'x'),
             fn(): string => $this->catalog->add('Bad Name', 'x'),
             fn(): string => $this->catalog->add('user', 'x'),
-            fn(): string => $this->catalog->set('user', 'powers', 'fly'),
+            fn(): string => $this->catalog->set('user', 'permissions', 'fly'),
             fn(): string => $this->catalog->set('user', 'max_turns', '0'),
             fn(): string => $this->catalog->set('nobody', 'title', 'x'),
             fn(): string => $this->catalog->remove('user'),
