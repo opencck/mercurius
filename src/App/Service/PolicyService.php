@@ -52,6 +52,7 @@ final class PolicyService {
         'participants' => Permission::Participants,
         'set_participant_policy' => Permission::Participants,
         'mailbox_edit' => Permission::Mail,
+        'mcp_install' => Permission::Mcp,
         'mcp_mail_mail_folders' => Permission::Mail,
         'mcp_mail_mail_list' => Permission::Mail,
         'mcp_mail_mail_read' => Permission::Mail,

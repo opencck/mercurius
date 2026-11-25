@@ -30,6 +30,8 @@ final class OsvCheck {
     private const ENDPOINT = 'https://api.osv.dev/v1/query';
     private const TIMEOUT = 10.0;
     private const KEEP = 3600.0;
+    /** an install's dependencies looked up at most */
+    private const PACKAGES_MAX = 200;
     private const MAX_ENTRIES = 256;
     private const BODY_LIMIT = 2_000_000;
     private const ECOSYSTEMS = ['npx' => 'npm', 'npx.cmd' => 'npm', 'uvx' => 'PyPI', 'uvx.exe' => 'PyPI', 'pipx' => 'PyPI'];
@@ -55,6 +57,57 @@ final class OsvCheck {
             return null;
         }
         [$ecosystem, $name, $version] = $package;
+        return $this->verdict($ecosystem, $name, $version, $cancellation);
+    }
+
+    /**
+     * The first verdict on the packages an install declares; null — none is known as malware.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление — the files of dependencies are checked against OSV
+     *
+     * @param list<array{string, string, ?string}> $packages ecosystem, name, version
+     */
+    public function packages(array $packages, Cancellation $cancellation): ?string {
+        foreach (array_slice($packages, 0, self::PACKAGES_MAX) as [$ecosystem, $name, $version]) {
+            $verdict = $this->verdict($ecosystem, $name, $version, $cancellation);
+            if ($verdict !== null) {
+                return $verdict;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The packages of package.json (dependencies) and requirements.txt; a version only when it is exact or a range
+     * starts at one.
+     *
+     * @return list<array{string, string, ?string}>
+     */
+    public static function manifests(?string $packageJson, ?string $requirements): array {
+        $packages = [];
+        /** @psalm-suppress MixedAssignment the file is any JSON; only string pairs are taken */
+        $json = $packageJson === null ? null : json_decode($packageJson, true);
+        /** @psalm-suppress MixedAssignment */
+        $dependencies = is_array($json) && isset($json['dependencies']) && is_array($json['dependencies']) ? $json['dependencies'] : [];
+        /** @psalm-suppress MixedAssignment */
+        foreach ($dependencies as $name => $spec) {
+            if (is_string($name) && is_string($spec)) {
+                $packages[] = ['npm', $name, preg_match('#^[\^~=v]?(\d+\.\d+\.\d+[A-Za-z0-9.+-]*)$#', trim($spec), $m) === 1 ? $m[1] : null];
+            }
+        }
+        foreach (explode("\n", $requirements ?? '') as $line) {
+            $line = trim((string) preg_replace('~#.*$~', '', $line));
+            if ($line === '' || str_starts_with($line, '-')) {
+                continue;
+            }
+            if (preg_match('~^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?\s*(?:==\s*([A-Za-z0-9.+!-]+))?~', $line, $m) === 1) {
+                $packages[] = ['PyPI', $m[1], ($m[2] ?? '') === '' ? null : $m[2]];
+            }
+        }
+        return $packages;
+    }
+
+    private function verdict(string $ecosystem, string $name, ?string $version, Cancellation $cancellation): ?string {
         $key = $ecosystem . '|' . $name . '|' . ($version ?? '');
         $now = ($this->clock)();
         $kept = $this->verdicts[$key] ?? null;

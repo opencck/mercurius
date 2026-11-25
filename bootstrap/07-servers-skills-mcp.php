@@ -289,6 +289,31 @@ if ($sandbox !== null) {
         static fn(\Mercurius\Messenger\IncomingCallback $press): ?Member => $principals->findByIdentity($channel->name(), $press->userId),
     );
     $mcpCardsHolder['cards'] = $mcpCards;
+    // spec: brief/skills-mcp.md#установка-и-обновление — sources, the agent's plan, steps by the install's own user, a
+    //       trial start and the approval of the set; the entry goes into the context that asked for it
+    $mcpInstalls = new \OpenCCK\Infrastructure\Repository\PostgresMcpInstallRepository($db);
+    $osvCheck = new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger);
+    // the tools of an entry that runs installed code get the classes its approver set; a tool not in the set is irreversible
+    $mcpManager->useInstalls(static function (\OpenCCK\Domain\Mcp\McpServer $server, string $tool) use ($mcpInstalls): ?string {
+        if (preg_match('~/workspace/mcp/([a-z0-9_]+)/~', $server->url, $m) !== 1) {
+            return null;
+        }
+        $install = $mcpInstalls->find($m[1]);
+        return $install === null ? null : ($install->classes[$tool] ?? 'irreversible');
+    });
+    /** @psalm-suppress PossiblyNullReference the sandbox is on here, and with it the stdio client */
+    $tools->register(new \OpenCCK\App\Mcp\McpInstallTool(new \OpenCCK\App\Mcp\McpInstaller(
+        $mcpInstalls,
+        new \OpenCCK\App\Mcp\McpSources($sandbox),
+        $sandbox,
+        static fn(int $holder, \OpenCCK\Domain\Mcp\McpServer $server): array => $stdioMcp->trial($holder, $server, new \Amp\TimeoutCancellation(120)),
+        static fn(\OpenCCK\App\Mcp\McpEntry $entry, string $context): \OpenCCK\App\Mcp\McpRendered => $mcpSecrets->render($entry, $context),
+        static function (string $context, \OpenCCK\App\Mcp\McpEntry $entry, Member $by) use ($mcpFiles): string {
+            $mcpFiles->put($context, $entry);
+            return $mcpFiles->approve($context, $entry->name, $by, substr($entry->hash(), 0, 12));
+        },
+        static fn(array $packages): ?string => $osvCheck->packages($packages, new \Amp\TimeoutCancellation(30)),
+    ), $sandbox));
     $mcpContexts = static function () use ($principals, $skillProjects): array {
         $contexts = ['owners'];
         foreach ($principals->all() as $member) {

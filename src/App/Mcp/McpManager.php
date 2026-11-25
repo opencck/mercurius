@@ -11,6 +11,7 @@ use Closure;
 use DomainException;
 use OpenCCK\App\Agent\Tool\ToolRegistry;
 use OpenCCK\App\Vault\Vault;
+use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Domain\Repository\McpServerRepository;
@@ -49,6 +50,8 @@ final class McpManager {
     private ?McpSecrets $secrets = null;
     /** @var (Closure(string): bool)|null contexts whose connections come from a .mcp.json */
     private ?Closure $filed = null;
+    /** @var (Closure(McpServer, string): ?string)|null the approved class of a tool of an installed MCP; null — not one */
+    private ?Closure $installs = null;
 
     /**
      * @param Closure(string): ?Member $owner whose vault holds the token of a connection in this context
@@ -88,6 +91,15 @@ final class McpManager {
     private ?OsvCheck $osv = null;
 
     /** spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the check of MCP packages */
+    /**
+     * spec: brief/skills-mcp.md#установка-и-обновление — the tools of an installed MCP get the classes its approver set
+     *
+     * @param Closure(McpServer, string): ?string $classOf read, write or irreversible; null — not an installed MCP
+     */
+    public function useInstalls(Closure $classOf): void {
+        $this->installs = $classOf;
+    }
+
     /**
      * The contexts whose connections come from a .mcp.json: there a server runs only by an approved entry.
      *
@@ -560,6 +572,10 @@ final class McpManager {
                 $mcpTool = new McpTool($server, $tool['name'], $name, $tool['description'], $tool['schema'], $tool['annotations'], $this->client, fn(): array => $this->endpointOnCall($server), $this->breaker);
                 if ($this->sandbox !== null && $this->zone !== null) {
                     $mcpTool->useSandbox($this->sandbox, $this->zone);
+                }
+                $class = $this->installs === null ? null : ($this->installs)($server, $tool['name']);
+                if ($class !== null) {
+                    $mcpTool->useClass(DangerClass::tryFrom($class) ?? DangerClass::Irreversible);
                 }
                 $wrap = $this->wraps[$server->name] ?? null;
                 $wrapped = $wrap === null ? $mcpTool : $wrap($mcpTool, $tool['name']);

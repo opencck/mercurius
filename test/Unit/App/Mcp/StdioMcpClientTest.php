@@ -176,6 +176,17 @@ final class StdioMcpClientTest extends AsyncTestCase {
         delay(0.5);
     }
 
+    /** spec: brief/skills-mcp.md#установка-и-обновление — the trial start runs as the install's own user and ends */
+    public function testATrialRunsAsTheInstallAndClosesItsProcess(): void {
+        $tools = $this->client->trial(800003, self::server(), new NullCancellation());
+
+        self::assertSame('echo', $tools[0]['name'] ?? null);
+        self::assertSame(800003, $this->sandbox->spawned[0][0] ?? null);
+        self::assertTrue($this->sandbox->closed['s1'] ?? false, 'nothing of the trial keeps running');
+        $this->client->tools(self::server(), null, new NullCancellation());
+        self::assertSame(StdioMcpClient::PRINCIPAL_BASE + 7, $this->sandbox->spawned[1][0] ?? null, 'a later start is the connection again');
+    }
+
     /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — stopped when idle, started on demand */
     public function testAnIdleProcessStopsAndTheNextRequestStartsItAgain(): void {
         $this->client->tools(self::server(), null, new NullCancellation());

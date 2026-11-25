@@ -120,6 +120,27 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         return $stopped;
     }
 
+    /** @var array<string, int> by server key: the sandbox user a trial start runs as instead of the connection's */
+    private array $as = [];
+
+    /**
+     * A trial start of an install: its tools listed by the install's own user, then the process closed.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     *
+     * @return list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>
+     * @throws RuntimeException
+     */
+    public function trial(int $principal, McpServer $server, Cancellation $cancellation): array {
+        $this->as[$server->key()] = $principal;
+        try {
+            return $this->tools($server, null, $cancellation);
+        } finally {
+            $this->forget($server->key());
+            unset($this->as[$server->key()]);
+        }
+    }
+
     public function idle(string $server): bool {
         $session = $this->sessions[$server] ?? null;
         return $session === null || !$session->alive();
@@ -170,7 +191,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         $this->forget($server->key());
         $command = trim(substr($server->url, strlen(self::PREFIX)));
         $env = $server->renderedHash !== null ? $server->env : ($token === null ? [] : [self::envName($server->secret) => $token]);
-        $principal = self::PRINCIPAL_BASE + $server->id;
+        $principal = $this->as[$server->key()] ?? self::PRINCIPAL_BASE + $server->id;
         // what a restarted application left running for this server goes first
         $this->sandbox->closeAll($principal, $this->limits);
         try {

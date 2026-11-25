@@ -427,6 +427,20 @@ final class McpTest extends AsyncTestCase {
         self::assertSame(['GITHUB_TOKEN' => 'ghp_' . str_repeat('b', 36)], $env, 'started again with the new value');
     }
 
+    /** spec: brief/skills-mcp.md#установка-и-обновление — an installed MCP's tools have the classes its approver set */
+    public function testTheToolsOfAnInstalledMcpHaveTheApprovedClasses(): void {
+        $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();
+        $streams->tools = [['name' => 'echo', 'description' => 'Echoes', 'inputSchema' => ['type' => 'object'], 'annotations' => ['readOnlyHint' => true]], ['name' => 'drop', 'description' => 'Drops', 'inputSchema' => ['type' => 'object']]];
+        $client = new \OpenCCK\Infrastructure\Mcp\RoutingMcpClient(new HttpMcpClient(new HttpClient(new FakeHttpClient(), [])), new \OpenCCK\Infrastructure\Mcp\StdioMcpClient($streams, new \OpenCCK\Domain\Agent\SandboxLimits(1, 1, 1, 1, 1)));
+        $manager = new McpManager($this->servers, $client, $this->vault, $this->registry, fn(): Member => $this->owner, static function (string $t): void {}, new NullLogger(), stdio: true);
+        $manager->useInstalls(static fn(McpServer $server, string $tool): ?string => str_contains($server->url, '/workspace/mcp/everything/') ? ($tool === 'drop' ? 'write' : 'irreversible') : null);
+        $manager->add('member:1', 'everything', "stdio:node '/workspace/mcp/everything/current/index.js'", null);
+        $manager->approve('member:1', 'everything', new NullCancellation());
+
+        self::assertSame(DangerClass::Irreversible, $this->registry->get('mcp_everything_echo', $this->inOwnersChat())?->danger([]), 'the server says read; the approver did not');
+        self::assertSame(DangerClass::Write, $this->registry->get('mcp_everything_drop', $this->inOwnersChat())?->danger([]));
+    }
+
     public function testAPackageWithMalwareIsNotApproved(): void {
         // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the check of MCP packages before /mcp on
         $streams = new \OpenCCK\Test\Support\FakeSandboxStreams();

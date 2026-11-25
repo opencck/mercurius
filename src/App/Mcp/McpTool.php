@@ -93,7 +93,21 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
         return $schema;
     }
 
+    /** the class the approver of an installed MCP set; null — the hints of the server decide */
+    private ?DangerClass $approved = null;
+
+    /**
+     * spec: brief/skills-mcp.md#установка-и-обновление — the classes of an installed MCP are the approver's: the
+     * server's hints are its own words
+     */
+    public function useClass(DangerClass $class): void {
+        $this->approved = $class;
+    }
+
     public function danger(array $args): DangerClass {
+        if ($this->approved !== null) {
+            return $this->approved;
+        }
         if (($this->annotations['readOnlyHint'] ?? null) === true) {
             return DangerClass::Read;
         }

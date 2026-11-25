@@ -78,4 +78,19 @@ final class OsvCheckTest extends TestCase {
 
         self::assertCount(2, $http->requested);
     }
+
+    /** spec: brief/skills-mcp.md#установка-и-обновление — the dependencies an install declares are looked up */
+    public function testTheDependenciesOfAnInstallAreRead(): void {
+        $packages = OsvCheck::manifests(
+            '{"dependencies": {"ssh2": "^1.15.0", "zod": "latest", "@scope/x": "2.0.1"}, "devDependencies": {"jest": "1.0.0"}}',
+            "# tools
+requests==2.31.0
+fastmcp[cli]
+-r other.txt
+",
+        );
+
+        self::assertSame([['npm', 'ssh2', '1.15.0'], ['npm', 'zod', null], ['npm', '@scope/x', '2.0.1'], ['PyPI', 'requests', '2.31.0'], ['PyPI', 'fastmcp', null]], $packages);
+        self::assertSame([], OsvCheck::manifests(null, null));
+    }
 }

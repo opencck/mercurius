@@ -22,11 +22,13 @@ final class FakeSandbox implements Sandbox, SandboxEnv {
     /** @var list<string> */
     public array $calls = [];
     public ?CommandOutcome $outcome = null;
+    /** @var list<CommandOutcome> answers of the next commands in turn, before $outcome */
+    public array $outcomes = [];
     public ?string $failure = null;
 
     public function exec(int $principalId, SandboxLimits $limits, string $callId, string $command, string $cwd, int $timeoutSeconds, Cancellation $cancellation): CommandOutcome {
         $this->record(sprintf('exec %d %s @%s t%d', $principalId, $command, $cwd, $timeoutSeconds));
-        return $this->outcome ?? new CommandOutcome(0, 'ok', '', false, false, 1);
+        return array_shift($this->outcomes) ?? $this->outcome ?? new CommandOutcome(0, 'ok', '', false, false, 1);
     }
 
     public function execEnv(int $principalId, SandboxLimits $limits, string $callId, string $command, string $cwd, int $timeoutSeconds, array $env, Cancellation $cancellation): CommandOutcome {
