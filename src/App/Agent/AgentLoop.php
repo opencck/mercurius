@@ -347,7 +347,7 @@ final class AgentLoop {
         // ref: references/hermes-agent/agent/prompt_builder.py@e96221fa:L420-L440 — hermes warns models that "claim
         //      completion without tool calls" in the prompt; here the loop also catches the copied note
         // a run that did act may repeat its own system note: it is reminded only when it did nothing
-        if (!$state->textActionRetried && self::reportsAnAction($text) && $this->actionsNote($state->run->id) === '') {
+        if (!$state->textActionRetried && self::reportsAnAction($text) && $this->actionsNote($state->run->id, $state->policy) === '') {
             $state->textActionRetried = true;
             $state->textAction = $text;
             $state->partial = '';
@@ -357,7 +357,7 @@ final class AgentLoop {
         $state->textAction = null;
         // spec: brief/channels.md#группа — [SILENT] is for a turn with nothing to say: a run that acted (a
         //      skill set up, a file written) tells what it did and what failed, once asked
-        if (!$state->silenceRetried && str_starts_with(ltrim($text), '[SILENT]') && $this->actionsNote($state->run->id) !== '') {
+        if (!$state->silenceRetried && str_starts_with(ltrim($text), '[SILENT]') && $this->actionsNote($state->run->id, $state->policy) !== '') {
             $state->silenceRetried = true;
             $state->silenceAfterActions = true;
             $state->partial = '';
@@ -728,7 +728,7 @@ final class AgentLoop {
             // the answer stays what the model wrote (jobs and reports read it); the note follows it as a system note, not
             // as words of the agent: a note in the agent's own voice was copied by the model instead of calling a tool
             $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, []);
-            $note = $this->actionsNote($state->run->id);
+            $note = $this->actionsNote($state->run->id, $state->policy);
             if ($note !== '') {
                 $this->transcript->appendUser($state->run->conversationId, $state->run->id, $note);
             }
@@ -743,7 +743,7 @@ final class AgentLoop {
      *
      * spec: brief/agent-loop.md#контекст — history of earlier runs without tool rounds, with the actions they made
      */
-    private function actionsNote(int $runId): string {
+    private function actionsNote(int $runId, ?ParticipantPolicy $policy = null): string {
         $calls = [];
         $lines = [];
         try {
@@ -753,7 +753,8 @@ final class AgentLoop {
                 }
                 $call = $entry->message->toolCallId === null ? null : ($calls[$entry->message->toolCallId] ?? null);
                 [$name, $json] = $call === null ? ['', ''] : self::target($call->name, $call->argumentsJson);
-                $tool = $call === null ? null : $this->registry->get($name);
+                // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a tool of the run's context counts too
+                $tool = $call === null ? null : $this->registry->get($name, $policy);
                 if ($call === null || $tool === null || count($lines) >= 10) {
                     continue;
                 }

@@ -205,7 +205,7 @@ final class RunScheduler {
             $members !== null => 'project:' . $members->id,
             $meta !== null && !str_starts_with($meta->chatId, '-') => 'member:' . $principal->id,
             default => null,
-        });
+        }, open: true);
         $speakers = $this->speakers;
         if ($speakers === null || $meta === null) {
             return $policy;

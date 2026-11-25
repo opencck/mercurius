@@ -117,12 +117,38 @@ final class ToolRegistryTest extends TestCase {
     }
 
     public function testTheContextSurvivesNarrowing(): void {
-        $policy = $this->policy(null)->withMcpContext('project:3');
+        $policy = $this->policy(null)->withMcpContext('project:3', open: true);
 
         self::assertSame('project:3', $policy->capTo($this->policy(['a']))->mcpContext);
         self::assertSame('project:3', $policy->narrowedBy($this->policy(['a']), keepApproval: true)->mcpContext);
         self::assertSame('project:3', $policy->without(['a'])->mcpContext);
         self::assertSame('project:3', $policy->readOnlyCopy()->mcpContext);
+        self::assertTrue($policy->without(['a'])->mcpOpen);
+        self::assertFalse($policy->capTo($this->policy(['a']))->mcpOpen, 'a narrowing closes the way around the list');
+        self::assertFalse($policy->narrowedBy($this->policy(['a']), keepApproval: true)->mcpOpen);
+    }
+
+    /** spec: brief/orchestration.md#права-воркера-задаёт-оркестратор — a list stays a list for connection tools too */
+    public function testANarrowedListKeepsConnectionToolsOut(): void {
+        $registry = new ToolRegistry();
+        $registry->registerIn('project:1', new FakeTool('mcp_docs_search'));
+        $registry->registerIn('project:1', new FakeTool('mcp_docs_write'));
+
+        $listed = $this->policy(['mcp_docs_search'])->withMcpContext('project:1');
+        self::assertSame(['mcp_docs_search'], $registry->names($listed), 'a worker or the self-review gets what its list names');
+        $open = $this->policy([])->withMcpContext('project:1', open: true);
+        self::assertSame(['mcp_docs_search', 'mcp_docs_write'], $registry->names($open), 'the place itself: every connection of its context');
+        self::assertSame([], $registry->names($open->narrowedBy($this->policy([]))), 'a stranger in the group of a project narrows them away');
+    }
+
+    public function testACommonToolRegisteredLaterIsNotOfferedTwice(): void {
+        $registry = new ToolRegistry();
+        self::assertTrue($registry->registerIn('member:7', new FakeTool('mcp_mail_mail_list')));
+        $registry->register(new FakeTool('mcp_mail_mail_list'));
+
+        $policy = $this->policy(null)->withMcpContext('member:7', open: true);
+        self::assertSame(['mcp_mail_mail_list'], $registry->names($policy));
+        self::assertCount(1, $registry->definitions($policy));
     }
 }
 

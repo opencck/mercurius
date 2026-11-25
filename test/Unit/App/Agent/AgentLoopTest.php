@@ -367,6 +367,24 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertCount(1, $save->calls);
     }
 
+    /** spec: brief/agent-loop.md#контекст — an action of a connection of the run's context is an action too */
+    public function testAnActionOfAContextConnectionIsNotDoubted(): void {
+        $create = new FakeTool('mcp_github_create_issue', DangerClass::Write);
+        $this->registry->registerIn('member:1', $create);
+        $llm = new ScriptedLlm([
+            ScriptedLlm::calls(new ToolCall('c1', 'mcp_github_create_issue', '{"q":"bug"}')),
+            ScriptedLlm::text('Создал. [Сделано в этом запуске: mcp_github_create_issue {"q":"bug"} → ok]'),
+        ]);
+        $run = $this->start('заведи задачу');
+        $policy = (new ParticipantPolicy(null, $run->limits, null, true))->withMcpContext('member:1', open: true);
+
+        $done = $this->loop($llm, 100)->run($run, $policy, $this->owner, $this->observer, new NullCancellation());
+
+        self::assertSame(RunStatus::Done, $done->status);
+        self::assertCount(2, $llm->requests, 'its own report is not taken for a fake one: no second call');
+        self::assertCount(1, $create->calls);
+    }
+
     public function testATextReportTwiceIsLetThrough(): void {
         $llm = new ScriptedLlm([
             ScriptedLlm::text('[Сделано в этом запуске: x → y]'),

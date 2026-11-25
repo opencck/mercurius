@@ -122,7 +122,9 @@ final class ToolRegistry {
     /** @return list<string> tools the participant may use, in registration order: the common ones, then the context's */
     public function names(ParticipantPolicy $policy): array {
         $context = $policy->mcpContext;
-        $names = [...array_keys($this->tools), ...($context === null ? [] : array_keys($this->scoped[$context] ?? []))];
+        // a common tool registered after a connection took its name (the mail module came back) is offered once
+        $scoped = $context === null ? [] : array_keys(array_diff_key($this->scoped[$context] ?? [], $this->tools));
+        $names = [...array_keys($this->tools), ...$scoped];
         return array_values(array_filter($names, fn(string $name): bool => $this->allows($policy, $name)));
     }
 
@@ -149,9 +151,10 @@ final class ToolRegistry {
             // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — the bridge shows only the tools the participant may use, so anyone may search
             return true;
         }
-        if ($tool !== null && !isset($this->tools[$name])) {
+        if ($tool !== null && !isset($this->tools[$name]) && $policy->mcpOpen) {
             // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a connection of the run's context
-            //       was approved by the owner of that context: whoever works there uses it, without a place on their list
+            //       was approved by the owner of that context: whoever works in the place uses it, without a place on
+            //       their list; a narrowed run (a worker, the self-review, a stranger in the group) goes by its list
             return true;
         }
         return $tool !== null && $policy->allowsTool($name);

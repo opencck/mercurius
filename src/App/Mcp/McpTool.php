@@ -208,7 +208,9 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
      */
     /** @return non-empty-string */
     public function grantKey(array $args): string {
-        return sprintf('mcp:%s:%s', $this->server->name, $this->remoteName);
+        // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a connection of a context is its own:
+        //       the key names the context too (a built-in server keeps its plain name)
+        return sprintf('mcp:%s:%s', $this->server->key(), $this->remoteName);
     }
 
     public function describe(array $args): string {

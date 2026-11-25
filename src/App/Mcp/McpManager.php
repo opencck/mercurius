@@ -124,9 +124,15 @@ final class McpManager {
     /** At start: every connection that is on; a changed one is stopped, one that does not answer waits for its next try. */
     public function connectAll(): void {
         foreach ($this->servers->all() as $server) {
-            if ($server->enabled()) {
-                $this->connect($server);
+            if (!$server->enabled()) {
+                continue;
             }
+            // a connection in error keeps its next try across a restart: it waits instead of being tried at once
+            if ($server->status === McpServer::ERROR && $server->nextTry !== null && $server->nextTry > $this->now()) {
+                $this->down[$server->key()] = [1, $server->nextTry];
+                continue;
+            }
+            $this->connect($server);
         }
     }
 

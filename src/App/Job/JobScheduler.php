@@ -441,13 +441,14 @@ final class JobScheduler implements JobRuns {
         $owner = $project !== null && $this->projectPolicies !== null ? $this->projectPolicies->of($project) : $this->policies->forPrincipal($principal);
         // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a job of a project gets the project's
         //       connections, any other job its member's own
-        $owner = $owner->withMcpContext($project !== null ? 'project:' . $project->id : 'member:' . $principal->id);
+        // spec: brief/self-improvement.md#самоулучшение — the self-review has its white list and no connections
+        $owner = $job->title === 'self-review' ? $owner->withMcpContext(null) : $owner->withMcpContext($project !== null ? 'project:' . $project->id : 'member:' . $principal->id, open: true);
         $tools = array_values(array_diff($this->registry->names($owner), self::JOB_TOOLS));
         if ($job->title === 'self-review') {
             $tools = array_values(array_intersect($tools, self::SELF_REVIEW_TOOLS));
         }
         $limits = $owner->run->min(new RunLimits($owner->run->maxTurns, $this->tokenBudget, $owner->run->runTimeout, $owner->run->toolTimeout));
-        return new ParticipantPolicy($tools, $limits, $owner->sandbox, $owner->mayRequestApproval, false, $owner->irreversible, mcpContext: $owner->mcpContext);
+        return new ParticipantPolicy($tools, $limits, $owner->sandbox, $owner->mayRequestApproval, false, $owner->irreversible, mcpContext: $owner->mcpContext, mcpOpen: $owner->mcpOpen);
     }
 
     private function execute(Job $job, int $number, ?string $event, string $source = 'webhook'): ?string {

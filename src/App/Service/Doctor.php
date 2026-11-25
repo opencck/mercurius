@@ -55,7 +55,12 @@ final class Doctor {
      * @return list<array{string, string, string}>
      */
     private function mcp(): array {
-        $all = $this->mcp === null ? [] : ($this->mcp)();
+        try {
+            $all = $this->mcp === null ? [] : ($this->mcp)();
+        } catch (Throwable) {
+            // the database check says what is wrong with the base
+            return [];
+        }
         if ($all === []) {
             return [];
         }

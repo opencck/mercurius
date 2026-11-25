@@ -95,7 +95,11 @@ final class MetricsText {
             }
         }
         // spec: brief/skills-mcp.md#три-слоя-установленный-mcp-запись-подключение — the state of each connection
-        $connections = $this->mcp === null ? [] : ($this->mcp)();
+        try {
+            $connections = $this->mcp === null ? [] : ($this->mcp)();
+        } catch (\Throwable) {
+            $connections = [];
+        }
         if ($connections !== []) {
             self::head($out, 'mercurius_mcp_connection', 'gauge', 'The state of each MCP connection: 1 for its state now');
             foreach ($connections as $server) {

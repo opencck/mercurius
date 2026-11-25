@@ -112,6 +112,18 @@ final class ProjectJobsTest extends AsyncTestCase {
         self::assertNotContains('mcp_other_search', $tools);
     }
 
+    /** spec: brief/self-improvement.md#самоулучшение — the self-review keeps its white list: no connections of the owner */
+    public function testTheSelfReviewGetsNoConnections(): void {
+        $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));
+        $this->stack->registry->registerIn('member:' . $this->owner->id, new \OpenCCK\Test\Support\FakeTool('mcp_docs_write'));
+        $this->jobs->create($this->owner->id, 'telegram', '42', 'self-review', 'Проверь себя', 'every:60', $this->now->modify('-1 minute'));
+
+        $scheduler->tick(true);
+
+        $tools = array_map(static fn(\Mercurius\Llm\ToolDefinition $d): string => $d->name, $this->stack->llm->requests[0]->tools);
+        self::assertNotContains('mcp_docs_write', $tools);
+    }
+
     public function testAJobOfAProjectGetsTheProjectsMemoryFile(): void {
         // spec: brief/memory.md#файл-памяти-места — a job of a project gets the project's MEMORY.md as a chat of the project does
         $scheduler = $this->scheduler(new ScriptedLlm([ScriptedLlm::text('Готово.')]));

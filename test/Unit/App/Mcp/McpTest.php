@@ -35,6 +35,7 @@ final class McpTest extends AsyncTestCase {
     public ?string $failure = null;
     /** the server does not answer tools/list (down at start) */
     public bool $toolsDown = false;
+    public int $listings = 0;
     /** @var list<array{uri: string, name: string, description: string, mimeType: string}> */
     public array $remoteResources = [];
     private float $now = 1000.0;
@@ -63,6 +64,7 @@ final class McpTest extends AsyncTestCase {
             public function __construct(private readonly McpTest $test) {}
 
             public function tools(McpEndpoint $server, ?string $token, Cancellation $cancellation): array {
+                $this->test->listings++;
                 if ($this->test->toolsDown) {
                     throw new \RuntimeException('Connection refused');
                 }
@@ -121,6 +123,33 @@ final class McpTest extends AsyncTestCase {
         $this->now += 31.0;
         $this->manager->tick();
         self::assertSame(McpServer::CONNECTED, $this->statusOf('github'));
+    }
+
+    /** How many times the tools were listed: read through a call, the fake client counts them. */
+    private function listingsNow(): int {
+        return $this->listings;
+    }
+
+    public function testAnErrorWaitsForNextTry(): void {
+        $this->manager->add('member:1', 'github', 'https://mcp.example.com/mcp', null);
+        $this->servers->update('member:1', 'github', McpServer::ERROR, 'h', 'Connection refused', $this->now + 120.0);
+        $this->listings = 0;
+
+        $this->manager->connectAll();
+        self::assertSame(0, $this->listingsNow(), 'after a restart the next try of an error is kept');
+        $this->now += 121.0;
+        $this->manager->tick();
+        self::assertSame(1, $this->listingsNow());
+    }
+
+    /** spec: brief/agent-loop.md#разрешения-навсегда — a grant for a connection is for that connection of that context */
+    public function testTheGrantKeyNamesTheContext(): void {
+        $this->manager->add('member:1', 'github', 'https://mcp.example.com/mcp', null);
+        $this->manager->approve('member:1', 'github', new NullCancellation());
+        $tool = $this->registry->get('mcp_github_create_issue', $this->inOwnersChat());
+        self::assertInstanceOf(\OpenCCK\App\Mcp\McpTool::class, $tool);
+
+        self::assertSame('mcp:member:1|github:create_issue', $tool->grantKey([]));
     }
 
     public function testAConnectionWhoseNamesAreTakenIsNotTurnedOn(): void {
@@ -226,7 +255,7 @@ final class McpTest extends AsyncTestCase {
         self::assertSame(DangerClass::Irreversible, $this->registry->get('mcp_github_delete_repo', $this->inOwnersChat())?->danger([]), 'nothing declared — irreversible');
         $delete = $this->registry->get('mcp_github_delete_repo', $this->inOwnersChat());
         self::assertInstanceOf(\OpenCCK\App\Agent\Tool\GrantKeyed::class, $delete);
-        self::assertSame('mcp:github:delete_repo', $delete->grantKey(['repo' => 'x']), 'a grant names the server and its tool');
+        self::assertSame('mcp:member:1|github:delete_repo', $delete->grantKey(['repo' => 'x']), 'a grant names the server and its tool');
         self::assertSame('[MCP github] Lists issues', $read->definition()->description, 'invisible tags are gone');
         self::assertTrue($read->untrusted());
 

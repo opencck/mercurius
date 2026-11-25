@@ -14,6 +14,7 @@ UPDATE mcp_connections SET context = 'member:' || coalesce((
     LIMIT 1
 ), 0)::text;
 ALTER TABLE mcp_connections ALTER COLUMN context SET NOT NULL;
+ALTER TABLE mcp_connections ADD CONSTRAINT mcp_connections_context_check CHECK (context ~ '^(owners|member:[0-9]+|project:[0-9]+)$');
 CREATE UNIQUE INDEX mcp_connections_context_name ON mcp_connections (context, name);
 
 ALTER TABLE mcp_connections DROP CONSTRAINT IF EXISTS mcp_servers_status_check;
