@@ -37,7 +37,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `db55fe5` | 2026-11-24 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `23404ad` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
-| [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `a2e143d` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
+| [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `21729c1` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
 
 ## Как работать с пакетом
 
@@ -64,6 +64,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-mcp-ssh` `e181826` → `a2e143d`: процесс завершается, когда закрыт stdin (соединение SSH держало цикл
   событий).
 - `mercurius-i18n` → `9f61244`: ящики — записи почтового MCP в текстах.
+- `mercurius-mcp-ssh` `a2e143d` → `21729c1`: `read_file` отдаёт файл целиком до 1 МБ (держал 64 КБ вывода команды).
 
 ### 2026-11-25 — .mcp.json
 
