@@ -838,11 +838,13 @@ final class RunScheduler {
         }
         $memory = $this->memory;
         $scopes = $this->audience()->scopes($principal, $meta->id);
+        // spec: brief/memory.md#факты — the names of the owners and of the one who writes bring no facts by themselves
+        $selfNames = array_values(array_filter(array_map(static fn(Member $m): ?string => $m->displayName, [$principal, ...$this->principals->owners()]), static fn(?string $n): bool => $n !== null && trim($n) !== ''));
         try {
             // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a slow recall does not hold the answer: after the time
             //       the run starts without it
             /** @var string $facts */
-            $facts = async(static fn(): string => $memory->facts($own, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
+            $facts = async(static fn(): string => $memory->facts($own, $scopes, $meta->id, $selfNames))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
         } catch (\Amp\CancelledException) {
             $this->logger->warning('Memory recall took too long; the run starts without it', ['conversation' => $meta->id, 'seconds' => self::RECALL_SECONDS]);
             return $text;
