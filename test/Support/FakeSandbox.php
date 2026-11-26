@@ -14,7 +14,7 @@ use OpenCCK\Domain\Agent\SandboxLimits;
 /**
  * Files in memory per participant; commands answer with $outcome. $failure makes every call fail.
  */
-final class FakeSandbox implements Sandbox, SandboxEnv {
+final class FakeSandbox implements Sandbox, SandboxEnv, \OpenCCK\App\Agent\Sandbox\SandboxUsage {
     /** @var array<string, string> the environment of the last command that had one */
     public array $env = [];
     /** @var array<int, array<string, string>> */
@@ -88,5 +88,9 @@ final class FakeSandbox implements Sandbox, SandboxEnv {
         if ($this->failure !== null) {
             throw new SandboxFailure($this->failure);
         }
+    }
+
+    public function usage(int $principalId, SandboxLimits $limits, Cancellation $cancellation): int {
+        return max(0, array_sum(array_map('strlen', $this->files[$principalId] ?? [])));
     }
 }

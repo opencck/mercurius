@@ -29,7 +29,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/agent-loop.md#песочница — executor behind a token
  */
-final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv {
+final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\SandboxStreams, \OpenCCK\App\Agent\Sandbox\SandboxEnv, \OpenCCK\App\Agent\Sandbox\SandboxUsage {
     private const FILE_TIMEOUT = 60;
     private const EXTRA_SECONDS = 10;
     /** the archive of all working folders: an hour, up to 8 GB */
@@ -81,6 +81,13 @@ final class HttpSandboxClient implements Sandbox, \OpenCCK\App\Agent\Sandbox\San
 
     public function replace(int $principalId, SandboxLimits $limits, string $path, string $old, string $new, Cancellation $cancellation): void {
         $this->call('replace', $principalId, $limits, ['path' => $path, 'old' => $old, 'new' => $new], self::FILE_TIMEOUT, $cancellation);
+    }
+
+    public function usage(int $principalId, SandboxLimits $limits, Cancellation $cancellation): int {
+        $body = $this->call('usage', $principalId, $limits, [], self::FILE_TIMEOUT, $cancellation);
+        /** @var mixed $bytes */
+        $bytes = $body['bytes'] ?? 0;
+        return is_int($bytes) && $bytes > 0 ? $bytes : 0;
     }
 
     public function list(int $principalId, SandboxLimits $limits, string $path, int $depth, Cancellation $cancellation): array {

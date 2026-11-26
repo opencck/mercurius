@@ -55,6 +55,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\App\Vault\Vault $vault
  * @var OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository $secretInheritance
  * @var non-empty-string $version
+ * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var Mercurius\Messenger\Websocket\WebsocketChannel $wsChannel
  */
 
@@ -192,6 +193,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     },
     // spec: brief/agent-loop.md#прокси-для-команд-песочницы — whether the door is open and where it leads, as of now
     'proxy' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \OpenCCK\Infrastructure\Proxy\DoorSettings::about($_ENV),
+    // spec: brief/agent-loop.md#ресурсы-сервера-и-песочницы — the server and the sandbox of the one who asks, at the call
+    'resources' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => (new \OpenCCK\App\Agent\Tool\Self\ResourcesTopic(new \OpenCCK\Infrastructure\Host\HostResources('/proc', '/sys/fs/cgroup', dirname(__DIR__) . '/storage'), $sandbox))->text($c),
     // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — how an entry is written and approved; the connections of
     //       the caller's context and their states are read at the call
     'mcp' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($mcpServers, $mcpManager): string {
