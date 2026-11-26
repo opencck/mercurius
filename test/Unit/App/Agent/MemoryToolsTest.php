@@ -188,7 +188,7 @@ final class MemoryToolsTest extends AsyncTestCase {
     public function testFeedbackMovesTrustAndAFactThatFailsIsNoLongerRecalled(): void {
         $this->current = $stack = $this->stack(new ScriptedLlm([
             ScriptedLlm::calls(
-                new ToolCall('c1', 'memory_feedback', '{"fact":1,"useful":false}'),
+                new ToolCall('c1', 'memory_feedback', '{"fact":1,"useful":false,"reason":"stale_version","note":"переехал"}'),
                 new ToolCall('c2', 'memory_feedback', '{"fact":2,"useful":false}'),
             ),
             ScriptedLlm::calls(new ToolCall('c3', 'memory_feedback', '{"fact":1,"useful":false}')),
@@ -211,6 +211,8 @@ final class MemoryToolsTest extends AsyncTestCase {
 
         // spec: brief/memory.md#факты — the mark goes to the recall journal too
         self::assertSame(1, $this->store->usage($old->id)['unhelpful']);
+        // spec: brief/memory.md#журнал-выдачи-причины-и-срок — and why it did not help
+        self::assertSame(['stale_version' => 1], $this->store->reasons($old->id));
 
         $this->store->rateFact($old->id, -0.1, false);
         $recall = new Recall($this->store, $analyzer);

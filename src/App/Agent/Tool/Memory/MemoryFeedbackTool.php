@@ -6,6 +6,7 @@ namespace OpenCCK\App\Agent\Tool\Memory;
 
 use Mercurius\Llm\ToolDefinition;
 use OpenCCK\App\Agent\ConversationAudience;
+use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
@@ -43,6 +44,9 @@ final class MemoryFeedbackTool implements Tool {
             'properties' => [
                 'fact' => ['type' => 'integer', 'minimum' => 1],
                 'useful' => ['type' => 'boolean'],
+                // spec: brief/memory.md#журнал-выдачи-причины-и-срок — why it did not help, from a short list
+                'reason' => ['type' => 'string', 'enum' => Recall::REASONS, 'description' => t('tool.memory_feedback.reason')],
+                'note' => ['type' => 'string', 'maxLength' => 200, 'description' => t('tool.memory_feedback.note')],
             ],
             'required' => ['fact', 'useful'],
             'additionalProperties' => false,
@@ -82,7 +86,8 @@ final class MemoryFeedbackTool implements Tool {
         }
         // spec: brief/memory.md#факты — the recall journal keeps whether the answer was helped; a fact found by
         //       memory_search was not recalled into the run and has no line to mark
-        $this->store->markHelpful($context->runId, $id, $useful);
+        $reason = $useful ? null : Args::string($args, 'reason');
+        $this->store->markHelpful($context->runId, $id, $useful, $reason !== null && in_array($reason, Recall::REASONS, true) ? $reason : null, $useful ? null : Args::string($args, 'note'));
         return ToolResult::ok(sprintf(t($trust < Recall::MIN_TRUST - 1e-9 ? 'tool.memory_feedback.sunk' : 'tool.memory_feedback.done'), $id, $trust));
     }
 }

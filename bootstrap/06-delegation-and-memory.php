@@ -96,6 +96,17 @@ $scheduler = new RunScheduler(
 $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
 $memoryStore = new PostgresMemoryStore($db);
+// spec: brief/memory.md#журнал-выдачи-причины-и-срок — the journal of recall keeps 30 days, a line with an outcome 90
+\Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(86400, static function () use ($memoryStore, $logger): void {
+    try {
+        $removed = $memoryStore->prune(30, 90);
+        if ($removed > 0) {
+            $logger->info('The journal of recall pruned', ['lines' => $removed]);
+        }
+    } catch (Throwable $e) {
+        $logger->warning('The journal of recall was not pruned', ['error' => $e::class]);
+    }
+}));
 $textAnalyzer = new TextAnalyzer();
 // spec: brief/memory.md#словари — the owner's table of words that mean one thing, before facts are keyed again
 $memoryAliases = new \Mercurius\Memory\App\Aliases(
