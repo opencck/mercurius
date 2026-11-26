@@ -33,7 +33,8 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
 
     public function appendAssistant(int $conversationId, int $runId, string $text, array $calls): void {
         $toolCalls = $calls === [] ? null : json_encode(
-            array_map(static fn(StoredToolCall $c): array => ['id' => $c->callId, 'name' => $c->name, 'arguments' => $c->argumentsJson], $calls),
+            // spec: packages/llm/BRIEF.md#gemini-и-vertex — the signature of a call is kept with the history and goes back with it
+            array_map(static fn(StoredToolCall $c): array => ['id' => $c->callId, 'name' => $c->name, 'arguments' => $c->argumentsJson] + ($c->signature === null ? [] : ['signature' => $c->signature]), $calls),
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE,
         );
         $transaction = $this->db->beginTransaction();
@@ -319,7 +320,8 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
                 throw new UnexpectedValueException('Malformed messages row: tool_calls');
             }
             /** @var array<string, mixed> $call */
-            $calls[] = new ToolCall(self::string($call, 'id'), self::string($call, 'name'), self::string($call, 'arguments'));
+            $signature = isset($call['signature']) && is_string($call['signature']) && $call['signature'] !== '' ? $call['signature'] : null;
+            $calls[] = new ToolCall(self::string($call, 'id'), self::string($call, 'name'), self::string($call, 'arguments'), $signature);
         }
         return $calls;
     }

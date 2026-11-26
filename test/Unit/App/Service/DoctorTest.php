@@ -73,13 +73,24 @@ final class DoctorTest extends AsyncTestCase {
         ]);
 
         foreach ([
-            '❌ Токен бота', '❌ Владелец', '❌ Модели: нужен OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY или AWS_BEARER_TOKEN_BEDROCK',
+            '❌ Токен бота', '❌ Владелец', '❌ Модели: нужен OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, AWS_BEARER_TOKEN_BEDROCK, GEMINI_API_KEY или VERTEX_CREDENTIALS',
             '❌ Хранилище секретов: SECRETS_KEY — 32 байта', '❌ Telegram: APP_URL задан, а TELEGRAM_WEBHOOK_SECRET пуст',
             '❌ Часовой пояс: OWNER_TIMEZONE не распознан', '⚠️ Тихие часы',
         ] as $line) {
             self::assertStringContainsString($line, $text);
         }
         self::assertMatchesRegularExpression('~Ошибок: \d+, предупреждений: \d+\.~', $text);
+    }
+
+    public function testAGoogleKeyOfTheWrongKindIsNamed(): void {
+        // spec: brief/models.md#провайдеры-gemini-и-vertex
+        $text = self::results(['GEMINI_API_KEY' => '{"type":"service_account"}', 'VERTEX_CREDENTIALS' => 'AIza-not-json']);
+
+        self::assertStringContainsString('✅ Модели: ключ Gemini API задан', $text);
+        self::assertStringContainsString('❌ GEMINI_API_KEY: это JSON, а не ключ', $text);
+        self::assertStringContainsString('❌ Vertex: ', $text);
+        self::assertStringContainsString('VERTEX_CREDENTIALS', $text);
+        self::assertStringNotContainsString('AIza-not-json', $text);
     }
 
     public function testTheDataFolderMustBeWritable(): void {

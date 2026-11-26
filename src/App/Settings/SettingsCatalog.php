@@ -74,6 +74,11 @@ final class SettingsCatalog {
         'ANTHROPIC_API_KEY' => ['models', self::SECRET, 'settings.about.anthropic_api_key'],
         'AWS_BEARER_TOKEN_BEDROCK' => ['models', self::SECRET, 'settings.about.aws_bearer_token_bedrock'],
         'BEDROCK_REGION' => ['models', self::TEXT, 'settings.about.bedrock_region'],
+        // spec: brief/models.md#провайдеры-gemini-и-vertex
+        'GEMINI_API_KEY' => ['models', self::SECRET, 'settings.about.gemini_api_key'],
+        'VERTEX_CREDENTIALS' => ['models', self::SECRET, 'settings.about.vertex_credentials'],
+        'VERTEX_PROJECT_ID' => ['models', self::TEXT, 'settings.about.vertex_project_id'],
+        'VERTEX_REGION' => ['models', self::TEXT, 'settings.about.vertex_region'],
         'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
         // spec: brief/models.md#вход-в-подписку-claude — the token wins over the sign-in; it reaches the module with each request
         'CLAUDE_CODE_OAUTH_TOKEN' => ['models', self::SECRET, 'settings.about.claude_code_oauth_token'],

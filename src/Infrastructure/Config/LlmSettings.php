@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OpenCCK\Infrastructure\Config;
 
 use InvalidArgumentException;
+use Mercurius\Llm\Gemini\VertexClient;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ProviderProfile;
 
@@ -45,6 +46,10 @@ final class LlmSettings {
         public readonly string $cheapModel,
         /** AWS region of the Bedrock endpoint, checked to be a region name. */
         public readonly string $bedrockRegion = self::BEDROCK_REGION,
+        /** Google Cloud project of Vertex; empty — the project of the service account. */
+        public readonly string $vertexProject = '',
+        /** Region of the Vertex endpoint, checked to be `global` or a region name. */
+        public readonly string $vertexRegion = VertexClient::DEFAULT_REGION,
     ) {
         $this->keys = $keys;
         $this->routeUri = $routeUri;
@@ -73,6 +78,21 @@ final class LlmSettings {
         if (preg_match('/^[a-z]{2}(-[a-z]+)+-\d{1,2}$/', $region) !== 1) {
             throw ConfigException::invalid('BEDROCK_REGION', 'an AWS region like us-east-1');
         }
+        // spec: brief/models.md#провайдеры-gemini-и-vertex — the project and the region become parts of an address
+        $vertexRegion = Env::raw($env, 'VERTEX_REGION') ?? VertexClient::DEFAULT_REGION;
+        if (preg_match(VertexClient::REGION_PATTERN, $vertexRegion) !== 1) {
+            throw ConfigException::invalid('VERTEX_REGION', 'global or a Google Cloud region like us-central1');
+        }
+        $vertexProject = Env::raw($env, 'VERTEX_PROJECT_ID') ?? '';
+        if ($vertexProject !== '' && preg_match(VertexClient::PROJECT_PATTERN, $vertexProject) !== 1) {
+            throw ConfigException::invalid('VERTEX_PROJECT_ID', 'a Google Cloud project id like my-project-123');
+        }
+        if (isset($keys[ModelRef::VERTEX])) {
+            $problem = self::vertexProblem($keys[ModelRef::VERTEX], $vertexProject);
+            if ($problem !== null) {
+                throw ConfigException::invalid('VERTEX_CREDENTIALS', $problem);
+            }
+        }
         $first = ProviderProfile::all()[$providers[0]];
         $model = self::model($env, 'LLM_MODEL', self::bare($first->model), $providers);
         $window = Env::positiveInt($env, 'LLM_CONTEXT_WINDOW', 131_072, 10_000_000);
@@ -91,7 +111,37 @@ final class LlmSettings {
             // spec: brief/models.md#списки-моделей-по-категориям — no model of its own by default: the starting model serves
             cheapModel: self::model($env, 'LLM_CHEAP_MODEL', $model, $providers),
             bedrockRegion: $region,
+            vertexProject: $vertexProject,
+            vertexRegion: $vertexRegion,
         );
+    }
+
+    /**
+     * What is wrong with the JSON of a service account, in words that never repeat it; null when it can sign.
+     */
+    private static function vertexProblem(#[SensitiveParameter] string $json, string $project): ?string {
+        $data = json_decode($json, true, 8);
+        if (!is_array($data) || ($data['type'] ?? null) !== 'service_account') {
+            return 'the JSON key file of a Google Cloud service account, in one line (type "service_account")';
+        }
+        $email = $data['client_email'] ?? null;
+        $pem = $data['private_key'] ?? null;
+        if (!is_string($email) || $email === '' || !is_string($pem) || $pem === '') {
+            return 'a service account key with client_email and private_key';
+        }
+        $key = openssl_pkey_get_private($pem);
+        // the queue of OpenSSL errors may quote the key: it is dropped unread
+        while (openssl_error_string() !== false) {
+        }
+        if ($key === false) {
+            return 'a service account key whose private_key is a readable private key (keep the \\n of the file as they are)';
+        }
+        /** @var mixed $own */
+        $own = $data['project_id'] ?? null;
+        if ($project === '' && (!is_string($own) || preg_match(VertexClient::PROJECT_PATTERN, $own) !== 1)) {
+            return 'a service account key with project_id, or VERTEX_PROJECT_ID set';
+        }
+        return null;
     }
 
     /**
@@ -164,6 +214,10 @@ final class LlmSettings {
         return $this->key(ModelRef::BEDROCK);
     }
 
+    public function geminiKey(): ?string {
+        return $this->key(ModelRef::GEMINI);
+    }
+
     /** @return list<string> providers with a key, in the order of the profiles: OpenRouter first */
     public function providers(): array {
         return array_keys($this->keys);
@@ -179,6 +233,8 @@ final class LlmSettings {
         return [
             'keys' => implode(', ', array_keys($this->keys)),
             'bedrockRegion' => $this->bedrockRegion,
+            'vertexProject' => $this->vertexProject,
+            'vertexRegion' => $this->vertexRegion,
             'route' => $this->routeUri === null ? 'direct' : 'vless',
             'model' => $this->model,
             'reasoningEffort' => $this->reasoningEffort,

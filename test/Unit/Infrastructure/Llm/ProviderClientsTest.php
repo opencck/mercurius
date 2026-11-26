@@ -24,4 +24,20 @@ final class ProviderClientsTest extends TestCase {
         self::assertSame(['anthropic'], array_keys($claude->clients));
         self::assertSame([], $claude->toolReliable);
     }
+
+    public function testGoogleByAKeyAndByAServiceAccountAreTwoProviders(): void {
+        // spec: brief/models.md#провайдеры-gemini-и-vertex
+        $account = json_encode([
+            'type' => 'service_account',
+            'project_id' => 'my-project-1',
+            'client_email' => 'agent@my-project-1.iam.gserviceaccount.com',
+            // a key made for tests only; it opens nothing
+            'private_key' => (string) file_get_contents(__DIR__ . '/../../../Fixtures/test-only-rsa.pem'),
+        ], JSON_THROW_ON_ERROR);
+
+        $google = ProviderClients::build(LlmSettings::fromEnv(['GEMINI_API_KEY' => 'AIza', 'VERTEX_CREDENTIALS' => $account]), HttpClientBuilder::buildDefault(), null);
+
+        self::assertSame(['gemini', 'vertex'], array_keys($google->clients));
+        self::assertSame(['gemini', 'vertex'], array_keys($google->catalogs));
+    }
 }

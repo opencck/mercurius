@@ -46,12 +46,12 @@ final class MediaSettingsTest extends TestCase {
     public function testEveryProviderOfAProfileServesTheKindsAndOpenRouterDraws(): void {
         // spec: brief/models.md#категории-моделей — a category is a list of models of any provider, or none
         $media = MediaSettings::fromEnv([
-            'MEDIA_VISION_MODELS' => 'anthropic:claude-haiku-5-5, bedrock:anthropic.claude-haiku-5-5, codex:gpt-6-luna',
+            'MEDIA_VISION_MODELS' => 'anthropic:claude-haiku-5-5, bedrock:anthropic.claude-haiku-5-5, codex:gpt-6-luna, gemini:gemini-3.8-flash, vertex:google/gemini-3.8-flash',
             'MEDIA_IMAGE_MODELS' => 'openrouter:bytedance-seed/seedream-4.5, google/gemini-3.8-image',
             'MEDIA_IMAGE_RULES' => 'обычные картинки — seedream',
         ]);
 
-        self::assertSame(['anthropic:claude-haiku-5-5', 'bedrock:anthropic.claude-haiku-5-5', 'codex:gpt-6-luna'], $media->models('vision'));
+        self::assertSame(['anthropic:claude-haiku-5-5', 'bedrock:anthropic.claude-haiku-5-5', 'codex:gpt-6-luna', 'gemini:gemini-3.8-flash', 'vertex:google/gemini-3.8-flash'], $media->models('vision'));
         self::assertSame(['openrouter:bytedance-seed/seedream-4.5', 'google/gemini-3.8-image'], $media->models('image'));
         self::assertSame('обычные картинки — seedream', $media->rules('image'));
         self::assertSame([], MediaSettings::fromEnv([])->models('image'), 'none by default');

@@ -40,7 +40,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
    git clone https://github.com/opencck/mercurius.git && cd mercurius
    git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
    ```
-2. 将 `.env.example` 复制为 `.env`（权限 `600`）并填写：至少需要 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_ADMIN_ID`（你的 Telegram 用户 id）、`OPENROUTER_API_KEY` 或 `OPENAI_API_KEY`（二选一即可）、`POSTGRES_PASSWORD`、`SANDBOX_TOKEN`（`openssl rand -hex 24`）。每个变量在文件中都有说明；大多数设置之后可以在对话中修改。没有 `APP_URL` 时，机器人使用长轮询，不需要公网地址；有它时则使用位于你的代理之后的 webhook。
+2. 将 `.env.example` 复制为 `.env`（权限 `600`）并填写：至少需要 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_ADMIN_ID`（你的 Telegram 用户 id）、一个模型提供方的密钥（`OPENROUTER_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`——完整列表见 `.env.example`）、`POSTGRES_PASSWORD`、`SANDBOX_TOKEN`（`openssl rand -hex 24`）。每个变量在文件中都有说明；大多数设置之后可以在对话中修改。没有 `APP_URL` 时，机器人使用长轮询，不需要公网地址；有它时则使用位于你的代理之后的 webhook。
 3. `chmod 1777 storage/app storage/browser storage/whisper`——容器以各自的用户身份向这些目录写入。然后执行 `docker compose up -d --build`。应用在启动时执行数据库迁移；`docker compose ps` 应显示 `app`、`postgres` 和 `sandbox` 为 `healthy`。
 4. 给你的机器人发消息。`/start` 列出各个命令；`/doctor` 检查安装情况（密钥、迁移、沙箱、模块、webhook、磁盘），并说明需要修复什么。
 

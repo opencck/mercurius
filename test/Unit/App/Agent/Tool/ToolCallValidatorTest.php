@@ -42,6 +42,14 @@ final class ToolCallValidatorTest extends TestCase {
         self::assertSame(DangerClass::Write, $outcome->calls[0]->danger);
     }
 
+    public function testTheSignatureOfACallStaysWithIt(): void {
+        // spec: packages/llm/BRIEF.md#gemini-и-vertex — Gemini wants the signature of a call back with the history
+        $outcome = $this->validator->validate([new ToolCall('c1', 'write', '{"a":1}', 'SIG-1'), new ToolCall('c2', 'write', '{"a":2}')], $this->policy());
+
+        self::assertSame('SIG-1', $outcome->calls[0]->call->signature);
+        self::assertNull($outcome->calls[1]->call->signature);
+    }
+
     public function testStringsOfSimpleTypesAreReadAsTheSchemaSays(): void {
         $registry = new ToolRegistry();
         $registry->register(new FakeTool('typed', DangerClass::Read, [

@@ -21,6 +21,10 @@ final class ModelRef implements Stringable {
     public const CODEX = 'codex';
     public const ANTHROPIC = 'anthropic';
     public const BEDROCK = 'bedrock';
+    /** The Gemini API by a key of Google AI Studio. */
+    public const GEMINI = 'gemini';
+    /** Gemini in Google Cloud (Gemini Enterprise Agent Platform, formerly Vertex AI) by a service account. */
+    public const VERTEX = 'vertex';
     /** the owner's ChatGPT subscription through the Codex backend (sign-in by /codex login, not a key) */
     public const CHATGPT = 'chatgpt';
     /** the owner's Claude subscription through the module claude-code (sign-in by /claude login, not a key) */

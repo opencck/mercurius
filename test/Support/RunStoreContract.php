@@ -183,6 +183,19 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(ToolCallStatus::AwaitingApproval, $this->transcript->pendingCalls($id)[0]->status);
     }
 
+    public function testTheSignatureOfACallComesBackWithTheHistory(): void {
+        // spec: packages/llm/BRIEF.md#gemini-и-vertex — the signature of a call is kept with the history and goes back with it
+        $id = $this->startRun();
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [
+            new StoredToolCall('s1', 0, 'fake', ['q' => 'a'], '{"q":"a"}', DangerClass::Read, ToolCallStatus::Done, 'SIG-1'),
+            new StoredToolCall('s2', 1, 'fake', ['q' => 'b'], '{"q":"b"}', DangerClass::Read, ToolCallStatus::Done),
+        ]);
+
+        $calls = array_merge(...array_map(static fn(\Mercurius\Llm\Message $m): array => $m->toolCalls, $this->transcript->runMessages($id)));
+
+        self::assertSame(['SIG-1', null], array_map(static fn(\Mercurius\Llm\ToolCall $c): ?string => $c->signature, $calls));
+    }
+
     public function testAForgottenFactLeavesTheArgumentsOfCalls(): void {
         $id = $this->startRun();
         $fact = 'у Пети аллергия на "орехи"';

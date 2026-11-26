@@ -20,5 +20,7 @@ final class StoredToolCall {
         public readonly string $argumentsJson,
         public readonly DangerClass $danger,
         public readonly ToolCallStatus $status,
+        /** signature the provider put on the call and wants back with it (Gemini); null when there is none */
+        public readonly ?string $signature = null,
     ) {}
 }

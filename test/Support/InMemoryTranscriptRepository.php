@@ -57,7 +57,7 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         if ($this->beforeAssistant !== null) {
             ($this->beforeAssistant)();
         }
-        $toolCalls = array_map(static fn(StoredToolCall $c): ToolCall => new ToolCall($c->callId, $c->name, $c->argumentsJson), $calls);
+        $toolCalls = array_map(static fn(StoredToolCall $c): ToolCall => new ToolCall($c->callId, $c->name, $c->argumentsJson, $c->signature), $calls);
         $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::assistant($text, $toolCalls)];
         foreach ($calls as $call) {
             $this->calls[$runId][$call->callId] = $call;
@@ -131,7 +131,7 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
             $touched = false;
             foreach ($m->toolCalls as $call) {
                 if ($text !== '' && str_contains($call->argumentsJson, $from)) {
-                    $call = new \Mercurius\Llm\ToolCall($call->id, $call->name, str_replace($from, $to, $call->argumentsJson));
+                    $call = new \Mercurius\Llm\ToolCall($call->id, $call->name, str_replace($from, $to, $call->argumentsJson), $call->signature);
                     $touched = true;
                 }
                 $calls[] = $call;
@@ -239,6 +239,6 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
 
     private function setStatus(int $runId, string $callId, ToolCallStatus $status): void {
         $call = $this->calls[$runId][$callId];
-        $this->calls[$runId][$callId] = new StoredToolCall($call->callId, $call->position, $call->name, $call->args, $call->argumentsJson, $call->danger, $status);
+        $this->calls[$runId][$callId] = new StoredToolCall($call->callId, $call->position, $call->name, $call->args, $call->argumentsJson, $call->danger, $status, $call->signature);
     }
 }

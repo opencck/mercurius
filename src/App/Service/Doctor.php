@@ -132,14 +132,28 @@ final class Doctor {
         $out[] = ctype_digit((string) $raw('TELEGRAM_ADMIN_ID'))
             ? [self::OK, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_zadan')]
             : [self::FAIL, t('service.doctor.vladelets'), t('service.doctor.telegram_admin_id_chislovoy_id')];
-        $out[] = $raw('OPENROUTER_API_KEY') !== null || $raw('OPENAI_API_KEY') !== null || $raw('ANTHROPIC_API_KEY') !== null || $raw('AWS_BEARER_TOKEN_BEDROCK') !== null
-            ? [self::OK, t('service.doctor.modeli'), match (true) {
-                $raw('OPENROUTER_API_KEY') !== null => t('service.doctor.klyuch_openrouter_zadan'),
-                $raw('OPENAI_API_KEY') !== null => t('service.doctor.klyuch_openai_zadan'),
-                $raw('ANTHROPIC_API_KEY') !== null => t('service.doctor.klyuch_anthropic_zadan'),
-                default => t('service.doctor.klyuch_bedrock_zadan'),
-            }]
-            : [self::FAIL, t('service.doctor.modeli'), t('service.doctor.nuzhen_openrouter_api_key_ili')];
+        $out[] = match (true) {
+            $raw('OPENROUTER_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_openrouter_zadan')],
+            $raw('OPENAI_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_openai_zadan')],
+            $raw('ANTHROPIC_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_anthropic_zadan')],
+            $raw('AWS_BEARER_TOKEN_BEDROCK') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_bedrock_zadan')],
+            $raw('GEMINI_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_gemini_zadan')],
+            $raw('VERTEX_CREDENTIALS') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_vertex_zadan')],
+            default => [self::FAIL, t('service.doctor.modeli'), t('service.doctor.nuzhen_openrouter_api_key_ili')],
+        };
+        // spec: brief/models.md#провайдеры-gemini-и-vertex — a key of the wrong kind is named before the first call fails
+        $gemini = $raw('GEMINI_API_KEY');
+        if ($gemini !== null && str_starts_with(ltrim($gemini), '{')) {
+            $out[] = [self::FAIL, 'GEMINI_API_KEY', t('service.doctor.gemini_klyuch_ne_json')];
+        }
+        if ($raw('VERTEX_CREDENTIALS') !== null) {
+            try {
+                \OpenCCK\Infrastructure\Config\LlmSettings::fromEnv(['VERTEX_CREDENTIALS' => $raw('VERTEX_CREDENTIALS'), 'VERTEX_PROJECT_ID' => $raw('VERTEX_PROJECT_ID'), 'VERTEX_REGION' => $raw('VERTEX_REGION')]);
+                $out[] = [self::OK, 'Vertex', t('service.doctor.vertex_akkaunt_chitaetsya')];
+            } catch (\OpenCCK\Infrastructure\Config\ConfigException $e) {
+                $out[] = [self::FAIL, 'Vertex', $e->getMessage()];
+            }
+        }
         $key = $raw('SECRETS_KEY');
         $out[] = match (true) {
             $key === null => [self::WARN, t('service.doctor.hranilische_sekretov'), t('service.doctor.secrets_key_pust_sekrety_ssh')],

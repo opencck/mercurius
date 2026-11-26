@@ -129,6 +129,64 @@ final class ServiceSettingsTest extends TestCase {
         self::assertStringNotContainsString('bedrock-secret', print_r($bedrock, true));
     }
 
+    private static function serviceAccount(?string $project = 'my-project-1', ?string $key = null): string {
+        return json_encode(array_filter([
+            'type' => 'service_account',
+            'project_id' => $project,
+            'client_email' => 'agent@my-project-1.iam.gserviceaccount.com',
+            // a key made for tests only; it opens nothing
+            'private_key' => $key ?? (string) file_get_contents(__DIR__ . '/../../../Fixtures/test-only-rsa.pem'),
+        ], static fn(?string $v): bool => $v !== null), JSON_THROW_ON_ERROR);
+    }
+
+    public function testAGeminiKeyAloneIsEnough(): void {
+        // spec: brief/models.md#провайдеры-gemini-и-vertex
+        $gemini = LlmSettings::fromEnv(['GEMINI_API_KEY' => 'AIza-secret']);
+
+        self::assertSame(['gemini'], $gemini->providers());
+        self::assertSame('AIza-secret', $gemini->geminiKey());
+        self::assertSame('gemini:gemini-4-hydrogen', $gemini->model);
+        self::assertStringNotContainsString('AIza-secret', print_r($gemini, true));
+    }
+
+    public function testAVertexServiceAccountAloneIsEnough(): void {
+        // spec: brief/models.md#провайдеры-gemini-и-vertex
+        $vertex = LlmSettings::fromEnv(['VERTEX_CREDENTIALS' => self::serviceAccount()]);
+        $placed = LlmSettings::fromEnv(['VERTEX_CREDENTIALS' => self::serviceAccount(null), 'VERTEX_PROJECT_ID' => 'other-project', 'VERTEX_REGION' => 'us-central1']);
+
+        self::assertSame(['vertex'], $vertex->providers());
+        self::assertSame('vertex:google/gemini-4-hydrogen', $vertex->model);
+        self::assertSame('', $vertex->vertexProject, 'the project of the service account serves');
+        self::assertSame('global', $vertex->vertexRegion);
+        self::assertSame('other-project', $placed->vertexProject);
+        self::assertSame('us-central1', $placed->vertexRegion);
+        self::assertStringNotContainsString('PRIVATE KEY', print_r($vertex, true));
+    }
+
+    /**
+     * @dataProvider brokenVertex
+     * @param array<string, string> $env
+     */
+    public function testVertexSettingsThatCannotWorkAreRefusedWithoutRepeatingTheKey(array $env, string $name): void {
+        try {
+            LlmSettings::fromEnv($env);
+            self::fail('expected a refusal');
+        } catch (ConfigException $e) {
+            self::assertStringContainsString($name, $e->getMessage());
+            self::assertStringNotContainsString('SECRET', $e->getMessage());
+        }
+    }
+
+    /** @return iterable<string, array{array<string, string>, string}> */
+    public static function brokenVertex(): iterable {
+        yield 'not json' => [['VERTEX_CREDENTIALS' => 'SECRET'], 'VERTEX_CREDENTIALS'];
+        yield 'a user, not a service account' => [['VERTEX_CREDENTIALS' => '{"type":"authorized_user","refresh_token":"SECRET"}'], 'VERTEX_CREDENTIALS'];
+        yield 'a key that is not a key' => [['VERTEX_CREDENTIALS' => self::serviceAccount('my-project-1', 'SECRET')], 'VERTEX_CREDENTIALS'];
+        yield 'no project anywhere' => [['VERTEX_CREDENTIALS' => self::serviceAccount(null)], 'VERTEX_CREDENTIALS'];
+        yield 'a region that is not a region' => [['GEMINI_API_KEY' => 'k', 'VERTEX_REGION' => 'evil.example/x'], 'VERTEX_REGION'];
+        yield 'a project that is not a project' => [['GEMINI_API_KEY' => 'k', 'VERTEX_PROJECT_ID' => 'x/../y'], 'VERTEX_PROJECT_ID'];
+    }
+
     public function testABedrockRegionThatIsNotARegionIsRefused(): void {
         $this->expectException(ConfigException::class);
         $this->expectExceptionMessage('BEDROCK_REGION');

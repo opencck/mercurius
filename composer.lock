@@ -2896,7 +2896,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/i18n",
-                "reference": "6897ed245427c8e83414de3f1921d0667bb74406"
+                "reference": "78576b79c24182ab5a273ffa6d038eb5204df6db"
             },
             "require": {
                 "ext-mbstring": "*",
@@ -2960,7 +2960,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/llm",
-                "reference": "66dbbc14daf9ea66f611380fa0f32d88ed7b0e54"
+                "reference": "340ddf3fbacfe1506e0235e107727f69b2455fb6"
             },
             "require": {
                 "amphp/amp": "^3",
@@ -2968,6 +2968,7 @@
                 "amphp/http-client": "^5",
                 "ext-json": "*",
                 "ext-mbstring": "*",
+                "ext-openssl": "*",
                 "php": ">=8.2"
             },
             "require-dev": {

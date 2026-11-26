@@ -38,7 +38,7 @@ final class ToolCallValidator {
         foreach ($calls as $call) {
             $id = $this->uniqueId($call->id, $taken);
             $json = trim($call->argumentsJson) === '' ? '{}' : $call->argumentsJson;
-            $call = new ToolCall($id, $call->name, $json);
+            $call = new ToolCall($id, $call->name, $json, $call->signature);
             $wire = null;
             if ($call->name === ToolSearch::CALL) {
                 // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — tool_call is checked and run as a call of the tool it names
@@ -49,7 +49,7 @@ final class ToolCallValidator {
                 }
                 $wire = $call;
                 $json = $target['arguments'] === [] ? '{}' : CanonicalJson::encode($target['arguments']);
-                $call = new ToolCall($id, $target['name'], $json);
+                $call = new ToolCall($id, $target['name'], $json, $call->signature);
             }
             $validated = $this->check($call, $json, $policy, $seen, $truncated);
             $result[] = $wire === null ? $validated : $validated->through($wire);

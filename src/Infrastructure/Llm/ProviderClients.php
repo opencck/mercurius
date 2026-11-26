@@ -7,13 +7,18 @@ namespace OpenCCK\Infrastructure\Llm;
 use Amp\Http\Client\HttpClient;
 use Closure;
 use Mercurius\Llm\Anthropic\AnthropicClient;
+use Mercurius\Llm\Gemini\GeminiClient;
+use Mercurius\Llm\Gemini\VertexAccount;
+use Mercurius\Llm\Gemini\VertexClient;
 use Mercurius\Llm\LlmClient;
 use Mercurius\Llm\LlmException;
 use Mercurius\Llm\ModelCatalog\AnthropicCatalog;
 use Mercurius\Llm\ModelCatalog\BedrockCatalog;
+use Mercurius\Llm\ModelCatalog\GeminiCatalog;
 use Mercurius\Llm\ModelCatalog\ModelInfo;
 use Mercurius\Llm\ModelCatalog\OpenAICatalog;
 use Mercurius\Llm\ModelCatalog\OpenRouterCatalog;
+use Mercurius\Llm\ModelCatalog\VertexCatalog;
 use Mercurius\Llm\OpenAI\OpenAIClient;
 use Mercurius\Llm\OpenAI\ResponsesClient;
 use Mercurius\Llm\OpenRouter\OpenRouterClient;
@@ -63,6 +68,13 @@ final class ProviderClients {
                 ModelRef::CODEX => [new ResponsesClient($http, $key), (new OpenAICatalog($http, $key, $reference, responses: true))->fetch(...)],
                 ModelRef::ANTHROPIC => [new AnthropicClient($http, $key), (new AnthropicCatalog($http, $key, $reference))->fetch(...)],
                 ModelRef::BEDROCK => [AnthropicClient::bedrock($http, $key, $settings->bedrockRegion), (new BedrockCatalog($reference))->fetch(...)],
+                // spec: brief/models.md#провайдеры-gemini-и-vertex
+                ModelRef::GEMINI => [new GeminiClient($http, $key), (new GeminiCatalog($http, $key, $reference))->fetch(...)],
+                // the token of the service account is exchanged over the same route as the model requests
+                ModelRef::VERTEX => [
+                    new VertexClient($http, VertexAccount::fromJson($http, $key), $settings->vertexProject, $settings->vertexRegion),
+                    (new VertexCatalog($reference))->fetch(...),
+                ],
                 default => throw new \LogicException('No client for the provider profile ' . $name),
             };
             $clients[$name] = new RetryingClient($client, onRetry: $onRetry);

@@ -113,6 +113,7 @@ final class ToolRound {
                 $wire->argumentsJson,
                 $call->danger,
                 ToolCallStatus::Pending,
+                $wire->signature,
             );
         }
         try {

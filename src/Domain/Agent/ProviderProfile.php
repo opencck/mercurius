@@ -62,6 +62,13 @@ final class ProviderProfile {
             ModelRole::STRONG => $p . 'gpt-6-sol',
             ModelRole::MEDIA => $p . 'gpt-6-luna',
         ];
+        // spec: brief/models.md#провайдеры-gemini-и-vertex — Flash for the cheap and the media role, the Gemini 4 models above
+        $gemini = static fn(string $p): array => [
+            ModelRole::CHEAP => $p . 'gemini-3.8-flash',
+            ModelRole::MAIN => $p . 'gemini-4-hydrogen',
+            ModelRole::STRONG => $p . 'gemini-4-carbon',
+            ModelRole::MEDIA => $p . 'gemini-3.8-flash',
+        ];
         $all = [];
         foreach ([
             new self(ModelRef::OPENROUTER, 'OpenRouter', self::API_CHAT_COMPLETIONS, 'OPENROUTER_API_KEY', PromptCache::Provider, 'openrouter:z-ai/glm-5.3-flash', 'openrouter:openai/gpt-5.6-luna', [
@@ -75,6 +82,9 @@ final class ProviderProfile {
             new self(ModelRef::CODEX, 'OpenAI Responses', self::API_RESPONSES, 'OPENAI_API_KEY', PromptCache::Key, 'codex:gpt-6.1-terra', 'codex:gpt-6-luna', $openAi('codex:')),
             new self(ModelRef::ANTHROPIC, 'Anthropic', self::API_MESSAGES, 'ANTHROPIC_API_KEY', PromptCache::Marks, 'anthropic:claude-sonnet-5-5', 'anthropic:claude-haiku-5-5', $claude('anthropic:')),
             new self(ModelRef::BEDROCK, 'Amazon Bedrock', self::API_MESSAGES, 'AWS_BEARER_TOKEN_BEDROCK', PromptCache::Marks, 'bedrock:anthropic.claude-sonnet-5-5', 'bedrock:anthropic.claude-haiku-5-5', $claude('bedrock:anthropic.')),
+            new self(ModelRef::GEMINI, 'Google Gemini', self::API_CHAT_COMPLETIONS, 'GEMINI_API_KEY', PromptCache::Provider, 'gemini:gemini-4-hydrogen', 'gemini:gemini-3.8-flash', $gemini('gemini:')),
+            // the "key" of Vertex is the JSON of a service account
+            new self(ModelRef::VERTEX, 'Google Vertex', self::API_CHAT_COMPLETIONS, 'VERTEX_CREDENTIALS', PromptCache::Provider, 'vertex:google/gemini-4-hydrogen', 'vertex:google/gemini-3.8-flash', $gemini('vertex:google/')),
         ] as $profile) {
             $all[$profile->name] = $profile;
         }
