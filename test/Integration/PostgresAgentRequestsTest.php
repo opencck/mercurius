@@ -57,4 +57,19 @@ final class PostgresAgentRequestsTest extends AsyncTestCase {
         $peers->removePeer($name);
         $db->close();
     }
+
+    /** spec: brief/network.md#справочник-сети — an agent hidden from the directory of the network */
+    public function testAnAgentIsHiddenAndShownAgain(): void {
+        $db = TestDatabase::connect();
+        $peers = new PostgresPeerRepository($db);
+        $name = 'hide-' . bin2hex(random_bytes(3));
+
+        self::assertTrue($peers->setHidden($name, true));
+        self::assertFalse($peers->setHidden($name, true), 'hidden already');
+        self::assertContains($name, $peers->hidden());
+        self::assertTrue($peers->setHidden($name, false));
+        self::assertFalse($peers->setHidden($name, false), 'shown already');
+        self::assertNotContains($name, $peers->hidden());
+        $db->close();
+    }
 }
