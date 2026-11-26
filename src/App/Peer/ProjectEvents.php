@@ -19,6 +19,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function Mercurius\I18n\t;
+
 /**
  * What is said in the chats and topics of a project reaches the agents that work with the project, as it reaches the
  * people there: a person reads the chat in Telegram, an agent connected over WebSocket gets a notice "ProjectEvent"
@@ -83,6 +85,11 @@ final class ProjectEvents {
                     $answered = $message->content;
                 }
             }
+            // spec: brief/network.md#потоки-мест-для-агентов — a message that carried a secret was kept in the vault: the
+            //      exchange about it does not leave the place, not even masked
+            if (self::carriedSecret($asked)) {
+                return;
+            }
             $name = $this->principals->find($run->principalId)?->displayName;
             $params = [
                 'project' => $project === null ? null : ['id' => $project->id, 'name' => $project->name],
@@ -125,6 +132,12 @@ final class ProjectEvents {
             }
         }
         return $found;
+    }
+
+    /** Whether the message of the run carried a secret the chat kept in the vault: the note of that is in its text. */
+    private static function carriedSecret(string $asked): bool {
+        $note = trim(explode('%s', t('service.chat.soobschenie_soderzhalo_sekret_ono_udalen'))[0]);
+        return $note !== '' && str_contains($asked, $note);
     }
 
     /** A member agent sees what a member person sees in the chat, without the secrets the mask knows. */

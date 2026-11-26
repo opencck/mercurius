@@ -154,7 +154,12 @@ final class ProjectEventsTest extends AsyncTestCase {
         self::assertCount(1, $pushed);
         self::assertSame(['PlaceEvent', 'в личке'], [$pushed[0][1], $pushed[0][2]['text']]);
 
-        self::assertStringContainsString('отозван', $commands->handle($this->owner, $private, '/stream', 'take helper'));
+        // spec: brief/network.md#потоки-мест-для-агентов — a message that carried a secret, kept in the vault, does not go out
+        $stashed = 'подключи сервер, пароль [скрыто]' . sprintf(\Mercurius\I18n\t('service.chat.soobschenie_soderzhalo_sekret_ono_udalen'), 'msg-77');
+        $this->events->finished($this->exchange($this->owner, '42', '', $stashed, 'Запись обновлена, пароль из секрета msg-77'));
+        self::assertCount(1, $this->pushed(), 'the saving of a secret is not seen in the stream');
+
+        self::assertStringContainsString('отозван',$commands->handle($this->owner, $private, '/stream', 'take helper'));
         self::assertSame([], $streams->of($this->agent->id));
     }
 }
