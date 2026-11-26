@@ -99,3 +99,7 @@
 [submodule "services/claude-code"]
 	path = services/claude-code
 	url = https://github.com/opencck/mercurius-claude-code.git
+[submodule "mcp/ssh"]
+	path = mcp/ssh
+	url = https://github.com/opencck/mercurius-mcp-ssh.git
+	branch = master

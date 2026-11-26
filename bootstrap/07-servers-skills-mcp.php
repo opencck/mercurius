@@ -27,7 +27,6 @@ use Mercurius\Mcp\HttpMcpClient;
 use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
 use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
 use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
-use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
 
 /**
  * Made by the parts before this one:
@@ -54,8 +53,6 @@ use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
 if (!$vault->enabled()) {
     $logger->warning('SECRETS_KEY is not set: the vault and SSH are off');
 }
-// the former registry of servers: read once, by the move of its servers into SSH entries
-$serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
 // spec: brief/servers.md#ssh-как-предустановленный-mcp — a server is an SSH entry of our MCP; the core wraps its tools
 //       and keeps the host key the owner trusted by the entry
@@ -393,63 +390,6 @@ if ($sandbox !== null) {
         $syncMcpFiles();
         $mcpManager->connectAll();
     });
-    // spec: brief/servers.md#ssh-как-предустановленный-mcp — the servers of the former registry become SSH entries of
-    //       our MCP once it is installed: in the file of whoever keeps the secret, approved, keys and grants with them
-    $serverMove = new \OpenCCK\Infrastructure\Repository\PostgresServerMove($db);
-    $sshMigration = new \OpenCCK\App\Server\SshMigration(
-        $serverMove->rows(...),
-        static function () use ($mcpInstalls): ?string {
-            foreach ($mcpInstalls->all() as $install) {
-                if ($install->revision !== null && preg_match(\OpenCCK\App\Server\SshEntries::SOURCE, $install->source) === 1) {
-                    return $install->name;
-                }
-            }
-            return null;
-        },
-        static function (string $install, string $context) use ($mcpInstaller, $mcpInstalls): void {
-            if (!$mcpInstaller->allowedIn($install, $context)) {
-                $mcpInstalls->allow($install, $context, true);
-            }
-        },
-        static fn(string $context, \OpenCCK\App\Mcp\McpEntry $entry) => $mcpFiles->put($context, $entry, sync: false),
-        static function (string $context, string $name) use ($mcpFiles, $mcpServers, $ownerDirectory): ?string {
-            $owner = $ownerDirectory->principal();
-            if ($owner === null) {
-                return 'no owner';
-            }
-            $answer = $mcpFiles->approve($context, $name, $owner);
-            return $mcpServers->find($context, $name)?->approvedHash !== null ? null : $answer;
-        },
-        $serverMove->grants(...),
-        $serverMove->moved(...),
-        $sshHostKeys,
-        $logger,
-    );
-    /** @var \ArrayObject<string, string> $moveTold what the owners were told last: the same words are not sent again */
-    $moveTold = new \ArrayObject();
-    $moveServers = static function () use ($sshMigration, $channel, $logger, $moveTold): void {
-        try {
-            $lines = $sshMigration->run();
-            $said = implode("\n", $lines);
-            if ($lines !== [] && ($moveTold['last'] ?? '') !== $said) {
-                $moveTold['last'] = $said;
-                $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, \Mercurius\I18n\t('server.migration.title') . "\n" . implode("\n", $lines)));
-            }
-        } catch (\Throwable $e) {
-            $logger->warning('The servers were not moved into SSH entries', ['error' => $e::class]);
-        }
-    };
-    // after the files are read and the connections started, then every ten minutes: an install of the MCP made later
-    // moves the servers without a restart
-    \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(30, static function () use ($moveServers): void {
-        \Amp\async($moveServers)->ignore();
-    }));
-    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(600, static function () use ($moveServers): void {
-        \Amp\async($moveServers)->ignore();
-    }));
-    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($syncMcpFiles): void {
-        \Amp\async($syncMcpFiles)->ignore();
-    }));
     /** @var \OpenCCK\App\Agent\Tool\Files\WriteFileTool|null $writeFile */
     $writeFile?->useMcpFiles(static function (int $member, string $path) use ($mcpFiles): void {
         $path = str_replace('\\', '/', $path);

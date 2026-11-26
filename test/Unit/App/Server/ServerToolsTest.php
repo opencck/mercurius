@@ -22,7 +22,6 @@ use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Test\Support\AgentStack;
 use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
-use OpenCCK\Test\Support\InMemoryServerRepository;
 use OpenCCK\Test\Support\ScriptedLlm;
 use OpenCCK\Test\Support\SshFixture;
 

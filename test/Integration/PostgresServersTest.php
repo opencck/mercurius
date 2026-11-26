@@ -12,7 +12,6 @@ use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
 use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
 use OpenCCK\Infrastructure\Repository\PostgresSecretRepository;
-use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
 use OpenCCK\Test\Support\TestDatabase;
 
 /**
@@ -44,26 +43,6 @@ final class PostgresServersTest extends AsyncTestCase {
         self::assertSame([['name' => 'Deploy-Key', 'kind' => 'private_key']], $vault->names($this->owner));
         $this->expectException(\DomainException::class);
         $vault->put('deploy-KEY', 'password', 'x', $this->owner);
-    }
-
-    public function testServersAndTheirHostKeys(): void {
-        $servers = new PostgresServerRepository($this->db);
-        $server = $servers->add('Web', '2001:db8::5', 2222, 'deploy', null, 'prod');
-
-        self::assertSame('[2001:db8::5]:2222', $server->address());
-        $servers->setPendingHostKey($server->id, 'SHA256:first');
-        self::assertSame('SHA256:first', $servers->byName('web')?->pendingHostKey);
-        self::assertSame('SHA256:first', $servers->decideHostKey($server->id, true)?->hostKey);
-        self::assertNull($servers->decideHostKey($server->id, true), 'decided once');
-        $servers->setPendingHostKey($server->id, 'SHA256:other');
-        self::assertNull($servers->find($server->id)?->pendingHostKey, 'a trusted key is not replaced by a pending one');
-        // spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — a changed field keeps the key, a new address forgets it
-        $changed = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(group: 'test', route: 'vless'));
-        self::assertSame(['test', 'vless', 'SHA256:first'], [$changed?->group, $changed?->route, $changed?->hostKey]);
-        $moved = $servers->update($server->id, new \OpenCCK\Domain\Server\ServerChanges(host: '2001:db8::6', route: ''));
-        self::assertSame(['2001:db8::6', null, null], [$moved?->host, $moved?->route, $moved?->hostKey]);
-        self::assertTrue($servers->remove($server->id));
-        self::assertSame([], $servers->all());
     }
 
     public function testTheJournalChainHoldsAndBreaksWhenChanged(): void {

@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `c499ae3` | 2026-11-21 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `c16c1be` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `8999073` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `08225ef` | 2026-11-23 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
@@ -37,6 +37,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `db55fe5` | 2026-11-24 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `6ab5f4d` | 2026-11-21 | `mail` | MCP-сервер почты со своим асинхронным IMAP и SMTP, проверка подлинности отправителя |
+| [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `e181826` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
 
 ## Как работать с пакетом
 
@@ -55,6 +56,9 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-mcp-client` `91d69b8` → `eef9663`: `structuredContent` результата — четвёртым элементом ответа `call`.
 - `mercurius-i18n` `6897ed2` → `c16c1be`: серверы — записи MCP ssh в текстах инструментов и команд, перенос реестра,
   «Забыть ключ» на карточке изменившегося ключа хоста, запись SSH в `self.mcp`.
+- `mercurius-i18n` `c16c1be` → `8999073`: убраны тексты прежнего реестра серверов, переноса и SSH-клиента ядра.
+- `mcp/ssh` (`opencck/mercurius-mcp-ssh`) `e181826` подключён сабмодулем: его проверка на тестовом sshd и
+  предустановка.
 
 ### 2026-11-25 — .mcp.json
 

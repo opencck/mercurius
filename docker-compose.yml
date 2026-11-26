@@ -383,6 +383,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}_test
       # The SSH server of the tests; real servers of the owner are never touched by them.
       SSH_TEST_HOST: sshd-test
+      SSH_MCP_DIR: /app/mcp/ssh
     depends_on:
       postgres:
         condition: service_healthy

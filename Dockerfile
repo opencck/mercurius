@@ -64,6 +64,9 @@ USER root
 RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts
 COPY phpunit.xml.dist phpstan.neon.dist psalm.xml ./
 COPY test ./test
+# our SSH MCP, run by its integration test against the test SSH server
+COPY mcp/ssh ./mcp/ssh
+RUN composer install -d mcp/ssh --no-dev --no-interaction --no-progress --prefer-dist
 RUN mkdir -p .phpunit.cache var && chown -R mercurius .phpunit.cache var
 USER mercurius
 CMD ["composer", "test-integration"]
