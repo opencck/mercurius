@@ -244,7 +244,7 @@ final class Doctor {
 
     /** What the module of the Claude subscription says of itself: the CLI, the sign-in, the route. */
     private static function claudeState(string $name, string $body): string {
-        if ($name !== 'claude-code') {
+        if ($name !== 'claude-code' && $name !== 'antigravity') {
             return '';
         }
         /** @var mixed $data */
@@ -274,6 +274,8 @@ final class Doctor {
             'media-docs' => ['MEDIA_DOCS_TOKEN', Env::raw($this->env, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092'],
             // spec: brief/models.md#claude-по-подписке — healthy is the CLI found and new enough; the sign-in and the route are said
             'claude-code' => ['CLAUDE_CODE_TOKEN', Env::raw($this->env, 'CLAUDE_CODE_URL') ?? 'http://claude-code:8094'],
+            // spec: brief/models.md#google-по-подписке — the same words of health: the CLI, the sign-in, the route
+            'antigravity' => ['ANTIGRAVITY_TOKEN', Env::raw($this->env, 'ANTIGRAVITY_URL') ?? 'http://antigravity:8095'],
         ] as $name => [$token, $url]) {
             if (Env::raw($this->env, $token) === null) {
                 $out[] = [self::WARN, $name, $token . t('service.doctor.pust_vyklyuchen')];

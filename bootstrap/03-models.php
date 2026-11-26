@@ -85,6 +85,26 @@ if ($claudeToken !== null) {
     $catalogSources[\OpenCCK\Domain\Agent\ModelRef::CLAUDE] = (new \OpenCCK\Infrastructure\Llm\Claude\ClaudeCatalog(static fn(): array => $claudeModels->fetch()))->fetch(...);
     $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::CLAUDE;
 }
+// spec: brief/models.md#google-по-подписке — the owner's Google Antigravity plan: antigravity:<model>, served by the
+// module antigravity (the official CLI as the model of one call). Without the token of the module there is no provider.
+// The models go into work only when the owner puts them into the lists of the categories: no roles by default.
+$antigravitySubscription = null;
+$antigravityToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'ANTIGRAVITY_TOKEN');
+$antigravityUrl = rtrim(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'ANTIGRAVITY_URL') ?? 'http://antigravity:8095', '/');
+if ($antigravityToken !== null) {
+    // the service is on the internal network: the client goes directly, without the route of the models
+    $antigravityHttp = (new \Amp\Http\Client\HttpClientBuilder())->retry(0)->followRedirects(0)->build();
+    $antigravitySubscription = new \OpenCCK\Infrastructure\Llm\Antigravity\AntigravitySubscription($antigravityHttp, $antigravityUrl, $antigravityToken, $logger);
+    // two tries: the service answers a limit with the time it reopens and a broken rule with an error that is not
+    // repeated; an overload may pass
+    $clients[\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY] = new \Mercurius\Llm\RetryingClient(
+        new \Mercurius\Llm\Antigravity\AntigravityClient($antigravityHttp, $antigravityToken, $antigravityUrl . '/v1'),
+        maxAttempts: 2,
+        onRetry: $onRetry,
+    );
+    $catalogSources[\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY] = $antigravitySubscription->models(...);
+    $modelProviders[] = \OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY;
+}
 $openRouterKey = $llmSettings->openRouterKey();
 $openAiKey = $llmSettings->openAiKey();
 // Model catalog per provider, model roles, the choice of a conversation's model.
@@ -98,6 +118,7 @@ $modelCatalogModule = new \OpenCCK\Infrastructure\Module\ModelCatalogModule(
     connected: [
         ...($codexAccount === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CHATGPT => $codexAccount->signedIn(...)]),
         ...($claudeSubscription === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::CLAUDE => $claudeSubscription->signedIn(...)]),
+        ...($antigravitySubscription === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY => $antigravitySubscription->signedIn(...)]),
     ],
 );
 $llm = new ProviderRouter($clients, $modelCatalog, $providerPauses);

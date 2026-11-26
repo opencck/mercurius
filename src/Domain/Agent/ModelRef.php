@@ -29,8 +29,10 @@ final class ModelRef implements Stringable {
     public const CHATGPT = 'chatgpt';
     /** the owner's Claude subscription through the module claude-code (sign-in by /claude login, not a key) */
     public const CLAUDE = 'claude';
+    /** the owner's Google Antigravity plan through the module antigravity (sign-in by /antigravity login, not a key) */
+    public const ANTIGRAVITY = 'antigravity';
     /** providers of a subscription: no key in .env, a sign-in of the owner, no price per token */
-    public const SUBSCRIPTIONS = [self::CHATGPT, self::CLAUDE];
+    public const SUBSCRIPTIONS = [self::CHATGPT, self::CLAUDE, self::ANTIGRAVITY];
 
     public function __construct(
         public readonly string $provider,

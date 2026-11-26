@@ -130,6 +130,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresTranscriptRepository $transcript
  * @var OpenCCK\App\Vault\Vault $vault
  * @var OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription|null $claudeSubscription
+ * @var OpenCCK\Infrastructure\Llm\Antigravity\AntigravitySubscription|null $antigravitySubscription
  * @var OpenCCK\App\Agent\Model\ProviderPauses $providerPauses
  * @var non-empty-string $version
  */
@@ -342,12 +343,27 @@ if ($claudeSubscription !== null) {
         static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::CLAUDE),
     ));
 }
+// spec: brief/models.md#google-по-подписке — /antigravity: sign in to the owner's Google Antigravity plan
+if ($antigravitySubscription !== null) {
+    $chat->useAntigravity(new \OpenCCK\App\Service\AntigravityCommands(
+        $antigravitySubscription,
+        $providerPauses,
+        $logger,
+        static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY),
+    ));
+}
 // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — one message to the owner per window of a plan,
 // and one when a subscription lost its sign-in
 $providerPauses->tellWith(static function (string $provider, string $why, int $until) use ($channel, $logger): void {
-    $text = $why === \OpenCCK\App\Agent\Model\ProviderPauses::LIMIT
-        ? sprintf(\Mercurius\I18n\t('models.provider_limit'), $provider, gmdate('Y-m-d H:i', $until) . ' UTC')
-        : sprintf(\Mercurius\I18n\t('models.provider_sign_in'), $provider, $provider === \OpenCCK\Domain\Agent\ModelRef::CLAUDE ? '/claude login' : '/codex login');
+    $text = match ($why) {
+        \OpenCCK\App\Agent\Model\ProviderPauses::LIMIT => sprintf(\Mercurius\I18n\t('models.provider_limit'), $provider, gmdate('Y-m-d H:i', $until) . ' UTC'),
+        \OpenCCK\App\Agent\Model\ProviderPauses::ACCOUNT => sprintf(\Mercurius\I18n\t('models.provider_account'), $provider),
+        default => sprintf(\Mercurius\I18n\t('models.provider_sign_in'), $provider, match ($provider) {
+            \OpenCCK\Domain\Agent\ModelRef::CLAUDE => '/claude login',
+            \OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY => '/antigravity login',
+            default => '/codex login',
+        }),
+    };
     \Amp\async(static function () use ($channel, $logger, $text): void {
         try {
             $channel->send(new \Mercurius\Messenger\OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));

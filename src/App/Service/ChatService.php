@@ -124,6 +124,13 @@ final class ChatService implements MessageHandler {
     private ?CodexCommands $codex = null;
     private ?ClaudeCommands $claude = null;
 
+    private ?AntigravityCommands $antigravity = null;
+
+    /** spec: brief/models.md#google-по-подписке — /antigravity: the owner's Google Antigravity plan */
+    public function useAntigravity(AntigravityCommands $antigravity): void {
+        $this->antigravity = $antigravity;
+    }
+
     /** spec: brief/models.md#вход-в-подписку-claude — /claude: the owner's Claude subscription */
     public function useClaude(ClaudeCommands $claude): void {
         $this->claude = $claude;
@@ -357,6 +364,24 @@ final class ChatService implements MessageHandler {
                 $this->reply($message, $this->claude->handle($argument));
             }
             if (ClaudeCommands::carriesSecret($argument) && !$this->deleteOnce($message)) {
+                $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
+            }
+            return;
+        }
+        if ($command === '/antigravity' || str_starts_with($command, '/antigravity@')) {
+            // spec: brief/models.md#google-по-подписке — the code of a sign-in is a secret: its message leaves the chat
+            // and never reaches the history, also where the module is not switched on
+            $argument = (preg_split('~\s~u', $text, 2) ?: [])[1] ?? '';
+            if ($this->antigravity === null) {
+                $this->reply($message, t('antigravity.module_off'));
+            } elseif (!$principal->isOwner()) {
+                $this->reply($message, t(self::OWNER_ONLY));
+            } elseif (!$message->isPrivateChat) {
+                $this->reply($message, t(self::SECRET_PRIVATE));
+            } else {
+                $this->reply($message, $this->antigravity->handle($argument));
+            }
+            if (AntigravityCommands::carriesSecret($argument) && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
             return;

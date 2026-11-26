@@ -75,7 +75,7 @@ final class MediaSettings {
                 if (!self::usable($kind, $ref, $endpoints)) {
                     throw ConfigException::invalid($key, $kind === 'image'
                         ? 'image models of OpenRouter: openrouter:author/slug or author/slug'
-                        : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock, gemini, vertex, chatgpt, claude), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
+                        : 'models: provider:model (openrouter, openai, codex, anthropic, bedrock, gemini, vertex, chatgpt, claude, antigravity), author/slug or custom:<endpoint from MEDIA_ENDPOINTS>/model');
                 }
                 $models[$kind][] = $ref;
             }

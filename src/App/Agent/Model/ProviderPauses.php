@@ -20,6 +20,8 @@ use Throwable;
 final class ProviderPauses {
     public const LIMIT = 'limit';
     public const SIGN_IN = 'sign_in';
+    /** the provider of the plan asks the owner of the account to act: nothing is sent until the owner says so */
+    public const ACCOUNT = 'account';
 
     /** @var array<string, array{until: int, why: string, word: string}> by provider or by model */
     private array $paused = [];
@@ -84,7 +86,7 @@ final class ProviderPauses {
     public function resume(string $provider): void {
         unset($this->paused[$provider]);
         foreach (array_keys($this->told) as $key) {
-            if (str_starts_with($key, $provider . '|' . self::SIGN_IN . '|')) {
+            if (str_starts_with($key, $provider . '|' . self::SIGN_IN . '|') || str_starts_with($key, $provider . '|' . self::ACCOUNT . '|')) {
                 unset($this->told[$key]);
             }
         }

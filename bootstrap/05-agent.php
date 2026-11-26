@@ -49,6 +49,8 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var OpenCCK\App\Agent\Model\ProviderPauses $providerPauses
  * @var string $claudeUrl
  * @var string|null $claudeToken
+ * @var string $antigravityUrl
+ * @var string|null $antigravityToken
  * @var OpenCCK\Infrastructure\Config\AgentSettings $agentSettings
  * @var Mercurius\Messenger\RoutingChannel $channel
  * @var array<string, Mercurius\Llm\LlmClient> $clients
@@ -128,6 +130,8 @@ $whisperToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WHISPER_TOKEN');
 $serviceModules->add(\OpenCCK\Infrastructure\Config\MediaSettings::WHISPER, \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'WHISPER_URL') ?? 'http://whisper:8000', $whisperToken);
 // spec: brief/models.md#claude-по-подписке — the module of the Claude subscription: its health is the health of the CLI
 $serviceModules->add(\OpenCCK\Infrastructure\Llm\Claude\ClaudeSubscription::MODULE, $claudeUrl, $claudeToken);
+// spec: brief/models.md#google-по-подписке — the module of the Google Antigravity plan: its health is the health of the CLI
+$serviceModules->add(\OpenCCK\Infrastructure\Llm\Antigravity\AntigravitySubscription::MODULE, $antigravityUrl, $antigravityToken);
 $docsService = new \OpenCCK\Infrastructure\Media\DocsService(HttpClients::create(), $serviceModules);
 $tools->withServices($serviceModules->up(...));
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::defer(static function () use ($serviceModules): void {

@@ -119,3 +119,7 @@
 	path = mcp/gemini-api
 	url = https://github.com/opencck/mercurius-mcp-gemini-api.git
 	branch = master
+[submodule "services/antigravity"]
+	path = services/antigravity
+	url = https://github.com/opencck/mercurius-antigravity.git
+	branch = master

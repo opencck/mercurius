@@ -60,6 +60,9 @@ final class ProviderRouter implements LlmClient {
         }
     }
 
+    /** seconds a plan whose provider asks the owner to act stays off the choice: until the owner lifts it */
+    private const ACCOUNT_PAUSE = 30 * 86400;
+
     /**
      * A used-up window of a plan takes the provider off the choice until it reopens; a subscription that lost its
      * sign-in — until the owner signs in again (it is asked again in ten minutes, in case the sign-in came back).
@@ -73,6 +76,10 @@ final class ProviderRouter implements LlmClient {
         if ($e->resetsAt !== null) {
             // a window may be the model's own (a week of Opus): the other models of the provider go on
             $this->pauses->pause((string) $ref, $e->resetsAt, ProviderPauses::LIMIT);
+        } elseif ($e->status === 403 && $ref->provider === ModelRef::ANTIGRAVITY) {
+            // spec: brief/models.md#google-по-подписке — Google asks the owner of the account to act: the plan is not
+            // called again until the owner says so (/antigravity resume), not asked again in ten minutes
+            $this->pauses->pauseFor($ref->provider, self::ACCOUNT_PAUSE, ProviderPauses::ACCOUNT);
         } elseif ($e->kind === ErrorKind::Auth && in_array($ref->provider, ModelRef::SUBSCRIPTIONS, true)) {
             $this->pauses->pauseFor($ref->provider, 600, ProviderPauses::SIGN_IN);
         }
@@ -105,9 +112,11 @@ final class ProviderRouter implements LlmClient {
         $pause = $this->pauses?->blocking($ref);
         if ($pause !== null) {
             // no request: the provider would refuse the same way, and a subscription might bill it beyond the plan
-            throw $pause['why'] === ProviderPauses::LIMIT
-                ? new LlmException(ErrorKind::RateLimited, sprintf('%s: the limit of the plan is used up until %s', $ref->provider, gmdate('Y-m-d H:i', $pause['until']) . ' UTC'), 429, null, null, $pause['until'])
-                : new LlmException(ErrorKind::Auth, sprintf('%s: the owner is not signed in to the subscription', $ref->provider), 401);
+            throw match ($pause['why']) {
+                ProviderPauses::LIMIT => new LlmException(ErrorKind::RateLimited, sprintf('%s: the limit of the plan is used up until %s', $ref->provider, gmdate('Y-m-d H:i', $pause['until']) . ' UTC'), 429, null, null, $pause['until']),
+                ProviderPauses::ACCOUNT => new LlmException(ErrorKind::Auth, sprintf('%s: the provider of the plan asks the owner of the account to act', $ref->provider), 403),
+                default => new LlmException(ErrorKind::Auth, sprintf('%s: the owner is not signed in to the subscription', $ref->provider), 401),
+            };
         }
         $bare = $ref->model === $request->model ? $request : $request->withModel($ref->model);
         // OpenRouter caches Anthropic prompts only when asked; one top-level field moves the breakpoint along the

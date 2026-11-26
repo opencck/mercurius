@@ -137,6 +137,45 @@ services:
     networks:
       - internal
 
+  # Optional module antigravity (COMPOSE_PROFILES=antigravity, ANTIGRAVITY_TOKEN, ANTIGRAVITY_URL): models of the owner's
+  # Google Antigravity plan — the official Antigravity CLI as a one-shot client of a model call. Its own repository, a
+  # submodule. Google's terms forbid such use: read services/antigravity/README.md before switching it on. The
+  # sign-in of the CLI lives in storage/antigravity; the container runs as ANTIGRAVITY_UID so that folder stays 700.
+  # No key of the Gemini API and no setting of Vertex is passed to it: the plan is its only way in.
+  # spec: brief/models.md#google-по-подписке
+  antigravity:
+    profiles: ["antigravity"]
+    build:
+      context: services/antigravity
+    image: mercurius-antigravity:${APP_VERSION:-dev}
+    restart: unless-stopped
+    # a stopped CLI leaves its language server behind: init reaps it, PHP as the first process would not
+    init: true
+    user: "${ANTIGRAVITY_UID:-10060}:${ANTIGRAVITY_GID:-10060}"
+    environment:
+      ANTIGRAVITY_TOKEN: ${ANTIGRAVITY_TOKEN:-}
+      ANTIGRAVITY_MAX_CONCURRENT: ${ANTIGRAVITY_MAX_CONCURRENT:-2}
+      ANTIGRAVITY_IDLE_SECONDS: ${ANTIGRAVITY_IDLE_SECONDS:-300}
+      # one way out for everything the CLI sends
+      VLESS_URI: ${VLESS_URI:-}
+      ANTIGRAVITY_PROXY: ${ANTIGRAVITY_PROXY:-${DEFAULT_PROXY:-}}
+    volumes:
+      - ./storage/antigravity:/data/antigravity
+    mem_limit: 2g
+    pids_limit: 512
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
   # Optional module whisper (module mercurius-whisper in services/whisper, COMPOSE_PROFILES=whisper, WHISPER_TOKEN):
   # speech to text on this host, faster-whisper behind an OpenAI-compatible /v1/audio/transcriptions — voice messages
   # go to no provider and spend no tokens. The model is downloaded once to storage/whisper. The profile and the token

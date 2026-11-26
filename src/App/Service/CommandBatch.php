@@ -15,7 +15,7 @@ namespace OpenCCK\App\Service;
 final class CommandBatch {
     private const COMMAND = '~^/[A-Za-z][A-Za-z0-9_]*(@[A-Za-z0-9_]+)?(\s|$)~';
     /** a command whose secret may follow on the next lines */
-    private const CARRIES_NEXT = '~^/claude(@[A-Za-z0-9_]+)?\s+code\s*$~i';
+    private const CARRIES_NEXT = '~^/(claude|antigravity)(@[A-Za-z0-9_]+)?\s+code\s*$~i';
 
     /**
      * The pieces of the message in their order; a message that is not a batch comes back whole, as it is.
