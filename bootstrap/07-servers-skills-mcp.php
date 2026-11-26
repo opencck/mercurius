@@ -96,13 +96,25 @@ $skillProjects = new PostgresProjectRepository($db);
 $skillLibrary = new \OpenCCK\App\Skill\SkillLibrary(
     \OpenCCK\App\Skill\BuiltinSkills::load(PATH_ROOT . '/skills', $logger),
     $sandbox,
-    static function (int $principalId) use ($principals, $policies): ?\OpenCCK\Domain\Agent\SandboxLimits {
-        $principal = $principals->find($principalId);
+    // the owners' area (the global skills) works with the limits of an owner of the agent
+    static function (int $principalId) use ($principals, $policies, $ownerDirectory): ?\OpenCCK\Domain\Agent\SandboxLimits {
+        $principal = $principalId === \OpenCCK\App\Skill\SkillLibrary::OWNERS ? $ownerDirectory->principal() : $principals->find($principalId);
         return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
     },
     static fn(): ?int => $ownerDirectory->principal()?->id,
     $logger,
 );
+// spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the built-in skills lie in the root of the
+//       sandbox for the owners to read, a copy of the delivery
+if ($sandbox !== null) {
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(15, static function () use ($skillLibrary, $logger): void {
+        try {
+            $skillLibrary->publishBuiltins(new \Amp\TimeoutCancellation(120));
+        } catch (\Throwable $e) {
+            $logger->warning('Built-in skills were not copied into the owners\' area', ['error' => $e::class]);
+        }
+    }));
+}
 $scheduler->useSkills($skillLibrary);
 // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — skills of the old layout move to .mercurius/skills at start, the old folder kept
 if ($sandbox !== null) {

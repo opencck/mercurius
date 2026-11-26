@@ -91,6 +91,10 @@ final class SkillLibraryTest extends AsyncTestCase {
         return new SkillLibrary($builtin, $this->sandbox, static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), static fn(): int => 1);
     }
 
+    private function wrote(): bool {
+        return array_filter($this->sandbox->calls, static fn(string $c): bool => str_starts_with($c, 'write')) !== [];
+    }
+
     private function context(Member $who): ToolContext {
         return new ToolContext(1, 1, $who, new NullCancellation(), new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true));
     }
@@ -124,6 +128,49 @@ final class SkillLibraryTest extends AsyncTestCase {
 
         self::assertArrayNotHasKey('seo', $library->catalog($this->user, $this->projects['Сайт']), 'a project the participant cannot see gives nothing');
         self::assertSame('', $library->index(new Member(9, MemberKind::Human, Role::reader(), 'Гость'), null));
+    }
+
+    public function testGlobalSkillsOfTheOwnersAreEverywhereBelowTheNearerPlaces(): void {
+        // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — project → participant → global → built-in
+        $this->sandbox->files[0]['.mercurius/skills/deploy/SKILL.md'] = self::skill('deploy', 'Общая выкладка');
+        $this->sandbox->files[0]['.mercurius/skills/style/SKILL.md'] = self::skill('style', 'Стиль ответов агента');
+        $this->sandbox->files[5]['.mercurius/skills/style/SKILL.md'] = self::skill('style', 'Мой стиль');
+        $library = $this->library();
+
+        $user = $library->catalog($this->user, null);
+        self::assertSame('Общая выкладка', $user['deploy']['description'] ?? null, 'a global one beats the built-in');
+        self::assertSame('Мой стиль', $user['style']['description'] ?? null, 'the participant\'s own beats a global one');
+        self::assertSame('Стиль ответов агента', $library->catalog($this->owner, $this->projects['Сайт'])['style']['description'] ?? null, 'in a project too');
+        self::assertStringContainsString('Общая выкладка', $library->index($this->user, null));
+        self::assertSame('Общая выкладка', $library->catalog($this->owner, null)['deploy']['description'] ?? null);
+
+        self::assertNotNull($library->target($this->owner, null, 'global'), 'an owner writes the global skills');
+        self::assertNull($library->target($this->user, null, 'global'), 'a participant does not');
+    }
+
+    public function testAGlobalSkillIsSavedWithTheOwnersCard(): void {
+        $tool = new SkillSaveTool($this->library(), $this->projectOf());
+        $args = ['name' => 'style', 'description' => 'Стиль', 'body' => 'Коротко.', 'where' => 'global'];
+
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Irreversible, $tool->danger($args), 'a change of the owners\' area waits for the card');
+        self::assertTrue(\OpenCCK\App\Agent\GrantKeys::strict((string) $tool->grantKey($args)), 'no wider grant reaches it');
+        self::assertSame(\OpenCCK\Domain\Agent\DangerClass::Write, $tool->danger(['where' => 'mine'] + $args));
+        self::assertFalse($tool->execute($args, $this->context($this->owner))->isError);
+        self::assertArrayHasKey('.mercurius/skills/style/SKILL.md', $this->sandbox->files[0] ?? []);
+    }
+
+    public function testTheBuiltInSkillsAreCopiedIntoTheRootReadOnlyOnceAVersion(): void {
+        $library = $this->library();
+
+        $library->publishBuiltins(new NullCancellation());
+
+        self::assertArrayHasKey('.mercurius/builtin/skill-creator/SKILL.md', $this->sandbox->files[0] ?? []);
+        $version = $this->sandbox->files[0]['.mercurius/builtin/VERSION'] ?? '';
+        self::assertMatchesRegularExpression('~^[0-9a-f]{12}$~', trim($version));
+        self::assertNotEmpty(array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'chmod -R a-w')), 'read only');
+        $this->sandbox->calls = [];
+        $library->publishBuiltins(new NullCancellation());
+        self::assertFalse($this->wrote(), 'the same version is not written again');
     }
 
     public function testAFolderSkillIsCheckedForTheIndexAndForEachFileItGives(): void {

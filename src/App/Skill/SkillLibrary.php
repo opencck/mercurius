@@ -19,12 +19,15 @@ use Throwable;
 use function Mercurius\I18n\t;
 
 /**
- * Where the agent's skills are: all are ordinary directories with a SKILL.md and files next to it, in three places —
- * - built-in: `skills/<name>/` of the code (submodules), the same everywhere, read-only;
+ * Where the agent's skills are: all are ordinary directories with a SKILL.md and files next to it, in four places —
+ * - built-in: `skills/<name>/` of the code (submodules), the same everywhere, read-only; a copy lies in the root of the
+ *   sandbox (`.mercurius/builtin/`) for the owners to read;
+ * - global: `.mercurius/skills/<name>/` in the owners' area (the root of the sandbox) — written by the owners, read
+ *   everywhere;
  * - the participant's: `.mercurius/skills/<name>/` in their sandbox folder — for their private chat with the agent;
  * - the project's: `projects/<number>/.mercurius/skills/<name>/` in the sandbox folder of the project's owner — for every chat
  *   and forum topic the project is active in.
- * They add up; the same name in a nearer place wins (project → participant → built-in), like the tiers of hermes
+ * They add up; the same name in a nearer place wins (project → participant → global → built-in), like the tiers of hermes
  * (references/hermes-agent/agent/skill_utils.py@e96221fa:L400-L423, get_skill_search_roots: project > local > …). A skill moves between places as
  * a directory: a built-in one copied into a folder can be changed there; a folder's skill can become a submodule.
  *
@@ -35,6 +38,10 @@ final class SkillLibrary {
     public const MINE = '.mercurius/skills';
     /** where the participant's skills were before 2026-11-19; SkillFolders moves them */
     public const LEGACY_MINE = 'skills';
+    /** the holder of the owners' area: the global skills lie in its root */
+    public const OWNERS = \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::OWNERS_AREA;
+    /** the copy of the built-in skills in the owners' area, read only */
+    public const BUILTIN_COPY = '.mercurius/builtin';
     /** skills read from one folder; more are left out of the index */
     private const PER_PLACE = 40;
 
@@ -302,16 +309,20 @@ final class SkillLibrary {
         if (!$who->role->may(Permission::Skills)) {
             return [];
         }
+        // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the global skills of the owners are
+        //       everywhere, below the nearer places
+        $global = ['dir' => self::MINE, 'owner' => self::OWNERS, 'label' => t('skill.library.global')];
         if ($project !== null && $this->levelOf($project, $who) !== null) {
             $owner = $project->ownerId ?? ($this->ownerId)();
             if ($owner !== null) {
                 return [
                     ['dir' => self::projectDir($project), 'owner' => $owner, 'label' => sprintf(t('skill.library.project'), $project->name)],
                     ['dir' => self::MINE, 'owner' => $owner, 'label' => $owner === $who->id ? t('skill.library.mine') : t('skill.library.project_owner')],
+                    $global,
                 ];
             }
         }
-        return [['dir' => self::MINE, 'owner' => $who->id, 'label' => t('skill.library.mine')]];
+        return [['dir' => self::MINE, 'owner' => $who->id, 'label' => t('skill.library.mine')], $global];
     }
 
     /**
@@ -328,6 +339,9 @@ final class SkillLibrary {
         }
         if (str_starts_with($skill['dir'], 'projects/')) {
             return $project !== null && $this->levelOf($project, $who)?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true;
+        }
+        if ($skill['owner'] === self::OWNERS) {
+            return $who->isOwner();
         }
         return $skill['owner'] === $who->id;
     }
@@ -503,7 +517,13 @@ final class SkillLibrary {
         }
         $owner = $who->id;
         $dir = self::MINE;
-        if ($where === 'project') {
+        if ($where === 'global') {
+            // spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта — the global skills are written by the owners
+            if (!$who->isOwner()) {
+                return null;
+            }
+            $owner = self::OWNERS;
+        } elseif ($where === 'project') {
             // spec: brief/participants.md#доступ-к-проектам-и-передача — a member with the write level writes the skills of the
             //       project; they lie in the sandbox of the project's owner
             $holder = $project === null ? null : ($project->ownerId ?? ($this->ownerId)());
@@ -545,6 +565,43 @@ final class SkillLibrary {
         } catch (Throwable) {
         }
         return $root;
+    }
+
+    /**
+     * Copies the built-in skills into the root of the sandbox for the owners to read: `.mercurius/builtin/<name>/`, read
+     * only, with the print of their content in VERSION. The same print is not written again. The agent reads the
+     * built-in skills from the code; a changed copy changes nothing — a skill is changed as a copy in a folder.
+     *
+     * spec: brief/skills-mcp.md#скиллы--файлы-встроенные-участника-и-проекта
+     */
+    public function publishBuiltins(Cancellation $cancellation): void {
+        $limits = ($this->limitsOf)(self::OWNERS);
+        if ($this->sandbox === null || $limits === null || $this->builtin === []) {
+            return;
+        }
+        $files = [];
+        foreach ($this->builtin as $name => $bundle) {
+            $files[$name . '/SKILL.md'] = "---\nname: " . $bundle->name . "\ndescription: " . str_replace("\n", ' ', $bundle->description) . "\n---\n\n" . $bundle->body . "\n";
+            foreach ($bundle->files as $path => $text) {
+                $files[$name . '/' . $path] = $text;
+            }
+        }
+        ksort($files);
+        $version = substr(hash('sha256', serialize($files)), 0, 12);
+        try {
+            if (trim($this->sandbox->fetch(self::OWNERS, $limits, self::BUILTIN_COPY . '/VERSION', 100, $cancellation)) === $version) {
+                return;
+            }
+        } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
+            // no copy yet
+        }
+        $this->sandbox->exec(self::OWNERS, $limits, 'skills-builtin', 'chmod -R u+w ' . self::BUILTIN_COPY . ' 2>/dev/null; rm -rf ' . self::BUILTIN_COPY, '.', 60, $cancellation);
+        foreach ($files as $path => $text) {
+            $this->sandbox->write(self::OWNERS, $limits, self::BUILTIN_COPY . '/' . $path, $text, $cancellation);
+        }
+        $this->sandbox->write(self::OWNERS, $limits, self::BUILTIN_COPY . '/VERSION', $version . "\n", $cancellation);
+        $this->sandbox->exec(self::OWNERS, $limits, 'skills-builtin', 'chmod -R a-w ' . self::BUILTIN_COPY, '.', 60, $cancellation);
+        $this->logger->info('Built-in skills copied into the owners\' area', ['version' => $version]);
     }
 
     /**

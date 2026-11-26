@@ -32,7 +32,7 @@ use function Mercurius\I18n\t;
  * ref: references/hermes-agent/tools/skill_manager_tool.py@e96221fa:L1-L7 — the agent creates and edits its skills as
  *      SKILL.md directories; here in the folder of whoever the skill is for
  */
-final class SkillSaveTool implements Tool, ChangesSandbox {
+final class SkillSaveTool implements Tool, ChangesSandbox, \OpenCCK\App\Agent\Tool\GrantKeyed {
     public const NAME = 'skill_save';
     public const FILES_MAX = 10;
     public const FILE_CHARS = 50_000;
@@ -51,7 +51,7 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
                 'description' => ['type' => 'string', 'minLength' => 1, 'maxLength' => Skill::DESCRIPTION_MAX],
                 'body' => ['type' => 'string', 'minLength' => 1, 'maxLength' => Skill::BODY_MAX],
                 'files' => ['type' => 'object', 'additionalProperties' => ['type' => 'string', 'maxLength' => self::FILE_CHARS], 'description' => t('tool.skill_propose.files')],
-                'where' => ['type' => 'string', 'enum' => ['mine', 'project'], 'description' => t('tool.skill_save.where')],
+                'where' => ['type' => 'string', 'enum' => ['mine', 'project', 'global'], 'description' => t('tool.skill_save.where')],
                 'project' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.skill.project')],
             ],
             'required' => ['name', 'description', 'body'],
@@ -60,7 +60,19 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Write;
+        // spec: brief/agent-loop.md#раскладка-каталогов — a change of the owners' area waits for an owner's card
+        return Args::string($args, 'where') === 'global' ? DangerClass::Irreversible : DangerClass::Write;
+    }
+
+    /** A global skill is granted only as such: no grant of the tool, a job or a project reaches the owners' area. */
+    public function grantKey(array $args): ?string {
+        return Args::string($args, 'where') === 'global' ? \OpenCCK\App\Agent\GrantKeys::OWNERS_AREA . 'skill_save' : null;
+    }
+
+    public function describe(array $args): string {
+        return Args::string($args, 'where') === 'global'
+            ? sprintf(t('tool.skill_save.global_card'), Args::string($args, 'name') ?? Args::string($args, 'url') ?? Args::string($args, 'path') ?? '')
+            : 'skill_save';
     }
 
     public function untrusted(): bool {
@@ -76,7 +88,11 @@ final class SkillSaveTool implements Tool, ChangesSandbox {
         $where = Args::string($args, 'where') ?? (trim(Args::string($args, 'project') ?? '') !== '' ? 'project' : 'mine');
         $target = $this->library->target($context->principal, ($this->projectOf)($context->conversationId, Args::string($args, 'project'), $context->principal), $where);
         if ($target === null) {
-            return ToolResult::error($where === 'project' ? t('tool.skill_save.no_project') : t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
+            return ToolResult::error(match ($where) {
+                'project' => t('tool.skill_save.no_project'),
+                'global' => t('tool.skill_save.no_global'),
+                default => t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'),
+            });
         }
         $name = strtolower(trim(Args::string($args, 'name') ?? ''));
         $description = trim(Args::string($args, 'description') ?? '');

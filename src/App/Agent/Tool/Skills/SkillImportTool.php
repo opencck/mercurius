@@ -31,7 +31,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/skills-mcp.md#скиллы-других-агентов-импорт — a skill from git or an archive, in the folder of the participant or the project
  */
-final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
+final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox, \OpenCCK\App\Agent\Tool\GrantKeyed {
     public const NAME = 'skill_import';
 
     /** @param Closure(int, ?string, \OpenCCK\Domain\Entity\Member): ?Project $projectOf the project of a conversation: one named, else the active one */
@@ -49,7 +49,7 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
             'properties' => [
                 'url' => ['type' => 'string', 'minLength' => 10, 'maxLength' => 500],
                 'path' => ['type' => 'string', 'maxLength' => 1024, 'description' => t('tool.skill_import.path')],
-                'where' => ['type' => 'string', 'enum' => ['mine', 'project'], 'description' => t('tool.skill_save.where')],
+                'where' => ['type' => 'string', 'enum' => ['mine', 'project', 'global'], 'description' => t('tool.skill_save.where')],
                 'project' => ['type' => 'string', 'maxLength' => 100, 'description' => t('tool.skill.project')],
             ],
             'additionalProperties' => false,
@@ -57,7 +57,19 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
     }
 
     public function danger(array $args): DangerClass {
-        return DangerClass::Write;
+        // spec: brief/agent-loop.md#раскладка-каталогов — a change of the owners' area waits for an owner's card
+        return Args::string($args, 'where') === 'global' ? DangerClass::Irreversible : DangerClass::Write;
+    }
+
+    /** A global skill is granted only as such: no grant of the tool, a job or a project reaches the owners' area. */
+    public function grantKey(array $args): ?string {
+        return Args::string($args, 'where') === 'global' ? \OpenCCK\App\Agent\GrantKeys::OWNERS_AREA . 'skill_import' : null;
+    }
+
+    public function describe(array $args): string {
+        return Args::string($args, 'where') === 'global'
+            ? sprintf(t('tool.skill_save.global_card'), Args::string($args, 'name') ?? Args::string($args, 'url') ?? Args::string($args, 'path') ?? '')
+            : 'skill_import';
     }
 
     /** spec: brief/agent-loop.md#подтверждения-и-запреты — a skill of another agent is outside text */
@@ -78,7 +90,11 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox {
         $where = Args::string($args, 'where') ?? (trim(Args::string($args, 'project') ?? '') !== '' ? 'project' : 'mine');
         $target = $this->library->target($context->principal, ($this->projectOf)($context->conversationId, Args::string($args, 'project'), $context->principal), $where);
         if ($target === null) {
-            return ToolResult::error($where === 'project' ? t('tool.skill_save.no_project') : t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
+            return ToolResult::error(match ($where) {
+                'project' => t('tool.skill_save.no_project'),
+                'global' => t('tool.skill_save.no_global'),
+                default => t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'),
+            });
         }
         $path = Args::string($args, 'path');
         $url = Args::string($args, 'url') ?? '';
