@@ -57,4 +57,5 @@ Thumbs.db
 # Сервер разработки: доступ, экземпляры, домены — у каждого разработчика свои (образец — SERVER.md.example)
 SERVER.md
 .claude/skills/mercurius-bin/
+.claude/skills/security-review/
 .superpowers/
