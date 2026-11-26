@@ -21,6 +21,9 @@ PROJECT="${PROJECT:-mercurius}"
 before="$(git rev-parse --short HEAD)"
 bin/backup.sh || { echo "update: копия не снята — обновление остановлено" >&2; exit 1; }
 git pull --ff-only
+# The list of submodules may have changed with the pull: the shell read this script before it, so the list is read again
+# from the new file — otherwise a module added by this update is fetched only by the next one.
+eval "$(sed -n '/^MODULES="/,/"$/p' bin/update.sh)"
 git submodule sync -q
 # shellcheck disable=SC2086
 git submodule update --init --depth 1 $MODULES

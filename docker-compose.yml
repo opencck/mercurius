@@ -159,6 +159,7 @@ services:
       # one way out for everything the CLI sends
       VLESS_URI: ${VLESS_URI:-}
       ANTIGRAVITY_PROXY: ${ANTIGRAVITY_PROXY:-${DEFAULT_PROXY:-}}
+      ANTIGRAVITY_EGRESS_HOSTS: ${ANTIGRAVITY_EGRESS_HOSTS:-}
     volumes:
       - ./storage/antigravity:/data/antigravity
     mem_limit: 2g

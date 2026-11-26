@@ -8,7 +8,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 
 | Пакет | Каталог | Коммит | Проверено | Назначение |
 |-------|---------|--------|-----------|------------|
-| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `680693e` | 2026-11-26 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic, Bedrock, Gemini и Vertex; клиент сервиса antigravity |
+| [mercurius-llm](https://github.com/opencck/mercurius-llm) | [llm/](llm/) | `418b292` | 2026-11-26 | Единый интерфейс вызова LLM, адаптеры OpenRouter, OpenAI (Chat Completions и Responses), Anthropic, Bedrock, Gemini и Vertex; клиент сервиса antigravity |
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
@@ -35,11 +35,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `fa1f61b` | 2026-11-26 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
-| [mercurius-antigravity](https://github.com/opencck/mercurius-antigravity) | [../services/antigravity/](../services/antigravity/) | `9ac2a91` | 2026-11-27 | `antigravity` | Модели плана Google Antigravity владельца: официальный `agy` как клиент одного вызова модели за Chat Completions. Условия Google такое использование запрещают — выключен по умолчанию; проверен на подставном `agy` |
+| [mercurius-antigravity](https://github.com/opencck/mercurius-antigravity) | [../services/antigravity/](../services/antigravity/) | `0ad9409` | 2026-11-27 | `antigravity` | Модели плана Google Antigravity владельца: официальный `agy` как клиент одного вызова модели за Chat Completions. Условия Google такое использование запрещают — выключен по умолчанию; проверен на подставном `agy` |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `d7826b3` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
 | [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `21729c1` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
-| [mercurius-mcp-gemini-api](https://github.com/opencck/mercurius-mcp-gemini-api) | [../mcp/gemini-api/](../mcp/gemini-api/) | `39866bb` | 2026-11-26 | — | MCP-сервер медиа Google по ключу Gemini API: картинки, речь, музыка, видео, транскрипция, анализ файлов, фоновые исследовательские агенты — на официальном клиенте gemini-api закреплённой версии; ставится в песочницу |
+| [mercurius-mcp-gemini-api](https://github.com/opencck/mercurius-mcp-gemini-api) | [../mcp/gemini-api/](../mcp/gemini-api/) | `321cb79` | 2026-11-26 | — | MCP-сервер медиа Google по ключу Gemini API: картинки, речь, музыка, видео, транскрипция, анализ файлов, фоновые исследовательские агенты — на официальном клиенте gemini-api закреплённой версии; ставится в песочницу |
 
 ## Как работать с пакетом
 
