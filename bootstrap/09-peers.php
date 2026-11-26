@@ -183,7 +183,31 @@ $a2aServer = $selfUrl === null || $a2aToken === null || !$vault->enabled() ? nul
 );
 // spec: brief/agent-loop.md#запуск-начатый-внешними-данными — the answer of a neighbour marks the run that reads it
 $peerNetwork->onAnswered($scheduler->taint(...));
+// spec: brief/network.md#справочник-сети — who the agent knows and how to reach them, for the permission peers
+$peerDirectory = new \OpenCCK\App\Peer\PeerDirectory(
+    $peerRepository,
+    static fn(): array => array_map(static fn(array $l): array => ['direction' => $l['direction'], 'name' => $l['name'], 'fingerprint' => $l['fingerprint'], 'opened' => $l['opened']], $a2aLinks->all()),
+    static function () use (&$a2aServer, $agentIdentity, $selfUrl): array {
+        $card = $a2aServer?->card() ?? [];
+        /** @var mixed $meta */
+        $meta = $card['mercurius'] ?? null;
+        $meta = is_array($meta) ? $meta : [];
+        $text = static function (mixed $value): string {
+            return is_string($value) ? $value : '';
+        };
+        return [
+            'name' => $text($card['name'] ?? null),
+            'url' => $selfUrl === null ? '' : $selfUrl . '/.well-known/agent-card.json',
+            'transport' => $text($meta['transport'] ?? null),
+            'ws' => $text($meta['ws'] ?? null),
+            'fingerprint' => $agentIdentity->fingerprint(),
+            'publicKey' => $agentIdentity->publicKey,
+        ];
+    },
+);
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDirectoryTool($peerDirectory));
 if ($a2aServer !== null) {
+    $a2aServer->useDirectory($peerDirectory);
     $scheduler->useJobRuns($a2aServer);
     $peerNetwork->onFinished($a2aServer->chainAnswered(...));
     // spec: brief/network.md#опознание-агентов-ключи-ecdsa — the extended card names the tools of the asking agent's own policy

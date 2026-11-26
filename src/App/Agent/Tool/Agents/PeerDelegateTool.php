@@ -75,7 +75,10 @@ final class PeerDelegateTool implements Tool, ReadsOutside {
         $task = trim(Args::string($args, 'task') ?? '');
         if ($peer === null) {
             // a task without a neighbour is a mistake, not a question who is there: said so, or the model calls again
-            return $task === '' ? ToolResult::ok($this->network->text()) : ToolResult::error(t('tool.peer_delegate.no_peer') . "\n\n" . $this->network->text());
+            // spec: brief/network.md#справочник-сети — the owner sees all, as in /peers; others the names, not where tokens lie
+            $names = implode(', ', $this->network->names());
+            $listing = $context->principal->isOwner() ? $this->network->text() : sprintf(t('tool.peer_delegate.names'), $names === '' ? '—' : $names);
+            return $task === '' ? ToolResult::ok($listing) : ToolResult::error(t('tool.peer_delegate.no_peer') . "\n\n" . $listing);
         }
         if ($task === '') {
             return ToolResult::error(t('tool.peer_delegate.nuzhna_zadacha_task'));

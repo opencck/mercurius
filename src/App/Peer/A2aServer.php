@@ -88,7 +88,30 @@ final class A2aServer implements JobRuns {
         'ListStreams' => ['streams', true],
         'SubscribeStream' => ['stream_on', true],
         'UnsubscribeStream' => ['stream_off', true],
+        // spec: brief/network.md#справочник-сети — the directory of the network, for an agent with the permission peers
+        'ListPeers' => ['peers', true],
     ];
+
+    private ?PeerDirectory $directory = null;
+
+    public function useDirectory(PeerDirectory $directory): void {
+        $this->directory = $directory;
+    }
+
+    /**
+     * The directory of the network to an agent whose role has the permission peers: deterministic, no run of a model.
+     *
+     * @return array<string, mixed>
+     */
+    private function peerDirectory(Member $agent, mixed $id): array {
+        if ($this->directory === null) {
+            return self::error($id, self::ERR_METHOD_NOT_FOUND, 'the directory of the network is not available');
+        }
+        if (!$agent->role->may(\OpenCCK\Domain\Entity\Permission::Peers)) {
+            return self::error($id, self::ERR_UNAUTHORIZED, 'the role of this agent has no permission peers');
+        }
+        return ['jsonrpc' => '2.0', 'id' => $id, 'result' => $this->directory->of($agent)];
+    }
 
     private ?\OpenCCK\Domain\Repository\PlaceStreamRepository $streams = null;
 
@@ -501,6 +524,7 @@ final class A2aServer implements JobRuns {
             'file' => [200, $this->file($agent, $id, $params)],
             'projects', 'subscribe', 'unsubscribe' => [200, $this->projects($agent, $id, $handler, $params)],
             'streams', 'stream_on', 'stream_off' => [200, $this->streams($agent, $id, $handler, $params)],
+            'peers' => [200, $this->peerDirectory($agent, $id)],
             default => [200, self::error($id, self::ERR_METHOD_NOT_FOUND, 'method not found: ' . $method)],
         };
     }

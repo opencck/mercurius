@@ -96,7 +96,7 @@ $scheduler->useInstance(\Mercurius\I18n\t('agent.prompt_builder.self_info'));
 $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     // spec: brief/network.md#события-проекта-для-агентов — the agents of a project learn what is said in its chats
     // spec: brief/network.md#потоки-мест-для-агентов — and the streams of places the owner gives to agents
-    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events') . \Mercurius\I18n\t('self.streams'),
+    'network' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => $networkText . "\n\n" . \Mercurius\I18n\t('self.project_events') . \Mercurius\I18n\t('self.streams') . \Mercurius\I18n\t('self.peer_directory'),
     'channels' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($config, $recipients): string {
         $host = $config->appUrl === null ? null : parse_url($config->appUrl, PHP_URL_HOST);
         $places = $recipients->places();

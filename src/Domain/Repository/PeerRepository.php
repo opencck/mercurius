@@ -82,6 +82,18 @@ interface PeerRepository {
 
     public function removePeer(string $name): bool;
 
+    /**
+     * The agents the owner hid from the directory of the network, by name.
+     *
+     * spec: brief/network.md#справочник-сети
+     *
+     * @return list<string>
+     */
+    public function hidden(): array;
+
+    /** Hides an agent from the directory of the network or shows it again; false — it was so already. */
+    public function setHidden(string $name, bool $hidden): bool;
+
     /** @param int|null $leaderRun the run that gave the task, for its trace */
     public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null, string $contextId = ''): OutgoingTask;
 

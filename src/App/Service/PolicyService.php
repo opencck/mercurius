@@ -59,19 +59,22 @@ final class PolicyService {
         'mcp_mail_mail_read' => Permission::Mail,
         'mcp_mail_mail_attachment' => Permission::Mail,
         'mcp_mail_mail_send' => Permission::Mail,
+        // spec: brief/network.md#справочник-сети — the directory of the network comes with its permission
+        'peer_directory' => Permission::Peers,
     ];
 
+    /** permissions whose tools a role gets with the permission itself, whatever its list of tools says */
+    private const BRINGS_TOOLS = [Permission::Mail, Permission::Peers];
+
     /**
-     * Mail comes with its permission, whatever the list of tools of the role says.
+     * Mail and the directory of the network come with their permissions, whatever the list of tools of the role says.
      *
      * spec: brief/skills-mcp.md#ящики-участников-и-проектов — who has the permission of mail uses IMAP and SMTP
+     * spec: brief/network.md#справочник-сети — who has the permission peers reads the directory of the network
      */
-    private static function withMail(Member $principal, ParticipantPolicy $policy): ParticipantPolicy {
-        if (!$principal->role->may(Permission::Mail)) {
-            return $policy;
-        }
+    private static function withPowers(Member $principal, ParticipantPolicy $policy): ParticipantPolicy {
         foreach (self::POWER_TOOLS as $tool => $permission) {
-            if ($permission === Permission::Mail) {
+            if (in_array($permission, self::BRINGS_TOOLS, true) && $principal->role->may($permission)) {
                 $policy = $policy->withTool($tool);
             }
         }
@@ -95,11 +98,11 @@ final class PolicyService {
         $base = new ParticipantPolicy([], $this->ownerLimits, $this->ownerSandbox, false);
         // spec: brief/participants.md#свои-роли — without the permission of tools a role talks, nothing more
         if (!$principal->role->may(Permission::Tools)) {
-            return self::withMail($principal, $base)->capTo($owner);
+            return self::withPowers($principal, $base)->capTo($owner);
         }
         $policy = ParticipantPolicy::fromArray(array_replace($this->templateOf($principal->role), $this->repository->find($principal->id) ?? []), $base)->capTo($owner);
         // spec: brief/participants.md#свои-роли — a tool of a permission stays out of a role without it
-        return self::withMail($principal, $policy)->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Permission $p): bool => !$principal->role->may($p))));
+        return self::withPowers($principal, $policy)->without(array_keys(array_filter(self::POWER_TOOLS, static fn(Permission $p): bool => !$principal->role->may($p))));
     }
 
     /** @return array<string, mixed> */

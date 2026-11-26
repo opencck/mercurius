@@ -193,6 +193,25 @@ final class InMemoryPeerRepository implements PeerRepository {
         return $found;
     }
 
+    /** @var array<string, true> */
+    private array $hiddenNames = [];
+
+    public function hidden(): array {
+        $names = array_keys($this->hiddenNames);
+        sort($names);
+        return $names;
+    }
+
+    public function setHidden(string $name, bool $hidden): bool {
+        $was = isset($this->hiddenNames[$name]);
+        if ($hidden) {
+            $this->hiddenNames[$name] = true;
+        } else {
+            unset($this->hiddenNames[$name]);
+        }
+        return $was !== $hidden;
+    }
+
     /** @var array<int, array{leader: ?int, run: ?int, tokens: int, usd: ?float}> */
     public array $spend = [];
 

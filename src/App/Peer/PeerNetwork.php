@@ -663,9 +663,12 @@ final class PeerNetwork {
 
     public function text(): string {
         $lines = [t('peer.peer_network.moy_klyuch') . $this->identity->fingerprint(), '', t('peer.peer_network.sosedi_ya_podklyuchayus_k_nim')];
+        // spec: brief/network.md#справочник-сети — an agent hidden from the directory is marked
+        $hidden = array_fill_keys($this->peers->hidden(), true);
         foreach ($this->peers->peers() as $peer) {
             $lines[] = sprintf(t('peer.peer_network.klyuch_token_vhoda_v_sekrete'), $peer->name, $peer->url, AgentIdentity::fingerprintOf($peer->publicKey) ?? '?', $peer->secret)
-                . sprintf(t('peer.peer_network.peer_transport'), A2aClient::transport($peer), $peer->identity === '' ? t('peer.peer_network.main_key') : $peer->identity);
+                . sprintf(t('peer.peer_network.peer_transport'), A2aClient::transport($peer), $peer->identity === '' ? t('peer.peer_network.main_key') : $peer->identity)
+                . (isset($hidden[$peer->name]) ? t('peer.peer_network.hidden') : '');
         }
         if (count($lines) === 3) {
             $lines[] = t('peer.peer_network.net_peer_add_imya_https');
@@ -686,7 +689,7 @@ final class PeerNetwork {
         $lines[] = t('peer.peer_network.agenty_kotoryh_ya_puskayu_po');
         $keys = $this->peers->keys();
         foreach ($keys as $k) {
-            $lines[] = sprintf('• %s — %s%s', $k['name'], $k['fingerprint'], $k['revoked'] ? t('peer.peer_network.otozvan') : '');
+            $lines[] = sprintf('• %s — %s%s%s', $k['name'], $k['fingerprint'], $k['revoked'] ? t('peer.peer_network.otozvan') : '', isset($hidden[$k['name']]) ? t('peer.peer_network.hidden') : '');
         }
         if ($keys === []) {
             $lines[] = t('peer.peer_network.net_peer_allow_imya_otpechatok');

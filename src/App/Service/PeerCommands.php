@@ -38,11 +38,27 @@ final class PeerCommands {
                 'close' => $this->network->closeLink((int) ltrim($parts[1] ?? '0', '#')) ? t('tool.peer_links.closed') : t('tool.peer_links.no_link'),
                 'key' => $this->network->useKey($parts[1] ?? '', $parts[2] ?? ''),
                 'remove' => $this->peers->removePeer($parts[1] ?? '') ? t('service.peer_commands.sosed_udalen') : t('service.peer_commands.takogo_soseda_net'),
+                // spec: brief/network.md#справочник-сети — an agent hidden from the directory is counted, not shown
+                'hide' => $this->visibility($parts[1] ?? '', true),
+                'show' => $this->visibility($parts[1] ?? '', false),
                 default => t('service.peer_commands.peers_spisok_i_moy_klyuch')
                     . t('service.peer_commands.peer_add_imya_https_adres'),
             };
         } catch (DomainException $e) {
             return $e->getMessage();
         }
+    }
+
+    private function visibility(string $name, bool $hide): string {
+        if (preg_match('~^[\w.-]{1,40}$~u', $name) !== 1) {
+            return t('service.peer_commands.hide_usage');
+        }
+        $changed = $this->peers->setHidden($name, $hide);
+        return sprintf(t(match (true) {
+            $hide && $changed => 'service.peer_commands.hidden',
+            $hide => 'service.peer_commands.hidden_already',
+            $changed => 'service.peer_commands.shown',
+            default => 'service.peer_commands.shown_already',
+        }), $name);
     }
 }

@@ -33,4 +33,6 @@ enum Permission: string {
     case Mail = 'mail';
     /** reports and traces, without the private chats of others */
     case Reports = 'reports';
+    /** sees the network of agents: the neighbours, the live connections, how to reach them — not tokens, not keys */
+    case Peers = 'peers';
 }

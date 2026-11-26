@@ -179,6 +179,22 @@ final class PostgresPeerRepository implements PeerRepository {
         return $this->db->execute('DELETE FROM peers WHERE name = ? RETURNING name', [$name])->fetchRow() !== null;
     }
 
+    public function hidden(): array {
+        $names = [];
+        foreach ($this->db->query('SELECT name FROM peer_hidden ORDER BY name') as $row) {
+            if (isset($row['name']) && is_string($row['name'])) {
+                $names[] = $row['name'];
+            }
+        }
+        return $names;
+    }
+
+    public function setHidden(string $name, bool $hidden): bool {
+        return ($hidden
+            ? $this->db->execute('INSERT INTO peer_hidden (name) VALUES (?) ON CONFLICT DO NOTHING RETURNING name', [$name])
+            : $this->db->execute('DELETE FROM peer_hidden WHERE name = ? RETURNING name', [$name]))->fetchRow() !== null;
+    }
+
     public function addOutgoing(string $peer, string $remoteId, int $principalId, string $channel, string $chatId, string $task, string $state, ?int $leaderRun = null, string $contextId = ''): OutgoingTask {
         $row = $this->db->execute(
             'INSERT INTO a2a_outgoing (peer, remote_id, principal_id, channel, chat_id, task, state, leader_run_id, context_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ' . self::OUT,

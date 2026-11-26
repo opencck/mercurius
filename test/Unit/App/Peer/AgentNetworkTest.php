@@ -26,6 +26,7 @@ use OpenCCK\Test\Support\ScriptedLlm;
 use Psr\Log\NullLogger;
 
 use function Amp\delay;
+use function Mercurius\I18n\t;
 
 /**
  * Two agents in one process: the leader's HTTP goes straight into the follower's server, signed both ways.
@@ -407,6 +408,28 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('1500', $text);
     }
 
+    /** spec: brief/network.md#справочник-сети — the owner hides an agent from the directory and shows it again */
+    public function testTheOwnerHidesAnAgentFromTheDirectory(): void {
+        $this->follower(new ScriptedLlm([]));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $peers = new InMemoryPeerRepository();
+        $network = $this->network($peers, $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+        $commands = new \OpenCCK\App\Service\PeerCommands($network, $peers);
+
+        $hidden = $commands->handle($owner, 'hide follower');
+
+        self::assertSame(['follower'], $peers->hidden());
+        self::assertStringContainsString('follower', $hidden);
+        self::assertNotSame($hidden, $commands->handle($owner, 'hide follower'), 'hidden already is said so');
+        self::assertStringContainsString(t('peer.peer_network.hidden'), $network->text(), '/peers marks the hidden agent');
+        $commands->handle($owner, 'show follower');
+        self::assertSame([], $peers->hidden());
+    }
+
     public function testFilesGoAheadOfTheTaskAndComeBackWithTheAnswer(): void {
         $this->follower(new ScriptedLlm([ScriptedLlm::text('Отчёт готов, файл приложен.')]));
         $leader = new AgentStack(new ScriptedLlm([]));
@@ -423,6 +446,12 @@ final class AgentNetworkTest extends AsyncTestCase {
         $policy = new \OpenCCK\Domain\Agent\ParticipantPolicy(null, new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120), new \OpenCCK\Domain\Agent\SandboxLimits(100, 10, 5, 1000, 1), true);
         $lost = $tool->execute(['task' => 'Сделай отчёт', 'files' => ['tables/data.csv']], new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy));
         self::assertTrue($lost->isError, 'a task without a neighbour is an error, not the list of neighbours');
+        // spec: brief/network.md#справочник-сети — who is not an owner gets the names of neighbours, not where their tokens lie
+        $helper = $leader->principals->createAgent('helper', \OpenCCK\Domain\Entity\Role::user());
+        $named = $tool->execute([], new ToolContext(1, $conversation, $helper, new NullCancellation(), $policy));
+        self::assertStringContainsString('follower', $named->content);
+        self::assertStringNotContainsString('follower-entrance', $named->content);
+        self::assertStringContainsString('follower-entrance', $tool->execute([], new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy))->content, 'the owner sees all, as in /peers');
         $given = $tool->execute(['peer' => 'follower', 'task' => 'Сделай отчёт по таблице', 'files' => ['tables/data.csv']], new ToolContext(1, $conversation, $owner, new NullCancellation(), $policy));
         self::assertFalse($given->isError, $given->content);
         self::assertStringContainsString('data.csv', $given->content);
