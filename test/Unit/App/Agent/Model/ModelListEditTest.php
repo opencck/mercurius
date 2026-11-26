@@ -97,6 +97,26 @@ final class ModelListEditTest extends AsyncTestCase {
         self::assertSame(['openrouter:author/c'], array_map('strval', $this->lists->of(ModelRole::MAIN)), '/set too works without /restart');
     }
 
+    /** spec: brief/models.md#списки-моделей-по-категориям — the search takes a model of OpenRouter only; another one left it with no search */
+    public function testTheSearchTakesOnlyAModelItCanCall(): void {
+        foreach (['claude:claude-opus-5-5', 'chatgpt:gpt-5', 'z-ai/glm-5.3-flash,claude:claude-opus-5-5'] as $list) {
+            try {
+                $this->editor->change($this->owner, 'search', 'set', explode(',', $list));
+                self::fail($list . ' was taken');
+            } catch (DomainException $e) {
+                self::assertStringContainsString('z-ai/glm-5.3-flash', $e->getMessage(), 'the refusal names what the search takes');
+            }
+            try {
+                $this->settings->set($this->owner, 'WEB_SEARCH_MODELS', $list);
+                self::fail('/set took ' . $list);
+            } catch (DomainException) {
+            }
+        }
+        self::assertSame(sprintf(t('settings.saved_live'), 'WEB_SEARCH_MODELS'), $this->editor->change($this->owner, 'search', 'set', ['openrouter:z-ai/glm-5.3-flash']));
+        self::assertSame(sprintf(t('settings.saved_live'), 'WEB_SEARCH_MODELS'), $this->settings->set($this->owner, 'WEB_SEARCH_MODELS', 'perplexity/sonar'));
+        $this->settings->set($this->owner, 'WEB_SEARCH_MODELS', '');
+    }
+
     public function testTheEditorChecksTheModelsOfATextCategory(): void {
         foreach ([['openrouter:author/missing', 'model.model_roles.modeli_net_v_kataloge_provaydera'], ['author/notools', 'model.model_roles.model_ne_vyzyvaet_instrumenty_a']] as [$model, $why]) {
             try {

@@ -8,6 +8,8 @@ use OpenCCK\Infrastructure\Config\ConfigException;
 use OpenCCK\Infrastructure\Proxy\DoorSettings;
 use PHPUnit\Framework\TestCase;
 
+use function Mercurius\I18n\t;
+
 /**
  * Where the door for the commands of the sandbox leads: VLESS, the proxy of the sandbox, the default proxy, nowhere.
  */
@@ -45,6 +47,25 @@ final class DoorSettingsTest extends TestCase {
         self::assertStringNotContainsString('VLESS)', $proxy);
 
         self::assertStringNotContainsString('vless-proxy', DoorSettings::about([]), 'no door — no address to try');
+    }
+
+    /**
+     * spec: brief/internet.md#сброс-профиля-браузера-и-маршруты-выхода — the help names the route of every path at the call: a
+     * command in the sandbox shows the direct address of the server, not the one of VLESS
+     */
+    public function testTheHelpNamesTheRouteOfEveryPath(): void {
+        $vless = DoorSettings::about(['VLESS_URI' => 'vless://id-secret@vpn.example:443?security=tls', 'TELEGRAM_PROXY' => 'vless']);
+        self::assertStringContainsString(sprintf(t('self.proxy.routes'), t('self.proxy.route.vless'), t('self.proxy.route.vless'), t('self.proxy.route.vless')), $vless);
+        self::assertStringContainsString(t('self.proxy.direct_address'), $vless);
+        self::assertStringNotContainsString('vpn.example', $vless);
+
+        $mixed = DoorSettings::about(['VLESS_URI' => 'vless://id@vpn.example:443', 'BROWSER_PROXY' => 'direct', 'DEFAULT_PROXY' => 'http://u:secret@all.example:3128']);
+        self::assertStringContainsString(sprintf(t('self.proxy.routes'), t('self.proxy.route.vless'), t('self.proxy.route.direct'), t('self.proxy.route.proxy')), $mixed, 'models by VLESS, the browser off it, Telegram by the default proxy');
+        self::assertStringNotContainsString('secret', $mixed);
+
+        $none = DoorSettings::about([]);
+        self::assertStringContainsString(sprintf(t('self.proxy.routes'), t('self.proxy.route.direct'), t('self.proxy.route.direct'), t('self.proxy.route.direct')), $none);
+        self::assertStringContainsString(t('self.proxy.off'), $none);
     }
 
     public function testTheDoorIsOpenWithVlessOrAProxy(): void {

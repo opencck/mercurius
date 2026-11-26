@@ -38,14 +38,43 @@ final class SearchSettings {
      */
     private static function searchModel(array $env): ?string {
         foreach (explode(',', Env::raw($env, 'WEB_SEARCH_MODELS') ?? '') as $name) {
-            $name = trim($name);
-            // the provider takes the id of OpenRouter itself
-            $name = str_starts_with($name, 'openrouter:') ? substr($name, strlen('openrouter:')) : $name;
-            if ($name !== '' && preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $name) === 1) {
+            $name = self::openRouterId($name);
+            if ($name !== null) {
                 return $name;
             }
         }
         return null;
+    }
+
+    /**
+     * The id of OpenRouter a name of the list stands for; null — the search cannot call it (a model of a subscription,
+     * of another provider, or not a model id).
+     *
+     * @return ?non-empty-string
+     */
+    private static function openRouterId(string $name): ?string {
+        $name = trim($name);
+        // the provider takes the id of OpenRouter itself
+        $name = str_starts_with($name, 'openrouter:') ? substr($name, strlen('openrouter:')) : $name;
+        return $name !== '' && preg_match('#^[a-z0-9._-]+/[a-z0-9._:-]+$#i', $name) === 1 ? $name : null;
+    }
+
+    /**
+     * What is wrong with a new list for the search: the names it cannot call. A list with such a name is refused when it
+     * is set, not at the start — a stored list that does not fit leaves the search off, the other settings stand.
+     *
+     * spec: brief/models.md#списки-моделей-по-категориям — the search is the web search of a model of OpenRouter
+     *
+     * @return list<string> the names the search cannot call; empty — the list fits
+     */
+    public static function unfit(string $list): array {
+        $bad = [];
+        foreach (explode(',', $list) as $name) {
+            if (trim($name) !== '' && self::openRouterId($name) === null) {
+                $bad[] = trim($name);
+            }
+        }
+        return $bad;
     }
 
     /**

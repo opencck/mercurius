@@ -54,10 +54,56 @@ final class DoorSettings {
      * @param array<array-key, mixed> $env
      */
     public static function about(array $env): string {
+        // spec: brief/internet.md#сброс-профиля-браузера-и-маршруты-выхода — every path has its own route: a command in the
+        //      sandbox without the door shows the direct address of the server, not the one of VLESS
+        $routes = sprintf(t('self.proxy.routes'), self::routeName(self::modelsRoute($env)), self::routeName(self::browserRoute($env)), self::routeName(self::telegramRoute($env)))
+            . "\n" . t('self.proxy.direct_address') . "\n\n";
         if (!self::open($env)) {
-            return t('self.proxy.off');
+            return $routes . t('self.proxy.off');
         }
-        return sprintf(t('self.proxy'), self::HTTP, self::SOCKS, t(Env::raw($env, 'VLESS_URI') !== null ? 'self.proxy.vless' : 'self.proxy.owner'));
+        return $routes . sprintf(t('self.proxy'), self::HTTP, self::SOCKS, t(Env::raw($env, 'VLESS_URI') !== null ? 'self.proxy.vless' : 'self.proxy.owner'));
+    }
+
+    /** @param array<array-key, mixed> $env */
+    private static function modelsRoute(array $env): string {
+        return Env::raw($env, 'VLESS_URI') !== null ? 'vless' : self::DIRECT;
+    }
+
+    /**
+     * As the browser service picks it: the word direct, then VLESS of the installation, then its proxy or the default one.
+     *
+     * @param array<array-key, mixed> $env
+     */
+    private static function browserRoute(array $env): string {
+        $proxy = Env::raw($env, 'BROWSER_PROXY') ?? Env::raw($env, 'DEFAULT_PROXY');
+        if (strtolower(trim(Env::raw($env, 'BROWSER_PROXY') ?? '')) === self::DIRECT) {
+            return self::DIRECT;
+        }
+        if (Env::raw($env, 'VLESS_URI') !== null) {
+            return 'vless';
+        }
+        return $proxy === null ? self::DIRECT : 'proxy';
+    }
+
+    /**
+     * As TelegramSettings picks it: TELEGRAM_PROXY (vless, direct or a proxy), else the default proxy.
+     *
+     * @param array<array-key, mixed> $env
+     */
+    private static function telegramRoute(array $env): string {
+        $own = Env::raw($env, 'TELEGRAM_PROXY');
+        if ($own === null) {
+            return Env::raw($env, 'DEFAULT_PROXY') === null ? self::DIRECT : 'proxy';
+        }
+        return match (strtolower($own)) {
+            'vless' => 'vless',
+            self::DIRECT => self::DIRECT,
+            default => 'proxy',
+        };
+    }
+
+    private static function routeName(string $route): string {
+        return t('self.proxy.route.' . $route);
     }
 
     /**

@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `cc8bc7b` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `8d8e234` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `08225ef` | 2026-11-23 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
@@ -30,11 +30,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 |--------|---------|--------|-----------|---------|------------|
 | [mercurius-media-video](https://github.com/opencck/mercurius-media-video) | [../services/media-video/](../services/media-video/) | `a43658e` | 2026-11-21 | `media-video` | ffmpeg за HTTP API: кадры и звук видео, конвертация аудио |
 | [mercurius-media-docs](https://github.com/opencck/mercurius-media-docs) | [../services/media-docs/](../services/media-docs/) | `589ffc3` | 2026-11-21 | `media-docs` | Текст docx, pptx, xlsx, odt, PDF, RTF и сборка docx, xlsx, pptx по описанию (Python) |
-| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `8018656` | 2026-11-25 | `browser` | Chromium с окном под puppeteer-core за API на Fastify, проверка адресов |
+| [mercurius-browser](https://github.com/opencck/mercurius-browser) | [../services/browser/](../services/browser/) | `9add42a` | 2026-11-26 | `browser` | Chromium с окном под puppeteer-core за API на Fastify, проверка адресов |
 | [mercurius-skill-creator](https://github.com/opencck/mercurius-skill-creator) | [../skills/skill-creator/](../skills/skill-creator/) | `c63571b` | 2026-11-21 | — | Встроенный скилл: создание и доработка скиллов агентом |
 | [mercurius-skill-memory-file](https://github.com/opencck/mercurius-skill-memory-file) | [../skills/memory-file/](../skills/memory-file/) | `c5f3f65` | 2026-11-21 | — | Встроенный скилл: сжатие и порядок в `MEMORY.md` участника |
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
-| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `db55fe5` | 2026-11-24 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
+| [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `fa1f61b` | 2026-11-26 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `d7826b3` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
 | [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `21729c1` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
@@ -81,6 +81,9 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-peer` `8b9892f` → `04ac368`: `A2aClient::peers` — справочник сети соседа (`ListPeers`); README — как подключиться клиентом; пакет не делится на клиент и сервер.
 - `mercurius-i18n` → `72b58af`: справочник сети и право `peers`, `/peer hide|show`, имена соседей в `peer_delegate` для не-владельца.
 - `mercurius-i18n` → `cc8bc7b`: `peer_directory peer=<сосед>` — справочник соседа методом `ListPeers`.
+- `mercurius-claude-code` `db55fe5` → `fa1f61b`: таймаут проверки CLI больше не роняет сервис — `Future` чтения stderr не оставался неожиданным (`UnhandledFutureError` останавливал цикл событий; на D — 7 перезапусков модуля).
+- `mercurius-browser` `8018656` → `9add42a`: `POST /reset` — кеш профиля или профиль целиком.
+- `mercurius-i18n` → `8d8e234`: поиск только моделью OpenRouter, маршруты в справке `proxy`, `browser reset`.
 
 ### 2026-11-25 — .mcp.json
 

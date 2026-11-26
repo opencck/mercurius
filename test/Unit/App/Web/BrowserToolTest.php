@@ -26,6 +26,26 @@ final class BrowserToolTest extends AsyncTestCase {
         return new BrowserTool(new BrowserClient(new HttpClient($http, []), 'http://browser:3000', 'token-token-token'), $this->channel, '42', $guard);
     }
 
+    /** spec: brief/internet.md#сброс-профиля-браузера-и-маршруты-выхода — the cache of a profile goes freely, the profile with its sign-ins by a card */
+    public function testAProfileIsResetItsCacheOrWhole(): void {
+        $http = new FakeHttpClient(['http://browser:3000/reset' => [200, ['content-type' => 'application/json'], '{"ok":true,"kind":"cache"}']]);
+        $tool = $this->tool($http);
+
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'reset']));
+        self::assertSame(DangerClass::Write, $tool->danger(['action' => 'reset', 'kind' => 'cache']));
+        self::assertSame(DangerClass::Irreversible, $tool->danger(['action' => 'reset', 'kind' => 'profile']), 'the sign-ins go with it');
+
+        $done = $tool->execute(['action' => 'reset'], self::context());
+        $tool->execute(['action' => 'reset', 'kind' => 'profile', 'profile' => 'shop'], self::context());
+
+        self::assertFalse($done->isError, $done->content);
+        self::assertSame(['POST http://browser:3000/reset', 'POST http://browser:3000/reset'], $http->requested);
+        self::assertStringContainsString('"kind":"cache"', $http->bodies[0], 'the cache by default: the sign-ins stay');
+        self::assertStringContainsString('"kind":"profile"', $http->bodies[1]);
+        self::assertStringContainsString('"profile":"p1\/shop"', $http->bodies[1]);
+        self::assertTrue($tool->execute(['action' => 'reset', 'kind' => 'everything'], self::context())->isError);
+    }
+
     public function testAnInternalPageOpensOnlyWithTheOwnersPermission(): void {
         $http = new FakeHttpClient(['http://browser:3000/navigate' => [200, ['content-type' => 'application/json'], '{"url":"http://nas.home.lan/","title":"NAS","text":"ok","elements":[]}']]);
         $tool = $this->tool($http);

@@ -38,7 +38,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
     /** set by the code when the call works in the profiles of another participant (a project of theirs); a model cannot set it */
     private const HOLDER = 'holder';
     public const NAME = 'browser';
-    public const ACTIONS = ['open', 'read', 'click', 'type', 'select', 'scroll', 'back', 'screenshot', 'close', 'script'];
+    public const ACTIONS = ['open', 'read', 'click', 'type', 'select', 'scroll', 'back', 'screenshot', 'close', 'script', 'reset'];
+    /** what a reset takes: the caches (the sign-ins stay) or the whole profile */
+    private const RESET = ['cache', 'profile'];
     public const MODULE = 'browser';
     /** A script of the agent: browser-scripts/read/… reads a frozen copy of the page, browser-scripts/act/… acts on it. */
     public const SCRIPT_PATH = '~^browser-scripts/(read|act)/(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\.js$~';
@@ -133,6 +135,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                 'args' => ['type' => 'object', 'description' => t('tool.browser.script_args')],
                 'question' => ['type' => 'string', 'maxLength' => 2000, 'description' => t('tool.browser.shot_question')],
                 'send' => ['type' => 'boolean', 'description' => t('tool.browser.shot_send')],
+                'kind' => ['type' => 'string', 'enum' => self::RESET, 'description' => t('tool.browser.reset_kind')],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -150,6 +153,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
             // picking in a list fills a form, it sends nothing: a write like typing without submit
             'select' => DangerClass::Write,
             'close' => DangerClass::Write,
+            // spec: brief/internet.md#сброс-профиля-браузера-и-маршруты-выхода — the cache goes freely; the whole profile takes
+            //       the sign-ins with it, which a card confirms
+            'reset' => Args::string($args, 'kind') === 'profile' ? DangerClass::Irreversible : DangerClass::Write,
             // spec: brief/internet.md#скрипты-браузера — reading a copy is a read, acting waits for a card
             'script' => self::scriptMode(Args::string($args, 'path') ?? '') === 'act' ? DangerClass::Irreversible : DangerClass::Read,
             default => DangerClass::Read,
@@ -313,6 +319,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
                     'mode' => self::scriptMode(Args::string($args, 'path') ?? '') ?? 'read',
                     'host' => Args::string($args, 'site') ?? '',
                 ],
+                'reset' => in_array($kind = Args::string($args, 'kind') ?? 'cache', self::RESET, true)
+                    ? ['profile' => $profile, 'kind' => $kind]
+                    : throw new RuntimeException(t('tool.browser.reset_kind')),
                 default => ['profile' => $profile],
             };
             $data = $this->browser->call(match ($action) {
@@ -337,6 +346,9 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         }
         if ($action === 'close') {
             return ToolResult::ok(t('tool.browser.profil_zakryt'));
+        }
+        if ($action === 'reset') {
+            return ToolResult::ok(t(self::str($data, 'kind') === 'profile' ? 'tool.browser.reset_profile' : 'tool.browser.reset_cache'));
         }
         return ToolResult::ok(self::page($data));
     }
