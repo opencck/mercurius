@@ -60,6 +60,18 @@ final class McpInstaller {
         private readonly ?Closure $osv = null,
     ) {}
 
+    /** @var (Closure(string, McpEntry, Member): void)|null writes a sample entry of the delivery approved at once */
+    private ?Closure $accept = null;
+
+    /**
+     * spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail — samples of our code need no card
+     *
+     * @param Closure(string, McpEntry, Member): void $accept
+     */
+    public function useAccept(Closure $accept): void {
+        $this->accept = $accept;
+    }
+
     /** @param list<string> $names the MCPs of the delivery */
     public function useBundled(array $names): void {
         $this->bundled = $names;
@@ -120,7 +132,11 @@ final class McpInstaller {
         if ($sample !== null) {
             try {
                 $own = McpEntry::fromArray($sample['name'], ['command' => $entry->command, 'args' => [...$entry->args, ...$sample['args']], 'env' => $sample['env']]);
-                ($this->persist)('member:' . $owner->id, $own, $owner);
+                if ($this->accept !== null) {
+                    ($this->accept)('member:' . $owner->id, $own, $owner);
+                } else {
+                    ($this->persist)('member:' . $owner->id, $own, $owner);
+                }
             } catch (Throwable $e) {
                 return 'installed ' . $revision . '; the sample entry was not written: ' . $e->getMessage();
             }

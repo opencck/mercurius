@@ -136,6 +136,21 @@ final class McpFileSyncTest extends AsyncTestCase {
     }
 
     /** spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — an entry approved from its file starts from the cache */
+    public function testASampleEntryOfTheDeliveryIsApprovedAtOnceAndWaitsForItsSecret(): void {
+        // spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail — samples of our code need no card; without the
+        //       secret they are in error with its name
+        $entry = McpEntry::fromArray('ssh', ['command' => 'php', 'args' => ['/workspace/mcp/ssh/current/bin/ssh-mcp', '--host=', '--user=root'], 'env' => ['SSH_PASSWORD' => '{SSH_PASSWORD}']]);
+
+        $this->files->accept('member:1', $entry, $this->owner);
+
+        self::assertSame([], $this->told, 'no card');
+        $server = $this->servers->find('member:1', 'ssh');
+        self::assertNotNull($server);
+        self::assertSame(substr($entry->hash(), 0, 12), substr((string) $server->approvedHash, 0, 12), 'approved');
+        self::assertSame(McpServer::ERROR, $server->status);
+        self::assertStringContainsString('SSH_PASSWORD', $server->note);
+    }
+
     public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {
         $this->file(1, '.mcp.json', '{"mcpServers": {"local": {"command": "npx", "args": ["-y", "some-mcp"]}}}');
         $this->files->sync('member:1');

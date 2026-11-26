@@ -379,6 +379,25 @@ final class McpFiles {
      *
      * @throws InvalidArgumentException the file is there but was not read, or there is no place for it
      */
+    /**
+     * Writes an entry of our own code that needs no card — a sample of an MCP of the delivery — approved at once
+     * without a trial: it may wait for its secrets, and then it is in error with their names, not on a card.
+     *
+     * spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail
+     *
+     * @throws InvalidArgumentException
+     */
+    public function accept(string $context, McpEntry $entry, Member $by): void {
+        $this->put($context, $entry, false);
+        $url = $entry->address();
+        $server = $this->servers->find($context, $entry->name) ?? $this->servers->add($context, $entry->name, $url, null);
+        if ($server->url !== $url) {
+            $this->servers->setAddress($context, $entry->name, $url, null);
+        }
+        $this->servers->setApproval($context, $entry->name, $entry->hash(), $by->id, $entry->toArray());
+        $this->sync($context);
+    }
+
     public function put(string $context, McpEntry $entry, bool $sync = true): void {
         $servers = $this->readable($context)->servers ?? [];
         $servers[$entry->name] = $entry;

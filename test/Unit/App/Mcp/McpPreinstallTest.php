@@ -192,6 +192,19 @@ final class McpPreinstallTest extends AsyncTestCase {
         self::assertStringContainsString('ssh', $installer->rebuild($this->owner, 'ssh'), 'nothing to build: not installed');
     }
 
+    public function testASampleIsWrittenApprovedWhenTheFilesCanAccept(): void {
+        $installer = $this->installer();
+        $accepted = [];
+        $installer->useAccept(function (string $context, McpEntry $entry, Member $by) use (&$accepted): void {
+            $accepted[] = $context . '|' . $entry->name;
+        });
+
+        $installer->preinstall($this->owner, self::bundle(), ['name' => 'ssh', 'args' => ['--host='], 'env' => ['SSH_PASSWORD' => '{SSH_PASSWORD}']]);
+
+        self::assertSame(['member:1|ssh'], $accepted);
+        self::assertSame([], $this->persisted, 'no card, no trial');
+    }
+
     public function testABundleUpdatesWithTheAgentOnly(): void {
         $installer = $this->installer();
         $installer->preinstall($this->owner, self::bundle(), null);

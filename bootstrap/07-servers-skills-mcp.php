@@ -364,6 +364,10 @@ if ($sandbox !== null) {
         },
         static fn(array $packages): ?string => $osvCheck->packages($packages, new \Amp\TimeoutCancellation(30)),
     );
+    // spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail — the samples of the delivery are approved at once
+    $mcpInstaller->useAccept(static function (string $context, \OpenCCK\App\Mcp\McpEntry $entry, Member $by) use ($mcpFiles): void {
+        $mcpFiles->accept($context, $entry, $by);
+    });
     $tools->register(new \OpenCCK\App\Mcp\McpInstallTool($mcpInstaller, $sandbox));
     $tools->register(new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller));
     // the tools of an entry that runs installed code get the classes its approver set (a tool not in the set is
