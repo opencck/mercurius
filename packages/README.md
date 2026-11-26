@@ -14,7 +14,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `6824b2f` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `af191b4` | 2026-11-26 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `dd6eb8c` | 2026-11-26 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
 | [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `04ac368` | 2026-11-26 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
@@ -88,6 +88,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-i18n` → `a850b12`: тема `self_info resources`, путь к теме `proxy` в описании `self_info`.
 - `mercurius-i18n` → `6824b2f`: правило имени MCP в отказе — как его проверяет код.
 - `mercurius-memory` `08225ef` → `af191b4`: `selfNames` — имя владельца и пишущего не тянет его факты само по себе.
+- `mercurius-memory` `af191b4` → `dd6eb8c`: окно неповтора — по ходам и по версии факта.
 
 ### 2026-11-25 — .mcp.json
 

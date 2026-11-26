@@ -42,6 +42,28 @@ final class PostgresMemoryStoreTest extends MemoryStoreContract {
         self::assertSame(['recalled' => 1, 'helpful' => 1, 'unhelpful' => 0], $this->store->usage($fact->id));
     }
 
+    /** spec: brief/memory.md#как-сделано-области-и-факты — the versions given over the last turns (runs) of a conversation */
+    public function testTheVersionsGivenOverTheLastTurnsAreKnown(): void {
+        $fact = $this->store->addFact('owner', \Mercurius\Memory\Domain\Fact::KNOWLEDGE, 'окно неповтора', ['окно'], 0.5, \Mercurius\Memory\Domain\Fact::AGENT, null);
+        $row = $this->db->execute('SELECT principal_id FROM conversations WHERE id = ?', [$this->conversationId])->fetchRow() ?? [];
+        $principal = isset($row['principal_id']) && is_int($row['principal_id']) ? $row['principal_id'] : 0;
+        $runs = new \OpenCCK\Infrastructure\Repository\PostgresRunRepository($this->db);
+        $limits = new \OpenCCK\Domain\Agent\RunLimits(30, 1000, 900, 120);
+
+        $this->store->markRecalled($this->conversationId, [$fact->id], [$fact->id => $fact->version]);
+        self::assertSame([$fact->id => [$fact->version]], $this->store->recalledVersions($this->conversationId, 3), 'a recall not tied to a run yet is of this turn');
+        $first = $runs->start($this->conversationId, $principal, 'openrouter:x/y', $limits);
+        self::assertNotNull($first);
+        self::assertSame([$fact->id => [$fact->version]], $this->store->recalledVersions($this->conversationId, 3));
+        $runs->finish($first->id, \OpenCCK\Domain\Agent\RunStatus::Done, \OpenCCK\Domain\Agent\StopReason::Answered);
+        for ($i = 0; $i < 3; $i++) {
+            $run = $runs->start($this->conversationId, $principal, 'openrouter:x/y', $limits);
+            self::assertNotNull($run);
+            $runs->finish($run->id, \OpenCCK\Domain\Agent\RunStatus::Done, \OpenCCK\Domain\Agent\StopReason::Answered);
+        }
+        self::assertSame([], $this->store->recalledVersions($this->conversationId, 3), 'out of the window of turns');
+    }
+
     protected function tearDown(): void {
         $this->db->close();
         parent::tearDown();
