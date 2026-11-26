@@ -103,3 +103,15 @@
 	path = mcp/ssh
 	url = https://github.com/opencck/mercurius-mcp-ssh.git
 	branch = master
+[submodule "references/gemini-api-cli"]
+	path = references/gemini-api-cli
+	url = https://github.com/google-gemini/gemini-api-cli
+	shallow = true
+[submodule "references/hermes-antigravity-subscription"]
+	path = references/hermes-antigravity-subscription
+	url = https://github.com/soyelmismo/hermes-antigravity-subscription
+	shallow = true
+[submodule "references/hermes-plugin-antigravity-agy"]
+	path = references/hermes-plugin-antigravity-agy
+	url = https://github.com/Realtyxxx/hermes-plugin-antigravity-agy
+	shallow = true

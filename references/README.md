@@ -15,6 +15,9 @@
 | [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | [hermes-plugin-holographic/](hermes-plugin-holographic/) | `main` (тег `v0.28.0`) | `4a794f8` | 2026-11-15 | 2026-11-16 | [notes/hermes-plugin-holographic.md](../notes/hermes-plugin-holographic.md) |
 | [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | [hermes-dreaming/](hermes-dreaming/) | `main` (тег `v3.8.6`) | `21878d3` | 2026-11-07 | 2026-11-16 | [notes/hermes-dreaming.md](../notes/hermes-dreaming.md) |
 | [NousResearch/hermes-official-plugins](https://github.com/NousResearch/hermes-official-plugins) | [hermes-official-plugins/](hermes-official-plugins/) | `main` | `269ddcb` | 2026-11-19 | 2026-11-23 | [notes/hermes-claude-subscription-directsdk.md](../docs/notes/hermes-claude-subscription-directsdk.md) (плагин `claude-subscription-directsdk` 0.4.0; остальные плагины не изучались) |
+| [google-gemini/gemini-api-cli](https://github.com/google-gemini/gemini-api-cli) | [gemini-api-cli/](gemini-api-cli/) | `main` | `3dcbb6e` | 2026-11-26 | 2026-11-26 | [notes/gemini-api-cli.md](../docs/notes/gemini-api-cli.md) |
+| [soyelmismo/hermes-antigravity-subscription](https://github.com/soyelmismo/hermes-antigravity-subscription) | [hermes-antigravity-subscription/](hermes-antigravity-subscription/) | `main` (тег `v1.0.35`) | `6e46b46` | 2026-11-26 | 2026-11-26 | [notes/hermes-antigravity-subscription.md](../docs/notes/hermes-antigravity-subscription.md) |
+| [Realtyxxx/hermes-plugin-antigravity-agy](https://github.com/Realtyxxx/hermes-plugin-antigravity-agy) | [hermes-plugin-antigravity-agy/](hermes-plugin-antigravity-agy/) | `main` (автором не поддерживается, `agy` 1.2) | `ec07f86` | 2026-09-28 | 2026-11-26 | [notes/hermes-antigravity-agy.md](../docs/notes/hermes-antigravity-agy.md) |
 
 - **Коммит** — версия, на которую указывает сабмодуль; источник истины — `git submodule status`. Таблица должна с ним совпадать.
 - **Проверено** — дата, когда репозиторий последний раз сверяли с upstream (даже если обновлений не было).
@@ -63,6 +66,25 @@
 - Что это значит для проекта: <что перенять, что устарело в наших выводах или коде>
 - Что обновлено у нас: <конспект, BRIEF.md, код, ссылки> / «ничего не требуется»
 ```
+
+### 2026-11-26 — gemini-api-cli, hermes-antigravity-subscription, hermes-plugin-antigravity-agy: добавлены
+
+- `gemini-api-cli` на `3dcbb6e` (Go, Apache-2.0): клиент Gemini Developer API по ключу. Зачем проекту: основа MCP
+  `gemini-api` (инструменты медиа), образец запросов, классификации ошибок и повторов Gemini API. Подписку Google он
+  не даёт.
+- `hermes-antigravity-subscription` на `6e46b46` (`v1.0.35`, MIT): плагин Hermes для подписки Google через
+  официальный `agy` 1.5. Зачем проекту: факты о свежем `agy` — окружение, вход, квоты, ошибки, длинный ввод. Релизы
+  выходят почти ежедневно, поэтому коммит закреплён. В каталоге плагинов hermes записан более старый `264bab9e`;
+  взята голова на день добавления: факты нужны о свежем `agy`.
+- `hermes-plugin-antigravity-agy` на `ec07f86` (MIT): единственный образец конструкции «один процесс `agy` на вызов
+  модели» и замеры. Автором помечен как неподдерживаемый с 2026-09-28, проверен на `agy` 1.2.10–1.2.11 — цифры
+  старые. В каталоге hermes записан `f85003d`; взята голова — она отличается пометкой о прекращении поддержки.
+- Не добавлены: `rhgo1749/hermes-antigravity-acp` (нужен, только если выбран транспорт ACP; коммита из каталога
+  hermes в репозитории нет), `neerazz/hermes-antigravity-oauth` (линкует файл входа в чужой HOME),
+  `rarf/hermes-quota-plugin` (обновляет токен под идентификатором чужого клиента).
+- Что обновлено у нас: конспекты `docs/notes/gemini-api-cli.md`, `hermes-antigravity-subscription.md`,
+  `hermes-antigravity-agy.md`; в конспект `hermes-agent` дописаны провайдеры `gemini` и `vertex`; строки в
+  `brief/knowledge.md`; ссылки `ref:` в пакете `llm`.
 
 ### 2026-11-23 — hermes-official-plugins: добавлен на `269ddcb`
 

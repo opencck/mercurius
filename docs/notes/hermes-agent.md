@@ -1212,3 +1212,26 @@ ShareGPT; в `state.db` не пишут. `trajectory_compressor.py` не чит�
 автоматическим «готово к работе»; типизированные блокировки со счётчиком; ключ идемпотентности для задач из заданий и
 webhook; подписку чата с курсором. **Не берём:** процесс на исполнителя, доски-базы, профили и рабочие деревья git,
 коды выхода провайдеров — у Меркурия воркеры — вложенные запуски, а не процессы.
+
+## Дополнение 2026-11-26: провайдеры Gemini и Vertex, документация `agy`
+
+Прочитано под провайдеры `gemini:` и `vertex:` Меркурия; коммит тот же (`e96221fa`).
+
+| Что | Где | Суть |
+|---|---|---|
+| Профиль Gemini | `plugins/model-providers/gemini/__init__.py:L18-L53` | Свой клиент: Interactions или `generateContent` по модели; совместимый адрес (`…/openai`) — второй путь. `thinking_config` на совместимом адресе — в `extra_body.google`, ключи в snake_case. `xhigh` — только моделям из `_XHIGH_MODELS` |
+| Профиль Vertex | `plugins/model-providers/vertex/__init__.py:L26-L31` | Chat Completions; списка моделей у адреса нет — в поставке закреплённый список |
+| Вход Vertex | `agent/vertex_adapter.py:L53-L54`, `L97-L161`, `L193-L196` | Область `cloud-platform`, библиотека `google-auth` (блокирует), кеш учётных данных по содержимому файла, обновление за 5 минут до истечения; адрес — хост без приставки у региона `global` |
+| Уровни мышления по семействам | `agent/transports/chat_completions.py:L171-L224` | 2.5 — бюджет (0 выключает); 3 Pro — `low`/`high`; остальные — `low`/`medium`/`high`; Gemini 4 думает всегда; не-Gemini на том же ключе на поле отвечают 400 |
+| Подписи мышления | `agent/transports/chat_completions.py:L320-L333`, `agent/reasoning_carriers.py:L53-L59`, `agent/chat_completion_helpers.py:L1594-L1611` | `extra_content.google.thought_signature` у вызова инструмента; без возврата Gemini 3 отвечает 400; пустая подпись не возвращается. Заглушка для чужих вызовов — `agent/gemini_native_adapter.py:L81-L83` |
+| Версия модели, `temperature`, потолок ответа | `agent/gemini_native_adapter.py:L120-L139`, `L511-L535` | Признаки по номеру версии; 3.6+ игнорирует `temperature`; мышление расходует `maxOutputTokens` — потолок поднимается до 65 535 |
+| Причины завершения и блокировки | `agent/gemini_native_adapter.py:L87-L90`, `agent/error_classifier.py:L962-L984` | `SAFETY`, `RECITATION` → фильтр; блокировка промпта — неповторяемая |
+| Квота против частоты | `agent/error_classifier.py:L200-L203`, `L1278-L1295`; `agent/gemini_native_adapter.py:L232-L234` | Сообщение о квоте с признаком окна — лимит частоты; `free_tier` в тексте — бесплатный уровень |
+| Подсказки по ключам | `agent/gemini_native_adapter.py:L47-L76` | Бесплатный уровень, ключи «Standard», перепутанные ключи AI Studio и Vertex express |
+| Очистка схем | `tools/schema_sanitizer.py:L205-L224`, `L280-L294` | Объединение с `null` → одна схема; `type` списком → один тип или `anyOf` |
+| Документация `agy` | `optional-skills/autonomous-ai-agents/antigravity-cli/SKILL.md`, `references/cli-docs.md` | Установка, связка ключей, вход по SSH со ссылкой и кодом, пути `~/.gemini/antigravity-cli/` |
+
+Что взято в Меркурий и от чего отступили — [Gemini и Vertex](../../packages/llm/BRIEF.md#gemini-и-vertex) и
+[Провайдеры Gemini и Vertex](../../brief/models.md#провайдеры-gemini-и-vertex). Не читались: `client.py` и
+`interactions.py` профиля Gemini (родной клиент), `agent/gemini_long_decode.py`, `agent/usage_pricing.py` сверх
+таблицы цен Google (`L223-L242`).
