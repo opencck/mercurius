@@ -443,6 +443,10 @@ if ($sandbox !== null) {
         $syncMcpFiles();
         $mcpManager->connectAll();
     });
+    // a file changed by hand is read within a minute
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($syncMcpFiles): void {
+        \Amp\async($syncMcpFiles)->ignore();
+    }));
     /** @var \OpenCCK\App\Agent\Tool\Files\WriteFileTool|null $writeFile */
     $writeFile?->useMcpFiles(static function (int $member, string $path) use ($mcpFiles): void {
         $path = str_replace('\\', '/', $path);
