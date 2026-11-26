@@ -41,6 +41,24 @@ final class McpInstallToolTest extends TestCase {
         self::assertSame(DangerClass::Irreversible, $tool->danger($plan));
     }
 
+    /** spec: brief/skills-mcp.md#установка-и-обновление — a name the install cannot take is an error that says the rule */
+    public function testANameTheInstallCannotTakeIsAnError(): void {
+        $tool = $this->tool();
+        $who = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), 'Я');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $who, new \Amp\NullCancellation());
+
+        $refused = $tool->execute(['action' => 'fetch', 'name' => 'mercurius-mcp-template', 'url' => 'https://github.com/opencck/mercurius-mcp-template'], $context);
+
+        self::assertTrue($refused->isError, 'a refusal read as data was repeated by the model');
+        self::assertStringContainsString('24', $refused->content);
+        self::assertStringNotContainsString(' и -', $refused->content, 'the rule told is the rule checked');
+        $properties = $tool->definition()->parameters['properties'] ?? null;
+        self::assertIsArray($properties);
+        $schema = $properties['name'] ?? null;
+        self::assertIsArray($schema);
+        self::assertSame('^[a-z0-9][a-z0-9_]{0,23}$', $schema['pattern'] ?? null);
+    }
+
     public function testAGrantOfManagingNamesTheActionAndTheInstall(): void {
         $sandbox = new FakeSandbox();
         $manage = new \OpenCCK\App\Mcp\McpManageTool(new McpInstaller(new InMemoryMcpInstallRepository(), new McpSources($sandbox), $sandbox, static fn(): array => [], static fn(\OpenCCK\App\Mcp\McpEntry $e, string $c): \OpenCCK\App\Mcp\McpRendered => $e->render(static fn(): ?string => null), static fn(): string => ''));

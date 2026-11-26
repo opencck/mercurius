@@ -41,7 +41,7 @@ final class McpInstallTool implements Tool, GrantKeyed {
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => ['fetch', 'install', 'approve']],
-                'name' => ['type' => 'string', 'maxLength' => 24, 'description' => t('tool.mcp_install.name')],
+                'name' => ['type' => 'string', 'maxLength' => 24, 'pattern' => '^[a-z0-9][a-z0-9_]{0,23}$', 'description' => t('tool.mcp_install.name')],
                 'url' => ['type' => 'string', 'maxLength' => 500, 'description' => t('tool.mcp_install.url')],
                 'path' => ['type' => 'string', 'maxLength' => 4096, 'description' => t('tool.mcp_install.path')],
                 'steps' => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 1000], 'maxItems' => 12, 'description' => t('tool.mcp_install.steps')],
@@ -104,6 +104,11 @@ final class McpInstallTool implements Tool, GrantKeyed {
             return ToolResult::error(t('tool.mcp_install.no_right'));
         }
         $name = Args::string($args, 'name') ?? '';
+        // spec: brief/skills-mcp.md#установка-и-обновление — a name the install cannot take is an error, not data: as data
+        //      the model repeated the same call
+        if (in_array(Args::string($args, 'action'), ['fetch', 'install', 'approve'], true) && preg_match(\OpenCCK\Domain\Mcp\McpInstall::NAME_PATTERN, $name) !== 1) {
+            return ToolResult::error(t('mcp.install.bad_name'));
+        }
         $answer = match (Args::string($args, 'action')) {
             'fetch' => $this->fetch($name, $args, $context),
             'install' => $this->installer->install($who, $this->context($context), $name, self::steps($args), self::entry($args)),
