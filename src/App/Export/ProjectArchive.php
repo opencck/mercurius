@@ -19,7 +19,6 @@ use OpenCCK\Domain\Job\Schedule;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\JobRepository;
-use OpenCCK\Domain\Repository\MailboxRepository;
 use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectLinkRepository;
 use OpenCCK\Domain\Repository\ProjectPolicyRepository;
@@ -58,7 +57,8 @@ final class ProjectArchive {
         private readonly string $folder,
         private readonly ?Sandbox $sandbox = null,
         private readonly ?Closure $limitsOf = null,
-        private readonly ?MailboxRepository $mailboxes = null,
+        /** @var (\Closure(string): list<string>)|null the names of the mailboxes of a context */
+        private readonly ?Closure $mailboxes = null,
         private readonly ?Vault $vault = null,
         private readonly ?ProjectLinkRepository $links = null,
         private readonly ?ProjectPolicies $rights = null,
@@ -92,7 +92,7 @@ final class ProjectArchive {
                 'hook_filter' => $j->hookFilter, 'model_role' => $j->modelRole, 'watch_url' => $j->watchUrl,
             ], $this->jobs->ofProjects([$project->id])),
             'subscriptions' => array_values(array_filter(array_map(fn(int $id): ?string => $this->principals->find($id)?->displayName, $this->links?->subscribers($project->id) ?? []))),
-            'mailboxes' => array_map(static fn(\OpenCCK\Domain\Mail\Mailbox $m): string => $m->name, $this->mailboxes?->ofProject($project->id) ?? []),
+            'mailboxes' => $this->mailboxes === null ? [] : ($this->mailboxes)('project:' . $project->id),
             'secrets' => array_map(static fn(array $s): array => ['name' => $s['name'], 'site' => $s['site']], $this->vault?->projectNames($project->id) ?? []),
         ];
         $owner = $project->ownerId ?? $this->principals->owner()?->id;

@@ -18,7 +18,7 @@ final class ModuleReportTest extends TestCase {
 
         self::assertStringContainsString('- browser: ' . t('self.modules.up'), $text);
         self::assertStringContainsString('- media-docs: ' . t('self.modules.down'), $text);
-        self::assertStringContainsString('- mail: ' . sprintf(t('self.modules.off'), 'mail', 'MAIL_MCP_TOKEN'), $text, 'the mail module exists though it is off');
+        self::assertStringNotContainsString('- mail:', $text, 'mail is an MCP, not a module of compose');
         self::assertStringContainsString('COMPOSE_PROFILES', $text);
         self::assertStringContainsString('- media-video: ', $text);
         self::assertStringContainsString('- telegram-api: ' . sprintf(t('self.modules.off'), 'telegram-api', 'TELEGRAM_API_URL'), $text, 'the local Bot API is a module too');

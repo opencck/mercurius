@@ -113,6 +113,11 @@ final class ToolRegistry {
         }
     }
 
+    /** A tool of a context of MCP connections, whatever the context of the run: the mail tools of the core call a mailbox's. */
+    public function inContext(string $context, string $name): ?Tool {
+        return $this->scoped[$context][$name] ?? null;
+    }
+
     /** A common tool, else a tool of the run's context of MCP connections. */
     public function get(string $name, ?ParticipantPolicy $policy = null): ?Tool {
         $context = $policy?->mcpContext;

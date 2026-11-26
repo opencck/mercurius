@@ -99,6 +99,8 @@ final class McpSshHooksTest extends AsyncTestCase {
         self::assertSame(['member:1|base run'], $wrapped->getArrayCopy());
         $policy = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), null, true))->withMcpContext('member:1', open: true);
         self::assertNotNull($this->registry->get('mcp_base_run', $policy));
+        self::assertNotNull($this->registry->inContext('member:1', 'mcp_base_run'), 'found by its context whatever the run');
+        self::assertNull($this->registry->inContext('member:2', 'mcp_base_run'));
     }
 
     public function testACallOfAnEntryThatIsNotOnIsRefused(): void {

@@ -72,29 +72,6 @@ services:
     networks:
       - internal
 
-  # The built-in mail server (MCP, module mercurius-mail-mcp in mcp/mail, COMPOSE_PROFILES=mail, MAIL_MCP_TOKEN): IMAP and
-  # SMTP of the mailboxes the participants connected. It keeps no credentials: the app sends the mailbox of a call in headers.
-  # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы
-  mail-mcp:
-    profiles: ["mail"]
-    build:
-      context: mcp/mail
-    image: mercurius-mail-mcp:${APP_VERSION:-dev}
-    restart: unless-stopped
-    environment:
-      MAIL_MCP_TOKEN: ${MAIL_MCP_TOKEN:-}
-    mem_limit: 256m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - internal
-
   # Optional module media-video (COMPOSE_PROFILES=media-video, MEDIA_VIDEO_TOKEN): ffmpeg behind a small API, the frames
   # and the sound of a video for the media tool when no video model is set. Its own repository, a submodule.
   # spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы

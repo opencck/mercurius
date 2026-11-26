@@ -116,6 +116,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository|null $sshKeys
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
  * @var OpenCCK\App\Server\SshEntries $sshEntries
+ * @var Closure(string): list<string> $mailboxNames
  * @var OpenCCK\Infrastructure\Repository\PostgresSshHostKeyRepository $sshHostKeys
  * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var OpenCCK\App\Skill\SkillImporter $skillImporter
@@ -414,7 +415,7 @@ $serverCommands->useInheritance($secretInheritance);
 $banList = new \OpenCCK\App\Agent\BanList($approvalStore, $principals, $channel, $logger, $projectRepository);
 $chat->useBans($banList);
 // spec: brief/participants.md#обзор-владельца
-$chat->useOverview(new \OpenCCK\App\Service\OwnerOverview($principals, $projectRepository, $jobRepository, $policies, $approvalStore, $jobScheduler, $vault, new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db), $placeStreams, $projectPolicies));
+$chat->useOverview(new \OpenCCK\App\Service\OwnerOverview($principals, $projectRepository, $jobRepository, $policies, $approvalStore, $jobScheduler, $vault, $mailboxNames, $placeStreams, $projectPolicies));
 $chat->useStreams(new \OpenCCK\App\Peer\StreamCommands($placeStreams, $principals, $logger, $projectRepository));
 // spec: brief/participants.md#экспорт-и-импорт-проекта — a project moves to another instance as a sealed file
 // spec: brief/servers.md#ключи-ssh-в-песочнице — one's own key file goes into ~/.ssh past the model
@@ -435,7 +436,7 @@ $chat->useProjectArchives(new \OpenCCK\App\Export\ProjectArchiveCommands(
             $principal = $principals->find($id);
             return $principal === null ? null : $policies->forPrincipal($principal)->sandbox;
         },
-        new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db),
+        $mailboxNames,
         $vault,
         $projectLinks,
         $projectPolicies,

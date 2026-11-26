@@ -22,7 +22,6 @@ final class ModuleReport {
         'media-docs' => 'MEDIA_DOCS_TOKEN',
         // spec: brief/models.md#claude-по-подписке — Claude by the owner's subscription
         'claude-code' => 'CLAUDE_CODE_TOKEN',
-        'mail' => 'MAIL_MCP_TOKEN',
         // spec: brief/internet.md#модуль-whisper-без-настройки — speech recognition on this host
         'whisper' => 'WHISPER_TOKEN',
         // spec: brief/channels.md#здоровье-локального-сервера-bot-api — up while the bot answers through it

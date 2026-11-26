@@ -59,8 +59,26 @@ final class SshMcpTest extends TestCase {
         self::assertIsResource($process);
         fwrite($pipes[0], implode("\n", $lines) . "\n");
         fclose($pipes[0]);
-        $out = (string) stream_get_contents($pipes[1]);
-        $err = (string) stream_get_contents($pipes[2]);
+        // the process ends when its stdin does: one that does not in a minute is a failure, not a hung suite
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        [$out, $err] = ['', ''];
+        $deadline = microtime(true) + 60.0;
+        while (true) {
+            $read = [$pipes[1], $pipes[2]];
+            [$write, $except] = [null, null];
+            if (@stream_select($read, $write, $except, 1) > 0) {
+                $out .= (string) stream_get_contents($pipes[1]);
+                $err .= (string) stream_get_contents($pipes[2]);
+            }
+            if (feof($pipes[1]) && feof($pipes[2])) {
+                break;
+            }
+            if (microtime(true) > $deadline) {
+                proc_terminate($process, 9);
+                self::fail('the MCP process did not end after its stdin did');
+            }
+        }
         fclose($pipes[1]);
         fclose($pipes[2]);
         proc_close($process);

@@ -115,12 +115,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
         }
         return \Mercurius\I18n\t('self.tools') . "\n" . implode("\n", $lines);
     },
-    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules, $tools, $sleepModels, $settingsService, $sleepAuto, $mediaSettings): string {
+    'modules' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($serviceModules, $sleepModels, $settingsService, $sleepAuto, $mediaSettings): string {
         $states = $serviceModules->states();
-        // the mail module is an MCP server: it is set up when its token is, and up while its tools are registered
-        if (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null) {
-            $states['mail'] = $tools->get('mcp_mail_mail_list') !== null;
-        }
         $speech = $mediaSettings->localSpeech();
         return \Mercurius\I18n\t('self.modules') . "\n" . implode("\n", \OpenCCK\App\Service\ModuleReport::lines($states))
             // spec: brief/internet.md#модуль-whisper-без-настройки — what the running module gives, said at the call
@@ -163,10 +159,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     // the tools are there and whether the one who asks may use them is counted at the call
     'mail' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.mail') . "\n\n" . sprintf(
         \Mercurius\I18n\t('self.mail.now'),
-        $tools->get('mcp_mail_mail_list') !== null
-            ? \Mercurius\I18n\t('self.modules.up')
-            : (\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN') !== null ? \Mercurius\I18n\t('self.modules.down') : sprintf(\Mercurius\I18n\t('self.modules.off'), 'mail', 'MAIL_MCP_TOKEN')),
-        \OpenCCK\App\Mail\Mailboxes::may($c->principal) ? \Mercurius\I18n\t('self.mail.power_yes') : \Mercurius\I18n\t('self.mail.power_no'),
+        $tools->get('mcp_mail_mail_list') !== null ? \Mercurius\I18n\t('self.mail.installed') : \Mercurius\I18n\t('self.mail.not_installed'),
+        $c->principal->role->may(\OpenCCK\Domain\Entity\Permission::Mail) ? \Mercurius\I18n\t('self.mail.power_yes') : \Mercurius\I18n\t('self.mail.power_no'),
     ),
     // spec: brief/memory.md#словари — where memory keeps what, and the owner's table of words as it is now
     'memory' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \Mercurius\I18n\t('self.memory') . "\n\n"

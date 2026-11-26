@@ -260,7 +260,6 @@ final class Doctor {
             'media-docs' => ['MEDIA_DOCS_TOKEN', Env::raw($this->env, 'MEDIA_DOCS_URL') ?? 'http://media-docs:8092'],
             // spec: brief/models.md#claude-по-подписке — healthy is the CLI found and new enough; the sign-in and the route are said
             'claude-code' => ['CLAUDE_CODE_TOKEN', Env::raw($this->env, 'CLAUDE_CODE_URL') ?? 'http://claude-code:8094'],
-            'mail-mcp' => ['MAIL_MCP_TOKEN', preg_replace('~/mcp$~', '', Env::raw($this->env, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090') ?? 'http://mail-mcp:8090'],
         ] as $name => [$token, $url]) {
             if (Env::raw($this->env, $token) === null) {
                 $out[] = [self::WARN, $name, $token . t('service.doctor.pust_vyklyuchen')];

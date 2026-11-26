@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Servers over SSH with the command policy, skills, MCP servers and the built-in mail.
+ * Servers over SSH with the command policy, skills, MCP servers and mail, the last two as entries of .mcp.json.
  *
  * A part of the start of the agent: bootstrap/index.php includes the parts in order, in one scope. A part reads what the parts
  * before it made and leaves what it makes to the parts after it.
@@ -233,11 +233,38 @@ $mcpManager->useSecrets($mcpSecrets);
 // spec: brief/servers.md#ssh-как-предустановленный-mcp — an SSH entry of our MCP starts with the host keys the owner
 //       trusted, and its tools go to the model through the wrapper of the core
 $sshClassifier = new SshCommandClassifier($sshNeverOff);
+// spec: brief/skills-mcp.md#ящики-участников-и-проектов — a mailbox is an entry of our mail MCP: its tools go through the
+//       wrapper of the core (no internal host, the keeper decides a send), and the mail tools of the core find the mailbox
+$mailEntries = new \OpenCCK\App\Mail\MailEntries(new PostgresMcpServerRepository($db), static fn(string $install): ?string => $mcpInstalls->find($install)?->source);
+$mailboxNames = static fn(string $context): array => array_map(static fn(\OpenCCK\App\Mail\MailTarget $box): string => $box->name, $mailEntries->of($context));
+$mailKeeper = static function (string $context) use ($principals, $skillProjects, $ownerDirectory): ?Member {
+    if (preg_match('~^project:(\d+)$~', $context, $m) === 1) {
+        $owner = $skillProjects->find((int) $m[1])?->ownerId;
+        return $owner === null ? $ownerDirectory->principal() : $principals->find($owner);
+    }
+    return preg_match('~^member:(\d+)$~', $context, $m) === 1 ? $principals->find((int) $m[1]) : $ownerDirectory->principal();
+};
+// the mailbox of a project is for those who may write in it; elsewhere a chat has no project's mailbox
+$mailContextOf = static function (int $conversationId, Member $who) use ($skillProjectOf, $skillProjects): ?string {
+    $project = $skillProjectOf($conversationId, null, $who);
+    return $project !== null && $project->levelOf($who, $skillProjects->memberLevel($project->id, $who->id))?->atLeast(\OpenCCK\Domain\Project\ProjectLevel::Write) === true ? 'project:' . $project->id : null;
+};
 $mcpManager->useSsh(
     $sshEntries->keyArgs(...),
-    static function (\OpenCCK\Domain\Mcp\McpServer $server, \OpenCCK\App\Mcp\McpTool $tool, string $remote) use ($sshEntries, $serverConsole, $sshClassifier): \OpenCCK\App\Agent\Tool\Tool {
+    static function (\OpenCCK\Domain\Mcp\McpServer $server, \OpenCCK\App\Mcp\McpTool $tool, string $remote) use ($sshEntries, $serverConsole, $sshClassifier, $mailEntries, $addressGuard, $mailKeeper, $mailContextOf, $tools): \OpenCCK\App\Agent\Tool\Tool {
         $target = $sshEntries->target($server);
-        return $target === null ? $tool : new \OpenCCK\App\Server\SshEntryTool($tool, $remote, $target, $serverConsole, $sshClassifier);
+        if ($target !== null) {
+            return new \OpenCCK\App\Server\SshEntryTool($tool, $remote, $target, $serverConsole, $sshClassifier);
+        }
+        $box = $mailEntries->target($server);
+        if ($box === null) {
+            return $tool;
+        }
+        // the first mailbox brings the mail tools of the core, with the schema its server gives
+        if ($tools->get('mcp_mail_' . $remote) === null) {
+            $tools->register(new \OpenCCK\App\Mail\MailTool($remote, $tool->definition(), $mailEntries, $mailContextOf, static fn(string $context, string $name): ?\OpenCCK\App\Agent\Tool\Tool => $tools->inContext($context, $name)));
+        }
+        return new \OpenCCK\App\Mail\MailEntryTool($tool, $remote, $box, $addressGuard, $mailKeeper);
     },
 );
 // spec: brief/skills-mcp.md#подстановка-секретов — a request to a site takes the same wider layers
@@ -416,35 +443,3 @@ if ($sandbox !== null) {
     \Amp\async($mcpManager->tick(...))->ignore();
 }));
 $tools->register(new \OpenCCK\App\Agent\Tool\Skills\McpResourcesTool($mcpManager));
-// spec: brief/skills-mcp.md#ящики-участников-и-проектов — the built-in mail server keeps no mailbox: each call brings the
-// mailbox of the caller in its headers, the password comes from the vault at that moment
-$mailToken = \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_TOKEN');
-if ($mailToken !== null) {
-    $mailServer = new \OpenCCK\Domain\Mcp\McpServer(0, 'mail', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'MAIL_MCP_URL') ?? 'http://mail-mcp:8090/mcp', null, \OpenCCK\Domain\Mcp\McpServer::ACTIVE, null, 'встроенный');
-    $mailboxes = new \OpenCCK\App\Mail\Mailboxes(
-        new \OpenCCK\Infrastructure\Repository\PostgresMailboxRepository($db),
-        $vault,
-        $principals,
-        $addressGuard,
-        static fn(int $conversationId, Member $who): ?\OpenCCK\Domain\Project\Project => $skillProjectOf($conversationId, null, $who),
-        static fn(\OpenCCK\Domain\Project\Project $project, Member $who): ?\OpenCCK\Domain\Project\ProjectLevel => $project->levelOf($who, $skillProjects->memberLevel($project->id, $who->id)),
-    );
-    $tools->register(new \OpenCCK\App\Mail\MailboxTool(
-        $mailboxes,
-        static fn(string $name, Member $who): ?\OpenCCK\Domain\Project\Project => $skillProjects->byName($name, \OpenCCK\Domain\Project\Project::scopeOf($who)),
-        /** @param array<non-empty-string, string> $account */
-        static function (#[\SensitiveParameter] array $account, \Amp\Cancellation $cancellation) use ($mcpClient, $mailServer, $mailToken): ?string {
-            try {
-                [$text, $failed] = $mcpClient->call($mailServer->withHeaders($account), $mailToken, 'mail_folders', [], $cancellation);
-                return $failed ? mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($text), 0, 300) : null;
-            } catch (\RuntimeException $e) {
-                return mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($e->getMessage()), 0, 300);
-            }
-        },
-    ));
-    \Revolt\EventLoop::defer(static fn() => $mcpManager->connectBuiltin(
-        $mailServer,
-        $mailToken,
-        static fn(\OpenCCK\App\Mcp\McpTool $tool, string $remoteName): \OpenCCK\App\Agent\Tool\Tool => new \OpenCCK\App\Mail\MailTool($tool, $remoteName, $mailboxes),
-    ));
-}

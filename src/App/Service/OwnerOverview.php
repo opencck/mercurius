@@ -11,7 +11,6 @@ use OpenCCK\Domain\Job\Job;
 use OpenCCK\Domain\Project\Project;
 use OpenCCK\Domain\Repository\ApprovalRepository;
 use OpenCCK\Domain\Repository\JobRepository;
-use OpenCCK\Domain\Repository\MailboxRepository;
 use OpenCCK\Domain\Repository\PlaceStreamRepository;
 use OpenCCK\Domain\Repository\MemberRepository;
 use OpenCCK\Domain\Repository\ProjectRepository;
@@ -35,7 +34,8 @@ final class OwnerOverview {
         private readonly ApprovalRepository $approvals,
         private readonly JobScheduler $scheduler,
         private readonly ?Vault $vault = null,
-        private readonly ?MailboxRepository $mailboxes = null,
+        /** @var (\Closure(string): list<string>)|null the names of the mailboxes of a context */
+        private readonly ?\Closure $mailboxes = null,
         private readonly ?PlaceStreamRepository $streams = null,
         private readonly ?ProjectPolicies $rights = null,
     ) {}
@@ -71,7 +71,7 @@ final class OwnerOverview {
         foreach ($own as $project) {
             $projectJobs = $this->jobs->ofProjects([$project->id]);
             $secrets = array_map(static fn(array $s): string => $s['name'] . '→' . $s['site'], $this->vault?->projectNames($project->id) ?? []);
-            $mail = array_map(static fn(\OpenCCK\Domain\Mail\Mailbox $m): string => $m->name, $this->mailboxes?->ofProject($project->id) ?? []);
+            $mail = $this->mailboxes === null ? [] : ($this->mailboxes)('project:' . $project->id);
             $parts[] = sprintf(t('overview.project'), $project->name, $project->id, $this->rights === null ? '—' : $this->rights->describe($project))
                 . "\n  " . t('overview.jobs') . ($projectJobs === [] ? ' —' : "\n" . implode("\n", array_map(fn(Job $j): string => '    ' . \OpenCCK\App\Agent\Tool\Projects\JobManageTool::line($j, $this->scheduler), $projectJobs)))
                 . "\n  " . sprintf(t('overview.project_rest'), $secrets === [] ? '—' : implode(', ', $secrets), $mail === [] ? '—' : implode(', ', $mail), count(array_filter($this->approvals->bans(), static fn(\OpenCCK\Domain\Agent\Ban $b): bool => $b->area === 'project:' . $project->id)));
@@ -79,7 +79,7 @@ final class OwnerOverview {
         $grants = $this->approvals->grants($who->id);
         $bans = array_filter($this->approvals->bans(), static fn(\OpenCCK\Domain\Agent\Ban $b): bool => $b->principalId === $who->id);
         $secrets = array_column($this->vault?->names($who) ?? [], 'name');
-        $mail = array_map(static fn(\OpenCCK\Domain\Mail\Mailbox $m): string => $m->name, $this->mailboxes?->of($who->id) ?? []);
+        $mail = $this->mailboxes === null ? [] : ($this->mailboxes)('member:' . $who->id);
         $streams = array_map(static fn(\OpenCCK\Domain\Peer\PlaceStream $s): string => $s->title . ($s->subscribed ? ' ✓' : ''), $this->streams?->of($who->id) ?? []);
         $parts[] = sprintf(
             t('overview.rest'),
