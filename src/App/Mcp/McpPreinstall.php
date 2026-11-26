@@ -46,6 +46,8 @@ final class McpPreinstall {
         private readonly ?Closure $tell = null,
         /** the file a restore leaves: the installs came back without their dependencies; null — none looked for */
         private readonly ?string $restoredFlag = null,
+        /** @var (Closure(): bool)|null whether the base is new — no conversation yet; null — taken as new */
+        private readonly ?Closure $fresh = null,
     ) {}
 
     /**
@@ -92,7 +94,8 @@ final class McpPreinstall {
             $this->logger->info('No MCP of the delivery was installed', ['bundles' => count($bundles), 'owner' => $owner !== null]);
             return true;
         }
-        $clean = $this->installs->all() === [] && !($this->hasEntries)('member:' . $owner->id);
+        // a clean install is a new base: an instance in use that merely had no MCP is not one
+        $clean = $this->installs->all() === [] && !($this->hasEntries)('member:' . $owner->id) && ($this->fresh === null || ($this->fresh)());
         // spec: brief/skills-mcp.md#установка-и-обновление — other environments in the image: the dependencies are built again
         $environment = $this->environment();
         foreach ($environment === null ? [] : $this->installer->rebuildChanged($environment) as [$by, $name, $failed]) {

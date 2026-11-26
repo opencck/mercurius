@@ -151,6 +151,29 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertStringContainsString('SSH_PASSWORD', $server->note);
     }
 
+    public function testAWaitingEntryGetsOneCardEvenAcrossARestart(): void {
+        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — each entry that waits gets one card
+        $this->sandbox->files[1]['.mcp.json'] = json_encode(['mcpServers' => ['docs' => ['url' => 'https://docs.example.com/mcp']]], JSON_THROW_ON_ERROR);
+        $this->files->sync('member:1');
+        self::assertSame(['member:1|docs'], $this->told);
+
+        $restarted = new McpFiles(
+            $this->sandbox,
+            static fn(int $id): SandboxLimits => new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4),
+            $this->servers,
+            $this->manager,
+            new McpEntryGuard(),
+            static fn(int $project): ?int => null,
+            function (string $context, McpEntry $entry): void {
+                $this->told[] = 'again ' . $context . '|' . $entry->name;
+            },
+            new NullLogger(),
+        );
+        $restarted->sync('member:1');
+
+        self::assertSame(['member:1|docs'], $this->told, 'the card was sent before the restart: not again');
+    }
+
     public function testAnEntryApprovedWithoutItsSecretStaysApprovedAndAnotherPressChangesNothing(): void {
         // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a missing secret is an error with its name, not a
         //       refusal: a press on a card does not take the approval back and send new cards

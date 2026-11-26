@@ -404,6 +404,8 @@ if ($sandbox !== null) {
             }
         },
         PATH_ROOT . '/storage/' . \OpenCCK\App\Export\AgentImport::RESTORED_FLAG,
+        // a clean install is a new base: no conversation yet
+        static fn(): bool => ($db->query('SELECT NOT EXISTS (SELECT 1 FROM conversations) AS fresh')->fetchRow()['fresh'] ?? false) === true,
     );
     $preinstall =static function (int $left) use ($mcpPreinstall, $logger, &$preinstall): void {
         try {

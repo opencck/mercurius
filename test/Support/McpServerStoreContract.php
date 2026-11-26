@@ -28,6 +28,17 @@ abstract class McpServerStoreContract extends TestCase {
         $store->add('project:1', 'docs', 'https://c.example/mcp', null);
     }
 
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — which entry its card was sent for is kept */
+    public function testTheEntryAskedForIsKept(): void {
+        $store = $this->store();
+        $store->add('member:3', 'asked_docs', 'https://a.example/mcp', null);
+
+        self::assertNull($store->asked('member:3', 'asked_docs'));
+        $store->setAsked('member:3', 'asked_docs', 'abc123');
+        self::assertSame('abc123', $store->asked('member:3', 'asked_docs'));
+        $store->remove('member:3', 'asked_docs');
+    }
+
     public function testTheStateIsKeptWithItsReasonAndNextTry(): void {
         $store = $this->store();
         $added = $store->add('member:7', 'docs', 'https://a.example/mcp', null);

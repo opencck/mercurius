@@ -66,6 +66,19 @@ final class InMemoryMcpServerRepository implements McpServerRepository {
         return $this->servers[$context . '|' . $name] = new McpServer($s->id, $s->name, $s->url, $s->secret, $s->status, $s->toolsHash, $s->note, include: $s->include, exclude: $s->exclude, context: $s->context, nextTry: $s->nextTry, approvedHash: $s->approvedHash, entry: $entry);
     }
 
+    /** @var array<string, string> */
+    private array $asked = [];
+
+    public function asked(string $context, string $name): ?string {
+        return isset($this->servers[$context . '|' . $name]) ? ($this->asked[$context . '|' . $name] ?? null) : null;
+    }
+
+    public function setAsked(string $context, string $name, string $entryHash): void {
+        if (isset($this->servers[$context . '|' . $name])) {
+            $this->asked[$context . '|' . $name] = $entryHash;
+        }
+    }
+
     public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer {
         $s = $this->servers[$context . '|' . $name] ?? null;
         if ($s === null) {

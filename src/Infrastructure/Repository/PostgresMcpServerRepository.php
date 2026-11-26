@@ -79,6 +79,15 @@ final class PostgresMcpServerRepository implements McpServerRepository {
         return $row === null ? null : self::server($row);
     }
 
+    public function asked(string $context, string $name): ?string {
+        $value = $this->db->execute('SELECT asked_hash FROM mcp_connections WHERE context = ? AND name = ?', [$context, $name])->fetchRow()['asked_hash'] ?? null;
+        return is_string($value) ? $value : null;
+    }
+
+    public function setAsked(string $context, string $name, string $entryHash): void {
+        $this->db->execute('UPDATE mcp_connections SET asked_hash = ? WHERE context = ? AND name = ?', [$entryHash, $context, $name]);
+    }
+
     public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer {
         $row = $this->db->execute(
             'UPDATE mcp_connections SET entry_hash = ?, approved_by = ?, approved_at = CASE WHEN ?::text IS NULL THEN NULL ELSE now() END, entry = ?::jsonb

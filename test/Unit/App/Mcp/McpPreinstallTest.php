@@ -264,6 +264,16 @@ final class McpPreinstallTest extends AsyncTestCase {
         self::assertSame(McpInstall::RESTORED, $this->installs->environment('weather'));
     }
 
+    public function testAnInstanceWithConversationsIsNotACleanInstall(): void {
+        $this->sandbox->outcomes = [new CommandOutcome(0, $this->index(), '', false, false, 1)];
+        $preinstall = new McpPreinstall($this->installer(), $this->installs, $this->sandbox, fn(): Member => $this->owner, static fn(string $context): bool => false, new NullLogger(), fresh: static fn(): bool => false);
+
+        $preinstall->run();
+
+        self::assertSame([], $this->persisted, 'no MCP installed before, but the agent was in use: no samples');
+        self::assertNotNull($this->installs->find('ssh')?->revision);
+    }
+
     public function testAnInstanceInUseGetsNoSamples(): void {
         $this->preinstall(true)->run();
         self::assertSame([], $this->persisted, 'the owner keeps entries');

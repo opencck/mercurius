@@ -295,10 +295,12 @@ final class McpFiles {
     private function tellAbout(string $context, array $waiting): void {
         foreach ($waiting as $name => $entry) {
             $key = $context . '|' . $name . '|' . $entry->hash();
-            if (isset($this->told[$key])) {
+            // a card sent before a restart is not sent again: the base keeps which entry it was for
+            if (isset($this->told[$key]) || $this->servers->asked($context, $name) === $entry->hash()) {
                 continue;
             }
             $this->told[$key] = true;
+            $this->servers->setAsked($context, $name, $entry->hash());
             try {
                 ($this->tell)($context, $entry);
             } catch (Throwable $e) {

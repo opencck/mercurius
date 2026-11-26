@@ -49,6 +49,15 @@ interface McpServerRepository {
     /** @param array<array-key, mixed>|null $entry the approved entry itself, kept to call the server by it */
     public function setApproval(string $context, string $name, ?string $entryHash, ?int $by, ?array $entry = null): ?McpServer;
 
+    /**
+     * The hash of the entry its card was sent for: a restart does not send it again.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
+     */
+    public function asked(string $context, string $name): ?string;
+
+    public function setAsked(string $context, string $name, string $entryHash): void;
+
     /** @param string|null $include null — every tool; '' — none */
     public function setFilter(string $context, string $name, ?string $include, string $exclude): ?McpServer;
 
