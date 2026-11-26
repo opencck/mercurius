@@ -24,6 +24,13 @@ use function Mercurius\I18n\t;
  */
 final class ExecutorServer implements RequestHandler {
     /** folders the archive of the working folders leaves out, by name at any depth */
+    /**
+     * the libraries of an installed MCP (its home is p8xxxxx, installs start at 800000): PHP's vendor too, which a
+     * participant's own project keeps; the next start builds them again
+     *
+     * spec: brief/operations.md#экспорт-и-импорт-агента
+     */
+    public const ARCHIVE_SKIPPED_MCP = ['./p8?????/releases/*/vendor'];
     private const ARCHIVE_SKIPPED = ['node_modules', '__pycache__', '.venv', 'venv', 'site-packages', '.cache', '.npm', '.tox', '.nox', '.pytest_cache', '.mypy_cache', '.ruff_cache'];
 
     /** a file of 25 MB in base64 with its JSON: files the agent receives and sends go through here */
@@ -87,7 +94,7 @@ final class ExecutorServer implements RequestHandler {
      * spec: brief/operations.md#экспорт-и-импорт-агента — the working folders go into the archive through the executor
      */
     private function archive(): Response {
-        $excluded = array_map(static fn(string $name): string => '--exclude=' . $name, self::ARCHIVE_SKIPPED);
+        $excluded = array_map(static fn(string $name): string => '--exclude=' . $name, [...self::ARCHIVE_SKIPPED, ...self::ARCHIVE_SKIPPED_MCP]);
         $process = \Amp\Process\Process::start(['tar', '--numeric-owner', ...$excluded, '-czf', '-', '-C', $this->workspace->root, '.']);
         \Amp\async(static function () use ($process): void {
             \Amp\ByteStream\buffer($process->getStderr());

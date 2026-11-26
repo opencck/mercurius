@@ -81,7 +81,7 @@ final class McpInstaller {
         if ($install !== null && !$bundle->sameSource($install->source)) {
             return 'the name is taken by ' . $install->source;
         }
-        if ($install !== null && $install->revision === $bundle->revision) {
+        if ($install !== null && $install->revision === $bundle->revision && $this->installs->environment($bundle->name) !== McpInstall::RESTORED) {
             return 'at ' . $bundle->revision;
         }
         $install ??= $this->installs->add($bundle->name, $bundle->source, $owner->id);
@@ -115,6 +115,8 @@ final class McpInstaller {
         $this->installs->setRevision($bundle->name, $revision, self::setHash($tools), $classes, $entry->toArray());
         $this->installs->setSteps($bundle->name, []);
         $this->installs->setLatest($bundle->name, null);
+        // the dependencies of a bundle come with the image: its print is the revision
+        $this->installs->setEnvironment($bundle->name, $revision);
         if ($sample !== null) {
             try {
                 $own = McpEntry::fromArray($sample['name'], ['command' => $entry->command, 'args' => [...$entry->args, ...$sample['args']], 'env' => $sample['env']]);

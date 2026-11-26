@@ -88,6 +88,7 @@ final class AgentImportTest extends AsyncTestCase {
         self::assertSame('WS', file_get_contents($applied['dir'] . '/workspace.tar.gz'), 'the working folders wait for the executor');
         self::assertFileDoesNotExist($applied['dir'] . '/db.dump');
         self::assertSame('a2V5', AgentImport::secretsKey($this->storage));
+        self::assertFileExists($this->storage . '/' . AgentImport::RESTORED_FLAG, 'the next start builds the dependencies of the MCPs again');
         $programs = array_map(static fn(array $c): string => $c[0], self::commands());
         self::assertSame(['tar', 'psql', 'pg_restore', 'tar'], $programs);
         self::assertContains('DROP SCHEMA public CASCADE; CREATE SCHEMA public;', self::commands()[1]);

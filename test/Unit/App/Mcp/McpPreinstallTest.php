@@ -15,6 +15,7 @@ use OpenCCK\App\Mcp\McpSources;
 use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Entity\MemberKind;
 use OpenCCK\Domain\Entity\Role;
+use OpenCCK\Domain\Mcp\McpInstall;
 use OpenCCK\Domain\Mcp\McpServer;
 use OpenCCK\Test\Support\FakeSandbox;
 use OpenCCK\Test\Support\InMemoryMcpInstallRepository;
@@ -60,6 +61,10 @@ final class McpPreinstallTest extends AsyncTestCase {
         );
         $installer->useBundled(['ssh', 'mail']);
         return $installer;
+    }
+
+    private function copied(): bool {
+        return array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'cp -R')) !== [];
     }
 
     private static function bundle(string $revision = '0a1b2c3d4e5f'): McpBundle {
@@ -153,6 +158,29 @@ final class McpPreinstallTest extends AsyncTestCase {
         self::assertSame([], $installer->rebuildChanged('node v22|py 3.11'), 'built once for the new environments');
     }
 
+    public function testARestoredAgentGetsItsDependenciesAgain(): void {
+        // spec: brief/operations.md#экспорт-и-импорт-агента — copies carry the code without dependencies: a restore marks
+        //       the installs, the next start copies the bundles from the image and builds the rest by their steps
+        $installer = $this->installer();
+        $installer->preinstall($this->owner, self::bundle(), null);
+        $this->installs->add('weather', 'https://github.com/x/weather', 7);
+        $this->installs->setRevision('weather', '0123456789ab', 'h', [], ['command' => 'node']);
+        $this->installs->setSteps('weather', ['npm ci']);
+        $installer->rebuildChanged('env-1');
+        $this->sandbox->calls = [];
+        $this->installs->setEnvironment('ssh', McpInstall::RESTORED);
+        $this->installs->setEnvironment('weather', McpInstall::RESTORED);
+
+        $installer->preinstall($this->owner, self::bundle(), null);
+        $rebuilt = $installer->rebuildChanged('env-1');
+
+        self::assertTrue($this->copied(), 'the bundle is copied again');
+        self::assertSame([[7, 'weather', null]], $rebuilt);
+        $this->sandbox->calls = [];
+        $installer->preinstall($this->owner, self::bundle(), null);
+        self::assertSame([], $this->sandbox->calls, 'once');
+    }
+
     public function testABuildOfTheRevisionInUseIsAskedForByName(): void {
         $installer = $this->installer();
         $this->installs->add('weather', 'https://github.com/x/weather', 1);
@@ -194,6 +222,19 @@ final class McpPreinstallTest extends AsyncTestCase {
         self::assertSame(['ssh', 'mailbox'], array_map(static fn(array $p): mixed => $p[1]['name'], $this->persisted));
         self::assertSame(['MAIL_PASSWORD' => '{MAIL_PASSWORD}'], $this->persisted[1][1]['env'] ?? null);
         self::assertNotNull($this->installs->find('mail')?->revision);
+    }
+
+    public function testTheFlagOfARestoreMarksEveryInstallOnce(): void {
+        $flag = sys_get_temp_dir() . '/mcp-restored-' . bin2hex(random_bytes(4));
+        touch($flag);
+        $this->installs->add('weather', 'https://github.com/x/weather', 1);
+        $this->sandbox->outcomes = [new CommandOutcome(0, $this->index(), '', false, false, 1)];
+        $preinstall = new McpPreinstall($this->installer(), $this->installs, $this->sandbox, fn(): Member => $this->owner, static fn(string $context): bool => true, new NullLogger(), restoredFlag: $flag);
+
+        $preinstall->run();
+
+        self::assertFileDoesNotExist($flag);
+        self::assertSame(McpInstall::RESTORED, $this->installs->environment('weather'));
     }
 
     public function testAnInstanceInUseGetsNoSamples(): void {

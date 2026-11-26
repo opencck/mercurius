@@ -15,6 +15,11 @@ final class McpInstall {
     public const HOLDER_BASE = 800_000;
     /** the name of the install is the name of its entry in .mcp.json */
     public const NAME_PATTERN = McpServer::NAME_PATTERN;
+    /**
+     * the environments of an install restored from a copy: copies carry no dependencies, so the next start builds them
+     * again (a bundle is copied from the image again)
+     */
+    public const RESTORED = 'restored';
 
     /**
      * @param array<string, string> $classes tool => read|write|irreversible, as the approver set them

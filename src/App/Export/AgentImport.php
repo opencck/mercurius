@@ -22,6 +22,9 @@ use function Mercurius\I18n\t;
  *      .env not changed; the vault key is the one exception, without it the secrets of the dump cannot be read
  */
 final class AgentImport {
+    /** in the data of the application: installs restored from a copy, their dependencies to be built at the next start */
+    public const RESTORED_FLAG = 'mcp-restored';
+
     public const KEY_FILE = '.vault-key';
     private const REQUIRED = ['db.dump', 'app.tar.gz', 'env', 'commit'];
 
@@ -106,6 +109,9 @@ final class AgentImport {
             ($this->run)(array_merge(['pg_restore'], $connection, ['--no-owner', '--exit-on-error', $pending . '/db.dump']), $env);
             // app/... of the export; its exports and imports stay as they are here
             ($this->run)(['tar', '-xzf', $pending . '/app.tar.gz', '--strip-components=1', '--exclude=app/import', '--exclude=app/exports', '-C', $this->storage], []);
+            // spec: brief/operations.md#экспорт-и-импорт-агента — the archive has no dependencies of the installed MCPs:
+            //       the next start builds them again
+            touch($this->storage . '/' . self::RESTORED_FLAG);
             $key = self::variable((string) file_get_contents($pending . '/env'), 'SECRETS_KEY');
             if ($key !== null && $key !== '') {
                 file_put_contents($this->storage . '/' . self::KEY_FILE, $key);

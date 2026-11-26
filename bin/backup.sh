@@ -36,7 +36,11 @@ docker compose exec -T postgres pg_dump -U "$USER" -d "$DB" -Fc > "$DIR/db.dump"
 docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/app:/a:ro" app \
     -czf - --exclude=./exports --exclude=./import --transform 's,^\.,app,' -C /a . > "$DIR/app.tar.gz"
 # Рабочие каталоги участников принадлежат пользователям песочницы: читаются из образа приложения от root, только на чтение.
-docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/workspace:/w:ro" app -czf - -C /w . > "$DIR/workspace.tar.gz"
+# Зависимости и кеши (и библиотеки установленных MCP) не копируются: после восстановления они собираются заново —
+# как в архиве агента (spec: brief/operations.md#экспорт-и-импорт-агента).
+docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/workspace:/w:ro" app -czf - \
+    --exclude=node_modules --exclude=__pycache__ --exclude=.venv --exclude=venv --exclude=site-packages --exclude=.cache \
+    --exclude=.npm --exclude='./p8?????/releases/*/vendor' -C /w . > "$DIR/workspace.tar.gz"
 cp .env "$DIR/env"
 git rev-parse HEAD > "$DIR/commit" 2>/dev/null || true
 

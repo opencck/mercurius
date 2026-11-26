@@ -44,6 +44,8 @@ final class McpPreinstall {
         private readonly LoggerInterface $logger,
         /** @var (Closure(int, string): void)|null a word to a member: the installer of an MCP built again */
         private readonly ?Closure $tell = null,
+        /** the file a restore leaves: the installs came back without their dependencies; null — none looked for */
+        private readonly ?string $restoredFlag = null,
     ) {}
 
     /**
@@ -75,6 +77,14 @@ final class McpPreinstall {
         $bundles = $this->bundles();
         if ($bundles === null) {
             return false;
+        }
+        // spec: brief/operations.md#экспорт-и-импорт-агента — copies carry no dependencies: every install is built again
+        if ($this->restoredFlag !== null && is_file($this->restoredFlag)) {
+            foreach ($this->installs->all() as $install) {
+                $this->installs->setEnvironment($install->name, \OpenCCK\Domain\Mcp\McpInstall::RESTORED);
+            }
+            @unlink($this->restoredFlag);
+            $this->logger->info('MCP installs restored from a copy: their dependencies are built again');
         }
         $this->installer->useBundled(array_map(static fn(McpBundle $b): string => $b->name, $bundles));
         $owner = ($this->owner)();

@@ -384,6 +384,7 @@ if ($sandbox !== null) {
                 $channel->send(new \Mercurius\Messenger\OutgoingMessage($chat, $text));
             }
         },
+        PATH_ROOT . '/storage/' . \OpenCCK\App\Export\AgentImport::RESTORED_FLAG,
     );
     $preinstall =static function (int $left) use ($mcpPreinstall, $logger, &$preinstall): void {
         try {

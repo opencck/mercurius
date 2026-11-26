@@ -24,6 +24,8 @@ docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/
 if [ -s "$DIR/workspace.tar.gz" ]; then
     docker compose run --rm --no-deps -T --user 0 --entrypoint tar -v "$PWD/storage/workspace:/w" app -xzf - -C /w < "$DIR/workspace.tar.gz"
 fi
+# Зависимости установленных MCP в копии нет: приложение при старте соберёт их заново.
+docker compose run --rm --no-deps -T --user 0 --entrypoint touch -v "$PWD/storage/app:/a" app /a/mcp-restored
 docker compose start app
 
 echo "restore: восстановлено из $DIR (коммит копии: $(cat "$DIR/commit" 2>/dev/null || echo '?'))"
