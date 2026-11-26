@@ -36,7 +36,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-telegram-bot-api](https://github.com/opencck/mercurius-telegram-bot-api) | [../services/telegram-bot-api/](../services/telegram-bot-api/) | `04eca20` | 2026-11-22 | `telegram-api` | Локальный сервер Bot API из исходников tdlib (файлы до 2000 МБ) |
 | [mercurius-claude-code](https://github.com/opencck/mercurius-claude-code) | [../services/claude-code/](../services/claude-code/) | `db55fe5` | 2026-11-24 | `claude-code` | Claude по подписке владельца: официальный Claude Code как клиент одного вызова модели; пока каркас — здоровье, вход, окружение CLI |
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
-| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `23404ad` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
+| [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `d7826b3` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
 | [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `21729c1` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
 
 ## Как работать с пакетом
@@ -75,6 +75,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-i18n` → `add5be9`: глобальные скиллы агента.
 - `mercurius-i18n` → `f5accf9`: запись MCP агентом (`mcp_manage action=entry`), повторное одобрение.
 - `mercurius-i18n` → `bc78900`: настоящий путь и личный файл записи MCP.
+- `mercurius-mail-mcp` `23404ad` → `d7826b3`: отправитель с именем (`--from='Имя <адрес>'`) — имя в заголовке From, в конверте SMTP только адрес; раньше такое письмо отклонялось как неверный адрес.
 
 ### 2026-11-25 — .mcp.json
 
