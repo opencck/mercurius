@@ -76,6 +76,26 @@ final class ServerCommandsTest extends AsyncTestCase {
         self::assertStringContainsString('секреты агента наследуются', $commands->secret($owner, 'inherit'), 'the state of their own context');
     }
 
+    public function testTheOwnerOfTheAgentSharesTheirSecretsWithTheirOwnProject(): void {
+        // spec: brief/skills-mcp.md#подстановка-секретов — a project of the owner of the agent has no owner id: its owner is
+        //       the owner of the agent, who turns their secrets on for it
+        $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
+        $inherit = new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository();
+        $commands = new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository());
+        $commands->useProjects($projects);
+        $commands->useInheritance($inherit, static fn(): int => 1);
+        $owner = new Member(1, MemberKind::Human, Role::admin(), null);
+        $project = $projects->create('arhipov', '');
+        $this->vault->put('arhipov-main', 'password', 'pa55word-main', $owner);
+
+        $commands->secret($owner, 'arhipov: inherit owner on');
+
+        self::assertSame(['owner' => true, 'agent' => false, 'by' => 1], $inherit->of('project:' . $project->id));
+        $secrets = new \OpenCCK\App\Mcp\McpSecrets($this->vault, static fn(int $id): int => $projects->find($id)->ownerId ?? 1, $inherit);
+        $rendered = $secrets->render(\OpenCCK\App\Mcp\McpEntry::fromArray('srv', ['command' => 'php', 'env' => ['SSH_PASSWORD' => '{arhipov-main}']]), 'project:' . $project->id);
+        self::assertSame([], $rendered->missing, 'the entry of the project gets the owner\'s secret');
+    }
+
     public function testASecretIsStoredAndItsMessageDeleted(): void {
         $this->stack->say('/secret web-pass Sup3r-secret-pass');
 

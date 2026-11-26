@@ -226,7 +226,11 @@ $stdioMcp?->useElicitation(static function (string $key, array $params, \Amp\Can
 });
 $mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $vault,
-    static fn(int $project): ?int => $skillProjects->find($project)?->ownerId,
+    // a project of the owner of the agent has no owner id: the owner's layer is the owner of the agent
+    static function (int $project) use ($skillProjects, $ownerDirectory): ?int {
+        $found = $skillProjects->find($project);
+        return $found === null ? null : ($found->ownerId ?? $ownerDirectory->principal()?->id);
+    },
     $secretInheritance,
 );
 $mcpManager->useSecrets($mcpSecrets);

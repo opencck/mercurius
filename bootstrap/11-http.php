@@ -53,6 +53,7 @@ use OpenCCK\Infrastructure\Repository\PostgresMetricsRepository;
  * @var OpenCCK\Infrastructure\Config\TraceSettings $traceSettings
  * @var OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository|null $sshKeys
  * @var OpenCCK\App\Vault\Vault $vault
+ * @var OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository $secretInheritance
  * @var non-empty-string $version
  * @var Mercurius\Messenger\Websocket\WebsocketChannel $wsChannel
  */
@@ -176,6 +177,18 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
     'ssh_keys' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($sshKeys): string {
         $names = $sshKeys === null ? [] : array_map(static fn(\OpenCCK\Domain\Ssh\SshKey $k): string => $k->name . ' ' . $k->fingerprint, $sshKeys->of($c->principal->id));
         return \Mercurius\I18n\t('self.ssh_keys') . ($names === [] ? \Mercurius\I18n\t('tool.ssh_key.none') : implode("\n", $names));
+    },
+    // spec: brief/skills-mcp.md#подстановка-секретов — the layers of secrets and how a project gets them; in a project its
+    //       secret names and what it inherits are read at the call, never values
+    'secrets' => static function (\OpenCCK\App\Agent\Tool\ToolContext $c) use ($vault, $secretInheritance): string {
+        $context = $c->policy->mcpContext ?? 'member:' . $c->principal->id;
+        if (preg_match('~^project:(\d+)$~', $context, $m) !== 1) {
+            return \Mercurius\I18n\t('self.secrets');
+        }
+        $names = array_map(static fn(array $s): string => $s['name'], $vault->projectNames((int) $m[1]));
+        $now = $secretInheritance->of($context);
+        $word = static fn(bool $on): string => \Mercurius\I18n\t($on ? 'service.server_commands.inherit_on_word' : 'service.server_commands.inherit_off_word');
+        return \Mercurius\I18n\t('self.secrets') . "\n\n" . sprintf(\Mercurius\I18n\t('self.secrets_here'), $names === [] ? '—' : implode(', ', $names), $word($now['owner']), $word($now['agent']));
     },
     // spec: brief/agent-loop.md#прокси-для-команд-песочницы — whether the door is open and where it leads, as of now
     'proxy' => static fn(\OpenCCK\App\Agent\Tool\ToolContext $c): string => \OpenCCK\Infrastructure\Proxy\DoorSettings::about($_ENV),

@@ -102,6 +102,23 @@ final class ProjectRemovalTest extends AsyncTestCase {
         self::assertStringContainsString('администратор', $result->content);
     }
 
+    public function testTheAgentOpensTheOwnersSecretsToTheProjectWithTheOwnersCard(): void {
+        // spec: brief/skills-mcp.md#подстановка-секретов — the project owner shares their own secrets with the project
+        $inherit = new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository();
+        $this->tool->useInheritance($inherit, static fn(): int => 1);
+        $id = $this->project();
+        self::assertSame(DangerClass::Irreversible, $this->tool->danger(['action' => 'inherit', 'project' => 'Сайт', 'layer' => 'owner', 'on' => true]));
+        self::assertSame(DangerClass::Write, $this->tool->danger(['action' => 'inherit', 'project' => 'Сайт']), 'the state is only read');
+
+        $result = $this->tool->execute(['action' => 'inherit', 'project' => 'Сайт', 'layer' => 'owner', 'on' => true], new ToolContext(1, 1, $this->owner, new NullCancellation(), approved: true));
+
+        self::assertFalse($result->isError, $result->content);
+        self::assertSame(['owner' => true, 'agent' => false, 'by' => 1], $inherit->of('project:' . $id));
+        $stranger = new Member(5, MemberKind::Human, Role::user(), 'Коля');
+        $this->projects->share($id, 5, 'full', 1);
+        self::assertTrue($this->tool->execute(['action' => 'inherit', 'project' => 'Сайт', 'layer' => 'agent', 'on' => true], new ToolContext(1, 1, $stranger, new NullCancellation()))->isError, 'the agent\'s secrets — only an owner of the agent');
+    }
+
     public function testOnlyTheOwnerOfTheProjectDeletesIt(): void {
         $this->project();
         $member = new Member(5, MemberKind::Human, Role::user(), 'Коля');

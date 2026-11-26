@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep', 'context', 'delete'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep', 'context', 'delete', 'inherit'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
@@ -46,6 +46,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         'context' => ProjectLevel::Read,
         // spec: brief/participants.md#удаление-проекта — only the owner of the project deletes it, with the owner's card
         'delete' => ProjectLevel::Owner,
+        // spec: brief/skills-mcp.md#подстановка-секретов — who may open which layer is checked by the action itself
+        'inherit' => ProjectLevel::Read,
     ];
     /** what waits for the owner */
     public const CONFIRMED = ['create', 'goal', 'status', 'relation', 'delete'];
@@ -75,6 +77,18 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     private ?\Closure $agentOwner = null;
     /** @var (\Closure(int): void)|null what else a deleted project leaves: its MCP entries */
     private ?\Closure $forget = null;
+
+    private ?\OpenCCK\Domain\Repository\SecretInheritanceRepository $inheritance = null;
+
+    /**
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @param \Closure(): ?int $agentOwner the owner of the agent
+     */
+    public function useInheritance(\OpenCCK\Domain\Repository\SecretInheritanceRepository $inheritance, \Closure $agentOwner): void {
+        $this->inheritance = $inheritance;
+        $this->agentOwner ??= $agentOwner;
+    }
 
     /**
      * spec: brief/participants.md#удаление-проекта
@@ -252,7 +266,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.clock_about')
             . ' ' . t('tool.project_edit.sleep_about')
             . ' ' . t('tool.project_edit.context_about')
-            . ' ' . t('tool.project_edit.delete_about'), [
+            . ' ' . t('tool.project_edit.delete_about')
+            . ' ' . t('tool.project_edit.inherit_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -268,6 +283,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'tokens' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10_000_000],
                 'percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 95],
                 'topics' => ['type' => 'boolean', 'description' => t('tool.project_edit.topics_arg')],
+                'layer' => ['type' => 'string', 'enum' => ['owner', 'agent'], 'description' => t('tool.project_edit.layer_arg')],
+                'on' => ['type' => 'boolean'],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -275,6 +292,10 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     }
 
     public function danger(array $args): DangerClass {
+        // opening a wider layer of secrets to a project waits for the owner's card; reading the state does not
+        if (Args::string($args, 'action') === 'inherit') {
+            return array_key_exists('on', $args) && ($args['on'] ?? false) === true ? DangerClass::Irreversible : DangerClass::Write;
+        }
         return in_array(Args::string($args, 'action'), self::CONFIRMED, true) ? DangerClass::Irreversible : DangerClass::Write;
     }
 
@@ -284,6 +305,9 @@ final class ProjectEditTool implements Tool, GrantKeyed {
      */
     public function grantKey(array $args): ?string {
         $action = Args::string($args, 'action') ?? '';
+        if ($action === 'inherit') {
+            return sprintf('project:inherit:%s:%s', mb_strtolower(trim(Args::string($args, 'project') ?? '')), Args::string($args, 'layer') ?? '');
+        }
         if (!in_array($action, self::CONFIRMED, true)) {
             return null;
         }
@@ -293,6 +317,9 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     }
 
     public function describe(array $args): string {
+        if (Args::string($args, 'action') === 'inherit') {
+            return sprintf(t('tool.project_edit.inherit_card'), Args::string($args, 'project') ?? '', t(Args::string($args, 'layer') === 'agent' ? 'tool.project_edit.layer_agent' : 'tool.project_edit.layer_owner'));
+        }
         if (Args::string($args, 'action') === 'delete') {
             $project = $this->projects->byName(trim(Args::string($args, 'project') ?? ''));
             return sprintf(t('tool.project_edit.delete_card'), $project->name ?? (Args::string($args, 'project') ?? ''), $project->id ?? 0)
@@ -364,6 +391,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'sleep' => $this->sleeps($project, $level, $text),
             'context' => $this->context($project, $level, $args),
             'delete' => $this->delete($project, ($args['topics'] ?? false) === true),
+            'inherit' => $this->inherit($project, $context->principal, Args::string($args, 'layer'), array_key_exists('on', $args) ? ($args['on'] ?? false) === true : null),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -496,6 +524,31 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         return ToolResult::ok(sprintf(t('tool.project_edit.renamed'), $project->name, $name)
             . ($done > 0 ? ' ' . t('tool.project_edit.topics_renamed') : '')
             . ($failed > 0 ? ' ' . sprintf(t('tool.project_edit.topics_not_renamed'), $failed) : ''));
+    }
+
+    /**
+     * The wider layers of secrets a project inherits: its owner's (by its owner — of a project without an owner id,
+     * the owner of the agent) and the agent's (by an owner of the agent). Without a layer — what is on now.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     */
+    private function inherit(Project $project, \OpenCCK\Domain\Entity\Member $who, ?string $layer, ?bool $on): ToolResult {
+        $inheritance = $this->inheritance;
+        if ($inheritance === null) {
+            return ToolResult::error(t('tool.project_edit.inherit_none'));
+        }
+        $context = 'project:' . $project->id;
+        if ($layer !== null && $on !== null) {
+            $owner = $project->ownerId ?? ($this->agentOwner === null ? null : ($this->agentOwner)());
+            $may = $layer === 'owner' ? $owner !== null && $owner === $who->id : $who->isOwner();
+            if (!$may) {
+                return ToolResult::error(t($layer === 'owner' ? 'service.server_commands.inherit_owner_only' : 'service.server_commands.inherit_agent_only'));
+            }
+            $inheritance->set($context, $layer === 'owner' ? 'owner' : 'agent', $on, $layer === 'owner' ? $who->id : null);
+        }
+        $now = $inheritance->of($context);
+        $word = static fn(bool $on): string => t($on ? 'service.server_commands.inherit_on_word' : 'service.server_commands.inherit_off_word');
+        return ToolResult::ok(sprintf(t('service.server_commands.inherit_state_project'), $project->name, $word($now['owner']), $word($now['agent'])));
     }
 
     /**

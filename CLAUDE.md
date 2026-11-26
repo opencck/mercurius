@@ -77,7 +77,7 @@
    агент будет ошибаться в обычной работе, и это решение записывается в `BRIEF.md`.
 2. **Опиши возможность темой `self_info`.** Есть подходящая тема (`network`, `channels`, `commands`, `tools`,
    `modules`, `limits`, `skills`, `projects`, `browser`, `models`, `mail`, `memory`, `permissions`, `jobs`, `work`, `proxy`,
-   `mcp`, `self_improvement`, `version`) — дополни её текст в `packages/i18n` (`self.<тема>`); нет —
+   `mcp`, `secrets`, `ssh_keys`, `self_improvement`, `version`) — дополни её текст в `packages/i18n` (`self.<тема>`); нет —
    добавь тему в `bootstrap/11-http.php` (список тем `self_info`; замыкание, считающее сведения в момент вызова) и её строку `self.topic.<тема>`.
 3. **Изменчивое — из кода, постоянное — из текстов.** Адреса, состояние модулей, права собеседника, версии
    вычисляются при вызове; секреты (токены, ключи) в ответ не попадают — только где они лежат.

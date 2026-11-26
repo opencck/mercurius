@@ -38,10 +38,17 @@ final class ServerCommands {
     }
 
     private ?\OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit = null;
+    /** @var (\Closure(): ?int)|null the owner of the agent: the owner of a project that has no owner id */
+    private ?\Closure $agentOwner = null;
 
-    /** spec: brief/skills-mcp.md#подстановка-секретов — "/secret … inherit …" turns the wider layers on and off */
-    public function useInheritance(\OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit): void {
+    /**
+     * spec: brief/skills-mcp.md#подстановка-секретов — "/secret … inherit …" turns the wider layers on and off
+     *
+     * @param (\Closure(): ?int)|null $agentOwner the owner of the agent
+     */
+    public function useInheritance(\OpenCCK\Domain\Repository\SecretInheritanceRepository $inherit, ?\Closure $agentOwner = null): void {
         $this->inherit = $inherit;
+        $this->agentOwner = $agentOwner;
     }
 
     /**
@@ -83,7 +90,8 @@ final class ServerCommands {
      * spec: brief/skills-mcp.md#подстановка-секретов — off by default
      */
     private function inherit(Member $principal, ?\OpenCCK\Domain\Project\Project $project, string $rest): string {
-        if ($this->inherit === null) {
+        $store = $this->inherit;
+        if ($store === null) {
             return t('service.server_commands.inherit_off');
         }
         $parts = preg_split('~\s+~', trim($rest)) ?: [];
@@ -99,11 +107,13 @@ final class ServerCommands {
             return t($project === null ? 'service.server_commands.inherit_usage_member' : 'service.server_commands.inherit_usage_project');
         }
         // the owner's own secrets go to their project by their word; the agent's — only by an owner of the agent
-        $may = $layer === 'owner' ? ($project !== null && $project->ownerId === $principal->id) : $principal->isOwner();
+        // a project of the owner of the agent has no owner id: its owner is the owner of the agent
+        $owner = $project === null ? null : ($project->ownerId ?? ($this->agentOwner === null ? null : ($this->agentOwner)()));
+        $may = $layer === 'owner' ? ($owner !== null && $owner === $principal->id) : $principal->isOwner();
         if (!$may) {
             return t($layer === 'owner' ? 'service.server_commands.inherit_owner_only' : 'service.server_commands.inherit_agent_only');
         }
-        $this->inherit->set($context, $layer === 'owner' ? 'owner' : 'agent', $on, $layer === 'owner' ? $principal->id : null);
+        $store->set($context, $layer === 'owner' ? 'owner' : 'agent', $on, $layer === 'owner' ? $principal->id : null);
         return $this->inheritState($context, $project);
     }
 

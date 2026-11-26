@@ -40,6 +40,7 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Service\PolicyService $policies
  * @var OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository $mcpServers
  * @var OpenCCK\App\Mcp\McpManager $mcpManager
+ * @var OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository $secretInheritance
  * @var OpenCCK\App\Service\RoleCatalog $roleCatalog
  * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
@@ -168,6 +169,8 @@ $projectLinks = new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkReposi
 $projectChannels = new \OpenCCK\App\Peer\ProjectChannels($projectRepository, $projectLinks);
 $projectEditTool = new ProjectEditTool($projectRepository, $conversations, $forumTopics, $principals, $projectTransfers);
 $projectEditTool->useChannels($projectChannels);
+// spec: brief/skills-mcp.md#подстановка-секретов — the agent opens a wider layer of secrets to a project, with the owner's card
+$projectEditTool->useInheritance($secretInheritance, static fn(): ?int => $principals->owner()?->id);
 // spec: brief/participants.md#удаление-проекта — a deleted project leaves no folder and no running MCP entries
 $projectEditTool->useRemoval(
     $projectFolders,
