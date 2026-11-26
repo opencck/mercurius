@@ -47,16 +47,16 @@ final class McpInstallToolTest extends TestCase {
         $who = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), 'Я');
         $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $who, new \Amp\NullCancellation());
 
-        $refused = $tool->execute(['action' => 'fetch', 'name' => 'mercurius-mcp-template', 'url' => 'https://github.com/opencck/mercurius-mcp-template'], $context);
+        $refused = $tool->execute(['action' => 'fetch', 'name' => 'Mercurius.Template', 'url' => 'https://github.com/opencck/mercurius-mcp-template'], $context);
 
         self::assertTrue($refused->isError, 'a refusal read as data was repeated by the model');
         self::assertStringContainsString('24', $refused->content);
-        self::assertStringNotContainsString(' и -', $refused->content, 'the rule told is the rule checked');
+        self::assertStringContainsString('дефис', $refused->content, 'the rule told is the rule checked');
         $properties = $tool->definition()->parameters['properties'] ?? null;
         self::assertIsArray($properties);
         $schema = $properties['name'] ?? null;
         self::assertIsArray($schema);
-        self::assertSame('^[a-z0-9][a-z0-9_]{0,23}$', $schema['pattern'] ?? null);
+        self::assertSame('^[a-z0-9][a-z0-9_-]{0,23}$', $schema['pattern'] ?? null);
     }
 
     public function testAGrantOfManagingNamesTheActionAndTheInstall(): void {
@@ -77,7 +77,7 @@ final class McpInstallToolTest extends TestCase {
         $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $who, new \Amp\NullCancellation());
         $entry = ['command' => 'npx', 'args' => ['ssh-mcp']];
 
-        $refused = $manage->execute(['action' => 'entry', 'name' => 'base-npx', 'entry' => $entry], $context);
+        $refused = $manage->execute(['action' => 'entry', 'name' => 'Base.npx', 'entry' => $entry], $context);
         $written = $manage->execute(['action' => 'entry', 'name' => 'ok', 'entry' => $entry], $context);
 
         self::assertSame([true, 'bad name'], [$refused->isError, $refused->content]);

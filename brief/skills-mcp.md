@@ -613,7 +613,7 @@
 
 ### Предустановленные MCP: ssh и mail
 
-Сабмодули `mcp/ssh` (`opencck/mercurius-mcp-ssh`), `mcp/mail` (`opencck/mercurius-mail-mcp`) и `mcp/gemini_api`
+Сабмодули `mcp/ssh` (`opencck/mercurius-mcp-ssh`), `mcp/mail` (`opencck/mercurius-mail-mcp`) и `mcp/gemini-api`
 ([MCP gemini-api](#mcp-gemini-api)) идут в поставке, при
 старте ставятся в `/workspace/mcp/`. Набор инструментов одобрения не требует: код наш.
 Шаблон своего MCP — `opencck/mercurius-mcp-template`.
@@ -662,9 +662,9 @@
 ### MCP gemini-api
 
 Решения владельца 2026-11-26. Инструменты медиа и фоновых агентов Google по ключу Gemini API — предустановленный MCP
-`gemini-api` (`opencck/mercurius-mcp-gemini-api`, сабмодуль `mcp/gemini_api/`), по образцу `mcp/ssh`. В ядро код не
-добавляется. Устройство сервера — в его брифе (`mcp/gemini_api/BRIEF.md`). Каталог и имя установки — `gemini_api`:
-имя установки MCP — буквы, цифры и подчёркивание, каталог с дефисом в поставку не попадает.
+`gemini-api` (`opencck/mercurius-mcp-gemini-api`, сабмодуль `mcp/gemini-api/`), по образцу `mcp/ssh`. Под новый MCP
+код в ядро не добавлялся; попутно имя записи и установки MCP стало принимать дефис (решение владельца 2026-11-26):
+каталог с дефисом раньше молча не попадал в поставку. Устройство сервера — в его брифе (`mcp/gemini-api/BRIEF.md`).
 
 - **Почему MCP.** Не скилл: скилл — знание, он не добавляет инструментов и не получает секретов, а ключ в окружение
   песочницы не попадает. Не сервис: системных пакетов, своего образа и root не нужно

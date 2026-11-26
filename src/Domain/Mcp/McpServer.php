@@ -24,7 +24,13 @@ final class McpServer implements \Mercurius\Mcp\McpEndpoint {
     public const ACTIVE = self::CONNECTED;
     /** the states of an approved connection that is on: its tools are registered or tried */
     public const ENABLED = [self::CONNECTING, self::CONNECTED, self::ERROR, self::UPDATE];
-    public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_]{0,23}$~';
+    /**
+     * The name of an entry and of an install: lower-case letters, digits, `_` and `-`, as repositories and packages
+     * of MCP servers are named. It becomes a part of a path and of tool names, where all of these are allowed.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
+     */
+    public const NAME_PATTERN = '~^[a-z0-9][a-z0-9_-]{0,23}$~';
 
     public function __construct(
         public readonly int $id,

@@ -233,7 +233,7 @@ final class McpInstaller {
             // an entry that runs the code of another install asks for an entry, not an install
             /** @var mixed $arg */
             foreach (is_array($entry['args'] ?? null) ? $entry['args'] : [] as $arg) {
-                if (is_string($arg) && preg_match('~^/workspace/mcp/([a-z0-9_]+)/~', $arg, $m) === 1 && $this->installs->find($m[1]) !== null) {
+                if (is_string($arg) && preg_match('~^/workspace/mcp/([a-z0-9_-]+)/~', $arg, $m) === 1 && $this->installs->find($m[1]) !== null) {
                     return sprintf(t('mcp.install.already_installed'), $m[1], $m[1]);
                 }
             }

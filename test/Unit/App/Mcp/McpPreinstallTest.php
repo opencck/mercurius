@@ -76,11 +76,14 @@ final class McpPreinstallTest extends AsyncTestCase {
             ['name' => 'ssh', 'package' => 'opencck/mercurius-mcp-ssh', 'revision' => '0a1b2c3d4e5f', 'plan' => ['steps' => ['composer install'], 'entry' => ['command' => 'php', 'args' => ['${INSTALL_DIR}/bin/ssh-mcp']]]],
             ['name' => 'Bad Name', 'package' => 'x/y', 'revision' => '0a1b2c3d4e5f', 'plan' => ['entry' => ['command' => 'php']]],
             ['name' => 'nope', 'package' => 'x/y', 'revision' => '../up', 'plan' => ['entry' => ['command' => 'php']]],
+            ['name' => 'gemini-api', 'package' => 'opencck/mercurius-mcp-gemini-api', 'revision' => 'b1ba559a8b83', 'plan' => ['entry' => ['command' => 'php']]],
         ], JSON_THROW_ON_ERROR);
 
         $bundles = McpBundle::fromIndex($index);
 
-        self::assertCount(1, $bundles, 'a bad name or revision is skipped');
+        self::assertCount(2, $bundles, 'a bad name or revision is skipped');
+        // spec: brief/skills-mcp.md#mcp-gemini-api — a folder with a hyphen is a bundle too
+        self::assertSame('gemini-api', $bundles[1]->name);
         self::assertSame(['ssh', 'https://github.com/opencck/mercurius-mcp-ssh', '0a1b2c3d4e5f'], [$bundles[0]->name, $bundles[0]->source, $bundles[0]->revision]);
         self::assertSame([], McpBundle::fromIndex('not json'));
     }

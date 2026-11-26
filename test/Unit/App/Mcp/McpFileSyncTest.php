@@ -218,7 +218,8 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertFalse($written, 'a refusal is a refusal, not a written entry');
         self::assertStringContainsString('/workspace/mcp/', $answer, 'the placeholder of a plan is not a path');
         self::assertNull($this->files->current('member:1', 'box'));
-        self::assertFalse($this->files->request('member:1', 'base-npx', $raw, $this->owner)[0], 'a name the file does not take');
+        self::assertFalse($this->files->request('member:1', 'Base.npx', $raw, $this->owner)[0], 'a name the file does not take');
+        self::assertTrue($this->files->request('member:1', 'base-npx', $raw, $this->owner)[0], 'a hyphen is a part of a name');
     }
 
     public function testTheAgentTakesAnEntryOutOnlyOfAFileOfTheCaller(): void {
