@@ -49,4 +49,20 @@ final class McpInstallToolTest extends TestCase {
         self::assertSame('mcp-remove:template', $manage->grantKey(['action' => 'remove', 'name' => 'template']));
         self::assertSame('mcp-allow:template project:5', $manage->grantKey(['action' => 'allow', 'name' => 'template', 'context' => 'project:5']));
     }
+
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry not written is an error, not data to read past */
+    public function testAnEntryNotWrittenIsAnError(): void {
+        $sandbox = new FakeSandbox();
+        $manage = new \OpenCCK\App\Mcp\McpManageTool(new McpInstaller(new InMemoryMcpInstallRepository(), new McpSources($sandbox), $sandbox, static fn(): array => [], static fn(\OpenCCK\App\Mcp\McpEntry $e, string $c): \OpenCCK\App\Mcp\McpRendered => $e->render(static fn(): ?string => null), static fn(): string => ''));
+        $manage->useEntries(static fn(string $context, string $name): array => $name === 'ok' ? [true, 'written'] : [false, 'bad name']);
+        $who = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Я');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $who, new \Amp\NullCancellation());
+        $entry = ['command' => 'npx', 'args' => ['ssh-mcp']];
+
+        $refused = $manage->execute(['action' => 'entry', 'name' => 'base-npx', 'entry' => $entry], $context);
+        $written = $manage->execute(['action' => 'entry', 'name' => 'ok', 'entry' => $entry], $context);
+
+        self::assertSame([true, 'bad name'], [$refused->isError, $refused->content]);
+        self::assertSame([false, 'written'], [$written->isError, $written->content]);
+    }
 }

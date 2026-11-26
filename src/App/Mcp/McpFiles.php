@@ -395,31 +395,31 @@ final class McpFiles {
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
      *
      * @param array<array-key, mixed> $raw the entry: command, args, env with {SECRET} names, or url and headers
-     * @return string what happened, for the model
+     * @return array{bool, string} whether it was written, and what happened, for the model
      */
-    public function request(string $context, string $name, array $raw, Member $who): string {
+    public function request(string $context, string $name, array $raw, Member $who): array {
         if (!$this->mayWrite($context, $who)) {
-            return t('service.mcp_commands.not_yours');
+            return [false, t('service.mcp_commands.not_yours')];
         }
         // ${INSTALL_DIR} belongs to a plan of an install; in an entry it would read as a secret of that name
         if (str_contains((string) json_encode($raw), McpInstaller::DIR)) {
-            return t('mcp.files.install_dir');
+            return [false, t('mcp.files.install_dir')];
         }
         try {
             $entry = McpEntry::fromArray($name, $raw);
         } catch (InvalidArgumentException $e) {
-            return $e->getMessage();
+            return [false, $e->getMessage()];
         }
         $problem = $this->guard->problem($entry);
         if ($problem !== null) {
-            return $problem;
+            return [false, $problem];
         }
         try {
             $this->put($context, $entry);
         } catch (InvalidArgumentException $e) {
-            return $e->getMessage();
+            return [false, $e->getMessage()];
         }
-        return sprintf(t('mcp.files.entry_written'), $name, $context);
+        return [true, sprintf(t('mcp.files.entry_written'), $name, $context)];
     }
 
     /** A member writes into their own file, a project owner into the project's, an owner of the agent into any. */

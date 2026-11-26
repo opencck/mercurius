@@ -371,7 +371,7 @@ if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Mcp\McpInstallTool($mcpInstaller, $sandbox));
     // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent writes an entry, its card approves it
     $mcpManageTool = new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller);
-    $mcpManageTool->useEntries(static fn(string $context, string $name, array $entry, Member $who): string => $mcpFiles->request($context, $name, $entry, $who));
+    $mcpManageTool->useEntries(static fn(string $context, string $name, array $entry, Member $who): array => $mcpFiles->request($context, $name, $entry, $who));
     $tools->register($mcpManageTool);
     // the tools of an entry that runs installed code get the classes its approver set (a tool not in the set is
     // irreversible), and such an entry runs only in a context the install is allowed to

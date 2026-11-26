@@ -204,17 +204,21 @@ final class McpFileSyncTest extends AsyncTestCase {
         $raw = ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.com', '--user=me@example.com'], 'env' => ['MAIL_PASSWORD' => '{mail-admin}']];
         $member = new Member(4, MemberKind::Human, Role::user(), 'Аня');
 
-        $answer = $this->files->request('member:1', 'work', $raw, $this->owner);
+        [$written, $answer] = $this->files->request('member:1', 'work', $raw, $this->owner);
 
+        self::assertTrue($written);
         self::assertStringContainsString('work', $answer);
         self::assertSame(['member:1|work'], $this->told, 'the entry waits for its card');
-        self::assertNotSame($answer, $this->files->request('member:1', 'theirs', $raw, $member));
+        self::assertFalse($this->files->request('member:1', 'theirs', $raw, $member)[0]);
         self::assertSame(['member:1|work'], $this->told, 'another member does not write into my file');
         self::assertStringContainsString('{', json_encode($this->files->current('member:1', 'work')?->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?: '', 'the name of the secret, not its value');
 
         $planned = ['command' => 'php', 'args' => ['${INSTALL_DIR}/bin/mail-mcp-stdio', '--host=mail.example.com']];
-        self::assertStringContainsString('/workspace/mcp/', $this->files->request('member:1', 'box', $planned, $this->owner), 'the placeholder of a plan is not a path');
+        [$written, $answer] = $this->files->request('member:1', 'box', $planned, $this->owner);
+        self::assertFalse($written, 'a refusal is a refusal, not a written entry');
+        self::assertStringContainsString('/workspace/mcp/', $answer, 'the placeholder of a plan is not a path');
         self::assertNull($this->files->current('member:1', 'box'));
+        self::assertFalse($this->files->request('member:1', 'base-npx', $raw, $this->owner)[0], 'a name the file does not take');
     }
 
     public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {

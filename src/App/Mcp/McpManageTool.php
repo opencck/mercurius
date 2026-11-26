@@ -26,14 +26,14 @@ final class McpManageTool implements Tool, GrantKeyed {
 
     public function __construct(private readonly McpInstaller $installer) {}
 
-    /** @var (\Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): string)|null writes an entry into a context's .mcp.json */
+    /** @var (\Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): array{bool, string})|null writes an entry into a context's .mcp.json */
     private ?\Closure $entries = null;
 
     /**
      * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry is written into the file of a context and
      *       waits for its card
      *
-     * @param \Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): string $entries context, name, entry, who
+     * @param \Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): array{bool, string} $entries context, name, entry, who — whether it was written and the answer
      */
     public function useEntries(\Closure $entries): void {
         $this->entries = $entries;
@@ -92,7 +92,9 @@ final class McpManageTool implements Tool, GrantKeyed {
             // mine — the caller's own file, whatever project the chat is in
             $where = Args::string($args, 'context') ?? $context->policy->mcpContext ?? 'member:' . $who->id;
             $where = $where === 'mine' ? 'member:' . $who->id : $where;
-            return new ToolResult(($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who));
+            // a refusal is an error: wrapped as data, it read as a written entry
+            [$written, $answer] = ($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who);
+            return new ToolResult($answer, !$written);
         }
         if (!$who->role->may(Permission::Mcp)) {
             return ToolResult::error(t('tool.mcp_manage.no_right'));
