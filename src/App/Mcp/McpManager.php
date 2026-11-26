@@ -169,6 +169,15 @@ final class McpManager {
         $this->secrets = $secrets;
     }
 
+    /**
+     * The secrets an entry names that its context has no value for; empty — none missing, or no vault here.
+     *
+     * @return list<string>
+     */
+    public function missingSecrets(string $context, McpEntry $entry): array {
+        return $this->secrets === null ? [] : $this->secrets->render($entry, $context)->missing;
+    }
+
     public function useOsv(OsvCheck $osv): void {
         $this->osv = $osv;
     }

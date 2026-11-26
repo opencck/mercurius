@@ -151,6 +151,45 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertStringContainsString('SSH_PASSWORD', $server->note);
     }
 
+    public function testAnEntryApprovedWithoutItsSecretStaysApprovedAndAnotherPressChangesNothing(): void {
+        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — a missing secret is an error with its name, not a
+        //       refusal: a press on a card does not take the approval back and send new cards
+        $entry = McpEntry::fromArray('mailbox', ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.com'], 'env' => ['MAIL_PASSWORD' => '{MAIL_PASSWORD}']]);
+        $this->files->accept('member:1', $entry, $this->owner);
+
+        $this->files->approve('member:1', 'mailbox', $this->owner);
+        $this->files->sync('member:1');
+
+        $server = $this->servers->find('member:1', 'mailbox');
+        self::assertSame($entry->hash(), $server?->approvedHash, 'a press on an approved entry keeps it approved');
+        self::assertSame([], $this->told, 'no new card');
+
+        $other = McpEntry::fromArray('box2', ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.org'], 'env' => ['MAIL_PASSWORD' => '{OTHER_PASSWORD}']]);
+        $this->files->put('member:1', $other);
+        $this->files->approve('member:1', 'box2', $this->owner);
+        $this->told = [];
+        $this->files->sync('member:1');
+        $box = $this->servers->find('member:1', 'box2') ?? self::fail('kept');
+        self::assertSame($other->hash(), $box->approvedHash, 'approved: the secret is what it waits for');
+        self::assertSame(McpServer::ERROR, $box->status);
+        self::assertStringContainsString('OTHER_PASSWORD', $box->note);
+        self::assertSame([], $this->told);
+    }
+
+    public function testTheAgentWritesAnEntryThatWaitsForItsCardOnlyInAContextOfTheCaller(): void {
+        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent writes an entry, its card approves it
+        $raw = ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.com', '--user=me@example.com'], 'env' => ['MAIL_PASSWORD' => '{mail-admin}']];
+        $member = new Member(4, MemberKind::Human, Role::user(), 'Аня');
+
+        $answer = $this->files->request('member:1', 'work', $raw, $this->owner);
+
+        self::assertStringContainsString('work', $answer);
+        self::assertSame(['member:1|work'], $this->told, 'the entry waits for its card');
+        self::assertNotSame($answer, $this->files->request('member:1', 'theirs', $raw, $member));
+        self::assertSame(['member:1|work'], $this->told, 'another member does not write into my file');
+        self::assertStringContainsString('{', json_encode($this->files->current('member:1', 'work')?->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?: '', 'the name of the secret, not its value');
+    }
+
     public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {
         $this->file(1, '.mcp.json', '{"mcpServers": {"local": {"command": "npx", "args": ["-y", "some-mcp"]}}}');
         $this->files->sync('member:1');

@@ -26,13 +26,27 @@ final class McpManageTool implements Tool, GrantKeyed {
 
     public function __construct(private readonly McpInstaller $installer) {}
 
+    /** @var (\Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): string)|null writes an entry into a context's .mcp.json */
+    private ?\Closure $entries = null;
+
+    /**
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry is written into the file of a context and
+     *       waits for its card
+     *
+     * @param \Closure(string, string, array<array-key, mixed>, \OpenCCK\Domain\Entity\Member): string $entries context, name, entry, who
+     */
+    public function useEntries(\Closure $entries): void {
+        $this->entries = $entries;
+    }
+
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.mcp_manage.about'), [
             'type' => 'object',
             'properties' => [
-                'action' => ['type' => 'string', 'enum' => ['list', 'update', 'rollback', 'rebuild', 'remove', 'allow', 'disallow']],
+                'action' => ['type' => 'string', 'enum' => ['list', 'entry', 'update', 'rollback', 'rebuild', 'remove', 'allow', 'disallow']],
                 'name' => ['type' => 'string', 'maxLength' => 24],
                 'context' => ['type' => 'string', 'maxLength' => 40],
+                'entry' => ['type' => 'object', 'description' => t('tool.mcp_manage.entry')],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -42,7 +56,8 @@ final class McpManageTool implements Tool, GrantKeyed {
     public function danger(array $args): DangerClass {
         return match (Args::string($args, 'action')) {
             'list' => DangerClass::Read,
-            'allow', 'disallow', 'rollback', 'rebuild' => DangerClass::Write,
+            // an entry is approved by its own card when it is written
+            'allow', 'disallow', 'rollback', 'rebuild', 'entry' => DangerClass::Write,
             default => DangerClass::Irreversible,
         };
     }
@@ -68,6 +83,15 @@ final class McpManageTool implements Tool, GrantKeyed {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $who = $context->principal;
+        if (Args::string($args, 'action') === 'entry') {
+            // spec: brief/skills-mcp.md#устанавливаемые-mcp — a member writes an entry of an allowed MCP with their own secrets
+            $entry = isset($args['entry']) && is_array($args['entry']) ? $args['entry'] : null;
+            if ($this->entries === null || $entry === null) {
+                return ToolResult::error(t('tool.mcp_manage.entry_needed'));
+            }
+            $where = Args::string($args, 'context') ?? $context->policy->mcpContext ?? 'member:' . $who->id;
+            return new ToolResult(($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who));
+        }
         if (!$who->role->may(Permission::Mcp)) {
             return ToolResult::error(t('tool.mcp_manage.no_right'));
         }

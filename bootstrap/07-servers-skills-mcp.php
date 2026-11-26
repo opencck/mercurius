@@ -369,7 +369,10 @@ if ($sandbox !== null) {
         $mcpFiles->accept($context, $entry, $by);
     });
     $tools->register(new \OpenCCK\App\Mcp\McpInstallTool($mcpInstaller, $sandbox));
-    $tools->register(new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller));
+    // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent writes an entry, its card approves it
+    $mcpManageTool = new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller);
+    $mcpManageTool->useEntries(static fn(string $context, string $name, array $entry, Member $who): string => $mcpFiles->request($context, $name, $entry, $who));
+    $tools->register($mcpManageTool);
     // the tools of an entry that runs installed code get the classes its approver set (a tool not in the set is
     // irreversible), and such an entry runs only in a context the install is allowed to
     $installOf = static fn(\OpenCCK\Domain\Mcp\McpServer $server): ?string => preg_match('~/workspace/mcp/([a-z0-9_]+)/~', $server->url, $m) === 1 ? $m[1] : null;

@@ -206,6 +206,11 @@ final class McpInstaller {
         if ($install !== null && !$this->mayChange($who, $install)) {
             return sprintf(t('mcp.install.not_yours'), $name);
         }
+        // spec: brief/skills-mcp.md#установка-и-обновление — a server or a mailbox of an installed MCP is an entry
+        $same = $url === null ? null : $this->installedFrom($url, $name);
+        if ($same !== null) {
+            return sprintf(t('mcp.install.already_installed'), $same, $same);
+        }
         try {
             $install ??= $this->installs->add($name, $url ?? 'archive:' . ($archive[0] ?? ''), $who->id);
             $fetched = $url !== null ? $this->sources->fromGit($install, $url) : ($archive !== null ? $this->sources->fromArchive($install, $archive[0], $archive[1]) : throw new DomainException(t('mcp.install.no_source')));
@@ -225,6 +230,13 @@ final class McpInstaller {
     public function install(Member $who, string $context, string $name, array $steps, array $entry): string {
         $install = $this->installs->find($name);
         if ($install === null || $install->latest === null) {
+            // an entry that runs the code of another install asks for an entry, not an install
+            /** @var mixed $arg */
+            foreach (is_array($entry['args'] ?? null) ? $entry['args'] : [] as $arg) {
+                if (is_string($arg) && preg_match('~^/workspace/mcp/([a-z0-9_]+)/~', $arg, $m) === 1 && $this->installs->find($m[1]) !== null) {
+                    return sprintf(t('mcp.install.already_installed'), $m[1], $m[1]);
+                }
+            }
             return sprintf(t('mcp.install.not_fetched_yet'), $name);
         }
         if (!$this->mayChange($who, $install)) {
@@ -571,6 +583,17 @@ final class McpInstaller {
 
     private function mayChange(Member $who, McpInstall $install): bool {
         return $install->installedBy === $who->id || $who->isOwner();
+    }
+
+    /** The name of another install from this source; null — none. */
+    private function installedFrom(string $url, string $name): ?string {
+        $plain = static fn(string $u): string => strtolower(preg_replace('~(\.git)?/?$~', '', $u) ?? $u);
+        foreach ($this->installs->all() as $install) {
+            if ($install->name !== $name && $plain($install->source) === $plain($url)) {
+                return $install->name;
+            }
+        }
+        return null;
     }
 
     /** The malware check of the dependencies the revision declares. */

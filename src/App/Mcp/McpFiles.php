@@ -348,6 +348,11 @@ final class McpFiles {
         if ($problem !== null) {
             return $problem;
         }
+        $approved = $this->servers->find($context, $name)?->approvedHash;
+        if (!$entry->disabled && $approved !== null && hash_equals($approved, $entry->hash())) {
+            // approved already as it is: another press (a card read twice, an old card) changes nothing
+            return sprintf(t('mcp.files.already_approved'), $name);
+        }
         if ($entry->disabled) {
             $entry = $entry->withDisabled(false);
             $servers = $file->servers;
@@ -364,7 +369,9 @@ final class McpFiles {
         $this->servers->setApproval($context, $name, null, null, $entry->toArray());
         $answer = $this->manager->approve($context, $name, new TimeoutCancellation(60));
         $after = $this->servers->find($context, $name);
-        if ($after !== null && in_array($after->status, [McpServer::CONNECTED, McpServer::NAMES], true)) {
+        // a missing secret is what the entry waits for, not a reason to refuse it: approved, in error with its name
+        $missing = $this->manager->missingSecrets($context, $entry);
+        if ($after !== null && (in_array($after->status, [McpServer::CONNECTED, McpServer::NAMES], true) || $missing !== [])) {
             $this->servers->setApproval($context, $name, $entry->hash(), $by->id, $entry->toArray());
         } elseif ($after !== null) {
             $this->servers->setApproval($context, $name, null, null);
@@ -379,6 +386,49 @@ final class McpFiles {
      *
      * @throws InvalidArgumentException the file is there but was not read, or there is no place for it
      */
+    /**
+     * The agent writes an entry into the file of a context — of the caller, of a project they own, the owners' for an
+     * owner of the agent — and it waits for its card, as any new or changed entry.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
+     *
+     * @param array<array-key, mixed> $raw the entry: command, args, env with {SECRET} names, or url and headers
+     * @return string what happened, for the model
+     */
+    public function request(string $context, string $name, array $raw, Member $who): string {
+        if (!$this->mayWrite($context, $who)) {
+            return t('service.mcp_commands.not_yours');
+        }
+        try {
+            $entry = McpEntry::fromArray($name, $raw);
+        } catch (InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
+        $problem = $this->guard->problem($entry);
+        if ($problem !== null) {
+            return $problem;
+        }
+        try {
+            $this->put($context, $entry);
+        } catch (InvalidArgumentException $e) {
+            return $e->getMessage();
+        }
+        return sprintf(t('mcp.files.entry_written'), $name, $context);
+    }
+
+    /** A member writes into their own file, a project owner into the project's, an owner of the agent into any. */
+    private function mayWrite(string $context, Member $who): bool {
+        if ($who->isOwner()) {
+            return true;
+        }
+        [$kind, $id] = array_pad(explode(':', $context, 2), 2, '');
+        return match ($kind) {
+            'member' => (int) $id === $who->id,
+            'project' => ($this->projectOwner)((int) $id) === $who->id,
+            default => false,
+        };
+    }
+
     /**
      * Writes an entry of our own code that needs no card — a sample of an MCP of the delivery — approved at once
      * without a trial: it may wait for its secrets, and then it is in error with their names, not on a card.

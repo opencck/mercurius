@@ -205,6 +205,20 @@ final class McpPreinstallTest extends AsyncTestCase {
         self::assertSame([], $this->persisted, 'no card, no trial');
     }
 
+    public function testASourceInstalledAlreadyIsNotFetchedAgainUnderAnotherName(): void {
+        // spec: brief/skills-mcp.md#установка-и-обновление — a mailbox or a server of an installed MCP is an entry, not an install
+        $installer = $this->installer();
+        $installer->preinstall($this->owner, self::bundle(), null);
+        $this->sandbox->calls = [];
+
+        $answer = $installer->fetch($this->owner, 'work', 'https://github.com/opencck/mercurius-mcp-ssh', null);
+
+        self::assertStringContainsString('mcp_manage action=entry', $answer);
+        self::assertNull($this->installs->find('work'), 'nothing is installed');
+        self::assertFalse($this->copied());
+        self::assertStringContainsString('mcp_manage action=entry', $installer->install($this->owner, 'member:1', 'work', [], ['command' => 'php', 'args' => ['/workspace/mcp/ssh/current/bin/ssh-mcp']]), 'an entry of an installed MCP is not installed');
+    }
+
     public function testABundleUpdatesWithTheAgentOnly(): void {
         $installer = $this->installer();
         $installer->preinstall($this->owner, self::bundle(), null);
