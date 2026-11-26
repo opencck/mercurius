@@ -408,6 +408,38 @@ final class AgentNetworkTest extends AsyncTestCase {
         self::assertStringContainsString('1500', $text);
     }
 
+    /** spec: brief/network.md#справочник-сети — the directory of a neighbour, asked by ListPeers: with the permission of its role only */
+    public function testTheDirectoryOfANeighbourIsAskedWithThePermissionOnly(): void {
+        $this->follower(new ScriptedLlm([]));
+        $this->server->useDirectory(new \OpenCCK\App\Peer\PeerDirectory(
+            $this->followerPeers,
+            static fn(): array => [],
+            static fn(): array => ['name' => 'Follower', 'url' => self::FOLLOWER . '/.well-known/agent-card.json', 'transport' => 'http', 'ws' => '', 'fingerprint' => 'SHA256:f', 'publicKey' => 'PEM'],
+        ));
+        $leader = new AgentStack(new ScriptedLlm([]));
+        $owner = $leader->principals->ensureOwner('telegram', '7', 'Owner of leader');
+        $vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
+        $vault->put('follower-entrance', 'token', self::ENTRANCE, $owner);
+        $network = $this->network(new InMemoryPeerRepository(), $leader, $this->leaderKey, self::LEADER, $owner, $vault);
+        $network->add($owner, 'follower', self::FOLLOWER, 'follower-entrance');
+        $tool = new \OpenCCK\App\Agent\Tool\Agents\PeerDirectoryTool(new \OpenCCK\App\Peer\PeerDirectory(new InMemoryPeerRepository(), static fn(): array => [], static fn(): array => ['name' => '', 'url' => '', 'transport' => '', 'ws' => '', 'fingerprint' => '', 'publicKey' => '']), $network);
+        $context = new ToolContext(1, 1, $owner, new NullCancellation());
+
+        $refused = $tool->execute(['peer' => 'follower'], $context);
+        self::assertTrue($refused->isError, 'the role the neighbour gave has no permission peers');
+        self::assertStringContainsString('peers', $refused->content);
+
+        Role::define('scout', 'Разведчик', 50, [\OpenCCK\Domain\Entity\Permission::Tools, \OpenCCK\Domain\Entity\Permission::Peers]);
+        $agent = array_values(array_filter($this->followerPeers->keys(), static fn(array $k): bool => $k['name'] === 'leader'))[0];
+        $this->follower->principals->setRole($agent['principal'], Role::of('scout'), \OpenCCK\Domain\Entity\MemberStatus::Active);
+        $answered = $tool->execute(['peer' => 'follower'], $context);
+
+        self::assertFalse($answered->isError, $answered->content);
+        self::assertStringContainsString('"visible"', $answered->content);
+        self::assertStringContainsString(self::FOLLOWER, $answered->content);
+        Role::reset();
+    }
+
     /** spec: brief/network.md#справочник-сети — the owner hides an agent from the directory and shows it again */
     public function testTheOwnerHidesAnAgentFromTheDirectory(): void {
         $this->follower(new ScriptedLlm([]));

@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace OpenCCK\App\Agent\Tool\Agents;
 
+use DomainException;
 use Mercurius\Llm\ToolDefinition;
+use OpenCCK\App\Agent\Tool\Args;
 use OpenCCK\App\Agent\Tool\Tool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\ToolResult;
 use OpenCCK\App\Peer\PeerDirectory;
+use OpenCCK\App\Peer\PeerNetwork;
 use OpenCCK\Domain\Agent\DangerClass;
 use OpenCCK\Domain\Entity\Permission;
 
@@ -23,11 +26,22 @@ use function Mercurius\I18n\t;
 final class PeerDirectoryTool implements Tool {
     public const NAME = 'peer_directory';
 
-    public function __construct(private readonly PeerDirectory $directory) {}
+    private const JSON = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR;
+
+    public function __construct(
+        private readonly PeerDirectory $directory,
+        /** asks a neighbour for its directory; null — only this agent's own */
+        private readonly ?PeerNetwork $network = null,
+    ) {}
 
     public function definition(): ToolDefinition {
-        // no parameters: sent as an empty object schema
-        return new ToolDefinition(self::NAME, t('tool.peer_directory.about'));
+        return new ToolDefinition(self::NAME, t('tool.peer_directory.about'), [
+            'type' => 'object',
+            'properties' => [
+                'peer' => ['type' => 'string', 'maxLength' => 40, 'description' => t('tool.peer_directory.peer')],
+            ],
+            'additionalProperties' => false,
+        ]);
     }
 
     public function danger(array $args): DangerClass {
@@ -47,6 +61,16 @@ final class PeerDirectoryTool implements Tool {
         if (!$context->principal->role->may(Permission::Peers)) {
             return ToolResult::error(t('tool.peer_directory.no_right'));
         }
-        return ToolResult::ok((string) json_encode($this->directory->of($context->principal), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        $peer = trim(Args::string($args, 'peer') ?? '');
+        if ($peer !== '' && $this->network !== null) {
+            // spec: brief/network.md#справочник-сети — the directory of a neighbour, by its method ListPeers
+            try {
+                $directory = $this->network->directoryOf($peer);
+            } catch (DomainException $e) {
+                return ToolResult::error($e->getMessage());
+            }
+            return ToolResult::ok((string) json_encode($directory, self::JSON));
+        }
+        return ToolResult::ok((string) json_encode($this->directory->of($context->principal), self::JSON));
     }
 }

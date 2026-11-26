@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `72b58af` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `cc8bc7b` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `08225ef` | 2026-11-23 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
@@ -80,6 +80,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-i18n` → `50bd2eb`: действие `mcp_manage remove_entry` — убрать запись `.mcp.json`; `remove` — код установки.
 - `mercurius-peer` `8b9892f` → `04ac368`: `A2aClient::peers` — справочник сети соседа (`ListPeers`); README — как подключиться клиентом; пакет не делится на клиент и сервер.
 - `mercurius-i18n` → `72b58af`: справочник сети и право `peers`, `/peer hide|show`, имена соседей в `peer_delegate` для не-владельца.
+- `mercurius-i18n` → `cc8bc7b`: `peer_directory peer=<сосед>` — справочник соседа методом `ListPeers`.
 
 ### 2026-11-25 — .mcp.json
 

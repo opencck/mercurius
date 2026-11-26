@@ -167,6 +167,33 @@ final class PeerNetwork {
         return sprintf(t('peer.peer_network.link_open'), $peerName);
     }
 
+    /**
+     * The directory of the network of a neighbour (ListPeers): over a live connection with it, or by its card and
+     * token. The neighbour answers only when the role it gave this agent has the permission peers.
+     *
+     * spec: brief/network.md#справочник-сети
+     *
+     * @return array<array-key, mixed>
+     */
+    public function directoryOf(string $peerName): array {
+        $peer = $this->peers->peer($peerName);
+        // spec: brief/network.md#подключения-агентов — an agent that connected here is reached over its connection
+        $link = $peer === null ? $this->links?->named($peerName) : null;
+        try {
+            if ($link !== null) {
+                return A2aClient::over($link, 'ListPeers', []);
+            }
+            if ($peer === null) {
+                throw new DomainException(sprintf(t('peer.peer_network.soseda_net'), $peerName));
+            }
+            $owner = ($this->owner)() ?? throw new DomainException(t('peer.peer_network.vladelets_ne_nayden'));
+            $token = $this->vault->reveal($peer->secret, $owner) ?? throw new DomainException(sprintf(t('peer.peer_network.net_tokena_soseda_sekret'), $peer->secret));
+            return $this->followed($peer, fn(\OpenCCK\Domain\Peer\Peer $p): array => $this->client->peers($p, $token));
+        } catch (\RuntimeException $e) {
+            throw new DomainException($e->getMessage());
+        }
+    }
+
     /** Closes a connection; an outgoing one is no longer kept. */
     public function closeLink(int $id): bool {
         foreach ($this->links?->all() ?? [] as $link) {

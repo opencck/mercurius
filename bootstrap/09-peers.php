@@ -205,7 +205,7 @@ $peerDirectory = new \OpenCCK\App\Peer\PeerDirectory(
         ];
     },
 );
-$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDirectoryTool($peerDirectory));
+$tools->register(new \OpenCCK\App\Agent\Tool\Agents\PeerDirectoryTool($peerDirectory, $peerNetwork));
 if ($a2aServer !== null) {
     $a2aServer->useDirectory($peerDirectory);
     $scheduler->useJobRuns($a2aServer);
