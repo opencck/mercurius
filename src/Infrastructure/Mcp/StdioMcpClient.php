@@ -44,6 +44,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
     /** The first start may download the package (npx): the handshake waits longer than a request. */
     private const START_SECONDS = 180.0;
     private const REQUEST_SECONDS = 120.0;
+    private const CALL_SECONDS_MAX = 960.0;
 
     /** @var array<string, StdioSession> by server name */
     private array $sessions = [];
@@ -183,7 +184,26 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         if (!$session instanceof StdioSession) {
             throw new RuntimeException(t('mcp.stdio.closed'));
         }
-        return $session->request($method, $params, $cancellation, self::REQUEST_SECONDS);
+        return $session->request($method, $params, $cancellation, self::deadline($method, $params));
+    }
+
+    /**
+     * How long an answer is waited for: a call that gives its own timeout (a command on a server runs up to minutes)
+     * is waited for that long and a little more, within a limit.
+     *
+     * spec: brief/servers.md#ssh-как-предустановленный-mcp — a command of the SSH entry runs as long as it was given
+     *
+     * @param array<array-key, mixed> $params
+     */
+    public static function deadline(string $method, array $params): float {
+        /** @var mixed $arguments the arguments go as an object, so an empty set is {} */
+        $arguments = $params['arguments'] ?? null;
+        /** @var mixed $timeout */
+        $timeout = is_object($arguments) ? ($arguments->timeout ?? null) : null;
+        if ($method !== 'tools/call' || !is_int($timeout)) {
+            return self::REQUEST_SECONDS;
+        }
+        return max(self::REQUEST_SECONDS, min(self::CALL_SECONDS_MAX, (float) $timeout + 30.0));
     }
 
     /** @throws RuntimeException */

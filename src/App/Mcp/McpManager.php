@@ -114,6 +114,56 @@ final class McpManager {
         $this->filed = $filed;
     }
 
+    /** @var (Closure(McpServer): list<string>)|null */
+    private ?Closure $moreArgs = null;
+    /** @var (Closure(McpServer, McpTool, string): \OpenCCK\App\Agent\Tool\Tool)|null */
+    private ?Closure $wrapAny = null;
+
+    /**
+     * The core around our SSH MCP: arguments added at the start of a process (the host keys the owner trusted), and
+     * the tools of a connection put into the registry through a wrapper (the command policy, the journal, the cards).
+     *
+     * spec: brief/servers.md#ssh-как-предустановленный-mcp
+     *
+     * @param (Closure(McpServer): list<string>)|null $moreArgs
+     * @param (Closure(McpServer, McpTool, string): \OpenCCK\App\Agent\Tool\Tool)|null $wrap the tool, wrapped or as it is
+     */
+    public function useSsh(?Closure $moreArgs, ?Closure $wrap): void {
+        $this->moreArgs = $moreArgs;
+        $this->wrapAny = $wrap;
+    }
+
+    /**
+     * A tool of a connection called by the core rather than by the model: the text and the structured content with the
+     * values put into the entry masked.
+     *
+     * @param array<string, mixed> $args
+     * @return array{string, bool, array<array-key, mixed>|null}
+     * @throws DomainException the connection is not on, a secret it names is missing, or the server did not answer
+     */
+    public function call(string $context, string $name, string $tool, array $args, Cancellation $cancellation): array {
+        $server = $this->servers->find($context, $name);
+        if ($server === null || !$server->enabled() || ($server->approvedHash === null && $this->filed !== null && ($this->filed)($context))) {
+            throw new DomainException(sprintf(t('mcp.mcp_manager.not_connected'), $name, '—'));
+        }
+        [$target, $token, $values] = $this->endpointOnCall($server);
+        try {
+            $answer = $this->client->call($target, $token, $tool, $args, $cancellation);
+        } catch (RuntimeException $e) {
+            throw new DomainException(self::hide($e->getMessage(), $values));
+        }
+        $structured = $answer[3] ?? null;
+        if ($structured !== null) {
+            /** @var mixed $value */
+            foreach ($structured as $field => $value) {
+                if (is_string($value)) {
+                    $structured[$field] = self::hide($value, $values);
+                }
+            }
+        }
+        return [self::hide(self::clean($answer[0]), $values), $answer[1], $structured];
+    }
+
     /** Puts the secrets an approved entry names into it at each start and call. */
     public function useSecrets(McpSecrets $secrets): void {
         $this->secrets = $secrets;
@@ -587,7 +637,7 @@ final class McpManager {
                     $mcpTool->useClass(DangerClass::tryFrom($class) ?? DangerClass::Irreversible);
                 }
                 $wrap = $this->wraps[$server->name] ?? null;
-                $wrapped = $wrap === null ? $mcpTool : $wrap($mcpTool, $tool['name']);
+                $wrapped = $wrap !== null ? $wrap($mcpTool, $tool['name']) : ($this->wrapAny === null || $server->context === '' ? $mcpTool : ($this->wrapAny)($server, $mcpTool, $tool['name']));
                 if ($server->context === '') {
                     if ($this->registry->get($name) !== null) {
                         continue;
@@ -739,7 +789,9 @@ final class McpManager {
         } catch (\InvalidArgumentException $e) {
             throw new DomainException($e->getMessage());
         }
-        $rendered = $this->secrets->render($entry, $server->context);
+        $secrets = $this->secrets;
+        $entry = $entry->withMoreArgs($this->moreArgs === null ? [] : ($this->moreArgs)($server));
+        $rendered = $secrets->render($entry, $server->context);
         if ($rendered->missing !== []) {
             throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), implode(', ', $rendered->missing), $server->name));
         }

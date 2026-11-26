@@ -121,6 +121,7 @@ final class FileWriteTool implements Tool, GrantKeyed {
             $content,
             60,
             $context->cancellation,
+            $context->policy?->mcpContext,
         );
         return $ok ? ToolResult::ok(sprintf(t('tool.file_write.zapisano_bayt_v'), strlen($content), $path)) : ToolResult::error($text);
     }

@@ -42,6 +42,13 @@ final class StdioMcpClientTest extends AsyncTestCase {
         return new McpServer(7, 'everything', 'stdio:npx -y @modelcontextprotocol/server-everything', $secret, McpServer::ACTIVE, null);
     }
 
+    public function testACallWithALongTimeoutIsWaitedForLonger(): void {
+        self::assertSame(120.0, StdioMcpClient::deadline('tools/call', ['name' => 'run', 'arguments' => (object) ['command' => 'id']]));
+        self::assertSame(630.0, StdioMcpClient::deadline('tools/call', ['name' => 'run', 'arguments' => (object) ['timeout' => 600]]));
+        self::assertSame(960.0, StdioMcpClient::deadline('tools/call', ['name' => 'run', 'arguments' => (object) ['timeout' => 99999]]), 'within a limit');
+        self::assertSame(120.0, StdioMcpClient::deadline('tools/list', []));
+    }
+
     public function testOneProcessServesTheServerAndStartsWithAHandshake(): void {
         $tools = $this->client->tools(self::server(), null, new NullCancellation());
         [$text, $error] = $this->client->call(self::server(), null, 'echo', ['q' => 'hi'], new NullCancellation());

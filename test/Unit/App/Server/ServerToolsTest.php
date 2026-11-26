@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OpenCCK\Test\Unit\App\Server;
 
-use Amp\Cancellation;
 use Amp\NullCancellation;
 use Amp\PHPUnit\AsyncTestCase;
 use OpenCCK\App\Agent\Tool\Files\FileWriteTool;
@@ -12,9 +11,6 @@ use OpenCCK\App\Agent\Tool\Guard\AddressGuard;
 use OpenCCK\App\Agent\Tool\Servers\SqlQueryTool;
 use OpenCCK\App\Agent\Tool\ToolContext;
 use OpenCCK\App\Agent\Tool\Web\TcpProbeTool;
-use OpenCCK\App\Server\Connection;
-use OpenCCK\App\Server\RemoteResult;
-use OpenCCK\App\Server\RemoteShell;
 use OpenCCK\App\Server\ServerConsole;
 use OpenCCK\App\Service\ServerCommands;
 use OpenCCK\App\Vault\Vault;
@@ -28,34 +24,28 @@ use OpenCCK\Test\Support\InMemoryCommandAuditRepository;
 use OpenCCK\Test\Support\InMemorySecretRepository;
 use OpenCCK\Test\Support\InMemoryServerRepository;
 use OpenCCK\Test\Support\ScriptedLlm;
-use Psr\Log\NullLogger;
+use OpenCCK\Test\Support\SshFixture;
 
 final class ServerToolsTest extends AsyncTestCase {
     private InMemoryCommandAuditRepository $audit;
     private Vault $vault;
     private Member $owner;
     private ServerConsole $console;
-    /** @var list<array{string, ?string}> command, stdin */
-    public array $ran = [];
+    private SshFixture $ssh;
+    /** the command and the stdin of each call */
+    private RanView $ran;
 
     protected function setUp(): void {
         parent::setUp();
-        $servers = new InMemoryServerRepository();
-        $this->audit = new InMemoryCommandAuditRepository();
+        $this->ssh = new SshFixture();
+        $this->audit = $this->ssh->audit;
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->owner = new Member(1, MemberKind::Human, Role::admin(), null);
-        $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass', 'password', 'login-password-1', $this->owner), 'prod');
+        $this->ssh->entry('member:1', 'db', ['--host=10.0.0.7', '--user=ops', '--group=prod']);
         $this->vault->put('pg', 'password', 'pg-password-1', $this->owner);
-        $test = $this;
-        $this->console = new ServerConsole($servers, $this->vault, new SshCommandClassifier(), $this->audit, new class($test) implements RemoteShell {
-            public function __construct(private readonly ServerToolsTest $test) {}
-
-            public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
-                $this->test->ran[] = [$command, $stdin];
-                return new RemoteResult(0, "id\tname\n1\tfoo\n", '', false, 3);
-            }
-        }, static function (): void {
-        }, new NullLogger());
+        $this->ssh->answer = ['exit 0', false, ['exit' => 0, 'stdout' => "id\tname\n1\tfoo\n", 'stderr' => '', 'cut' => false]];
+        $this->console = $this->ssh->console();
+        $this->ran = new RanView($this->ssh);
     }
 
     private function context(): ToolContext {
@@ -71,7 +61,7 @@ final class ServerToolsTest extends AsyncTestCase {
 
         self::assertFalse($result->isError);
         self::assertStringContainsString("1\tfoo", $result->content);
-        [$command, $stdin] = $this->ran[0];
+        [$command, $stdin] = $this->ran->at(0);
         self::assertStringStartsWith("IFS= read -r PGPASSWORD; export PGPASSWORD; export PGOPTIONS='-c default_transaction_read_only=on'; exec psql ", $command);
         self::assertStringNotContainsString('pg-password-1', $command, 'never on the command line');
         self::assertSame("pg-password-1\nBEGIN READ ONLY;\nselect id, name from users limit 1;\nROLLBACK;\n", $stdin);
@@ -86,7 +76,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $args = ['server' => 'db', 'engine' => 'postgres', 'database' => 'shop', 'user' => 'app', 'secret' => 'agent-pg', 'query' => 'select 1;'];
 
         self::assertFalse($tool->execute($args, $this->context())->isError);
-        self::assertStringStartsWith("agent-pg-password\n", $this->ran[0][1] ?? '');
+        self::assertStringStartsWith("agent-pg-password\n", $this->ran->at(0)[1] ?? '');
     }
 
     public function testAReadCannotLeaveItsTransaction(): void {
@@ -96,7 +86,7 @@ final class ServerToolsTest extends AsyncTestCase {
         foreach (['select 1; delete from users', 'commit', 'SET SESSION TRANSACTION READ WRITE', 'select pg_terminate_backend(42)', 'select sleep(100)'] as $query) {
             self::assertTrue($tool->execute($base + ['query' => $query], $this->context())->isError, $query);
         }
-        self::assertSame([], $this->ran);
+        self::assertSame([], $this->ran->all());
         self::assertTrue($tool->execute(['query' => 'select 1', 'database' => 'shop; rm -rf /'] + $base, $this->context())->isError, 'names are checked');
     }
 
@@ -107,8 +97,8 @@ final class ServerToolsTest extends AsyncTestCase {
         self::assertSame(DangerClass::Irreversible, $tool->danger($args));
         $tool->execute($args, $this->context());
 
-        self::assertStringStartsWith('exec mysql -h 127.0.0.1 -u app -D shop', $this->ran[0][0]);
-        self::assertSame("update users set name = 'x' where id = 1;\n", $this->ran[0][1]);
+        self::assertStringStartsWith('exec mysql -h 127.0.0.1 -u app -D shop', $this->ran->at(0)[0]);
+        self::assertSame("update users set name = 'x' where id = 1;\n", $this->ran->at(0)[1]);
         self::assertSame('change', $this->audit->records[0]['class']);
     }
 
@@ -128,7 +118,7 @@ final class ServerToolsTest extends AsyncTestCase {
         // a quoted name is the same function
         self::assertTrue($tool->execute($pg + ['query' => 'select "pg_read_file"(\'/etc/passwd\')'], $this->context())->isError);
         self::assertTrue($tool->execute($pg + ['query' => 'select pg_sleep(100)'], $this->context())->isError);
-        self::assertSame([], $this->ran, 'nothing reached the server');
+        self::assertSame([], $this->ran->all(), 'nothing reached the server');
 
         // a backslash inside a string is data
         self::assertFalse($tool->execute($pg + ['query' => "select 'a\\b' as x"], $this->context())->isError);
@@ -142,8 +132,8 @@ final class ServerToolsTest extends AsyncTestCase {
         $tool->execute(['server' => 'db', 'engine' => 'postgres', 'database' => 'shop', 'user' => 'app', 'query' => 'select 1'], $this->context());
         $tool->execute(['server' => 'db', 'engine' => 'mysql', 'database' => 'shop', 'user' => 'app', 'query' => 'select 1'], $this->context());
 
-        self::assertStringStartsWith("export PGOPTIONS='-c default_transaction_read_only=on'; exec psql ", $this->ran[0][0]);
-        self::assertStringContainsString("--init-command='SET SESSION TRANSACTION READ ONLY'", $this->ran[1][0]);
+        self::assertStringStartsWith("export PGOPTIONS='-c default_transaction_read_only=on'; exec psql ", $this->ran->at(0)[0]);
+        self::assertStringContainsString("--init-command='SET SESSION TRANSACTION READ ONLY'", $this->ran->at(1)[0]);
     }
 
     public function testASecretWaitsForTheOwnerAndIsBoundToTheDatabaseItGoesTo(): void {
@@ -160,7 +150,7 @@ final class ServerToolsTest extends AsyncTestCase {
 
         $this->vault->put('setting.OPENROUTER_API_KEY', 'token', 'sk-or-v1-secret', $this->owner);
         self::assertTrue($tool->execute(['secret' => 'setting.OPENROUTER_API_KEY'] + $read, $this->context())->isError, 'settings of the agent are not database passwords');
-        self::assertSame([], $this->ran);
+        self::assertSame([], $this->ran->all());
     }
 
     public function testAWriteGrantNamesTheExactQueryAndTheConnection(): void {
@@ -173,16 +163,8 @@ final class ServerToolsTest extends AsyncTestCase {
     }
 
     public function testTheExactPasswordIsMaskedInWhatTheClientPrints(): void {
-        $console = new ServerConsole((function () {
-            $servers = new InMemoryServerRepository();
-            $servers->add('db', '10.0.0.7', 22, 'ops', $this->vault->put('ops-pass2', 'password', 'login-password-1', $this->owner), 'prod');
-            return $servers;
-        })(), $this->vault, new SshCommandClassifier(), $this->audit, new class implements RemoteShell {
-            public function run(Connection $target, string $command, int $timeout, int $maxOutput, Cancellation $cancellation, ?string $stdin = null): RemoteResult {
-                return new RemoteResult(1, '', 'FATAL: password pg-password-1 rejected', false, 3);
-            }
-        }, static function (): void {
-        }, new NullLogger());
+        $this->ssh->answer = ['exit 1', true, ['exit' => 1, 'stdout' => '', 'stderr' => 'FATAL: password pg-password-1 rejected', 'cut' => false]];
+        $console = $this->ssh->console();
         $tool = new SqlQueryTool($console, $this->vault);
 
         $result = $tool->execute(['server' => 'db', 'engine' => 'postgres', 'database' => 'shop', 'user' => 'app', 'secret' => 'pg', 'query' => 'select 1'], new ToolContext(5, 1, $this->owner, new NullCancellation(), approved: true));
@@ -196,7 +178,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $result = $tool->execute(['server' => 'db', 'path' => "/etc/app/it's.conf", 'content' => "a=1\n"], $this->context());
 
         self::assertFalse($result->isError);
-        self::assertSame(["cat > '/etc/app/it'\\''s.conf'", "a=1\n"], $this->ran[0]);
+        self::assertSame(["cat > '/etc/app/it'\\''s.conf'", "a=1\n"], $this->ran->at(0));
         self::assertSame("file write /etc/app/it's.conf (4 байт)", $this->audit->records[0]['command']);
         self::assertTrue($tool->execute(['server' => 'db', 'path' => '/root/.ssh/authorized_keys', 'content' => 'k', 'append' => true], $this->context())->isError);
         self::assertTrue($tool->execute(['server' => 'db', 'path' => "/tmp/a\nb", 'content' => 'k'], $this->context())->isError);
@@ -218,7 +200,7 @@ final class ServerToolsTest extends AsyncTestCase {
         $result = $tool->execute($args, new ToolContext(5, 1, $this->owner, new NullCancellation(), approved: true));
 
         self::assertFalse($result->isError, $result->content);
-        self::assertSame(["cat >> '/root/.ssh/authorized_keys'", 'k'], $this->ran[0]);
+        self::assertSame(["cat >> '/root/.ssh/authorized_keys'", 'k'], $this->ran->at(0));
     }
 
     public function testTheProbeDoesNotMapInternalNetworks(): void {
@@ -230,7 +212,7 @@ final class ServerToolsTest extends AsyncTestCase {
 
     public function testASecretPastedIntoAMessageIsKeptAndHiddenFromTheAgent(): void {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ок')]));
-        $stack->useServers(new ServerCommands($this->vault, new InMemoryServerRepository(), $this->audit));
+        $stack->useServers(new ServerCommands($this->vault, null, $this->audit));
 
         $stack->say('добавь сервер, вот ключ sk-or-v1-0123456789abcdef0123456789abcdef0123456789abcdef');
         $stack->scheduler->awaitIdle();
@@ -243,5 +225,30 @@ final class ServerToolsTest extends AsyncTestCase {
         self::assertMatchesRegularExpression('/в хранилище секретов как «msg-\d+»/u', $seen);
         $name = 'msg-' . $stack->channel->deleted[0][1];
         self::assertStringContainsString('0123456789abcdef0123', (string) $this->vault->reveal($name, $this->owner));
+    }
+}
+
+/**
+ * The calls of the fake process as the tests read them: [command, stdin] by number, counted.
+ */
+final class RanView implements \Countable {
+    public function __construct(private readonly SshFixture $ssh) {}
+
+    /** @return list<array{string, ?string}> */
+    public function all(): array {
+        $all = [];
+        foreach ($this->ssh->calls as [, $args]) {
+            $all[] = [isset($args['command']) && is_string($args['command']) ? $args['command'] : '', isset($args['stdin']) && is_string($args['stdin']) ? $args['stdin'] : null];
+        }
+        return $all;
+    }
+
+    /** @return array{string, ?string} */
+    public function at(int $number): array {
+        return $this->all()[$number] ?? throw new \OutOfBoundsException('no such call');
+    }
+
+    public function count(): int {
+        return count($this->ssh->calls);
     }
 }

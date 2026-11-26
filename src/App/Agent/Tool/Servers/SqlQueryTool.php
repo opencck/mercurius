@@ -182,6 +182,7 @@ final class SqlQueryTool implements Tool, GrantKeyed {
             $stdin,
             120,
             $context->cancellation,
+            $context->policy?->mcpContext,
         );
         return ToolResult::ok($password === null || $password === '' ? $text : str_replace([$password, base64_encode($password)], '***', $text));
     }

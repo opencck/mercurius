@@ -9,8 +9,6 @@ use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Vault\Vault;
 use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\CommandAuditRepository;
-use OpenCCK\Domain\Repository\ServerRepository;
-use OpenCCK\Domain\Server\Server;
 use SensitiveParameter;
 
 use function Mercurius\I18n\t;
@@ -26,8 +24,9 @@ final class ServerCommands {
 
     public function __construct(
         private readonly Vault $vault,
-        private readonly ServerRepository $servers,
+        private readonly ?\OpenCCK\App\Server\SshEntries $entries,
         private readonly CommandAuditRepository $audit,
+        private readonly ?\OpenCCK\Domain\Repository\SshHostKeyRepository $keys = null,
     ) {}
 
     /** "/secret <name> <value>" stores, "/secret - <name>" removes. */
@@ -237,26 +236,25 @@ final class ServerCommands {
      * spec: brief/servers.md#как-сделано-хранилище-реестр-и-ssh — the registry is changed in the dialogue
      */
     public function server(string $argument): string {
-        $argument = trim($argument);
-        if (!str_starts_with($argument, '- ') || trim(substr($argument, 2)) === '') {
-            return t('service.server_commands.server_usage');
-        }
-        $name = trim(substr($argument, 2));
-        return \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool::remove($this->servers, $name) ?? sprintf(t('service.server_commands.server_removed'), $name);
+        // spec: brief/servers.md#ssh-как-предустановленный-mcp — a server is an entry of .mcp.json: it is changed and
+        //       removed as an entry
+        return t('service.server_commands.server_usage');
     }
 
+    /** Every SSH entry of our MCP, whoever keeps it, with the state of its host key. */
     public function servers(): string {
-        $all = $this->servers->all();
+        $all = $this->entries?->all() ?? [];
         if ($all === []) {
             return t('service.server_commands.serverov_v_reestre_net_poprosite');
         }
-        return t('service.server_commands.servery') . implode("\n", array_map(static fn(Server $s): string => sprintf(
-            '%s — %s@%s (%s)%s',
+        return t('service.server_commands.servery') . implode("\n", array_map(fn(\OpenCCK\App\Server\SshTarget $s): string => sprintf(
+            '%s (%s) — %s@%s (%s)%s',
             $s->name,
-            $s->username,
+            $s->context,
+            $s->user,
             $s->address(),
             $s->group,
-            $s->hostKey === null ? t('service.server_commands.klyuch_hosta_ne_podtverzhden') : '',
+            $this->keys?->of($s->key, $s->address())?->hostKey === null ? t('service.server_commands.klyuch_hosta_ne_podtverzhden') : '',
         ), $all));
     }
 

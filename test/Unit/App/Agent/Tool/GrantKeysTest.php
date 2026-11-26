@@ -10,7 +10,6 @@ use OpenCCK\App\Agent\Tool\Projects\ProjectEditTool;
 use OpenCCK\App\Agent\Tool\Self\OpenRouterByokTool;
 use OpenCCK\App\Agent\Tool\Self\SetModelRoleTool;
 use OpenCCK\App\Agent\Tool\Self\SettingsTool;
-use OpenCCK\App\Agent\Tool\Servers\ServerAddTool;
 use OpenCCK\App\Agent\Tool\Servers\SqlQueryTool;
 use PHPUnit\Framework\TestCase;
 
@@ -36,7 +35,6 @@ final class GrantKeysTest extends TestCase {
         yield 'project status' => [ProjectEditTool::class, ['action' => 'status', 'project' => 'Дом', 'status' => 'done'], 'project:status:дом'];
         yield 'project create' => [ProjectEditTool::class, ['action' => 'create', 'project' => 'Новый'], 'project:create'];
         yield 'project card is a write' => [ProjectEditTool::class, ['action' => 'card', 'project' => 'Дом'], null];
-        yield 'server add' => [ServerAddTool::class, ['name' => 'Web', 'host' => '1.2.3.4', 'user' => 'u', 'secret' => 's'], 'server-add:web'];
         yield 'model role' => [SetModelRoleTool::class, ['role' => 'cheap', 'model' => 'a/b', 'reason' => 'r'], 'model-role:cheap:a/b'];
         yield 'settings set' => [SettingsTool::class, ['action' => 'set', 'key' => 'AGENT_MAX_TURNS', 'value' => '40'], 'settings:set:AGENT_MAX_TURNS'];
         yield 'settings restart' => [SettingsTool::class, ['action' => 'restart'], 'settings:restart'];

@@ -24,12 +24,12 @@ final class ServerCommandsTest extends AsyncTestCase {
         parent::setUp();
         $this->vault = new Vault(new InMemorySecretRepository(), random_bytes(32));
         $this->stack = new AgentStack(new ScriptedLlm([]));
-        $this->stack->useServers(new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository()));
+        $this->stack->useServers(new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository()));
     }
 
     /** spec: brief/skills-mcp.md#подстановка-секретов — the layer of the agent, kept by its owners */
     public function testAnOwnerKeepsASecretOfTheAgentAndAMemberIsRefused(): void {
-        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $commands = new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository());
         $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
 
@@ -48,7 +48,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testInheritanceIsTurnedOnByWhoeverMay(): void {
         $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
         $inherit = new \OpenCCK\Test\Support\InMemorySecretInheritanceRepository();
-        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $commands = new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository());
         $commands->useProjects($projects);
         $commands->useInheritance($inherit);
         $owner = new Member(1, MemberKind::Human, Role::admin(), null);
@@ -93,7 +93,7 @@ final class ServerCommandsTest extends AsyncTestCase {
     public function testTheOwnerOfAProjectKeepsItsSecretForASiteAndAMemberIsRefused(): void {
         // spec: brief/participants.md#секреты-проекта
         $projects = new \OpenCCK\Test\Support\InMemoryProjectRepository();
-        $commands = new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository());
+        $commands = new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository());
         $commands->useProjects($projects);
         $owner = new Member(1, MemberKind::Human, Role::admin(), null);
         $anna = new Member(7, MemberKind::Human, Role::user(), 'Анна');
@@ -136,7 +136,7 @@ final class ServerCommandsTest extends AsyncTestCase {
 
     public function testLinesWithoutASlashGoToTheAgentAsAMessage(): void {
         $this->stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Принял.'), ScriptedLlm::text('Принял и этот.')]));
-        $this->stack->useServers(new ServerCommands($this->vault, new InMemoryServerRepository(), new InMemoryCommandAuditRepository()));
+        $this->stack->useServers(new ServerCommands($this->vault, null, new InMemoryCommandAuditRepository()));
 
         $this->stack->say("/secret fv-pass first-pass-1\nсохранил тебе пароль от сервера\nкоторый firstvps\nпроверь\n\n/secret birma-pass second-pass-2\nи вот ещё\nсекрет от birma");
         $this->stack->scheduler->awaitIdle();
@@ -187,6 +187,6 @@ final class ServerCommandsTest extends AsyncTestCase {
         self::assertStringNotContainsString('value-of-db', $replies);
         self::assertStringContainsString('Журнал команд пуст', $replies);
         self::assertStringContainsString('Цепочка журнала цела', $replies);
-        self::assertStringContainsString('Серверов в реестре нет', $replies);
+        self::assertStringContainsString('SSH-серверов нет', $replies);
     }
 }

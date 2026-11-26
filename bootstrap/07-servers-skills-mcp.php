@@ -13,7 +13,6 @@ use Mercurius\Messenger\OutgoingMessage;
 use OpenCCK\App\Agent\HostKeyCards;
 use OpenCCK\App\Agent\Tool\Files\FileWriteTool;
 use OpenCCK\App\Agent\Tool\Self\OpenRouterByokTool;
-use OpenCCK\App\Agent\Tool\Servers\ServerAddTool;
 use OpenCCK\App\Agent\Tool\Servers\ServersTool;
 use OpenCCK\App\Agent\Tool\Servers\SqlQueryTool;
 use OpenCCK\App\Agent\Tool\Servers\SshRunTool;
@@ -29,7 +28,6 @@ use OpenCCK\Infrastructure\Repository\PostgresCommandAuditRepository;
 use OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository;
 use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
 use OpenCCK\Infrastructure\Repository\PostgresServerRepository;
-use OpenCCK\Infrastructure\Ssh\AmpSshShell;
 
 /**
  * Made by the parts before this one:
@@ -56,26 +54,39 @@ use OpenCCK\Infrastructure\Ssh\AmpSshShell;
 if (!$vault->enabled()) {
     $logger->warning('SECRETS_KEY is not set: the vault and SSH are off');
 }
+// the former registry of servers: read once, by the move of its servers into SSH entries
 $serverRepository = new PostgresServerRepository($db);
 $commandAudit = new PostgresCommandAuditRepository($db);
-$hostKeyCards = new HostKeyCards($serverRepository, $channel, $ownerDirectory);
+// spec: brief/servers.md#ssh-как-предустановленный-mcp — a server is an SSH entry of our MCP; the core wraps its tools
+//       and keeps the host key the owner trusted by the entry
+$sshHostKeys = new \OpenCCK\Infrastructure\Repository\PostgresSshHostKeyRepository($db);
+$hostKeyCards = new HostKeyCards($sshHostKeys, $channel, $ownerDirectory);
+$mcpInstalls = new \OpenCCK\Infrastructure\Repository\PostgresMcpInstallRepository($db);
+$sshEntries = new \OpenCCK\App\Server\SshEntries(
+    new PostgresMcpServerRepository($db),
+    static fn(string $install): ?string => $mcpInstalls->find($install)?->source,
+    $sshHostKeys,
+);
 // spec: brief/servers.md#правила-никогда-без-владельца — the owner may take off any rule of what is never done
 $sshNeverOff = array_values(array_filter(array_map('trim', explode(',', \OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'SSH_NEVER_OFF') ?? '')), static fn(string $r): bool => $r !== ''));
+/** @var McpManager|null $mcpManager made below: a command goes through the process of its entry */
+$mcpManager = null;
 $serverConsole = new ServerConsole(
-    $serverRepository,
-    $vault,
+    $sshEntries,
     new SshCommandClassifier($sshNeverOff),
     $commandAudit,
-    new AmpSshShell(null, $logger),
+    static function (\OpenCCK\App\Server\SshTarget $target, array $args, \Amp\Cancellation $cancellation) use (&$mcpManager): array {
+        if (!$mcpManager instanceof McpManager) {
+            throw new \DomainException('MCP is not ready');
+        }
+        return $mcpManager->call($target->context, $target->name, 'run', $args, $cancellation);
+    },
+    $sshHostKeys,
     $hostKeyCards->ask(...),
     $logger,
-    $llmSettings->routeUri(),
     $vaultSettings->confirmGroups,
 );
-$tools->register(new ServersTool($serverRepository));
-$tools->register(new ServerAddTool($serverRepository, $vault));
-$tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerEditTool($serverRepository, $vault));
-$tools->register(new \OpenCCK\App\Agent\Tool\Servers\ServerRemoveTool($serverRepository));
+$tools->register(new ServersTool($sshEntries, $sshHostKeys));
 $tools->register(new SshRunTool($serverConsole));
 $tools->register($sqlQueryTool = new SqlQueryTool($serverConsole, $vault));
 $tools->register(new FileWriteTool($serverConsole, new SshCommandClassifier($sshNeverOff)));
@@ -148,8 +159,6 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Skills\SkillImportTool($skillImport
 $mcpServers = new PostgresMcpServerRepository($db);
 // spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие — the MCP client of the package speaks in the agent's language
 $mcpTexts = \OpenCCK\App\Mcp\McpLanguage::texts();
-/** @var McpManager|null $mcpManager the stdio client tells it when a server's tools change */
-$mcpManager = null;
 $stdioMcp = $sandbox === null ? null : new \OpenCCK\Infrastructure\Mcp\StdioMcpClient(
     $sandbox,
     // a server lives for days: its CPU time is capped by a day, not by the limit of one command
@@ -224,6 +233,16 @@ $mcpSecrets = new \OpenCCK\App\Mcp\McpSecrets(
     $secretInheritance,
 );
 $mcpManager->useSecrets($mcpSecrets);
+// spec: brief/servers.md#ssh-как-предустановленный-mcp — an SSH entry of our MCP starts with the host keys the owner
+//       trusted, and its tools go to the model through the wrapper of the core
+$sshClassifier = new SshCommandClassifier($sshNeverOff);
+$mcpManager->useSsh(
+    $sshEntries->keyArgs(...),
+    static function (\OpenCCK\Domain\Mcp\McpServer $server, \OpenCCK\App\Mcp\McpTool $tool, string $remote) use ($sshEntries, $serverConsole, $sshClassifier): \OpenCCK\App\Agent\Tool\Tool {
+        $target = $sshEntries->target($server);
+        return $target === null ? $tool : new \OpenCCK\App\Server\SshEntryTool($tool, $remote, $target, $serverConsole, $sshClassifier);
+    },
+);
 // spec: brief/skills-mcp.md#подстановка-секретов — a request to a site takes the same wider layers
 /** @var OpenCCK\App\Agent\Tool\Web\HttpRequestTool|null $httpRequestTool */
 $httpRequestTool?->useLayers($mcpSecrets->outside(...));
@@ -291,7 +310,6 @@ if ($sandbox !== null) {
     $mcpCardsHolder['cards'] = $mcpCards;
     // spec: brief/skills-mcp.md#установка-и-обновление — sources, the agent's plan, steps by the install's own user, a
     //       trial start and the approval of the set; the entry goes into the context that asked for it
-    $mcpInstalls = new \OpenCCK\Infrastructure\Repository\PostgresMcpInstallRepository($db);
     $osvCheck = new \OpenCCK\App\Mcp\OsvCheck(HttpClients::create(), $logger);
     /** @psalm-suppress PossiblyNullReference the sandbox is on here, and with it the stdio client */
     $mcpInstaller = new \OpenCCK\App\Mcp\McpInstaller(
@@ -375,6 +393,60 @@ if ($sandbox !== null) {
         $syncMcpFiles();
         $mcpManager->connectAll();
     });
+    // spec: brief/servers.md#ssh-как-предустановленный-mcp — the servers of the former registry become SSH entries of
+    //       our MCP once it is installed: in the file of whoever keeps the secret, approved, keys and grants with them
+    $serverMove = new \OpenCCK\Infrastructure\Repository\PostgresServerMove($db);
+    $sshMigration = new \OpenCCK\App\Server\SshMigration(
+        $serverMove->rows(...),
+        static function () use ($mcpInstalls): ?string {
+            foreach ($mcpInstalls->all() as $install) {
+                if ($install->revision !== null && preg_match(\OpenCCK\App\Server\SshEntries::SOURCE, $install->source) === 1) {
+                    return $install->name;
+                }
+            }
+            return null;
+        },
+        static function (string $install, string $context) use ($mcpInstaller, $mcpInstalls): void {
+            if (!$mcpInstaller->allowedIn($install, $context)) {
+                $mcpInstalls->allow($install, $context, true);
+            }
+        },
+        static fn(string $context, \OpenCCK\App\Mcp\McpEntry $entry) => $mcpFiles->put($context, $entry, sync: false),
+        static function (string $context, string $name) use ($mcpFiles, $mcpServers, $ownerDirectory): ?string {
+            $owner = $ownerDirectory->principal();
+            if ($owner === null) {
+                return 'no owner';
+            }
+            $answer = $mcpFiles->approve($context, $name, $owner);
+            return $mcpServers->find($context, $name)?->approvedHash !== null ? null : $answer;
+        },
+        $serverMove->grants(...),
+        $serverMove->moved(...),
+        $sshHostKeys,
+        $logger,
+    );
+    /** @var \ArrayObject<string, string> $moveTold what the owners were told last: the same words are not sent again */
+    $moveTold = new \ArrayObject();
+    $moveServers = static function () use ($sshMigration, $channel, $logger, $moveTold): void {
+        try {
+            $lines = $sshMigration->run();
+            $said = implode("\n", $lines);
+            if ($lines !== [] && ($moveTold['last'] ?? '') !== $said) {
+                $moveTold['last'] = $said;
+                $channel->send(new OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, \Mercurius\I18n\t('server.migration.title') . "\n" . implode("\n", $lines)));
+            }
+        } catch (\Throwable $e) {
+            $logger->warning('The servers were not moved into SSH entries', ['error' => $e::class]);
+        }
+    };
+    // after the files are read and the connections started, then every ten minutes: an install of the MCP made later
+    // moves the servers without a restart
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(30, static function () use ($moveServers): void {
+        \Amp\async($moveServers)->ignore();
+    }));
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(600, static function () use ($moveServers): void {
+        \Amp\async($moveServers)->ignore();
+    }));
     \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(60, static function () use ($syncMcpFiles): void {
         \Amp\async($syncMcpFiles)->ignore();
     }));

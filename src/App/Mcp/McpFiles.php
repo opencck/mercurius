@@ -374,15 +374,18 @@ final class McpFiles {
     }
 
     /**
-     * Adds or replaces an entry of the context's file and reads the file again.
+     * Adds or replaces an entry of the context's file and reads the file again; without reading it again the entry
+     * waits for an approval the caller gives at once (an entry the application itself moved there), with no card.
      *
      * @throws InvalidArgumentException the file is there but was not read, or there is no place for it
      */
-    public function put(string $context, McpEntry $entry): void {
+    public function put(string $context, McpEntry $entry, bool $sync = true): void {
         $servers = $this->readable($context)->servers ?? [];
         $servers[$entry->name] = $entry;
         $this->write($context, $servers);
-        $this->sync($context);
+        if ($sync) {
+            $this->sync($context);
+        }
     }
 
     /**

@@ -508,6 +508,16 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertSame([McpServer::CONNECTED, true], [$old?->status, $old?->approvedHash !== null], 'it keeps working, approved as it was');
     }
 
+    /** spec: brief/servers.md#ssh-как-предустановленный-mcp — an entry the application approves at once sends no card */
+    public function testAnEntryWrittenToBeApprovedAtOnceBringsNoCard(): void {
+        $this->files->put('member:1', McpEntry::fromArray('moved', ['command' => 'npx', 'args' => ['-y', 'some-mcp']]), sync: false);
+        $this->files->approve('member:1', 'moved', $this->owner);
+        $this->files->sync('member:1');
+
+        self::assertSame([], $this->told);
+        self::assertNotNull($this->servers->find('member:1', 'moved')?->approvedHash);
+    }
+
     public function testCommandsWriteTheFile(): void {
         $this->files->put('member:1', McpEntry::fromArray('docs', ['url' => 'https://a.example/mcp']));
         self::assertSame(McpServer::PENDING, $this->servers->find('member:1', 'docs')?->status);

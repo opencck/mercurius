@@ -111,6 +111,7 @@ final class SshRunTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\Wide
             Args::int($args, 'timeout') ?? 60,
             $context->cancellation,
             $context->approved,
+            $context->policy?->mcpContext,
         );
         return $ok ? ToolResult::ok($text) : ToolResult::error($text);
     }

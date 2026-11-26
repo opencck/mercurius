@@ -97,6 +97,16 @@ final class McpEntry {
         return $out;
     }
 
+    /**
+     * The entry with arguments the application adds at the start (the trusted host key of an SSH entry): not in the
+     * file, not in the approved hash, but in the rendered one — another value is another process.
+     *
+     * @param list<string> $args
+     */
+    public function withMoreArgs(array $args): self {
+        return $args === [] ? $this : new self($this->name, $this->url, $this->headers, $this->command, [...$this->args, ...$args], $this->env, $this->disabled);
+    }
+
     /** @return array<string, mixed> the entry as the file holds it */
     public function toArray(): array {
         $entry = $this->url !== null

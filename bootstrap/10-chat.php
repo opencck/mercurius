@@ -115,7 +115,8 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\Infrastructure\Sandbox\HttpSandboxClient|null $sandbox
  * @var OpenCCK\Infrastructure\Repository\PostgresSshKeyRepository|null $sshKeys
  * @var OpenCCK\App\Agent\RunScheduler $scheduler
- * @var OpenCCK\Infrastructure\Repository\PostgresServerRepository $serverRepository
+ * @var OpenCCK\App\Server\SshEntries $sshEntries
+ * @var OpenCCK\Infrastructure\Repository\PostgresSshHostKeyRepository $sshHostKeys
  * @var OpenCCK\App\Settings\SettingsService $settingsService
  * @var OpenCCK\App\Skill\SkillImporter $skillImporter
  * @var OpenCCK\App\Skill\SkillLibrary $skillLibrary
@@ -238,7 +239,7 @@ $chat = new ChatService(
     $logger,
     new MemoryCommands($memoryStore, $proposals, $memoryContext, $consolidation, $memoryAliases, $lossGuard, $sleeps, $memoryProbes),
     new ProjectCommands($projectRepository),
-    $serverCommands = new ServerCommands($vault, $serverRepository, $commandAudit),
+    $serverCommands = new ServerCommands($vault, $sshEntries, $commandAudit, $sshHostKeys),
     new SkillCommands($skillLibrary, static fn(string $channel, string $chatId, string $thread): ?\OpenCCK\Domain\Project\Project => $skillProjects->active($channel, $chatId, $thread), $skillImporter, $checkpoints),
     new McpCommands($mcpManager, $mcpServers, $mcpFiles, static fn(int $project): ?int => $skillProjects->find($project)?->ownerId),
     new JobCommands($jobRepository, $jobScheduler, $vault, $config->appUrl),
