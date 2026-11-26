@@ -10,7 +10,7 @@ use Mercurius\Messenger\OutgoingMessage;
 use Mercurius\Messenger\ParseMode;
 use Mercurius\Messenger\SendResult;
 
-final class FakeChannel implements Channel, \Mercurius\Messenger\ForumChannel, \Mercurius\Messenger\PollChannel, \Mercurius\Messenger\ContactChannel, \Mercurius\Messenger\LocationChannel {
+final class FakeChannel implements Channel, \Mercurius\Messenger\ForumChannel, \Mercurius\Messenger\PollChannel, \Mercurius\Messenger\ContactChannel, \Mercurius\Messenger\LocationChannel, \Mercurius\Messenger\RightsChannel {
     /** @var list<array{string, string, string}> [action, chatId or messageId, text] */
     public array $log = [];
     /** @var list<array{string, string, ParseMode}> [action, text, parse mode] */
@@ -151,6 +151,13 @@ final class FakeChannel implements Channel, \Mercurius\Messenger\ForumChannel, \
     public function deleteTopic(string $chatId, string $threadId): bool {
         $this->topics[] = ['delete', $chatId, $threadId, ''];
         return !$this->topicsFail;
+    }
+
+    /** what rights() answers; null — they could not be learned */
+    public ?\Mercurius\Messenger\BotRights $rights = null;
+
+    public function rights(string $chatId): ?\Mercurius\Messenger\BotRights {
+        return $this->rights;
     }
 
     public function leave(string $chatId): bool {

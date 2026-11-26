@@ -61,6 +61,19 @@ final class InMemoryProjectRepository implements ProjectRepository {
         unset($this->projects[$emptyId], $this->members[$emptyId]);
     }
 
+    public function delete(int $projectId): bool {
+        if (!isset($this->projects[$projectId])) {
+            return false;
+        }
+        foreach ($this->chats as $key => $id) {
+            if ($id === $projectId) {
+                unset($this->chats[$key]);
+            }
+        }
+        unset($this->projects[$projectId], $this->members[$projectId]);
+        return true;
+    }
+
     public function offer(int $projectId, ?int $fromId, ?int $toId): \OpenCCK\Domain\Project\ProjectTransfer {
         foreach ($this->transfers as $t) {
             if ($t->projectId === $projectId && $t->status === \OpenCCK\Domain\Project\ProjectTransfer::PENDING) {

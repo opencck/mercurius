@@ -26,6 +26,15 @@ interface GroupRepository {
      */
     public function move(string $channel, string $fromChatId, string $toChatId): ?Group;
 
+    /** The group that had this number before Telegram gave it a new one; null — none. */
+    public function formerly(string $channel, string $chatId): ?Group;
+
+    /** The message of the owner's card of a group waiting for a decision; null — no card. */
+    public function setCard(string $channel, string $chatId, ?string $card): void;
+
+    /** Forgets the owner's decision: the group waits for a new card. */
+    public function reset(string $channel, string $chatId): ?Group;
+
     /** Records whether the group is a forum (Telegram says so with every message). */
     public function setForum(string $channel, string $chatId, bool $forum): void;
 

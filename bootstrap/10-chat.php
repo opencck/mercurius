@@ -188,6 +188,9 @@ $groupGate->useBots(new \OpenCCK\App\Service\BotLoopGuard());
 $groupIgnores = new \OpenCCK\Infrastructure\Repository\PostgresGroupIgnoreRepository($db);
 $groupGate->useIgnores($groupIgnores);
 $tools->register(new \OpenCCK\App\Agent\Tool\Messaging\GroupIgnoreTool($groupIgnores, $conversations, $groupRepository));
+// spec: brief/channels.md#группа — the owner sees the groups with the bot's rights there, asks a group again and deletes
+//       a topic on request
+$tools->register(new \OpenCCK\App\Agent\Tool\Messaging\GroupsTool($groupRepository, $groupGate, $channel, $projectRepository));
 // spec: brief/channels.md#личные-сообщения-участникам — personal messages to participants, their answers come back to who asked
 $messageRelays = new \OpenCCK\Infrastructure\Repository\PostgresMessageRelayRepository($db);
 // spec: brief/channels.md#сообщение-в-группу-или-тему-по-просьбе — the places a message may go to: the groups the owner

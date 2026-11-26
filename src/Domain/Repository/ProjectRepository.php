@@ -70,6 +70,13 @@ interface ProjectRepository {
     public function absorb(int $projectId, int $emptyId): void;
 
     /**
+     * Deletes a project with what hangs on it in the base: its chats and topics, members, jobs, secrets, policies.
+     *
+     * spec: brief/participants.md#удаление-проекта
+     */
+    public function delete(int $projectId): bool;
+
+    /**
      * Offers a project to a participant; an earlier offer of the same project is cancelled.
      *
      * @param int|null $fromId null — the owner of the agent

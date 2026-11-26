@@ -12,6 +12,7 @@ use Mercurius\Messenger\IncomingMembership;
 use Mercurius\Messenger\IncomingMessage;
 use Mercurius\Messenger\MembershipHandler;
 use Mercurius\Messenger\OutgoingMessage;
+use Mercurius\Messenger\RightsChannel;
 use OpenCCK\App\Agent\Tool\Guard\SecretMasker;
 use OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper;
 use OpenCCK\Domain\Entity\Member;
@@ -110,10 +111,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if (is_int($movedFrom) || is_int($movedTo)) {
             $old = is_int($movedFrom) ? (string) $movedFrom : $message->chatId;
             $new = is_int($movedTo) ? (string) $movedTo : $message->chatId;
-            if ($this->groups->move($message->channel, $old, $new) !== null) {
-                $this->talk->forget($message->channel, $old);
-                $this->logger->notice('Group moved to a new number', ['from' => $old, 'to' => $new]);
-            }
+            $this->moved($message->channel, $old, $new);
             return null;
         }
         $group = $this->groups->find($message->channel, $message->chatId);
@@ -121,7 +119,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             $title = self::title($message);
             if ($this->groups->create($message->channel, $message->chatId, $title)) {
                 $this->groups->setForum($message->channel, $message->chatId, $forum);
-                $this->card($message->chatId, $title);
+                $this->card($message->channel, $message->chatId, $title);
             }
             return null;
         }
@@ -246,13 +244,13 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         $joined = !in_array($change->oldStatus, ['creator', 'administrator', 'member', 'restricted'], true);
         if ($group === null) {
             if ($this->groups->create($change->channel, $change->chatId, $title)) {
-                $this->card($change->chatId, $title);
+                $this->card($change->channel, $change->chatId, $title);
             }
         } elseif ($group->status === Group::REFUSED) {
             $this->left[$group->chatId] = true;
             $this->channel->leave($group->chatId);
         } elseif ($group->status === Group::PENDING && $joined) {
-            $this->card($change->chatId, $group->title);
+            $this->card($change->channel, $change->chatId, $group->title);
         }
         $this->logger->notice('Bot added to a group', ['chat' => $change->chatId, 'status' => $change->status, 'by' => $change->userId]);
     }
@@ -271,10 +269,18 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             'f' => [Group::APPROVED, Group::FREE, t('service.group_gate.rabotayu_v_gruppe_svobodno_sam')],
             default => [Group::REFUSED, Group::MENTION, t('service.group_gate.vyhozhu_iz_gruppy')],
         };
-        $group = $this->groups->decide($callback->channel, $m[1], $status, $mode);
-        $this->channel->answerCallback($callback->callbackId, $outcome);
+        // a card of the number the group had before it became a supergroup decides for its new number
+        $chatId = $this->groups->find($callback->channel, $m[1]) === null ? ($this->groups->formerly($callback->channel, $m[1])->chatId ?? $m[1]) : $m[1];
+        $group = $this->groups->decide($callback->channel, $chatId, $status, $mode);
         if ($group === null) {
+            $this->channel->answerCallback($callback->callbackId, t('service.group_gate.group_unknown'));
             return;
+        }
+        $this->channel->answerCallback($callback->callbackId, $outcome);
+        $this->groups->setCard($callback->channel, $chatId, null);
+        // spec: brief/channels.md#группа — free needs the bot to see the talk: the owner is told at once when it does not
+        if ($mode === Group::FREE && $this->channel instanceof RightsChannel && $this->channel->rights($chatId)?->seesAll() === false) {
+            $outcome .= ' ' . t('service.group_gate.free_but_hidden');
         }
         if ($callback->messageId !== null) {
             $this->channel->edit($callback->chatId, $callback->messageId, sprintf(t('service.group_gate.gruppa'), $group->title, $outcome));
@@ -396,15 +402,93 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         return $this->talk->speakers($channel, $chatId, $threadId, self::ACTIVE_SECONDS);
     }
 
-    private function card(string $chatId, string $title): void {
-        $result = $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(t('service.group_gate.menya_dobavili_v_gruppu_rabotat'), $title), buttons: [[
+    /**
+     * The group got a new number: one group, one card. The card of the old number is no longer true and goes; a group
+     * that still waits keeps (or gets) the card of its new number, a decided one loses it.
+     *
+     * spec: brief/channels.md#как-сделано-группы
+     */
+    private function moved(string $channel, string $old, string $new): void {
+        $before = $this->groups->find($channel, $old);
+        $group = $this->groups->move($channel, $old, $new);
+        if ($group === null) {
+            return;
+        }
+        $this->talk->forget($channel, $old);
+        $owner = OwnerDirectory::chat($this->ownerChatId);
+        $stale = $before?->card;
+        if ($stale !== null) {
+            $this->channel->delete($owner, $stale);
+        }
+        if ($group->status === Group::PENDING) {
+            if ($group->card === null) {
+                $this->card($channel, $new, $group->title);
+            }
+        } elseif ($group->card !== null) {
+            $this->channel->delete($owner, $group->card);
+            $this->groups->setCard($channel, $new, null);
+        }
+        $this->logger->notice('Group moved to a new number', ['from' => $old, 'to' => $new]);
+    }
+
+    /** What the bot may do in a group now; null — not known (the channel cannot say, or Telegram did not answer). */
+    public function rights(string $chatId): ?\Mercurius\Messenger\BotRights {
+        return $this->channel instanceof RightsChannel ? $this->channel->rights($chatId) : null;
+    }
+
+    /**
+     * The owner asks about a group again: the decision is forgotten, the bot keeps silent there until the new card is
+     * pressed. A card still waiting goes: one group, one card.
+     *
+     * spec: brief/channels.md#группа
+     */
+    public function ask(string $channel, string $chatId): ?Group {
+        $before = $this->groups->find($channel, $chatId);
+        if ($before === null) {
+            return null;
+        }
+        $group = $this->groups->reset($channel, $chatId);
+        if ($group === null) {
+            return null;
+        }
+        if ($before->card !== null) {
+            $this->channel->delete(OwnerDirectory::chat($this->ownerChatId), $before->card);
+        }
+        unset($this->left[$chatId]);
+        $this->card($channel, $chatId, $group->title);
+        $this->logger->notice('Group asked again', ['chat' => $chatId]);
+        return $group;
+    }
+
+    /**
+     * What the bot needs in the group and lacks: to see every message (an administrator, or the privacy mode off) and to
+     * manage topics; when the rights are not known — what is needed.
+     *
+     * spec: brief/channels.md#группа
+     */
+    private function rightsNote(string $chatId): string {
+        $rights = $this->rights($chatId);
+        if ($rights === null) {
+            return "\n\n" . t('service.group_gate.rights_unknown');
+        }
+        $lines = array_filter([
+            $rights->seesAll() ? '' : t('service.group_gate.rights_hidden'),
+            $rights->canManageTopics ? '' : t('service.group_gate.rights_topics'),
+        ]);
+        return $lines === [] ? '' : "\n\n" . implode("\n\n", $lines);
+    }
+
+    private function card(string $channel, string $chatId, string $title): void {
+        $result = $this->channel->send(new OutgoingMessage(OwnerDirectory::chat($this->ownerChatId), sprintf(t('service.group_gate.menya_dobavili_v_gruppu_rabotat'), $title) . $this->rightsNote($chatId), buttons: [[
             new Button(t('service.group_gate.po_upominaniyu'), sprintf('gr:%s:m', $chatId)),
             new Button(t('service.group_gate.svobodno'), sprintf('gr:%s:f', $chatId)),
             new Button(t('service.group_gate.vyyti'), sprintf('gr:%s:r', $chatId)),
         ]]));
         if (!$result->success) {
             $this->logger->warning('Group card was not delivered', ['chat' => $chatId]);
+            return;
         }
+        $this->groups->setCard($channel, $chatId, $result->messageId);
     }
 
     private static function title(IncomingMessage $message): string {

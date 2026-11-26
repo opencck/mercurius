@@ -28,7 +28,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/participants.md#свои-роли — cards and notices go to every owner, any presses, every copy shows the decision
  */
-final class OwnersChannel implements Channel, ForumChannel, PollChannel, ContactChannel, LocationChannel {
+final class OwnersChannel implements Channel, ForumChannel, PollChannel, ContactChannel, LocationChannel, \Mercurius\Messenger\RightsChannel {
     /** the chat id that means "every owner"; never a chat of Telegram or of the WebSocket API */
     public const OWNERS = 'owners';
 
@@ -185,6 +185,10 @@ final class OwnersChannel implements Channel, ForumChannel, PollChannel, Contact
 
     public function deleteTopic(string $chatId, string $threadId): bool {
         return $this->inner instanceof ForumChannel && $this->inner->deleteTopic($chatId, $threadId);
+    }
+
+    public function rights(string $chatId): ?\Mercurius\Messenger\BotRights {
+        return $this->inner instanceof \Mercurius\Messenger\RightsChannel ? $this->inner->rights($chatId) : null;
     }
 
     public function sendPoll(string $chatId, string $question, array $options, bool $anonymous = true, bool $multiple = false, ?string $threadId = null): SendResult {

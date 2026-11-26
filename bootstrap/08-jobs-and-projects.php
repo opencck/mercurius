@@ -38,6 +38,8 @@ use Mercurius\Memory\Domain\ContentScreen;
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
+ * @var OpenCCK\Infrastructure\Repository\PostgresMcpServerRepository $mcpServers
+ * @var OpenCCK\App\Mcp\McpManager $mcpManager
  * @var OpenCCK\App\Service\RoleCatalog $roleCatalog
  * @var OpenCCK\Infrastructure\Repository\PostgresMemberRepository $principals
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
@@ -166,6 +168,16 @@ $projectLinks = new \OpenCCK\Infrastructure\Repository\PostgresProjectLinkReposi
 $projectChannels = new \OpenCCK\App\Peer\ProjectChannels($projectRepository, $projectLinks);
 $projectEditTool = new ProjectEditTool($projectRepository, $conversations, $forumTopics, $principals, $projectTransfers);
 $projectEditTool->useChannels($projectChannels);
+// spec: brief/participants.md#удаление-проекта — a deleted project leaves no folder and no running MCP entries
+$projectEditTool->useRemoval(
+    $projectFolders,
+    static fn(): ?int => $principals->owner()?->id,
+    static function (int $projectId) use ($mcpServers, $mcpManager): void {
+        foreach ($mcpServers->inContext('project:' . $projectId) as $server) {
+            $mcpManager->remove($server->context, $server->name);
+        }
+    },
+);
 $tools->register($projectEditTool);
 // spec: brief/participants.md#права-проекта — a run in a project works with the project's rights, never above its owner's
 $projectPolicyStore = new \OpenCCK\Infrastructure\Repository\PostgresProjectPolicyRepository($db);

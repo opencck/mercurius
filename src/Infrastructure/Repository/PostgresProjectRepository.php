@@ -100,6 +100,11 @@ final class PostgresProjectRepository implements ProjectRepository {
         $this->db->execute('DELETE FROM projects WHERE id = ?', [$emptyId]);
     }
 
+    public function delete(int $projectId): bool {
+        // the tables of a project refer to it with ON DELETE CASCADE
+        return $this->db->execute('DELETE FROM projects WHERE id = ?', [$projectId])->getRowCount() > 0;
+    }
+
     private const TRANSFER = 'id, project_id, from_id, to_id, status';
 
     public function offer(int $projectId, ?int $fromId, ?int $toId): \OpenCCK\Domain\Project\ProjectTransfer {

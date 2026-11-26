@@ -30,7 +30,7 @@ use function Mercurius\I18n\t;
  */
 final class ProjectEditTool implements Tool, GrantKeyed {
     public const NAME = 'project_edit';
-    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep', 'context'];
+    public const ACTIONS = ['create', 'rename', 'goal', 'status', 'card', 'relation', 'activate', 'deactivate', 'share', 'unshare', 'members', 'transfer', 'accept', 'decline', 'rights', 'grant_tool', 'revoke_tool', 'set_limit', 'timezone', 'quiet', 'sleep', 'context', 'delete'];
     /** the least level an action needs; share and unshare are their own project's business, so no card of the agent owner */
     private const NEEDS = [
         'rename' => ProjectLevel::Write, 'goal' => ProjectLevel::Write, 'status' => ProjectLevel::Write, 'card' => ProjectLevel::Write,
@@ -44,9 +44,11 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         'sleep' => ProjectLevel::Read,
         // spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — members see the limits of the context, its owner sets them
         'context' => ProjectLevel::Read,
+        // spec: brief/participants.md#удаление-проекта — only the owner of the project deletes it, with the owner's card
+        'delete' => ProjectLevel::Owner,
     ];
     /** what waits for the owner */
-    public const CONFIRMED = ['create', 'goal', 'status', 'relation'];
+    public const CONFIRMED = ['create', 'goal', 'status', 'relation', 'delete'];
     public const RELATION_MAX = 1000;
 
     public function __construct(
@@ -67,6 +69,24 @@ final class ProjectEditTool implements Tool, GrantKeyed {
     private ?\OpenCCK\Domain\Repository\ContextLimitRepository $limits = null;
     /** @var (\Closure(int): void)|null the jobs of a project count their next runs again by its new clock */
     private ?\Closure $rescheduled = null;
+
+    private ?\OpenCCK\App\Service\ProjectFolders $folders = null;
+    /** @var (\Closure(): ?int)|null the owner of the agent: the folder of a project without an owner is theirs */
+    private ?\Closure $agentOwner = null;
+    /** @var (\Closure(int): void)|null what else a deleted project leaves: its MCP entries */
+    private ?\Closure $forget = null;
+
+    /**
+     * spec: brief/participants.md#удаление-проекта
+     *
+     * @param \Closure(): ?int $agentOwner
+     * @param \Closure(int): void $forget by the id of the deleted project
+     */
+    public function useRemoval(?\OpenCCK\App\Service\ProjectFolders $folders, \Closure $agentOwner, \Closure $forget): void {
+        $this->folders = $folders;
+        $this->agentOwner = $agentOwner;
+        $this->forget = $forget;
+    }
 
     /**
      * spec: brief/scheduler.md#часовой-пояс-проекта
@@ -231,7 +251,8 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             . ' ' . t('tool.project_edit.rights_about')
             . ' ' . t('tool.project_edit.clock_about')
             . ' ' . t('tool.project_edit.sleep_about')
-            . ' ' . t('tool.project_edit.context_about'), [
+            . ' ' . t('tool.project_edit.context_about')
+            . ' ' . t('tool.project_edit.delete_about'), [
             'type' => 'object',
             'properties' => [
                 'action' => ['type' => 'string', 'enum' => self::ACTIONS],
@@ -246,6 +267,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
                 'value' => ['type' => 'number', 'minimum' => 0],
                 'tokens' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10_000_000],
                 'percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 95],
+                'topics' => ['type' => 'boolean', 'description' => t('tool.project_edit.topics_arg')],
             ],
             'required' => ['action'],
             'additionalProperties' => false,
@@ -266,10 +288,16 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             return null;
         }
         $project = mb_strtolower(trim(Args::string($args, 'project') ?? ''));
-        return $action === 'create' || $project === '' ? 'project:' . $action : sprintf('project:%s:%s', $action, $project);
+        // a grant for good to delete covers any project: the one deleted is gone
+        return $action === 'create' || $action === 'delete' || $project === '' ? 'project:' . $action : sprintf('project:%s:%s', $action, $project);
     }
 
     public function describe(array $args): string {
+        if (Args::string($args, 'action') === 'delete') {
+            $project = $this->projects->byName(trim(Args::string($args, 'project') ?? ''));
+            return sprintf(t('tool.project_edit.delete_card'), $project->name ?? (Args::string($args, 'project') ?? ''), $project->id ?? 0)
+                . (($args['topics'] ?? false) === true ? ' ' . t('tool.project_edit.delete_card_topics') : '');
+        }
         return sprintf('project_edit %s «%s» %s', Args::string($args, 'action') ?? '', Args::string($args, 'project') ?? '', mb_substr(Args::string($args, 'status') ?? Args::string($args, 'text') ?? '', 0, 200));
     }
 
@@ -335,6 +363,7 @@ final class ProjectEditTool implements Tool, GrantKeyed {
             'timezone', 'quiet' => $this->clock($project, $action, $text),
             'sleep' => $this->sleeps($project, $level, $text),
             'context' => $this->context($project, $level, $args),
+            'delete' => $this->delete($project, ($args['topics'] ?? false) === true),
             default => ToolResult::error(t('tool.project_edit.neizvestnoe_deystvie') . $action),
         };
     }
@@ -463,8 +492,41 @@ final class ProjectEditTool implements Tool, GrantKeyed {
         } catch (DomainException $e) {
             return ToolResult::error($e->getMessage());
         }
-        $this->forum?->renamed($project->id, $name);
-        return ToolResult::ok(sprintf(t('tool.project_edit.renamed'), $project->name, $name));
+        [$done, $failed] = $this->forum?->renamed($project->id, $name) ?? [0, 0];
+        return ToolResult::ok(sprintf(t('tool.project_edit.renamed'), $project->name, $name)
+            . ($done > 0 ? ' ' . t('tool.project_edit.topics_renamed') : '')
+            . ($failed > 0 ? ' ' . sprintf(t('tool.project_edit.topics_not_renamed'), $failed) : ''));
+    }
+
+    /**
+     * The project goes with what hangs on it in the base, its folder in its owner's sandbox and its MCP entries; its
+     * forum topics only when asked — otherwise they stay, no longer bound to a project.
+     *
+     * spec: brief/participants.md#удаление-проекта
+     */
+    private function delete(Project $project, bool $topics): ToolResult {
+        [$deleted, $failed] = $topics ? ($this->forum?->removeTopics($project->id) ?? [0, 0]) : [0, 0];
+        $left = $topics ? 0 : count($this->projects->topicsOf($project->id));
+        $notes = [];
+        $owner = $project->ownerId ?? ($this->agentOwner === null ? null : ($this->agentOwner)());
+        if ($this->folders !== null && $owner !== null) {
+            try {
+                $this->folders->remove($owner, $project->id);
+            } catch (\Throwable) {
+                $notes[] = sprintf(t('tool.project_edit.delete_folder_left'), $project->id);
+            }
+        }
+        if (!$this->projects->delete($project->id)) {
+            return ToolResult::error(t('tool.project_edit.proekt_ne_nayden_nazovi_ego'));
+        }
+        if ($this->forget !== null) {
+            ($this->forget)($project->id);
+        }
+        $answer = sprintf(t('tool.project_edit.deleted'), $project->name)
+            . ($deleted > 0 ? ' ' . sprintf(t('tool.project_edit.topics_deleted'), $deleted) : '')
+            . ($failed > 0 ? ' ' . sprintf(t('tool.project_edit.topics_not_deleted'), $failed) : '')
+            . ($left > 0 ? ' ' . sprintf(t('tool.project_edit.topics_left'), $left) : '');
+        return ToolResult::ok(trim($answer . ' ' . implode(' ', $notes)));
     }
 
     private function update(Project $project, ?string $goal, ?string $status, ?string $card, string $what): ToolResult {

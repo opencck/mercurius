@@ -513,4 +513,72 @@ final class GroupGateTest extends AsyncTestCase {
         self::assertCount(1, $groups->all());
         self::assertNull($groups->move('telegram', '-555', '-100777'), 'a group that is not known moves nothing');
     }
+
+    private function joined(string $chat, string $type): void {
+        $this->gate->handleMembership(new IncomingMembership('telegram', $chat, 'Дом', $type, '42', 'Owner', 'member', 'left', (string) ++$this->id));
+    }
+
+    private function moved(string $from, string $to): void {
+        $id = (string) ++$this->id;
+        $this->gate->route(new IncomingMessage('telegram', $to, '42', 'u42', 'Owner', '', $id, null, false, new DateTimeImmutable(), $id, raw: ['chat' => ['id' => (int) $to, 'title' => 'Дом', 'type' => 'supergroup'], 'migrate_from_chat_id' => (int) $from]));
+    }
+
+    /** @return list<string> ids of the cards sent to the owner */
+    private function cardIds(): array {
+        $ids = [];
+        foreach ($this->stack->channel->buttons as $id => $rows) {
+            if (str_starts_with($rows[0][0]->data ?? '', 'gr:') && str_ends_with($rows[0][0]->data ?? '', ':m')) {
+                $ids[] = (string) $id;
+            }
+        }
+        return $ids;
+    }
+
+    public function testTheOldCardOfAMovedGroupGoesAndStillDecidesForItsNewNumber(): void {
+        // spec: brief/channels.md#как-сделано-группы — a group turned into a supergroup is the same group under a new number
+        $this->stack(new ScriptedLlm([]));
+        $this->joined('-555', 'group');
+        $this->joined('-100777', 'supergroup');
+        $ids = $this->cardIds();
+        self::assertCount(2, $ids);
+        [$old, $new] = [$ids[0] ?? '', $ids[1] ?? ''];
+
+        $this->moved('-555', '-100777');
+        self::assertContains(['42', $old], $this->stack->channel->deleted, 'the card of the old number is no longer true: it goes');
+        self::assertNotContains(['42', $new], $this->stack->channel->deleted);
+
+        $this->press('gr:-555:f');
+        $group = $this->groups->find('telegram', '-100777');
+        self::assertSame([Group::APPROVED, Group::FREE], [$group?->status, $group?->mode], 'an old card still pressed decides for the new number');
+        self::assertNull($this->groups->find('telegram', '-555'));
+    }
+
+    public function testADecisionTakenBeforeTheMoveCarriesOverAndNoCardIsLeft(): void {
+        $this->stack(new ScriptedLlm([]));
+        $this->joined('-555', 'group');
+        $this->press('gr:-555:f');
+        $this->joined('-100777', 'supergroup');
+        $new = $this->cardIds()[1] ?? '';
+
+        $this->moved('-555', '-100777');
+
+        $group = $this->groups->find('telegram', '-100777');
+        self::assertSame([Group::APPROVED, Group::FREE], [$group?->status, $group?->mode]);
+        self::assertContains(['42', $new], $this->stack->channel->deleted, 'the card of the new number asks what is decided already');
+    }
+
+    public function testTheCardSaysWhatTheBotNeedsToSeeTheGroupAndAFreeChoiceIsWarned(): void {
+        // spec: brief/channels.md#группа — in the privacy mode a member bot gets only what is addressed to it
+        $this->stack(new ScriptedLlm([]));
+        $this->stack->channel->rights = new \Mercurius\Messenger\BotRights('member', false, false, false);
+        $this->membership('member');
+
+        self::assertStringContainsString('администратором', $this->cards()[0] ?? '');
+        $this->press('gr:' . self::GROUP . ':f');
+        self::assertStringContainsString('администратором', implode("\n", $this->stack->channel->texts('edit')), 'free, but the bot does not see the talk yet');
+
+        $this->stack->channel->rights = new \Mercurius\Messenger\BotRights('administrator', false, true, true);
+        $this->joined('-100888', 'supergroup');
+        self::assertStringNotContainsString('администратором', end($this->stack->channel->log)[2] ?? '', 'an administrator sees everything');
+    }
 }

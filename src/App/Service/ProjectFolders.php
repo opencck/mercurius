@@ -30,6 +30,19 @@ final class ProjectFolders {
         private readonly Closure $limitsOf,
     ) {}
 
+    /**
+     * Deletes the folder of a deleted project from its owner's sandbox.
+     *
+     * spec: brief/participants.md#удаление-проекта
+     *
+     * @throws RuntimeException|\OpenCCK\App\Agent\Sandbox\SandboxFailure
+     */
+    public function remove(int $owner, int $project): void {
+        $limits = ($this->limitsOf)($owner) ?? throw new RuntimeException('no sandbox for the owner of the project');
+        // the path is made of the project's number alone
+        $this->sandbox->exec($owner, $limits, 'project-remove-' . $project, sprintf("rm -rf 'projects/%d'", $project), '.', 120, new NullCancellation());
+    }
+
     /** @throws RuntimeException|\OpenCCK\App\Agent\Sandbox\SandboxFailure the folder stays where it was */
     public function move(int $from, int $to, int $project): void {
         $source = ($this->limitsOf)($from);

@@ -26,5 +26,7 @@ final class Group {
         public readonly bool $forum = false,
         /** tokens a day the free mode may spend; null — the default from GROUP_FREE_DAILY_TOKENS, 0 — no limit */
         public readonly ?int $dailyTokens = null,
+        /** the owner's card while the group waits for a decision: its message id */
+        public readonly ?string $card = null,
     ) {}
 }

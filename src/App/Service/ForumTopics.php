@@ -58,18 +58,45 @@ final class ForumTopics {
     }
 
     /**
-     * A project got a new name: its topics are renamed too. Best effort, as every topic call.
+     * A project got a new name: its topics are renamed too. Best effort, as every topic call; the counts let the agent
+     * say what happened instead of claiming it.
      *
      * spec: brief/channels.md#форум-темы--проекты
+     *
+     * @return array{int, int} topics renamed, topics not renamed
      */
-    public function renamed(int $projectId, string $name): void {
+    public function renamed(int $projectId, string $name): array {
         if (!$this->channel instanceof ForumChannel) {
-            return;
+            return [0, 0];
         }
+        $counts = [0, 0];
         foreach ($this->projects->topicsOf($projectId) as $topic) {
             $done = $this->channel->editTopic($topic['chatId'], $topic['threadId'], $name);
+            $counts[$done ? 0 : 1]++;
             $this->logger->notice('Forum topic renamed with its project', ['chat' => $topic['chatId'], 'thread' => $topic['threadId'], 'project' => $projectId, 'done' => $done]);
         }
+        return $counts;
+    }
+
+    /**
+     * The topics of a project that is being deleted, deleted too — only when that was asked. Telegram lets only an
+     * administrator allowed to manage topics delete them.
+     *
+     * spec: brief/participants.md#удаление-проекта
+     *
+     * @return array{int, int} topics deleted, topics not deleted
+     */
+    public function removeTopics(int $projectId): array {
+        if (!$this->channel instanceof ForumChannel) {
+            return [0, count($this->projects->topicsOf($projectId))];
+        }
+        $counts = [0, 0];
+        foreach ($this->projects->topicsOf($projectId) as $topic) {
+            $done = $this->channel->deleteTopic($topic['chatId'], $topic['threadId']);
+            $counts[$done ? 0 : 1]++;
+            $this->logger->notice('Forum topic deleted with its project', ['chat' => $topic['chatId'], 'thread' => $topic['threadId'], 'project' => $projectId, 'done' => $done]);
+        }
+        return $counts;
     }
 
     /** A project's status changes from $before->status to $status: done closes its topics, a return reopens them. */

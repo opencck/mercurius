@@ -78,9 +78,11 @@ final class ForumTopicsTest extends AsyncTestCase {
 
         $renamed = $this->projects->rename($project->id, 'Магазин');
         self::assertSame('Магазин', $renamed?->name);
-        $this->topics->renamed($project->id, 'Магазин');
+        self::assertSame([1, 0], $this->topics->renamed($project->id, 'Магазин'), 'renamed, failed');
 
         self::assertSame([['edit', self::FORUM, '500', 'Магазин']], array_slice($this->channel->topics, 1), 'after the topic was made');
+        $this->channel->topicsFail = true;
+        self::assertSame([0, 1], $this->topics->renamed($project->id, 'Лавка'), 'a bot without the right to manage topics renames none — and says so');
         $other = $this->projects->create('Блог', '');
         $this->expectException(\DomainException::class);
         $this->projects->rename($other->id, 'магазин');
