@@ -100,6 +100,23 @@ final class ConsolidationTest extends AsyncTestCase {
         self::assertStringNotContainsString('противоречат', $this->consolidation->run(true), 'paused for 14 days');
     }
 
+    /**
+     * spec: brief/memory.md#консолидация-dreaming — facts about one name that say the same thing with another detail
+     * («живёт в Лиссабоне» and «живёт в Порту») contradict each other, with no number and no negation
+     */
+    public function testTheSameClaimAboutOneNameWithAnotherDetailIsAConflict(): void {
+        $this->add('Сергей живёт в Лиссабоне');
+        $this->add('Сергей живёт в Порту', 0.6);
+        $this->add('Анна живёт в Порту');
+
+        $text = $this->consolidation->run();
+
+        self::assertStringContainsString(explode('%', \Mercurius\I18n\t('app.consolidation.conflict_detail'))[0], $text);
+        self::assertStringContainsString('Лиссабоне', $text);
+        self::assertStringNotContainsString('Анна', $text, 'another name is another person');
+        self::assertFalse(\Mercurius\Memory\App\Consolidation::conflict($this->add('Сергей любит горький шоколад'), $this->add('Сергей живёт у моря')), 'another claim is no conflict');
+    }
+
     public function testANegationIsAConflictNotADuplicate(): void {
         // spec: brief/memory.md#консолидация-dreaming — facts that differ by a negation contradict each other
         $this->add('Владелец любит острую еду');

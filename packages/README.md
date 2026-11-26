@@ -12,9 +12,9 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `63d4c0d` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `04b275b` | 2026-11-26 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `01c373e` | 2026-11-26 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `727ff1b` | 2026-11-26 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
 | [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `04ac368` | 2026-11-26 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
@@ -91,6 +91,8 @@ compose, по умолчанию выключен ([Модули: сервисы
 - `mercurius-memory` `af191b4` → `dd6eb8c`: окно неповтора — по ходам и по версии факта.
 - `mercurius-memory` → `01c373e`: причина неудачи факта, след отбора, срок журнала выдачи (миграция 129).
 - `mercurius-i18n` → `63d4c0d`: причина и поправка `memory_feedback`.
+- `mercurius-memory` → `727ff1b`: противоречие «одно об одном имени, другая деталь» в ночной проверке.
+- `mercurius-i18n` → `04b275b`: текст такого противоречия.
 
 ### 2026-11-25 — .mcp.json
 
