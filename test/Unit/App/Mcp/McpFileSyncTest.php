@@ -221,6 +221,23 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertFalse($this->files->request('member:1', 'base-npx', $raw, $this->owner)[0], 'a name the file does not take');
     }
 
+    public function testTheAgentTakesAnEntryOutOnlyOfAFileOfTheCaller(): void {
+        // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry goes out by the same right it came in
+        $raw = ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.com']];
+        $this->files->request('member:1', 'work', $raw, $this->owner);
+        $member = new Member(4, MemberKind::Human, Role::user(), 'Аня');
+
+        self::assertFalse($this->files->dismiss('member:1', 'work', $member)[0], 'not their file');
+        self::assertNotNull($this->files->current('member:1', 'work'));
+        self::assertFalse($this->files->dismiss('member:1', 'nothing', $this->owner)[0], 'there is no such entry');
+
+        [$removed, $answer] = $this->files->dismiss('member:1', 'work', $this->owner);
+
+        self::assertTrue($removed);
+        self::assertStringContainsString('work', $answer);
+        self::assertNull($this->files->current('member:1', 'work'));
+    }
+
     public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {
         $this->file(1, '.mcp.json', '{"mcpServers": {"local": {"command": "npx", "args": ["-y", "some-mcp"]}}}');
         $this->files->sync('member:1');

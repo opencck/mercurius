@@ -70,4 +70,26 @@ final class McpInstallToolTest extends TestCase {
         self::assertStringStartsWith('written', $elsewhere->content);
         self::assertStringContainsString('member:1', $elsewhere->content);
     }
+
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry is taken out of its file, not uninstalled */
+    public function testAnEntryIsTakenOutOfTheFileOfItsContext(): void {
+        $sandbox = new FakeSandbox();
+        $manage = new \OpenCCK\App\Mcp\McpManageTool(new McpInstaller(new InMemoryMcpInstallRepository(), new McpSources($sandbox), $sandbox, static fn(): array => [], static fn(\OpenCCK\App\Mcp\McpEntry $e, string $c): \OpenCCK\App\Mcp\McpRendered => $e->render(static fn(): ?string => null), static fn(): string => ''));
+        $asked = [];
+        $manage->useEntryRemoval(static function (string $context, string $name) use (&$asked): array {
+            $asked[] = "$context|$name";
+            return $name === 'box' ? [true, 'removed'] : [false, 'no such entry'];
+        });
+        $who = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::user(), 'Я');
+        $context = new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $who, new \Amp\NullCancellation());
+
+        $removed = $manage->execute(['action' => 'remove_entry', 'name' => 'box', 'context' => 'mine'], $context);
+        $missing = $manage->execute(['action' => 'remove_entry', 'name' => 'other'], $context);
+
+        self::assertSame([false, 'removed'], [$removed->isError, $removed->content]);
+        self::assertSame([true, 'no such entry'], [$missing->isError, $missing->content]);
+        self::assertSame(['member:1|box', 'member:1|other'], $asked, 'mine and the chat context are the caller file');
+        self::assertSame(DangerClass::Write, $manage->danger(['action' => 'remove_entry']));
+        self::assertSame('mcp-remove_entry:box member:1', $manage->grantKey(['action' => 'remove_entry', 'name' => 'box', 'context' => 'member:1']));
+    }
 }

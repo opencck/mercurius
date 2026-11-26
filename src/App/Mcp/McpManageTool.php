@@ -39,11 +39,23 @@ final class McpManageTool implements Tool, GrantKeyed {
         $this->entries = $entries;
     }
 
+    /** @var (\Closure(string, string, \OpenCCK\Domain\Entity\Member): array{bool, string})|null takes an entry out of a context's .mcp.json */
+    private ?\Closure $removal = null;
+
+    /**
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry goes out of its file by the right it came in
+     *
+     * @param \Closure(string, string, \OpenCCK\Domain\Entity\Member): array{bool, string} $removal context, name, who — whether it was taken out and the answer
+     */
+    public function useEntryRemoval(\Closure $removal): void {
+        $this->removal = $removal;
+    }
+
     public function definition(): ToolDefinition {
         return new ToolDefinition(self::NAME, t('tool.mcp_manage.about'), [
             'type' => 'object',
             'properties' => [
-                'action' => ['type' => 'string', 'enum' => ['list', 'entry', 'update', 'rollback', 'rebuild', 'remove', 'allow', 'disallow']],
+                'action' => ['type' => 'string', 'enum' => ['list', 'entry', 'remove_entry', 'update', 'rollback', 'rebuild', 'remove', 'allow', 'disallow']],
                 'name' => ['type' => 'string', 'maxLength' => 24],
                 'context' => ['type' => 'string', 'maxLength' => 40],
                 'entry' => ['type' => 'object', 'description' => t('tool.mcp_manage.entry')],
@@ -57,7 +69,7 @@ final class McpManageTool implements Tool, GrantKeyed {
         return match (Args::string($args, 'action')) {
             'list' => DangerClass::Read,
             // an entry is approved by its own card when it is written
-            'allow', 'disallow', 'rollback', 'rebuild', 'entry' => DangerClass::Write,
+            'allow', 'disallow', 'rollback', 'rebuild', 'entry', 'remove_entry' => DangerClass::Write,
             default => DangerClass::Irreversible,
         };
     }
@@ -83,16 +95,23 @@ final class McpManageTool implements Tool, GrantKeyed {
 
     public function execute(array $args, ToolContext $context): ToolResult {
         $who = $context->principal;
+        // mine — the caller's own file, whatever project the chat is in
+        $here = $context->policy->mcpContext ?? 'member:' . $who->id;
+        $where = Args::string($args, 'context') ?? $here;
+        $where = $where === 'mine' ? 'member:' . $who->id : $where;
+        if (Args::string($args, 'action') === 'remove_entry') {
+            if ($this->removal === null) {
+                return ToolResult::error(t('tool.mcp_manage.entry_needed'));
+            }
+            [$removed, $answer] = ($this->removal)($where, Args::string($args, 'name') ?? '', $who);
+            return new ToolResult($answer, !$removed);
+        }
         if (Args::string($args, 'action') === 'entry') {
             // spec: brief/skills-mcp.md#устанавливаемые-mcp — a member writes an entry of an allowed MCP with their own secrets
             $entry = isset($args['entry']) && is_array($args['entry']) ? $args['entry'] : null;
             if ($this->entries === null || $entry === null) {
                 return ToolResult::error(t('tool.mcp_manage.entry_needed'));
             }
-            // mine — the caller's own file, whatever project the chat is in
-            $here = $context->policy->mcpContext ?? 'member:' . $who->id;
-            $where = Args::string($args, 'context') ?? $here;
-            $where = $where === 'mine' ? 'member:' . $who->id : $where;
             // a refusal is an error: wrapped as data, it read as a written entry
             [$written, $answer] = ($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who);
             // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a chat is served the MCP of its own context only

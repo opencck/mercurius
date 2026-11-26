@@ -423,6 +423,27 @@ final class McpFiles {
     }
 
     /** A member writes into their own file, a project owner into the project's, an owner of the agent into any. */
+    /**
+     * The agent takes an entry out of the file of a context by the same right it writes one; its connection goes with
+     * the next reading of the file. The install, if the entry ran one, stays.
+     *
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи
+     *
+     * @return array{bool, string} whether it was taken out, and what happened, for the model
+     */
+    public function dismiss(string $context, string $name, Member $who): array {
+        if (!$this->mayWrite($context, $who)) {
+            return [false, t('service.mcp_commands.not_yours')];
+        }
+        try {
+            return $this->drop($context, $name)
+                ? [true, sprintf(t('mcp.files.entry_removed'), $name, $context)]
+                : [false, sprintf(t('mcp.files.entry_missing'), $name, $context)];
+        } catch (InvalidArgumentException $e) {
+            return [false, $e->getMessage()];
+        }
+    }
+
     private function mayWrite(string $context, Member $who): bool {
         if ($who->isOwner()) {
             return true;
