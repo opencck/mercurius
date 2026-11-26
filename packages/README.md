@@ -38,7 +38,7 @@ compose, по умолчанию выключен ([Модули: сервисы
 | [mercurius-whisper](https://github.com/opencck/mercurius-whisper) | [../services/whisper/](../services/whisper/) | `8c79644` | 2026-11-23 | `whisper` | Распознавание речи faster-whisper с API, совместимым с OpenAI (Python, стандартная библиотека HTTP) |
 | [mercurius-mail-mcp](https://github.com/opencck/mercurius-mail-mcp) | [../mcp/mail/](../mcp/mail/) | `d7826b3` | 2026-11-26 | — | MCP-сервер почты по stdio, один ящик на процесс: свой асинхронный IMAP и SMTP, проверка подлинности отправителя; ставится в песочницу, обёртка — в ядре |
 | [mercurius-mcp-ssh](https://github.com/opencck/mercurius-mcp-ssh) | [../mcp/ssh/](../mcp/ssh/) | `21729c1` | 2026-11-26 | — | MCP-сервер SSH: команда, файл, проба порта, закреплённый ключ хоста, маршруты, sudo через stdin; ставится в песочницу, обёртка — в ядре |
-| [mercurius-mcp-gemini-api](https://github.com/opencck/mercurius-mcp-gemini-api) | [../mcp/gemini-api/](../mcp/gemini-api/) | `652d119` | 2026-11-26 | — | MCP-сервер медиа Google по ключу Gemini API: картинки, речь, музыка, видео, транскрипция, анализ файлов, фоновые исследовательские агенты — на официальном клиенте gemini-api закреплённой версии; ставится в песочницу |
+| [mercurius-mcp-gemini-api](https://github.com/opencck/mercurius-mcp-gemini-api) | [../mcp/gemini-api/](../mcp/gemini-api/) | `39866bb` | 2026-11-26 | — | MCP-сервер медиа Google по ключу Gemini API: картинки, речь, музыка, видео, транскрипция, анализ файлов, фоновые исследовательские агенты — на официальном клиенте gemini-api закреплённой версии; ставится в песочницу |
 
 ## Как работать с пакетом
 
