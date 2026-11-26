@@ -40,6 +40,8 @@ final class McpInstaller {
 
     /** @var array<string, array{context: string, revision: string, entry: array<string, mixed>, tools: list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}>, by: int, steps: list<string>, update: bool}> */
     private array $pending = [];
+    /** @var list<string> the installs of the delivery: they update with the agent, not from their source */
+    private array $bundled = [];
 
     /**
      * @param Closure(int, McpServer): list<array{name: string, description: string, schema: array<array-key, mixed>, annotations: array<array-key, mixed>}> $trial
@@ -57,6 +59,72 @@ final class McpInstaller {
         private readonly Closure $persist,
         private readonly ?Closure $osv = null,
     ) {}
+
+    /** @param list<string> $names the MCPs of the delivery */
+    public function useBundled(array $names): void {
+        $this->bundled = $names;
+    }
+
+    /**
+     * Installs an MCP of the delivery from the sandbox image as an install of the owner of the agent, with no card: the
+     * code is ours, its tools take the classes it marks. A new revision goes next to the one in use and the link moves
+     * to it; an install of the same name from another source is left alone. A sample entry, when given, goes into the
+     * owner's file — on a clean install, waiting for its secrets.
+     *
+     * spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail
+     *
+     * @param array{name: string, args: list<string>, env: array<string, string>}|null $sample the entry's name, args after the code's own, env
+     * @return string what was done, for the log
+     */
+    public function preinstall(Member $owner, McpBundle $bundle, ?array $sample): string {
+        $install = $this->installs->find($bundle->name);
+        if ($install !== null && !$bundle->sameSource($install->source)) {
+            return 'the name is taken by ' . $install->source;
+        }
+        if ($install !== null && $install->revision === $bundle->revision) {
+            return 'at ' . $bundle->revision;
+        }
+        $install ??= $this->installs->add($bundle->name, $bundle->source, $owner->id);
+        $revision = $bundle->revision;
+        try {
+            $this->sources->link($install);
+            $copy = 'chmod 755 . && mkdir -p releases && chmod 755 releases && rm -rf ' . self::quote('releases/' . $revision)
+                . ' && cp -R ' . self::quote($bundle->dir()) . ' ' . self::quote('releases/' . $revision)
+                . ' && chmod -R o+rX ' . self::quote('releases/' . $revision);
+            $outcome = $this->sandbox->exec($install->holder(), McpSources::limits(), 'mcp-install', $copy, '.', self::STEPS_SECONDS, new NullCancellation());
+            if ($outcome->exitCode !== 0) {
+                return 'not copied: ' . trim(mb_substr($outcome->stderr, -600));
+            }
+            $trial = McpEntry::fromArray($bundle->name, self::placed($bundle->entry, $install->path() . '/releases/' . $revision));
+            $entry = McpEntry::fromArray($bundle->name, self::placed($bundle->entry, $install->path() . '/current'));
+        } catch (DomainException | SandboxFailure | InvalidArgumentException $e) {
+            return 'not copied: ' . $e->getMessage();
+        }
+        $tools = $this->tryStart($install, ($this->render)($trial, 'member:' . $owner->id));
+        if (is_string($tools)) {
+            return $tools;
+        }
+        $switched = $this->switchTo($install, $revision);
+        if ($switched !== null) {
+            return $switched;
+        }
+        $classes = [];
+        foreach ($tools as $tool) {
+            $classes[$tool['name']] = self::hinted($tool['annotations']);
+        }
+        $this->installs->setRevision($bundle->name, $revision, self::setHash($tools), $classes, $entry->toArray());
+        $this->installs->setSteps($bundle->name, []);
+        $this->installs->setLatest($bundle->name, null);
+        if ($sample !== null) {
+            try {
+                $own = McpEntry::fromArray($sample['name'], ['command' => $entry->command, 'args' => [...$entry->args, ...$sample['args']], 'env' => $sample['env']]);
+                ($this->persist)('member:' . $owner->id, $own, $owner);
+            } catch (Throwable $e) {
+                return 'installed ' . $revision . '; the sample entry was not written: ' . $e->getMessage();
+            }
+        }
+        return 'installed ' . $revision;
+    }
 
     /**
      * Brings the sources and shows them: the agent reads them to make a plan. A name taken by someone else's install
@@ -138,6 +206,9 @@ final class McpInstaller {
      * spec: brief/skills-mcp.md#установка-и-обновление
      */
     public function update(Member $who, string $name): string {
+        if (in_array($name, $this->bundled, true)) {
+            return sprintf(t('mcp.install.bundled'), $name);
+        }
         $install = $this->installs->find($name);
         if ($install === null || $install->revision === null || $install->entry === null) {
             return sprintf(t('mcp.install.not_installed'), $name);
@@ -207,6 +278,9 @@ final class McpInstaller {
 
     /** The code, the link and the record go; entries that still name it fail with their reason. */
     public function remove(Member $who, string $name): string {
+        if (in_array($name, $this->bundled, true)) {
+            return sprintf(t('mcp.install.bundled'), $name);
+        }
         $install = $this->installs->find($name);
         if ($install === null) {
             return sprintf(t('mcp.install.not_installed'), $name);
@@ -233,7 +307,7 @@ final class McpInstaller {
     public function checkUpdates(): array {
         $news = [];
         foreach ($this->installs->all() as $install) {
-            if ($install->revision === null || !str_starts_with($install->source, 'https://')) {
+            if ($install->revision === null || !str_starts_with($install->source, 'https://') || in_array($install->name, $this->bundled, true)) {
                 continue;
             }
             try {

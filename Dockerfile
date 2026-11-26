@@ -94,6 +94,11 @@ COPY src ./src
 #       into the environment of the one command that uses the key, the model never sees it
 RUN printf '#!/bin/sh\nprintf "%%s\\n" "$MERCURIUS_KEY_PASSPHRASE"\n' > /usr/local/bin/mercurius-askpass \
     && chmod 0755 /usr/local/bin/mercurius-askpass
+# spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail — the MCPs of the delivery with their dependencies; the
+#       application installs them from here at start
+COPY mcp /opt/mercurius/mcp
+COPY .docker/sandbox/mcp-bundle.sh /usr/local/bin/mcp-bundle
+RUN sh /usr/local/bin/mcp-bundle /opt/mercurius/mcp && rm -rf /root/.composer /root/.cache/composer
 RUN mkdir -p /workspace && chmod 0711 /workspace
 EXPOSE 9000
 STOPSIGNAL SIGTERM

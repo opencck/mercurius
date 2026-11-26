@@ -364,6 +364,28 @@ if ($sandbox !== null) {
             return $name === null || $server->context === '' || $mcpInstaller->allowedIn($name, $server->context);
         },
     );
+    // spec: brief/skills-mcp.md#предустановленные-mcp-ssh-и-mail — the MCPs of the delivery are installed from the sandbox
+    //       image at start, as the owner's installs with no card; until the sandbox answers, again each minute (ten times)
+    $mcpPreinstall = new \OpenCCK\App\Mcp\McpPreinstall(
+        $mcpInstaller,
+        $mcpInstalls,
+        $sandbox,
+        $ownerDirectory->principal(...),
+        static fn(string $context): bool => $mcpServers->inContext($context) !== [],
+        $logger,
+    );
+    $preinstall = static function (int $left) use ($mcpPreinstall, $logger, &$preinstall): void {
+        try {
+            $done = $mcpPreinstall->run();
+        } catch (\Throwable $e) {
+            $logger->warning('The MCPs of the delivery were not installed', ['error' => $e::class]);
+            $done = true;
+        }
+        if (!$done && $left > 1) {
+            \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(60, static function () use ($preinstall, $left): void { $preinstall($left - 1); }));
+        }
+    };
+    \Revolt\EventLoop::unreference(\Revolt\EventLoop::delay(5, static function () use ($preinstall): void { $preinstall(10); }));
     // spec: brief/skills-mcp.md#установка-и-обновление — new revisions are looked for once a day; nothing updates by itself
     \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(86400, static function () use ($mcpInstaller, $principals, $channel, $logger): void {
         try {

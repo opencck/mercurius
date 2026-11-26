@@ -79,8 +79,12 @@ final class McpSources {
         return $this->settle($install, $script, $revision);
     }
 
-    /** The code at /workspace/mcp/<name> for every process: a link the owners' area keeps to the install's home. */
-    private function link(McpInstall $install): void {
+    /**
+     * The code at /workspace/mcp/<name> for every process: a link the owners' area keeps to the install's home.
+     *
+     * @throws DomainException
+     */
+    public function link(McpInstall $install): void {
         // the folder of links is passed through by every process, listed by none
         $script = 'mkdir -p mcp && chmod 711 mcp && ln -sfn ' . self::quote('../p' . $install->holder()) . ' ' . self::quote('mcp/' . $install->name);
         $this->run(fn(): CommandOutcome => $this->sandbox->exec(0, self::limits(), 'mcp-install', $script, '.', 30, new NullCancellation()));
