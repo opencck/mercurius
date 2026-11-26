@@ -561,13 +561,18 @@ final class ChatService implements MessageHandler {
         }
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
         $outside = null;
+        // spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by what the participant wrote, not by what
+        //      their files said
+        $own = $message->text;
         if (($original->attachments !== [] || $original->repliedAttachments !== []) && $intake !== null && $policies !== null) {
             // the spend of the media models is counted on the conversation
             $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180), $conversationId);
             $outside = $taken->outside ? 'attachments' : null;
             $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
+            // the participant's own voice is their words: it counts with the text
+            $own = $taken->outside ? $own : $message->text;
         }
-        $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed, $outside);
+        $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed, $outside, $own);
     }
 
     /**

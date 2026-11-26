@@ -45,6 +45,26 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
         self::assertStringContainsString('Владелец любит короткие ответы', $this->stack->llm->requests[0]->messages[0]->content);
     }
 
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by the participant's own words only: the
+     * answer of someone else (relay) and what the files of a message said bring none
+     */
+    public function testFactsAreLookedUpByTheOwnWordsOnly(): void {
+        $owner = $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $conversation = $this->stack->conversations->openConversation($owner->id, 'telegram', '42');
+        $message = static fn(string $text): \Mercurius\Messenger\IncomingMessage => new \Mercurius\Messenger\IncomingMessage('telegram', '42', '42', 'owner', 'Owner', $text, '9', null, true, new \DateTimeImmutable(), '9');
+
+        $this->stack->scheduler->submit($owner, $message('Ответ Ани: какой кофе пьёт владелец — без сахара'), $conversation, false, 'relay');
+        $this->stack->scheduler->awaitIdle();
+        self::assertStringNotContainsString('untrusted-data source="memory"', $this->userMessage(), 'someone else\'s words bring no facts');
+
+        $this->stack->scheduler->submit($owner, $message("глянь\n\n📎 фото: чашка кофе без сахара"), $conversation, false, 'attachments', 'глянь');
+        $this->stack->scheduler->awaitIdle();
+        $last = array_slice($this->stack->llm->requests[1]->messages, -1)[0] ?? null;
+        self::assertNotNull($last);
+        self::assertStringNotContainsString('untrusted-data source="memory"', $last->content, 'what a file said brings no facts');
+    }
+
     public function testTheMemoryFileGoesWholeIntoThePromptOfAPrivateChat(): void {
         // spec: brief/memory.md#правила-и-заметки-memorymd — a file without headings is notes, reference data
         $this->stack->scheduler->useMemoryFile(static fn(\OpenCCK\Domain\Entity\Member $p): string => "Дочь — Аня\nПароль от Wi-Fi в заметках", 1000);

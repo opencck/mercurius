@@ -69,7 +69,7 @@ final class RunScheduler {
 
     /** @var array<int, array{cancellation: DeferredCancellation, future: Future<void>}> conversation id => running fiber */
     private array $active = [];
-    /** @var array<int, array{texts: list<string>, first: float, last: float, message: IncomingMessage, principal: Member, quiet: bool, outside: list<string>, future: Future<void>}> */
+    /** @var array<int, array{texts: list<string>, own: list<string>, first: float, last: float, message: IncomingMessage, principal: Member, quiet: bool, outside: list<string>, future: Future<void>}> */
     private array $pending = [];
     /** @var array<int, ChannelRunObserver> the observer of each run that paused for the owner: its message is updated once decided */
     private array $waiting = [];
@@ -330,13 +330,18 @@ final class RunScheduler {
     /**
      * @param string|null $outside where the data from outside in the message came from (files, someone's answer): the
      *        run that takes it is marked; null — the message is the participant's own words
+     * @param string|null $own the participant's own words in the message, which facts of memory are looked up by; null —
+     *        the whole text when nothing came from outside, none when it did (someone's answer)
      */
-    public function submit(Member $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null): void {
+    public function submit(Member $principal, IncomingMessage $message, int $conversationId, bool $silenceAllowed = false, ?string $outside = null, ?string $own = null): void {
         // spec: brief/channels.md#форум-темы--проекты — the answer goes to the forum topic the message came from
         $this->threads[$conversationId] = $message->threadId;
         // the batch may stay silent only if nobody in it asked the agent
         $this->silence[$conversationId] = isset($this->pending[$conversationId]) ? ($this->silence[$conversationId] ?? false) && $silenceAllowed : $silenceAllowed;
         $text = trim($message->text);
+        // spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by the participant's own words: what a
+        //      file said or someone else's answer brings facts of words nobody of the conversation wrote
+        $own = trim($own ?? ($outside === null ? $text : ''));
         $this->audience()->remember($conversationId, $message->isPrivateChat);
         // A run being stopped takes no more steering: the message waits and starts the next run.
         $run = isset($this->stopping[$conversationId]) ? null : $this->runs->active($conversationId);
@@ -365,6 +370,9 @@ final class RunScheduler {
         $now = microtime(true);
         if (isset($this->pending[$conversationId])) {
             $this->pending[$conversationId]['texts'][] = $text;
+            if ($own !== '') {
+                $this->pending[$conversationId]['own'][] = $own;
+            }
             $this->pending[$conversationId]['last'] = $now;
             $this->pending[$conversationId]['outside'] = $outside === null ? $this->pending[$conversationId]['outside'] : [...$this->pending[$conversationId]['outside'], $outside];
             // someone asked: the batch no longer waits for the group to fall silent
@@ -373,6 +381,7 @@ final class RunScheduler {
         }
         $this->pending[$conversationId] = [
             'texts' => [$text],
+            'own' => $own === '' ? [] : [$own],
             'first' => $now,
             'last' => $now,
             'message' => $message,
@@ -546,7 +555,7 @@ final class RunScheduler {
             return;
         }
         try {
-            $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId, outside: $pending['outside']);
+            $this->start($pending['principal'], $conversationId, implode("\n\n", $pending['texts']), $pending['message']->messageId, outside: $pending['outside'], own: implode("\n\n", $pending['own']));
         } catch (Throwable $e) {
             $this->logger->error('Could not start a run', ['conversation' => $conversationId, 'error' => $e::class]);
             $this->channel->send(new OutgoingMessage($pending['message']->chatId, \Mercurius\I18n\t(self::NOT_STARTED), $pending['message']->messageId));
@@ -822,7 +831,8 @@ final class RunScheduler {
         return $before === null || $before === $now ? $text : $text . "\n\n" . t('skill.library.changed') . "\n" . ($now === '' ? '—' : $now);
     }
 
-    private function withFacts(Member $principal, ConversationMeta $meta, string $text): string {
+    /** @param string $own the participant's own words: facts are looked up by them, they come after the whole text */
+    private function withFacts(Member $principal, ConversationMeta $meta, string $text, string $own): string {
         if ($this->memory === null) {
             return $text;
         }
@@ -832,7 +842,7 @@ final class RunScheduler {
             // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — a slow recall does not hold the answer: after the time
             //       the run starts without it
             /** @var string $facts */
-            $facts = async(static fn(): string => $memory->facts($text, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
+            $facts = async(static fn(): string => $memory->facts($own, $scopes, $meta->id))->await(new \Amp\TimeoutCancellation(self::RECALL_SECONDS));
         } catch (\Amp\CancelledException) {
             $this->logger->warning('Memory recall took too long; the run starts without it', ['conversation' => $meta->id, 'seconds' => self::RECALL_SECONDS]);
             return $text;
@@ -845,9 +855,10 @@ final class RunScheduler {
 
     /**
      * @param list<string> $outside where the outside data of the text came from: the run starts marked
+     * @param string|null $own the words facts are looked up by; null — the whole text, '' — none
      * @return int|null the run the text started; null when it joined another run or nothing started
      */
-    private function start(Member $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = []): ?int {
+    private function start(Member $principal, int $conversationId, string $text, ?string $messageId, bool $mayJoin = true, bool $recall = true, array $outside = [], ?string $own = null): ?int {
         $meta = $this->conversations->meta($conversationId);
         if ($meta === null) {
             $this->logger->error('Conversation not found', ['conversation' => $conversationId]);
@@ -892,7 +903,7 @@ final class RunScheduler {
             return null;
         }
         try {
-            $this->transcript->appendUser($conversationId, $run->id, $this->withPlan($conversationId, $this->withSkillNote($principal, $meta, $conversationId, $recall ? $this->withFacts($principal, $meta, $text) : $text)), $messageId);
+            $this->transcript->appendUser($conversationId, $run->id, $this->withPlan($conversationId, $this->withSkillNote($principal, $meta, $conversationId, $recall && ($own ?? $text) !== '' ? $this->withFacts($principal, $meta, $text, $own ?? $text) : $text)), $messageId);
             $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
             $observer->start();
         } catch (Throwable $e) {
