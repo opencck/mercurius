@@ -50,6 +50,8 @@ final class AttachmentIntake {
     private const AUDIO = ['mp3', 'm4a', 'ogg', 'oga', 'opus', 'wav', 'flac', 'aac'];
     private const VIDEO = ['mp4', 'mov', 'webm', 'mkv', 'avi'];
     /** what each kind needs: the model kind of MediaSettings */
+    /** a photo and a voice message, as Telegram sends them: understood, they are not kept on the disk */
+    private const TRANSIENT = [AttachmentKind::Photo, AttachmentKind::Voice];
     private const MODEL = ['image' => 'vision', 'voice' => 'speech', 'audio' => 'speech', 'video' => 'video'];
 
     /** @var Closure(): DateTimeImmutable */
@@ -120,8 +122,23 @@ final class AttachmentIntake {
                 continue;
             }
             $total += strlen($bytes);
+            $note = isset($replied[$attachment->fileId]) ? t('media.intake.replied') : '';
+            // spec: brief/internet.md#приём — a photo or a voice understood is not kept: Telegram keeps it and a reply
+            //      to its message brings it again; a file of the message replied to is wanted again and is kept
+            if (in_array($attachment->kind, self::TRANSIENT, true) && $note === '') {
+                $understood = false;
+                $content = $this->content($principal, $limits, $attachment, $name, $bytes, null, $cancellation, $call, $understood);
+                if ($understood || $limits === null) {
+                    $blocks[] = $this->line($attachment, $name, strlen($bytes), null) . ($limits === null ? '' : t('media.intake.not_kept')) . "\n" . $content;
+                    continue;
+                }
+                // not understood now (no model, failed, left for a request): kept, the agent works with it later
+                $path = $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
+                $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . "\n" . $content;
+                continue;
+            }
             $path = $limits === null ? null : $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
-            $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . (isset($replied[$attachment->fileId]) ? t('media.intake.replied') : '')
+            $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . $note
                 . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation, $call);
         }
         return new IntakeResult(implode("\n\n", $blocks), $outside);
@@ -152,14 +169,15 @@ final class AttachmentIntake {
         return in_array($attachment->kind, [AttachmentKind::Voice, AttachmentKind::VideoNote], true) && !$attachment->forwarded;
     }
 
-    private function content(Member $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
+    /** @param bool $understood set when a model understood the file now */
+    private function content(Member $principal, ?SandboxLimits $limits, Attachment $attachment, string $name, string $bytes, ?string $path, Cancellation $cancellation, \OpenCCK\Infrastructure\Media\MediaCall $call, bool &$understood = false): string {
         $category = self::category($attachment);
         $model = self::MODEL[$category] ?? null;
         if ($model !== null) {
             if ($this->settings->models($model) === []) {
                 return sprintf(t('media.intake.not_set'), t('media.model.' . $model), 'MEDIA_' . strtoupper($model) . '_MODELS', t('media.input.' . $model));
             }
-            return $this->understand($principal, $attachment, $category, $model, $name, $bytes, $call);
+            return $this->understand($principal, $attachment, $category, $model, $name, $bytes, $call, $understood);
         }
         return match ($category) {
             'text' => $this->text($name, $bytes, $path),
@@ -173,7 +191,7 @@ final class AttachmentIntake {
      * answers — at once if the participant's way for this kind is "auto" (and a recording is not too long); else a note
      * how to ask. The principles of choosing come along: the agent picks a model by them for questions about details.
      */
-    private function understand(Member $principal, Attachment $attachment, string $category, string $model, string $name, string $bytes, \OpenCCK\Infrastructure\Media\MediaCall $call): string {
+    private function understand(Member $principal, Attachment $attachment, string $category, string $model, string $name, string $bytes, \OpenCCK\Infrastructure\Media\MediaCall $call, bool &$understood = false): string {
         $pref = $this->prefs?->of($principal->id, $category) ?? new \OpenCCK\Domain\Media\MediaPref($category, in_array($category, $this->settings->auto, true) ? 'auto' : 'demand');
         $principles = $this->principles($model, $pref->rules);
         if ($pref->mode === 'off') {
@@ -193,6 +211,7 @@ final class AttachmentIntake {
         if ($answer->text === null) {
             return sprintf(t('media.intake.failed_models'), $answer->error ?? '') . $principles;
         }
+        $understood = true;
         $text = SecretMasker::mask(mb_substr($answer->text, 0, $this->settings->textLimit));
         if ($model === 'speech' && self::ownVoice($attachment)) {
             // the participant said it: their words, not data from outside

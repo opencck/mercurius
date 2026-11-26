@@ -43,6 +43,7 @@ final class AttachmentModelsTest extends AsyncTestCase {
     private FakeHttpClient $http;
     private InMemoryMediaPrefRepository $prefs;
     private InMemoryLlmCallRepository $calls;
+    private \OpenCCK\Test\Support\FakeSandbox $sandbox;
 
     protected function setUp(): void {
         parent::setUp();
@@ -56,7 +57,8 @@ final class AttachmentModelsTest extends AsyncTestCase {
         $this->calls = new InMemoryLlmCallRepository();
         $settings = MediaSettings::fromEnv(self::ENV);
         $models = new MediaModels(new HttpClient($this->http, []), 'or-key', null, $settings, static fn(string $n): ?string => null, $this->calls);
-        return new AttachmentIntake($this->channel, new FakeSandbox(), $settings, new DateTimeZone('+03:00'), models: $models, prefs: new MediaPrefs($this->prefs, $settings));
+        $this->sandbox = new FakeSandbox();
+        return new AttachmentIntake($this->channel, $this->sandbox, $settings, new DateTimeZone('+03:00'), models: $models, prefs: new MediaPrefs($this->prefs, $settings));
     }
 
     private function take(AttachmentIntake $intake, Attachment ...$files): IntakeResult {
@@ -89,6 +91,41 @@ final class AttachmentModelsTest extends AsyncTestCase {
         self::assertStringContainsString('<untrusted-data', $result->text);
         self::assertTrue($result->outside);
         self::assertSame(['media-vision', 12], [$this->calls->calls[0]->purpose, $this->calls->calls[0]->conversationId]);
+    }
+
+    /**
+     * spec: brief/internet.md#приём — a photo or a voice understood is not kept: Telegram keeps it, a reply to the message
+     * brings it again; a picture or a sound sent as a file, one not understood, one replied to are kept as before
+     */
+    public function testAPhotoAndAVoiceUnderstoodAreNotKept(): void {
+        $intake = $this->intake([
+            'https://openrouter.ai/api/v1/chat/completions' => self::chat('Кот спит на диване.'),
+            'https://openrouter.ai/api/v1/audio/transcriptions' => [200, [], '{"text":"Купи молока."}'],
+        ]);
+        $result = $this->take($intake, $this->photo(), $this->voice());
+
+        self::assertSame([], $this->sandbox->files[5] ?? [], 'nothing on the disk');
+        self::assertStringNotContainsString('inbox/', $result->text);
+        self::assertStringContainsString(\Mercurius\I18n\t('media.intake.not_kept'), $result->text);
+
+        $this->channel->downloads['d'] = 'JPEG';
+        $this->take($intake, new Attachment(AttachmentKind::Document, 'd', 'scan.jpg', 'image/jpeg', 4));
+        self::assertCount(1, $this->sandbox->files[5] ?? [], 'a picture sent as a file is kept');
+
+        $this->take($intake, $this->voice(false, 40 * 60));
+        self::assertCount(2, $this->sandbox->files[5] ?? [], 'a recording left for a request is kept: the agent works with it later');
+    }
+
+    public function testAPhotoNotUnderstoodOrRepliedToIsKept(): void {
+        $failing = $this->intake(['https://openrouter.ai/api/v1/chat/completions' => [400, [], '{"error":{"message":"no image input"}}']]);
+        $this->take($failing, $this->photo());
+        self::assertCount(1, $this->sandbox->files[5] ?? [], 'not understood: kept for another try');
+
+        $intake = $this->intake(['https://openrouter.ai/api/v1/chat/completions' => self::chat('Кот.')]);
+        $policy = new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100_000_000, 64, 60, 1_000_000_000, 4), true);
+        $message = new IncomingMessage('telegram', '42', '42', 'kostya', 'Костя', 'вот это фото', '8', null, true, new DateTimeImmutable(), 'u8', repliedAttachments: [$this->photo()]);
+        $intake->intake(new Member(5, MemberKind::Human, Role::user(), 'Костя'), $policy, $message, new NullCancellation(), 12);
+        self::assertCount(1, $this->sandbox->files[5] ?? [], 'a photo of the message replied to is wanted again: kept');
     }
 
     public function testTheParticipantsOwnVoiceIsTheirWords(): void {
