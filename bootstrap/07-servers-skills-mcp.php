@@ -377,8 +377,15 @@ if ($sandbox !== null) {
         $ownerDirectory->principal(...),
         static fn(string $context): bool => $mcpServers->inContext($context) !== [],
         $logger,
+        // the installer of an MCP built again for new environments is told in their chat
+        static function (int $by, string $text) use ($principals, $channel): void {
+            $chat = $principals->externalId($by, $channel->name());
+            if ($chat !== null) {
+                $channel->send(new \Mercurius\Messenger\OutgoingMessage($chat, $text));
+            }
+        },
     );
-    $preinstall = static function (int $left) use ($mcpPreinstall, $logger, &$preinstall): void {
+    $preinstall =static function (int $left) use ($mcpPreinstall, $logger, &$preinstall): void {
         try {
             $done = $mcpPreinstall->run();
         } catch (\Throwable $e) {

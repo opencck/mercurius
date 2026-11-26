@@ -14,6 +14,16 @@ final class InMemoryMcpInstallRepository implements McpInstallRepository {
     /** @var array<string, array<string, true>> */
     private array $allowed = [];
     private int $next = 1;
+    /** @var array<string, string> */
+    private array $environments = [];
+
+    public function environment(string $name): ?string {
+        return $this->environments[$name] ?? null;
+    }
+
+    public function setEnvironment(string $name, string $environment): void {
+        $this->environments[$name] = $environment;
+    }
 
     public function add(string $name, string $source, int $installedBy): McpInstall {
         if (isset($this->installs[$name])) {

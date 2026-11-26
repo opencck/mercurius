@@ -41,6 +41,17 @@ abstract class McpInstallStoreContract extends TestCase {
         self::assertNull($store->find('alpha_mcp'));
     }
 
+    /** spec: brief/skills-mcp.md#установка-и-обновление — the environments the dependencies were built in are kept */
+    public function testTheEnvironmentsOfABuildAreKept(): void {
+        $store = $this->store();
+        $store->add('gamma_mcp', 'https://github.com/x/gamma', 7);
+
+        self::assertNull($store->environment('gamma_mcp'));
+        $store->setEnvironment('gamma_mcp', '0a1b2c3d4e5f');
+        self::assertSame('0a1b2c3d4e5f', $store->environment('gamma_mcp'));
+        $store->remove('gamma_mcp');
+    }
+
     public function testAnInstallIsAllowedToContexts(): void {
         $store = $this->store();
         $store->add('gamma_mcp', 'https://github.com/x/gamma', 7);

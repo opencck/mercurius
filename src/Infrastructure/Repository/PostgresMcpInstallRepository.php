@@ -50,6 +50,15 @@ final class PostgresMcpInstallRepository implements McpInstallRepository {
         $this->db->execute('UPDATE mcp_installs SET steps = ?::jsonb WHERE name = ?', [json_encode($steps, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $name]);
     }
 
+    public function environment(string $name): ?string {
+        $value = $this->db->execute('SELECT environment FROM mcp_installs WHERE name = ?', [$name])->fetchRow()['environment'] ?? null;
+        return is_string($value) ? $value : null;
+    }
+
+    public function setEnvironment(string $name, string $environment): void {
+        $this->db->execute('UPDATE mcp_installs SET environment = ? WHERE name = ?', [$environment, $name]);
+    }
+
     public function setLatest(string $name, ?string $latest): void {
         $this->db->execute('UPDATE mcp_installs SET latest = ? WHERE name = ?', [$latest, $name]);
     }

@@ -539,7 +539,9 @@ final class McpManager {
             // the next try is far away: neither a restart nor the minute pass over the file tries it; /mcp on or a
             // change of the entry does
             $this->servers->update($server->context, $server->name, McpServer::ERROR, null, $reason, $this->now() + self::LASTING);
-            ($this->tell)(sprintf(t('mcp.mcp_manager.lasting'), $server->name, $server->context, $reason, $server->name));
+            // spec: brief/skills-mcp.md#установка-и-обновление — a native module built for another Node is fixed by a build
+            $abi = preg_match('~NODE_MODULE_VERSION|ERR_DLOPEN_FAILED~', $why->getMessage()) === 1;
+            ($this->tell)(sprintf(t('mcp.mcp_manager.lasting'), $server->name, $server->context, $reason, $server->name) . ($abi ? ' ' . sprintf(t('mcp.mcp_manager.abi_hint'), $server->name) : ''));
             return;
         }
         $pause = min(self::RETRY_FIRST * (float) (2 ** min($tries, 10)), self::RETRY_MAX);

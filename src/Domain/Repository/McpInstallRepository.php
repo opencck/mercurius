@@ -36,4 +36,14 @@ interface McpInstallRepository {
     public function contexts(string $name): array;
 
     public function remove(string $name): bool;
+
+    /**
+     * The print of the environments of the sandbox image (Node, Python, PHP, Go) the dependencies were built in; null —
+     * not known yet.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     */
+    public function environment(string $name): ?string;
+
+    public function setEnvironment(string $name, string $environment): void;
 }

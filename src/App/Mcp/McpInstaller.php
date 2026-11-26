@@ -127,6 +127,54 @@ final class McpInstaller {
     }
 
     /**
+     * The installs whose dependencies were built in other environments of the image (Node, Python, PHP, Go) build them
+     * again by their kept steps in the revision in use. The first look only remembers the environments; the installs
+     * of the delivery come with their dependencies and are left alone.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     *
+     * @return list<array{int, string, ?string}> installer, name, why the build failed (null — built)
+     */
+    public function rebuildChanged(string $environment): array {
+        $told = [];
+        foreach ($this->installs->all() as $install) {
+            if ($install->revision === null || $install->steps === [] || in_array($install->name, $this->bundled, true)) {
+                continue;
+            }
+            $was = $this->installs->environment($install->name);
+            $this->installs->setEnvironment($install->name, $environment);
+            if ($was === null || $was === $environment) {
+                continue;
+            }
+            $told[] = [$install->installedBy, $install->name, $this->runSteps($install, $install->revision, $install->steps)];
+        }
+        return $told;
+    }
+
+    /**
+     * The dependencies of the revision in use built again by the kept steps: after a native module was built for
+     * another Node, or anything else the steps make.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     */
+    public function rebuild(Member $who, string $name): string {
+        if (in_array($name, $this->bundled, true)) {
+            return sprintf(t('mcp.install.bundled'), $name);
+        }
+        $install = $this->installs->find($name);
+        if ($install === null || $install->revision === null) {
+            return sprintf(t('mcp.install.not_installed'), $name);
+        }
+        if (!$this->mayChange($who, $install)) {
+            return sprintf(t('mcp.install.not_yours'), $name);
+        }
+        if ($install->steps === []) {
+            return sprintf(t('mcp.install.nothing_to_build'), $name);
+        }
+        return $this->runSteps($install, $install->revision, $install->steps) ?? sprintf(t('mcp.install.rebuilt'), $name, $install->revision);
+    }
+
+    /**
      * Brings the sources and shows them: the agent reads them to make a plan. A name taken by someone else's install
      * is refused; the owner of the agent may work with any.
      *

@@ -12,6 +12,8 @@ use OpenCCK\Domain\Entity\Member;
 use OpenCCK\Domain\Repository\McpInstallRepository;
 use Psr\Log\LoggerInterface;
 
+use function Mercurius\I18n\t;
+
 /**
  * At start the MCPs of the delivery are installed from the sandbox image (`McpInstaller::preinstall`). On a clean
  * install — no install yet and no entry of the owner — the owner's `.mcp.json` gets sample entries: they wait for
@@ -40,7 +42,23 @@ final class McpPreinstall {
         private readonly Closure $owner,
         private readonly Closure $hasEntries,
         private readonly LoggerInterface $logger,
+        /** @var (Closure(int, string): void)|null a word to a member: the installer of an MCP built again */
+        private readonly ?Closure $tell = null,
     ) {}
+
+    /**
+     * The print of the environments of the sandbox image; null — the sandbox did not answer.
+     *
+     * spec: brief/skills-mcp.md#установка-и-обновление
+     */
+    public function environment(): ?string {
+        try {
+            $outcome = $this->sandbox->exec(0, McpSources::limits(), 'mcp-install', "node -v 2>/dev/null; python3 -V 2>&1; php -r 'echo PHP_VERSION, PHP_EOL;'; go version 2>/dev/null", '.', 30, new NullCancellation());
+        } catch (SandboxFailure) {
+            return null;
+        }
+        return substr(hash('sha256', trim($outcome->stdout)), 0, 12);
+    }
 
     /** @return list<McpBundle>|null the MCPs the image carries, none when it has no index; null — the sandbox did not answer */
     public function bundles(): ?array {
@@ -65,6 +83,14 @@ final class McpPreinstall {
             return true;
         }
         $clean = $this->installs->all() === [] && !($this->hasEntries)('member:' . $owner->id);
+        // spec: brief/skills-mcp.md#установка-и-обновление — other environments in the image: the dependencies are built again
+        $environment = $this->environment();
+        foreach ($environment === null ? [] : $this->installer->rebuildChanged($environment) as [$by, $name, $failed]) {
+            $this->logger->info('MCP dependencies built again for new environments', ['name' => $name, 'failed' => $failed !== null]);
+            if ($this->tell !== null) {
+                ($this->tell)($by, $failed === null ? sprintf(t('mcp.install.env_rebuilt'), $name) : sprintf(t('mcp.install.env_rebuild_failed'), $name, $failed));
+            }
+        }
         foreach ($bundles as $bundle) {
             $result = $this->installer->preinstall($owner, $bundle, $clean ? self::SAMPLES[$bundle->name] ?? null : null);
             $this->logger->info('MCP of the delivery', ['name' => $bundle->name, 'result' => $result]);

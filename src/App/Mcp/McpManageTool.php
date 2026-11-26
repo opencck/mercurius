@@ -30,7 +30,7 @@ final class McpManageTool implements Tool, GrantKeyed {
         return new ToolDefinition(self::NAME, t('tool.mcp_manage.about'), [
             'type' => 'object',
             'properties' => [
-                'action' => ['type' => 'string', 'enum' => ['list', 'update', 'rollback', 'remove', 'allow', 'disallow']],
+                'action' => ['type' => 'string', 'enum' => ['list', 'update', 'rollback', 'rebuild', 'remove', 'allow', 'disallow']],
                 'name' => ['type' => 'string', 'maxLength' => 24],
                 'context' => ['type' => 'string', 'maxLength' => 40],
             ],
@@ -42,7 +42,7 @@ final class McpManageTool implements Tool, GrantKeyed {
     public function danger(array $args): DangerClass {
         return match (Args::string($args, 'action')) {
             'list' => DangerClass::Read,
-            'allow', 'disallow', 'rollback' => DangerClass::Write,
+            'allow', 'disallow', 'rollback', 'rebuild' => DangerClass::Write,
             default => DangerClass::Irreversible,
         };
     }
@@ -76,6 +76,7 @@ final class McpManageTool implements Tool, GrantKeyed {
         return new ToolResult(match (Args::string($args, 'action')) {
             'update' => $this->installer->update($who, $name),
             'rollback' => $this->installer->rollback($who, $name),
+            'rebuild' => $this->installer->rebuild($who, $name),
             'remove' => $this->installer->remove($who, $name),
             'allow' => $this->installer->allow($who, $name, $target, true),
             'disallow' => $this->installer->allow($who, $name, $target, false),

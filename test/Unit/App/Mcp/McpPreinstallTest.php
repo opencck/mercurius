@@ -133,6 +133,37 @@ final class McpPreinstallTest extends AsyncTestCase {
         ]]], $this->persisted);
     }
 
+    public function testDependenciesAreBuiltAgainWhenTheEnvironmentsOfTheImageChange(): void {
+        // spec: brief/skills-mcp.md#установка-и-обновление — a change of the environments in the image breaks dependencies
+        $installer = $this->installer();
+        $this->installs->add('weather', 'https://github.com/x/weather', 7);
+        $this->installs->setRevision('weather', '0123456789ab', 'h', ['forecast' => 'read'], ['command' => 'node', 'args' => ['/workspace/mcp/weather/current/index.js']]);
+        $this->installs->setSteps('weather', ['npm ci']);
+
+        self::assertSame([], $installer->rebuildChanged('node v20|py 3.11'), 'the first look only remembers the environments');
+        self::assertSame([], $installer->rebuildChanged('node v20|py 3.11'));
+        self::assertSame([], array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'npm ci')));
+
+        $rebuilt = $installer->rebuildChanged('node v22|py 3.11');
+
+        self::assertSame([[7, 'weather', null]], $rebuilt, 'the installer is told; null — no failure');
+        $steps = array_values(array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'npm ci')))[0] ?? '';
+        self::assertStringStartsWith('exec 800001 ', $steps);
+        self::assertStringContainsString('@releases/0123456789ab', $steps);
+        self::assertSame([], $installer->rebuildChanged('node v22|py 3.11'), 'built once for the new environments');
+    }
+
+    public function testABuildOfTheRevisionInUseIsAskedForByName(): void {
+        $installer = $this->installer();
+        $this->installs->add('weather', 'https://github.com/x/weather', 1);
+        $this->installs->setRevision('weather', '0123456789ab', 'h', [], ['command' => 'node']);
+        $this->installs->setSteps('weather', ['npm ci']);
+
+        self::assertStringContainsString('weather', $installer->rebuild($this->owner, 'weather'));
+        self::assertNotEmpty(array_filter($this->sandbox->calls, static fn(string $c): bool => str_contains($c, 'npm ci')));
+        self::assertStringContainsString('ssh', $installer->rebuild($this->owner, 'ssh'), 'nothing to build: not installed');
+    }
+
     public function testABundleUpdatesWithTheAgentOnly(): void {
         $installer = $this->installer();
         $installer->preinstall($this->owner, self::bundle(), null);
