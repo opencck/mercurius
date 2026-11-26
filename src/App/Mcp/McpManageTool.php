@@ -89,7 +89,9 @@ final class McpManageTool implements Tool, GrantKeyed {
             if ($this->entries === null || $entry === null) {
                 return ToolResult::error(t('tool.mcp_manage.entry_needed'));
             }
+            // mine — the caller's own file, whatever project the chat is in
             $where = Args::string($args, 'context') ?? $context->policy->mcpContext ?? 'member:' . $who->id;
+            $where = $where === 'mine' ? 'member:' . $who->id : $where;
             return new ToolResult(($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who));
         }
         if (!$who->role->may(Permission::Mcp)) {

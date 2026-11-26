@@ -401,6 +401,10 @@ final class McpFiles {
         if (!$this->mayWrite($context, $who)) {
             return t('service.mcp_commands.not_yours');
         }
+        // ${INSTALL_DIR} belongs to a plan of an install; in an entry it would read as a secret of that name
+        if (str_contains((string) json_encode($raw), McpInstaller::DIR)) {
+            return t('mcp.files.install_dir');
+        }
         try {
             $entry = McpEntry::fromArray($name, $raw);
         } catch (InvalidArgumentException $e) {

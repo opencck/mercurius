@@ -211,6 +211,10 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertNotSame($answer, $this->files->request('member:1', 'theirs', $raw, $member));
         self::assertSame(['member:1|work'], $this->told, 'another member does not write into my file');
         self::assertStringContainsString('{', json_encode($this->files->current('member:1', 'work')?->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?: '', 'the name of the secret, not its value');
+
+        $planned = ['command' => 'php', 'args' => ['${INSTALL_DIR}/bin/mail-mcp-stdio', '--host=mail.example.com']];
+        self::assertStringContainsString('/workspace/mcp/', $this->files->request('member:1', 'box', $planned, $this->owner), 'the placeholder of a plan is not a path');
+        self::assertNull($this->files->current('member:1', 'box'));
     }
 
     public function testAnApprovedLocalEntryStartsFromItsCacheAfterARestart(): void {
