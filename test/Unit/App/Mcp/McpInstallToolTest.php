@@ -64,5 +64,10 @@ final class McpInstallToolTest extends TestCase {
 
         self::assertSame([true, 'bad name'], [$refused->isError, $refused->content]);
         self::assertSame([false, 'written'], [$written->isError, $written->content]);
+
+        // an entry of another context is not served in this chat: the answer says where it works
+        $elsewhere = $manage->execute(['action' => 'entry', 'name' => 'ok', 'context' => 'project:3', 'entry' => $entry], $context);
+        self::assertStringStartsWith('written', $elsewhere->content);
+        self::assertStringContainsString('member:1', $elsewhere->content);
     }
 }

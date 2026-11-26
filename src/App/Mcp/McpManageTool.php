@@ -90,10 +90,15 @@ final class McpManageTool implements Tool, GrantKeyed {
                 return ToolResult::error(t('tool.mcp_manage.entry_needed'));
             }
             // mine — the caller's own file, whatever project the chat is in
-            $where = Args::string($args, 'context') ?? $context->policy->mcpContext ?? 'member:' . $who->id;
+            $here = $context->policy->mcpContext ?? 'member:' . $who->id;
+            $where = Args::string($args, 'context') ?? $here;
             $where = $where === 'mine' ? 'member:' . $who->id : $where;
             // a refusal is an error: wrapped as data, it read as a written entry
             [$written, $answer] = ($this->entries)($where, Args::string($args, 'name') ?? '', $entry, $who);
+            // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a chat is served the MCP of its own context only
+            if ($written && $where !== $here) {
+                $answer .= ' ' . sprintf(t('tool.mcp_manage.entry_elsewhere'), $where, $here);
+            }
             return new ToolResult($answer, !$written);
         }
         if (!$who->role->may(Permission::Mcp)) {
