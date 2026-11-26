@@ -15,7 +15,7 @@
 - **Память:** слои фактов с источниками, поиск по смыслу, `/memory`, `/forget`, ночная проверка.
 - **Серверы:** хранилище секретов, реестр серверов, SSH с политикой команд и журналом, маршруты через VLESS.
 - **Интернет:** поиск через SearXNG, Brave, Tavily или модель с веб-поиском; чтение страниц и документов; браузер в своём контейнере.
-- **Скиллы и MCP:** каталог скиллов с версиями и одобрением владельца; обычные скиллы `SKILL.md` других агентов из GitHub или архива вместе с файлами; MCP-серверы по HTTP с фильтром инструментов и предохранителем; встроенная почта (IMAP/SMTP) как MCP-сервер.
+- **Скиллы и MCP:** каталог скиллов с версиями и одобрением владельца; обычные скиллы `SKILL.md` других агентов из GitHub или архива вместе с файлами; MCP-серверы по HTTP и по stdio в песочнице, которые агент ставит сам из репозитория или архива; каждый работает по одобренной владельцем записи `.mcp.json`, секреты — по имени; SSH и почта (IMAP/SMTP) — MCP из поставки.
 - **Планировщик и проекты:** задания по расписанию или по подписанному webhook, тихие часы; проекты с карточкой, папкой, скиллами и заданиями.
 - **Группы:** работа в одобренных владельцем группах (по упоминанию или свободно); форум, где тема — проект; посты в канал через карточку владельца.
 - **Делегирование:** воркеры с чистым контекстом и своими правами (чтение или запись), модель под часть, проверяющий для дорогих частей, фоновая работа.
@@ -27,7 +27,7 @@
 
 ## Планы
 
-MCP-серверы по stdio в песочнице. Открытые вопросы — в [`brief/decisions.md`](brief/decisions.md).
+Глобальные скиллы агента в общей области владельцев; MCP из приватных репозиториев по SSH; вход во внешние MCP-серверы через OAuth. Открытые вопросы — в [`brief/decisions.md`](brief/decisions.md).
 
 ## Запуск
 
@@ -61,10 +61,11 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | кадры и звук видео для моделей, которые видео не смотрят |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | текст офисных документов и PDF; новые docx, xlsx, pptx |
 | [`mercurius-claude-code`](https://github.com/opencck/mercurius-claude-code) | `services/claude-code` | `claude-code` | `CLAUDE_CODE_TOKEN`, `CLAUDE_CODE_UID`, `CLAUDE_CODE_GID` | Claude по подписке владельца через официальный Claude Code: модели `claude:<модель>`. Вход — `/claude login` в личном чате владельца (или токен `claude setup-token` в `CLAUDE_CODE_OAUTH_TOKEN`), затем модели добавляются в списки категорий. Оплата сверх плана — отказ, пока её не разрешит `CLAUDE_CODE_EXTRA_USAGE` |
-| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | распознавание речи на своей машине (faster-whisper); назначить: `MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`, `MEDIA_SPEECH_MODELS=custom:whisper/small`, токен — секрет хранилища `media-endpoint-whisper` |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | распознавание речи на своей машине (faster-whisper); хватает профиля и токена: пока модуль отвечает, а модель речи не названа, речь распознаётся им |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | встроенный скилл: как агент держит `MEMORY.md` участника в пределе |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | встроенный скилл: как агент создаёт и дорабатывает свои скиллы (грузится при старте, без сервиса) |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | почтовые ящики участников по IMAP и SMTP |
+| [`mercurius-mcp-ssh`](https://github.com/opencck/mercurius-mcp-ssh) | `mcp/ssh` | — | — | MCP из поставки, ставится в песочницу при старте: SSH-сервер — запись `.mcp.json` |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | — | — | MCP из поставки, ставится в песочницу при старте: почтовый ящик (IMAP и SMTP) — запись `.mcp.json` |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | файлы до 2000 МБ в Telegram |
 
 Например, браузер и документы:
@@ -148,7 +149,7 @@ PHP 8.2+, AMPHP v3 / Revolt, [`opencck/server`](https://github.com/opencck), Pos
 | [`CLAUDE.md`](CLAUDE.md) | Правила работы над проектом с Claude Code |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | Агент: точка входа, код по слоям opencck, миграции базы, тесты |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | Исполнитель песочницы |
-| `services/`, `mcp/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, whisper, claude-code, telegram-bot-api; почта |
+| `services/`, `mcp/` | Необязательные модули, каждый в своём репозитории и профиле compose: browser, media-video, media-docs, whisper, claude-code, telegram-bot-api; MCP из поставки: ssh, mail |
 | `bin/` | Резервная копия, восстановление, обновление и проверка установки |
 | `docs/`, `docs/notes/` | База знаний о построении автономных агентов: статьи и конспекты |
 | `references/` | Референсные репозитории — git-сабмодули |

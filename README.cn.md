@@ -17,7 +17,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
 - **记忆：** 带来源的分层事实、按语义搜索、`/memory`、`/forget`、夜间整合。
 - **服务器：** 密钥保险库、服务器登记表、带命令策略和日志的 SSH、经由 VLESS 的路由。
 - **互联网：** 通过 SearXNG、Brave、Tavily 或带网络搜索的模型进行网络搜索；读取网页和文档；运行在独立容器中的浏览器。
-- **技能和 MCP：** 带版本并经所有者批准的技能目录；从 GitHub 或压缩包导入其他智能体的普通 `SKILL.md` 技能及其文件；带工具过滤和熔断器的基于 HTTP 的 MCP 服务器；作为 MCP 服务器的内置邮件（IMAP/SMTP）。
+- **技能和 MCP：** 带版本并经所有者批准的技能目录；从 GitHub 或压缩包导入其他智能体的普通 `SKILL.md` 技能及其文件；基于 HTTP 以及沙箱中 stdio 的 MCP 服务器，由智能体从仓库或压缩包自行安装，每个都按所有者批准的 `.mcp.json` 条目运行，密钥按名称引用；SSH 和邮件（IMAP/SMTP）是随附的 MCP。
 - **调度器和项目：** 按计划或签名 webhook 触发的任务、免打扰时段；带卡片、文件夹、技能和任务的项目。
 - **群组：** 在所有者批准的群组中工作（被提及时或自由参与）；每个话题就是一个项目的论坛；通过所有者的卡片在频道发帖。
 - **委派：** 上下文干净且拥有自己权限（读或写）的工作智能体、每个部分一个模型、针对高成本部分的验证器、后台工作。
@@ -29,7 +29,7 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
 
 ## 计划中
 
-沙箱中基于 stdio 的 MCP 服务器。未决问题见 [`brief/decisions.md`](brief/decisions.md)。
+所有者公共区域中的智能体全局技能；通过 SSH 从私有仓库安装 MCP；通过 OAuth 登录外部 MCP 服务器。未决问题见 [`brief/decisions.md`](brief/decisions.md)。
 
 ## 运行
 
@@ -54,10 +54,11 @@ Mercurius 是一个自主的个人智能体。你用 Docker Compose 把它运行
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | 为无法观看视频的模型提供视频的帧和声音 |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | 办公文档和 PDF 的文本；新建 docx、xlsx、pptx |
 | [`mercurius-claude-code`](https://github.com/opencck/mercurius-claude-code) | `services/claude-code` | `claude-code` | `CLAUDE_CODE_TOKEN`、`CLAUDE_CODE_UID`、`CLAUDE_CODE_GID` | 通过官方 Claude Code 使用所有者订阅的 Claude：模型 `claude:<模型>`。在所有者私聊中用 `/claude login` 登录（或把 `claude setup-token` 的令牌设为 `CLAUDE_CODE_OAUTH_TOKEN`），然后把模型加入类别列表。除非 `CLAUDE_CODE_EXTRA_USAGE` 允许，否则拒绝套餐外付费 |
-| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | 在本机把语音转成文字（faster-whisper）；指定方式：`MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`、`MEDIA_SPEECH_MODELS=custom:whisper/small`，令牌是保管库密钥 `media-endpoint-whisper` |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | 在本机把语音转成文字（faster-whisper）；只需 profile 和令牌：模块可用且未指定语音模型时，由它识别语音 |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | 内置技能：智能体如何把参与者的 `MEMORY.md` 保持在限额之内 |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | 内置技能：智能体如何创建和改进自己的技能（启动时加载，无服务） |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | 通过 IMAP 和 SMTP 访问参与者的邮箱 |
+| [`mercurius-mcp-ssh`](https://github.com/opencck/mercurius-mcp-ssh) | `mcp/ssh` | — | — | 随附的 MCP，启动时安装到沙箱：SSH 服务器是 `.mcp.json` 中的一个条目 |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | — | — | 随附的 MCP，启动时安装到沙箱：邮箱（IMAP 和 SMTP）是 `.mcp.json` 中的一个条目 |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | Telegram 中最大 2000 MB 的文件 |
 
 例如，启用浏览器和文档：
@@ -136,7 +137,7 @@ PHP 8.2+、AMPHP v3 / Revolt、[`opencck/server`](https://github.com/opencck)、
 | [`CLAUDE.md`](CLAUDE.md) | 使用 Claude Code 开发的工作规则（俄文） |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | 智能体：入口点、按 opencck 分层组织的代码、数据库迁移、测试 |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | 沙箱执行器 |
-| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、whisper、claude-code、telegram-bot-api；mail |
+| `services/`, `mcp/` | 可选模块，各自位于自己的仓库和 compose profile 中：browser、media-video、media-docs、whisper、claude-code、telegram-bot-api；随附的 MCP：ssh、mail |
 | `bin/` | 备份、恢复、更新和安装检查 |
 | `docs/`, `docs/notes/` | 关于构建自主智能体的知识库：文章和笔记 |
 | `references/` | 作为 git 子模块的参考仓库 |

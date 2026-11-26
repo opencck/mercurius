@@ -15,7 +15,7 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 - **Memory:** layers of facts with sources, search by meaning, `/memory`, `/forget`, nightly consolidation.
 - **Servers:** a vault of secrets, a registry of servers, SSH with a command policy and a log, routes through VLESS.
 - **Internet:** web search through SearXNG, Brave, Tavily or a model with web search; reading pages and documents; a browser in its own container.
-- **Skills and MCP:** a skill catalog with versions and the owner's approval; ordinary `SKILL.md` skills of other agents imported from GitHub or an archive with their files; MCP servers over HTTP with tool filters and a circuit breaker; built-in mail (IMAP/SMTP) as an MCP server.
+- **Skills and MCP:** a skill catalog with versions and the owner's approval; ordinary `SKILL.md` skills of other agents imported from GitHub or an archive with their files; MCP servers over HTTP and stdio in the sandbox, installed by the agent from a repository or an archive, each run by an entry of `.mcp.json` the owner approved, with secrets by name; SSH and mail (IMAP/SMTP) as MCPs that ship with it.
 - **Scheduler and projects:** jobs by a schedule or a signed webhook, quiet hours; projects with a card, a folder, skills and jobs.
 - **Groups:** work in groups the owner approves (on mention or freely); a forum where each topic is a project; posts in a channel through the owner's card.
 - **Delegation:** worker agents with a clean context and their own rights (read or write), a model per part, a verifier for costly parts, background work.
@@ -27,7 +27,7 @@ Mercurius is an autonomous personal agent. You run it on your own server with Do
 
 ## Planned
 
-MCP servers over stdio in the sandbox. Open questions are in [`brief/decisions.md`](brief/decisions.md).
+Global skills of the agent in the owners' area; MCPs from private repositories over SSH; OAuth sign-in to external MCP servers. Open questions are in [`brief/decisions.md`](brief/decisions.md).
 
 ## Running it
 
@@ -62,10 +62,11 @@ compose profile, off by default. Turn one on with its submodule, a profile in `C
 | [`mercurius-media-video`](https://github.com/opencck/mercurius-media-video) | `services/media-video` | `media-video` | `MEDIA_VIDEO_TOKEN` | frames and sound of a video for models that do not watch video |
 | [`mercurius-media-docs`](https://github.com/opencck/mercurius-media-docs) | `services/media-docs` | `media-docs` | `MEDIA_DOCS_TOKEN` | the text of office documents and PDF; new docx, xlsx, pptx |
 | [`mercurius-claude-code`](https://github.com/opencck/mercurius-claude-code) | `services/claude-code` | `claude-code` | `CLAUDE_CODE_TOKEN`, `CLAUDE_CODE_UID`, `CLAUDE_CODE_GID` | Claude by the owner's subscription through the official Claude Code: models `claude:<model>`. Sign in with `/claude login` in the owner's private chat (or set `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`), then put the models into the category lists. Paid use beyond the plan is refused unless `CLAUDE_CODE_EXTRA_USAGE` allows it |
-| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | speech to text on this host (faster-whisper); assign it: `MEDIA_ENDPOINTS=whisper=http://whisper:8000/v1`, `MEDIA_SPEECH_MODELS=custom:whisper/small`, the token — the vault secret `media-endpoint-whisper` |
+| [`mercurius-whisper`](https://github.com/opencck/mercurius-whisper) | `services/whisper` | `whisper` | `WHISPER_TOKEN` | speech to text on this host (faster-whisper); the profile and the token are enough: while the module answers and no speech model is named, speech is recognised by it |
 | [`mercurius-skill-memory-file`](https://github.com/opencck/mercurius-skill-memory-file) | `skills/memory-file` | — | — | a built-in skill: how the agent keeps a participant's `MEMORY.md` within its limit |
 | [`mercurius-skill-creator`](https://github.com/opencck/mercurius-skill-creator) | `skills/skill-creator` | — | — | a built-in skill: how the agent creates and improves its skills (loaded at the start, no service) |
-| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | `mail` | `MAIL_MCP_TOKEN` | mailboxes of the participants over IMAP and SMTP |
+| [`mercurius-mcp-ssh`](https://github.com/opencck/mercurius-mcp-ssh) | `mcp/ssh` | — | — | an MCP of the delivery, installed into the sandbox at start: an SSH server is an entry of `.mcp.json` |
+| [`mercurius-mail-mcp`](https://github.com/opencck/mercurius-mail-mcp) | `mcp/mail` | — | — | an MCP of the delivery, installed into the sandbox at start: a mailbox (IMAP and SMTP) is an entry of `.mcp.json` |
 | [`mercurius-telegram-bot-api`](https://github.com/opencck/mercurius-telegram-bot-api) | `services/telegram-bot-api` | `telegram-api` | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_API_URL` | files up to 2000 MB in Telegram |
 
 For example, the browser and documents:
@@ -149,7 +150,7 @@ Modules — the browser, media, mail and the local Bot API server — are listed
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for development with Claude Code (in Russian) |
 | `bootstrap/index.php`, `src/`, `migrations/`, `test/` | The agent: entry point, code in opencck layers, database migrations, tests |
 | `bootstrap/sandbox.php`, `src/Sandbox/` | The sandbox executor |
-| `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, whisper, claude-code, telegram-bot-api; mail |
+| `services/`, `mcp/` | Optional modules, each in its own repository and compose profile: browser, media-video, media-docs, whisper, claude-code, telegram-bot-api; MCPs of the delivery: ssh, mail |
 | `bin/` | Backup, restore, update and the installation check |
 | `docs/`, `docs/notes/` | Knowledge base on building autonomous agents: articles and notes |
 | `references/` | Reference repositories as git submodules |
