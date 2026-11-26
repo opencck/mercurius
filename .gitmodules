@@ -115,7 +115,7 @@
 	path = references/hermes-plugin-antigravity-agy
 	url = https://github.com/Realtyxxx/hermes-plugin-antigravity-agy
 	shallow = true
-[submodule "mcp/gemini-api"]
-	path = mcp/gemini-api
+[submodule "mcp/gemini_api"]
+	path = mcp/gemini_api
 	url = https://github.com/opencck/mercurius-mcp-gemini-api.git
 	branch = master
