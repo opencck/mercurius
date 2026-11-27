@@ -142,8 +142,8 @@ final class SettingsService {
         } else {
             $candidate[$key] = $value;
         }
-        // spec: brief/models.md#списки-моделей-по-категориям — the search calls a model of OpenRouter only: another one left the
-        //      agent with no search while the answer said «works at once»
+        // spec: brief/models.md#модели-поиска — the search calls a model of a provider with a web search only: another one
+        //      left the agent with no search while the answer said «works at once»
         if ($key === 'WEB_SEARCH_MODELS' && ($unfit = \OpenCCK\Infrastructure\Config\SearchSettings::unfit($value)) !== []) {
             throw new DomainException(sprintf(t('settings.search_openrouter_only'), implode(', ', $unfit)));
         }

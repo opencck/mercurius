@@ -81,8 +81,10 @@ final class ModelListEditTest extends AsyncTestCase {
         self::assertStringContainsString('claude:claude-sonnet-5-5', $said, 'and the agent learns the subscription has the same model');
         self::assertStringNotContainsString('claude-opus', $said);
 
-        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $editor->change($this->owner, ModelRole::CHEAP, 'add', ['z-ai/glm-5.3-flash']), 'nothing to say about a model the subscription has not');
-        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $editor->change($this->owner, ModelRole::CHEAP, 'add', ['claude:claude-sonnet-5-5']), 'nor about the model of the subscription itself');
+        $plain = explode("\n", $editor->change($this->owner, ModelRole::CHEAP, 'add', ['z-ai/glm-5.3-flash']));
+        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $plain[0]);
+        self::assertCount(2, $plain, 'nothing to say about a model the subscription has not, only the model of the role');
+        self::assertCount(2, explode("\n", $editor->change($this->owner, ModelRole::CHEAP, 'add', ['claude:claude-sonnet-5-5'])), 'nor about the model of the subscription itself');
     }
 
     public function testATextListWorksAtOnceWithoutARestart(): void {
@@ -90,7 +92,7 @@ final class ModelListEditTest extends AsyncTestCase {
 
         $said = $this->editor->change($this->owner, ModelRole::MAIN, 'add', ['author/b']);
 
-        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_MAIN_MODELS'), $said);
+        self::assertStringStartsWith(sprintf(t('settings.saved_live'), 'LLM_MAIN_MODELS'), $said);
         self::assertSame(['openrouter:author/a', 'openrouter:author/b'], array_map('strval', $this->lists->of(ModelRole::MAIN)), 'the editor sees its own change at once');
         $this->settings->set($this->owner, 'LLM_MAIN_MODELS', 'author/c');
         $this->later();
@@ -98,6 +100,14 @@ final class ModelListEditTest extends AsyncTestCase {
     }
 
     /** spec: brief/models.md#списки-моделей-по-категориям — the search takes a model of OpenRouter only; another one left it with no search */
+    public function testAChangeOfATextListSaysWhichModelTheRoleTakesNow(): void {
+        // spec: brief/models.md#списки-моделей-по-категориям — seen live: the agent put a model first in the list and told
+        //       the owner it is now the main one, while the role kept the model it had
+        $said = $this->editor->change($this->owner, ModelRole::MAIN, 'set', ['author/b', 'author/a']);
+
+        self::assertStringContainsString(sprintf(t('model.lists.role_now'), ModelRole::MAIN, 'openrouter:author/a'), $said, 'the role keeps its model while it stays in the list');
+    }
+
     public function testTheSearchTakesOnlyAModelItCanCall(): void {
         foreach (['claude:claude-opus-5-5', 'chatgpt:gpt-5', 'z-ai/glm-5.3-flash,claude:claude-opus-5-5'] as $list) {
             try {
@@ -115,6 +125,13 @@ final class ModelListEditTest extends AsyncTestCase {
         self::assertSame(sprintf(t('settings.saved_live'), 'WEB_SEARCH_MODELS'), $this->editor->change($this->owner, 'search', 'set', ['openrouter:z-ai/glm-5.3-flash']));
         self::assertSame(sprintf(t('settings.saved_live'), 'WEB_SEARCH_MODELS'), $this->settings->set($this->owner, 'WEB_SEARCH_MODELS', 'perplexity/sonar'));
         $this->settings->set($this->owner, 'WEB_SEARCH_MODELS', '');
+        try {
+            $this->editor->change($this->owner, 'search', 'set', ['gemini:gemini-3.8-flash']);
+            self::fail('a model of a provider without a key was taken for the search');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('gemini', $e->getMessage());
+            self::assertStringContainsString('openrouter', $e->getMessage(), 'and the refusal names the providers there are');
+        }
     }
 
     public function testTheEditorChecksTheModelsOfATextCategory(): void {
@@ -126,7 +143,7 @@ final class ModelListEditTest extends AsyncTestCase {
                 self::assertStringStartsWith(explode('%', t($why))[0], $e->getMessage());
             }
         }
-        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $this->editor->change($this->owner, ModelRole::CHEAP, 'set', ['author/notools']), 'the cheap role calls no tools');
+        self::assertStringStartsWith(sprintf(t('settings.saved_live'), 'LLM_CHEAP_MODELS'), $this->editor->change($this->owner, ModelRole::CHEAP, 'set', ['author/notools']), 'the cheap role calls no tools');
         $this->expectException(DomainException::class);
         $this->editor->change($this->owner, ModelRole::MAIN, 'remove', ['author/a']);
     }

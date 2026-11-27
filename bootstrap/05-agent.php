@@ -169,7 +169,9 @@ $tools->register($httpRequestTool = new HttpRequestTool(HttpClients::guarded($ad
 // spec: brief/internet.md#как-сделано-поиск-чтение-и-браузер — pages as text; search by the model's web search on OpenRouter
 $tools->register(new WebReadTool(HttpClients::guarded($addressGuard), $addressGuard, new TextExtractor(), $guardedClient));
 // spec: brief/participants.md#решения-владельца-о-правах — search providers in the order of SEARCH_PROVIDERS
-[$webSearch, $searchSkipped, $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $llmSettings->openRouterKey());
+// spec: brief/models.md#модели-поиска — the models of the search are of the providers with a key and a web search
+$searchKeys = [\OpenCCK\Domain\Agent\ModelRef::OPENROUTER => $llmSettings->openRouterKey(), \OpenCCK\Domain\Agent\ModelRef::GEMINI => $llmSettings->geminiKey(), \OpenCCK\Domain\Agent\ModelRef::OPENAI => $llmSettings->openAiKey()];
+[$webSearch, $searchSkipped, $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build($_ENV, $modelHttp, $searchKeys);
 if ($searchSkipped !== []) {
     $logger->warning('Search providers without settings are skipped', ['providers' => $searchSkipped]);
 }
@@ -177,13 +179,13 @@ $webSearchTool = new WebSearchTool($webSearch, $searchEach, array_map('\Mercuriu
 $webSearchTool->useAccounting($llmCalls, $runs);
 // spec: brief/models.md#списки-моделей-по-категориям — the list of the search works at once: the search is built again when
 //      the list changes, and the tool is offered while there is a search
-$webSearchTool->follow(static function () use ($modelLists, $modelHttp, $llmSettings, &$webSearch, &$searchEach): array {
+$webSearchTool->follow(static function () use ($modelLists, $modelHttp, $searchKeys, &$webSearch, &$searchEach): array {
     /** @var ?string $built the list the search was built for */
     static $built = null;
     $list = implode(',', $modelLists->other('search'));
     if ($built !== null && $built !== $list) {
         try {
-            [$webSearch, , $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build(['WEB_SEARCH_MODELS' => $list] + $_ENV, $modelHttp, $llmSettings->openRouterKey());
+            [$webSearch, , $searchEach] = \OpenCCK\Infrastructure\Config\SearchSettings::build(['WEB_SEARCH_MODELS' => $list] + $_ENV, $modelHttp, $searchKeys);
         } catch (\OpenCCK\Infrastructure\Config\ConfigException) {
             // settings that do not build: the search of before stays
         }

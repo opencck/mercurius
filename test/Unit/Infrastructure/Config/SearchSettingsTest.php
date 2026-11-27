@@ -21,20 +21,40 @@ final class SearchSettingsTest extends AsyncTestCase {
     public function testProvidersFollowTheOrderAndThoseWithoutSettingsAreSkipped(): void {
         $http = HttpClientBuilder::buildDefault();
 
-        [$search, $skipped] = SearchSettings::build(['SEARCH_PROVIDERS' => 'searxng, brave,openrouter', 'SEARXNG_URL' => 'http://searxng:8080', 'WEB_SEARCH_MODELS' => 'openrouter:author/search, author/other'], $http, 'sk-or');
+        [$search, $skipped] = SearchSettings::build(['SEARCH_PROVIDERS' => 'searxng, brave,openrouter', 'SEARXNG_URL' => 'http://searxng:8080', 'WEB_SEARCH_MODELS' => 'openrouter:author/search, author/other'], $http, ['openrouter' => 'sk-or']);
         self::assertSame('searxng>openrouter', $search?->name());
         self::assertSame(['brave'], $skipped);
 
         // spec: brief/models.md#списки-моделей-по-категориям — the search has no model until the owner names one
-        [$none, $skippedNone] = SearchSettings::build([], $http, 'sk-or');
+        [$none, $skippedNone] = SearchSettings::build([], $http, ['openrouter' => 'sk-or']);
         self::assertNull($none, 'a key alone is not a search: no model was named');
-        self::assertSame(['openrouter'], $skippedNone);
-        [$named] = SearchSettings::build(['WEB_SEARCH_MODELS' => 'author/search'], $http, 'sk-or');
+        self::assertSame(['model'], $skippedNone, 'the slot of the models is the default');
+        [$named] = SearchSettings::build(['WEB_SEARCH_MODELS' => 'author/search'], $http, ['openrouter' => 'sk-or']);
         self::assertSame('openrouter', $named?->name());
-        self::assertNull(SearchSettings::build([], $http, null)[0], 'no key, no search');
+        self::assertNull(SearchSettings::build([], $http, [])[0], 'no key, no search');
 
         $this->expectException(ConfigException::class);
-        SearchSettings::build(['SEARCH_PROVIDERS' => 'google'], $http, null);
+        SearchSettings::build(['SEARCH_PROVIDERS' => 'google'], $http, []);
+    }
+
+    public function testTheModelsOfTheSearchMayBeOfGeminiAndOpenAiByTheirKeys(): void {
+        // spec: brief/models.md#модели-поиска — the search is not of OpenRouter only: a model of a provider with web search
+        $http = HttpClientBuilder::buildDefault();
+        $list = ['WEB_SEARCH_MODELS' => 'gemini:gemini-3.8-flash, openai:gpt-4.1-mini, author/search'];
+
+        [$search, $skipped, $each] = SearchSettings::build($list, $http, ['gemini' => 'AIza', 'openai' => 'sk-oa']);
+        self::assertSame('gemini>openai', $search?->name(), 'in the order of the list; a model without its key is left out');
+        self::assertSame([], $skipped);
+        self::assertSame(['gemini', 'openai'], array_keys($each));
+
+        [$all] = SearchSettings::build($list, $http, ['gemini' => 'AIza', 'openai' => 'sk-oa', 'openrouter' => 'sk-or']);
+        self::assertSame('gemini>openai>openrouter', $all?->name());
+        [$model] = SearchSettings::build(['SEARCH_PROVIDERS' => 'model'] + $list, $http, ['openai' => 'sk-oa']);
+        self::assertSame('openai', $model?->name(), 'model is the name of the slot, openrouter its old name');
+
+        self::assertSame([], SearchSettings::unfit('gemini:gemini-3.8-flash, openai:gpt-4.1-mini, openrouter:a/b, a/b'));
+        self::assertSame(['antigravity:gemini-3.8-flash', 'claude:claude-opus-5-5', 'vertex:google/gemini-3.8-flash', 'chatgpt:gpt-5'],
+            SearchSettings::unfit('antigravity:gemini-3.8-flash, claude:claude-opus-5-5, vertex:google/gemini-3.8-flash, chatgpt:gpt-5'));
     }
 
     public function testTheToolGivesTheTextOfTheSearchAndItsErrors(): void {

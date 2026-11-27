@@ -90,6 +90,15 @@ final class ModelListEditor {
             $asked[$model] = true;
         }
         $asked = array_keys($asked);
+        // spec: brief/models.md#модели-поиска — a model of the search whose provider has no key would leave no search at all
+        if ($category === 'search') {
+            foreach ($asked as $model) {
+                $provider = \OpenCCK\Infrastructure\Config\SearchSettings::providerOf($model);
+                if ($provider !== null && !in_array($provider, $this->roles->providers(), true)) {
+                    throw new DomainException(sprintf(t('model.lists.search_no_key'), $model, $provider, implode(', ', array_intersect(\OpenCCK\Infrastructure\Config\SearchSettings::MODEL_PROVIDERS, $this->roles->providers())) ?: '—'));
+                }
+            }
+        }
         $now = $text ? array_map('strval', $this->lists->of($category)) : $this->lists->other($category);
         $next = match ($action) {
             'add' => array_values(array_unique([...$now, ...$asked])),
@@ -104,6 +113,12 @@ final class ModelListEditor {
         }
         $said = $this->settings->set($who, $setting, implode(',', $next));
         $this->lists->forget();
+        if ($text) {
+            // spec: brief/models.md#списки-моделей-по-категориям — the order of a list does not choose the model of the role:
+            //      the answer says which one the role takes now, so nobody tells the owner a guess
+            $said .= "
+" . sprintf(t('model.lists.role_now'), $category, (string) $this->roles->model($category));
+        }
         if ($text && $action !== 'remove') {
             // a name without a provider is a model paid by the token; the agent is told when the subscription has the same
             foreach ($asked as $model) {
