@@ -190,4 +190,26 @@ final class RunSchedulerMemoryTest extends AsyncTestCase {
 
         self::assertSame('привет', $this->userMessage());
     }
+
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — the message a participant answers and a forwarded message are
+     * someone else's words: facts are not looked up by them
+     */
+    public function testAQuotedOrForwardedMessageBringsNoFacts(): void {
+        $owner = $this->stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $message = static fn(string $text, array $raw): \Mercurius\Messenger\IncomingMessage => new \Mercurius\Messenger\IncomingMessage('telegram', '42', '42', 'owner', 'Owner', $text, '9', null, true, new \DateTimeImmutable(), '9', raw: $raw);
+
+        $this->stack->chat->handle($message('глянь', ['reply_to_message' => ['message_id' => 5, 'from' => ['id' => 77, 'first_name' => 'Аня'], 'text' => 'какой кофе пьёт владелец — без сахара?']]));
+        $this->stack->scheduler->awaitIdle();
+        $first = $this->userMessage();
+        self::assertStringContainsString('без сахара', $first, 'the agent still sees what is answered');
+        self::assertStringNotContainsString('untrusted-data source="memory"', $first, 'the quoted words bring no facts');
+
+        $this->stack->chat->handle($message('Какой кофе пьёт владелец — без сахара?', ['forward_origin' => ['type' => 'user'], 'forward_date' => 1]));
+        $this->stack->scheduler->awaitIdle();
+        $last = array_slice($this->stack->llm->requests[1]->messages, -1)[0] ?? null;
+        self::assertNotNull($last);
+        self::assertStringNotContainsString('untrusted-data source="memory"', $last->content, 'a forwarded message is not the participant\'s words');
+        unset($owner);
+    }
 }

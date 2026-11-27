@@ -581,4 +581,25 @@ final class GroupGateTest extends AsyncTestCase {
         $this->joined('-100888', 'supergroup');
         self::assertStringNotContainsString('администратором', end($this->stack->channel->log)[2] ?? '', 'an administrator sees everything');
     }
+
+    /**
+     * spec: brief/memory.md#как-сделано-области-и-факты — the words facts are looked up by are the speaker's own: not the
+     * name of the group, not the last messages of others, not a forwarded text
+     */
+    public function testTheOwnWordsOfAGroupMessageComeWithoutTheGroupsTalk(): void {
+        $this->stack(new ScriptedLlm([]));
+        $this->say('первое');
+        $this->press('gr:' . self::GROUP . ':m');
+        $routed = $this->gate->route($this->message('@mrcuribot какой кофе пьёт владелец?', '42'));
+
+        self::assertNotNull($routed);
+        self::assertStringContainsString('Дом', $routed[1]->text, 'the agent is told the group');
+        self::assertSame('какой кофе пьёт владелец?', $routed[3]);
+
+        $id = (string) ++$this->id;
+        $forwarded = new IncomingMessage('telegram', self::GROUP, '42', 'u42', 'User 42', '@mrcuribot какой кофе пьёт владелец?', $id, null, false, new DateTimeImmutable(), $id, raw: ['chat' => ['id' => (int) self::GROUP, 'title' => 'Дом', 'type' => 'supergroup'], 'forward_date' => 1]);
+        $routed = $this->gate->route($forwarded);
+        self::assertNotNull($routed);
+        self::assertSame('', $routed[3], 'a forwarded message is someone else\'s words');
+    }
 }

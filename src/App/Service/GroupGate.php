@@ -96,7 +96,8 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
     /**
      * What to do with a group message: null — nothing (silent); otherwise who speaks and the message for the agent.
      *
-     * @return array{Member, IncomingMessage, bool}|null the speaker, the message for the agent, whether it may stay silent
+     * @return array{Member, IncomingMessage, bool, string}|null the speaker, the message for the agent, whether it may
+     *         stay silent, the speaker's own words (facts of memory are looked up by them)
      */
     public function route(IncomingMessage $message): ?array {
         // spec: brief/channels.md#форум-темы--проекты — Telegram says with every message whether the group is a forum
@@ -186,6 +187,9 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
         if ($text === '' && !$addressed && $message->attachments === []) {
             return null;
         }
+        // spec: brief/memory.md#как-сделано-области-и-факты — the speaker's own words: without the name of the group, the
+        //       message answered and the talk of the others, which the agent is told below; a forwarded text is not theirs
+        $own = MessageMeta::forwarded($message) ? '' : $text;
         // a sticker or a voice reply to the agent: it is told what came instead of an empty message
         $text = $text === '' ? MessageMeta::content($message) : $text;
         $meta = array_filter([MessageMeta::topic($message), MessageMeta::reply($message, $this->botId, $this->runOfReply($message))]);
@@ -217,7 +221,7 @@ final class GroupGate implements CallbackHandler, MembershipHandler {
             //      the free mode, where the agent takes part in everything (only such messages reach this point)
             $message->attachments,
             $message->repliedAttachments,
-        ), $group->mode === Group::FREE && !$addressed];
+        ), $group->mode === Group::FREE && !$addressed, $own];
     }
 
     /**

@@ -453,21 +453,21 @@ reviewed: 2026-11-16
 слова, векторы — дело провайдера» (`README.md:L75-L78`). Копия фильтра `holo_screen.py` сверяется с исходником
 провайдера в CI.
 
-**Сверка со схемой провайдера** (локальная копия `references/hermes-plugin-holographic/` на коммите `4a794f8`, релиз
-0.28.0 — новее версий, с которыми dreaming проверялся в CI: 0.26.2):
+**Сверка со схемой провайдера** (локальная копия `references/hermes-plugin-holographic/` на коммите `9b49943`, релиз
+0.33.0; сверка делалась на `4a794f8`, 0.28.0 — новее версий, с которыми dreaming проверялся в CI: 0.26.2):
 
-- `facts` — `references/hermes-plugin-holographic/store.py@4a794f8:L33-L44`: те же 9 колонок плюс `hrr_vector BLOB`;
+- `facts` — `references/hermes-plugin-holographic/store.py@9b49943:L33-L44`: те же 9 колонок плюс `hrr_vector BLOB`;
   `content` объявлен `UNIQUE`, `trust_score` по умолчанию 0.5.
 - `fact_versions`, `forgotten`, `fact_confirmations`, `fact_merges` —
-  `references/hermes-plugin-holographic/history.py@4a794f8:L32-L106 (HISTORY_SCHEMA)`. У версии есть `status`
+  `references/hermes-plugin-holographic/history.py@9b49943:L32-L106 (HISTORY_SCHEMA)`. У версии есть `status`
   (`current` и др.), срок действия `valid_from` / `valid_to`, связи `supersedes` / `superseded_by` и происхождение
   `src_*` (канал, чат, сессия, пользователь, `src_origin`); уникальный индекс гарантирует одну текущую версию на факт.
   Надгробие хранит id и хэши текстов версий, но не текст. Подтверждение — строка без текста, раз в сессию.
 - Разрешение записи из фоновой задачи —
-  `references/hermes-plugin-holographic/__init__.py@4a794f8:L1025-L1031 (initialize)`: контексты `subagent` / `cron` /
+  `references/hermes-plugin-holographic/__init__.py@9b49943:L1200-L1206 (initialize)`: контексты `subagent` / `cron` /
   `flush` не пишут автоматически; явные вызовы `fact_store` / `fact_feedback` из cron разрешены настройкой
   `cron_writes` (по умолчанию включена), и в комментарии прямо назван dreaming.
-- Порог выдачи `min_trust_threshold` по умолчанию 0.3 — `__init__.py@4a794f8:L761`.
+- Порог выдачи `min_trust_threshold` по умолчанию 0.3 — `__init__.py@9b49943:L921`.
 
 Остальной код провайдера (поиск, векторы, сущности, инструменты `fact_store` / `fact_feedback`) для этого конспекта не
 читался — см. раздел 14.

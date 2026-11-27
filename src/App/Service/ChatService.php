@@ -220,8 +220,8 @@ final class ChatService implements MessageHandler {
             if ($routed === null) {
                 return;
             }
-            [$known, $message, $silenceAllowed] = $routed;
-            $this->proceed($known, $message, $silenceAllowed);
+            [$known, $message, $silenceAllowed, $own] = $routed;
+            $this->proceed($known, $message, $silenceAllowed, $own);
             return;
         }
         $principal = $this->access->resolveMessage($message);
@@ -241,7 +241,8 @@ final class ChatService implements MessageHandler {
         $this->proceed($principal, $message);
     }
 
-    private function proceed(Member $principal, IncomingMessage $message, bool $silenceAllowed = false): void {
+    /** @param string|null $own the participant's own words in the message, when they are not its whole text (a group) */
+    private function proceed(Member $principal, IncomingMessage $message, bool $silenceAllowed = false, ?string $own = null): void {
 
         $text = trim($message->text);
         if ($message->attachments === [] && $message->repliedAttachments === []) {
@@ -249,7 +250,7 @@ final class ChatService implements MessageHandler {
             $pieces = CommandBatch::split($text);
             if (count($pieces) > 1) {
                 foreach ($pieces as $piece) {
-                    $this->proceed($principal, self::withText($message, $piece), $silenceAllowed);
+                    $this->proceed($principal, self::withText($message, $piece), $silenceAllowed, $own);
                 }
                 return;
             }
@@ -577,6 +578,9 @@ final class ChatService implements MessageHandler {
         }
 
         $message = $this->withoutSecrets($principal, $message);
+        // spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by what the participant wrote: not by what
+        //      their files said, not by the message they answer (the header below quotes it), not by a forwarded text
+        $own = $own !== null ? SecretMasker::mask($own) : (MessageMeta::forwarded($message) ? '' : $message->text);
         if ($message->isPrivateChat) {
             // spec: brief/channels.md#группа — the agent sees what a message answers
             $header = MessageMeta::header($message, $this->botId, run: $this->runOfReply($message));
@@ -586,16 +590,13 @@ final class ChatService implements MessageHandler {
         }
         $conversationId = $this->conversations->openConversation($principal->id, $message->channel, $message->chatId, MessageMeta::topicKey($message));
         $outside = null;
-        // spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by what the participant wrote, not by what
-        //      their files said
-        $own = $message->text;
         if (($original->attachments !== [] || $original->repliedAttachments !== []) && $intake !== null && $policies !== null) {
             // the spend of the media models is counted on the conversation
             $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180), $conversationId);
             $outside = $taken->outside ? 'attachments' : null;
             $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
             // the participant's own voice is their words: it counts with the text
-            $own = $taken->outside ? $own : $message->text;
+            $own = $taken->outside ? $own : trim($own . "\n\n" . $taken->text);
         }
         $this->scheduler->submit($principal, $message, $conversationId, $silenceAllowed, $outside, $own);
     }

@@ -12,7 +12,7 @@ use OpenCCK\Domain\Repository\ExperienceRepository;
 use UnexpectedValueException;
 
 /**
- * ref: references/hermes-plugin-holographic/experience.py@4a794f8:L31-L61 — a journal of outcomes kept apart from the
+ * ref: references/hermes-plugin-holographic/experience.py@9b49943:L31-L61 — a journal of outcomes kept apart from the
  *      facts; ours records delegated parts and is written by the code, not reported by the agent
  */
 final class PostgresExperienceRepository implements ExperienceRepository {

@@ -68,7 +68,12 @@ final class MemorySearchTool implements Tool {
         if ($related === null && Args::string($args, 'query') === null) {
             return ToolResult::error(t('tool.memory_search.nuzhen_query_ili_related'));
         }
+        // ref: references/hermes-plugin-holographic/__init__.py@9b49943:L2845 — a query over 4000
+        //      characters is refused at once with a hint: it is a pasted text, not a question
+        if (mb_strlen($related ?? Args::string($args, 'query') ?? '') > Recall::QUERY_MAX) {
+            return ToolResult::error(sprintf(t('tool.memory_search.too_long'), Recall::QUERY_MAX));
+        }
         $facts = $related !== null ? $this->recall->related($related, $scopes) : $this->recall->find(Args::string($args, 'query') ?? '', $scopes);
-        return ToolResult::ok($facts === [] ? t('tool.memory_search.nichego_ne_nashlos') : Recall::format($facts));
+        return ToolResult::ok($facts === [] ? t('tool.memory_search.nichego_ne_nashlos') : $this->recall->lines($facts));
     }
 }

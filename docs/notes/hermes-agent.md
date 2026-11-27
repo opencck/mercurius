@@ -1168,7 +1168,7 @@ ShareGPT; в `state.db` не пишут. `trajectory_compressor.py` не чит�
   `L250-L267`; размыкатель после серии сбоев — `mcp_tool_handlers.py@e96221fa:L310-L330`; sampling —
   `mcp_tool_sampling.py@e96221fa:L95-L230`.
 - **Память.** Оценка факта по использованию (`fact_feedback`: полезно +0.05, нет −0.10) —
-  `references/hermes-plugin-holographic/store.py@4a794f8:L694-L706`; фоновый разбор каждые 10 ходов —
+  `references/hermes-plugin-holographic/store.py@9b49943:L700-L712`; фоновый разбор каждые 10 ходов —
   `agent/background_review.py@e96221fa:L1-L6`, `agent/turn_context.py@e96221fa:L820-L830`; переписывание запроса перед
   поиском — `plugins/memory/query_rewrite.py@e96221fa:L1-L20`.
 - **Подтверждения.** Отказ после трёх отказов подряд — `tools/approval.py@e96221fa:L66-L111`; «умные» подтверждения

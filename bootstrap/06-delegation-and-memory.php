@@ -120,7 +120,8 @@ try {
 } catch (Throwable $e) {
     $logger->warning('Memory aliases were not read', ['error' => $e::class]);
 }
-$recall = new Recall($memoryStore, $textAnalyzer, null, $memorySettings->hrrWeight);
+// spec: brief/memory.md#как-сделано-области-и-факты — a fact the screen of today refuses is not given
+$recall = new Recall($memoryStore, $textAnalyzer, null, $memorySettings->hrrWeight, new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text));
 try {
     // Facts written before vectors existed get one; a handful, at start.
     $encoded = $memoryStore->encodeMissing(1000);
@@ -191,6 +192,8 @@ $proposals = new Proposals(
     $textAnalyzer,
     new ContentScreen(static fn(string $text): bool => SecretMasker::mask($text) !== $text),
     $memorySettings->key($telegram->token()),
+    // spec: brief/memory.md#запись-сведения-о-людях-и-забывание — «завтра» of a fact gets its date, by the owner's day
+    static fn(): DateTimeImmutable => new DateTimeImmutable('now', new DateTimeZone(\OpenCCK\Infrastructure\Config\Env::raw($_ENV, 'OWNER_TIMEZONE') ?? '+03:00')),
 );
 $memoryCards = new MemoryCards($proposals, $memoryStore, $channel, $ownerDirectory, $principals, $logger);
 $proposals->onForget($memoryCards->forgotten(...));

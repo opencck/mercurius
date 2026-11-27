@@ -141,4 +141,38 @@ final class SecretMaskerTest extends TestCase {
             self::assertStringNotContainsString('4821', SecretMasker::mask($line), $line);
         }
     }
+
+    /**
+     * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — secrets as people write them
+     * ref: references/hermes-plugin-holographic/tests/test_holographic_screen_gaps.py@9b49943 — the cases of its review:
+     *      a short name before a separator, a payment key, the seed of one-time codes, a seed phrase after its name
+     */
+    public function testSecretsWrittenAsPeopleWriteThemAreMasked(): void {
+        foreach ([
+            'pass: hunter22x',
+            'Wi-Fi pw = hunter22x',
+            'ключ sk_live_abcdefghijklmnop1234',
+            'rk_test_abcdefghijklmnop1234',
+            'TOTP secret JBSWY3DPEHPK3PXP',
+            '2FA seed: JBSWY3DPEHPK3PXP',
+            'seed phrase: abandon ability able about above absent absorb abstract absurd abuse access accident',
+            'сид-фраза кошелька — abandon ability able about above absent absorb abstract absurd abuse access accident',
+        ] as $text) {
+            self::assertNotSame($text, SecretMasker::mask($text), $text);
+            self::assertTrue(SecretMasker::carriesSecret($text), $text);
+        }
+    }
+
+    public function testEverydayWordsAreNotSecrets(): void {
+        foreach ([
+            'Считаем токены GPT-4o по тарифу',
+            'токены gpt-4o-mini дешевле',
+            'Нужно отправить Лене ключи от квартиры в субботу',
+            'ключ API Яндекс.Метрики лежит в хранилище',
+            'boarding pass is in the bag',
+            'pass the salt, please: it is on the table',
+        ] as $text) {
+            self::assertSame($text, SecretMasker::mask($text), $text);
+        }
+    }
 }

@@ -67,6 +67,15 @@ final class MessageMeta {
         return '[' . t('service.message_meta.empty') . ']';
     }
 
+    /**
+     * Whether the message was forwarded: its text is what someone else wrote.
+     *
+     * spec: brief/memory.md#как-сделано-области-и-факты — facts are looked up by the participant's own words
+     */
+    public static function forwarded(IncomingMessage $message): bool {
+        return isset($message->raw['forward_origin']) || isset($message->raw['forward_from']) || isset($message->raw['forward_from_chat']) || isset($message->raw['forward_date']);
+    }
+
     /** A header line, or '' when there is nothing beyond the text (a plain private message). */
     public static function header(IncomingMessage $message, string $botId, bool $always = false, ?int $run = null): string {
         $parts = [];

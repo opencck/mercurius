@@ -12,7 +12,7 @@
 | [rekryt/amphp-vless](https://github.com/rekryt/amphp-vless) | [amphp-vless/](amphp-vless/) | `master` (тег `v1.1.1`) | `065417f` | 2026-08-06 | 2026-11-16 | [notes/amphp-vless.md](../notes/amphp-vless.md) |
 | [tufantunc/ssh-mcp](https://github.com/tufantunc/ssh-mcp) | [ssh-mcp/](ssh-mcp/) | `main` (версия `2.26.0`) | `e04ebf2` | 2026-11-12 | 2026-11-16 | [notes/ssh-mcp.md](../notes/ssh-mcp.md) |
 | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | [hermes-agent/](hermes-agent/) | `main` | `e96221fa` | 2026-11-16 | 2026-11-16 | [hermes-agent](../notes/hermes-agent.md), [память и скиллы](../notes/hermes-agent-memory-skills.md), [шлюз и безопасность](../notes/hermes-agent-gateway-security.md) |
-| [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | [hermes-plugin-holographic/](hermes-plugin-holographic/) | `main` (тег `v0.28.0`) | `4a794f8` | 2026-11-15 | 2026-11-16 | [notes/hermes-plugin-holographic.md](../notes/hermes-plugin-holographic.md) |
+| [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | [hermes-plugin-holographic/](hermes-plugin-holographic/) | `main` (тег `v0.33.0`) | `9b49943` | 2026-11-27 | 2026-11-27 | [notes/hermes-plugin-holographic.md](../notes/hermes-plugin-holographic.md) |
 | [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | [hermes-dreaming/](hermes-dreaming/) | `main` (тег `v3.8.6`) | `21878d3` | 2026-11-07 | 2026-11-16 | [notes/hermes-dreaming.md](../notes/hermes-dreaming.md) |
 | [NousResearch/hermes-official-plugins](https://github.com/NousResearch/hermes-official-plugins) | [hermes-official-plugins/](hermes-official-plugins/) | `main` | `269ddcb` | 2026-11-19 | 2026-11-23 | [notes/hermes-claude-subscription-directsdk.md](../docs/notes/hermes-claude-subscription-directsdk.md) (плагин `claude-subscription-directsdk` 0.4.0; остальные плагины не изучались) |
 | [google-gemini/gemini-api-cli](https://github.com/google-gemini/gemini-api-cli) | [gemini-api-cli/](gemini-api-cli/) | `main` | `3dcbb6e` | 2026-11-26 | 2026-11-26 | [notes/gemini-api-cli.md](../docs/notes/gemini-api-cli.md) |
@@ -66,6 +66,28 @@
 - Что это значит для проекта: <что перенять, что устарело в наших выводах или коде>
 - Что обновлено у нас: <конспект, BRIEF.md, код, ссылки> / «ничего не требуется»
 ```
+
+### 2026-11-27 — hermes-plugin-holographic: `4a794f8` → `9b49943` (v0.28.0 → v0.33.0)
+
+- Что изменилось в upstream (63 коммита, 0.29.0–0.33.0): число, время и дата в сообщении — обычное слово
+  (`retrieval.py`, 0.29.3); проверка содержимого — секреты, как их пишут люди, буквы-двойники, вытягивание системного
+  промпта, линейное время шаблонов (`screen.py`, 0.30.0–0.31.7); теги и имена проверяются как текст; падежи русских
+  имён в указателе сущностей (`entities.py`, 0.30.0); `auto_extract` не сохраняет служебные вставки шлюза (0.31.0);
+  пометка изменённого факта, причина выдачи (`why`), даты относительных дней (`dates.py`, 0.32.0); африканские языки
+  (0.33.0); замеры поиска по смыслу (`recall_check.py`, `tools/`).
+- Что это значит для проекта: наш `ContentScreen` был написан по 0.28 и не читал буквы-двойники — для русскоязычного
+  бота это была дыра; `17.11` и `5pm` считались идентификаторами и решали извлечение сами; «токены GPT-4o» принимались
+  за секрет. Полная таблица «что взято, что нет и почему» — в конспекте, раздел «Дополнение: сверка 2026-11-27».
+- Что обновлено у нас: `mercurius-memory` — `ContentScreen` (двойники, вытягивание промпта, линейные шаблоны, проверка
+  ключевых слов и на выходе), `TextAnalyzer::isPlainNumber` и шаг `number_only`, пометка «(обновлён дата)», предел
+  4000 символов, `RelativeDays`; приложение — `SecretMasker` (секреты, как их пишут люди; токены модели — не секрет),
+  сборщик фактов без блока памяти, поиск фактов без цитаты, шапки группы и пересланного текста. Конспект: `commit`,
+  `version`, строки пересчитаны, дополнение. Все ссылки `ref:` на этот референс переведены на `9b49943` с новыми
+  номерами строк. Не взято: первые формы имён, африканские языки, всё для эмбеддингов и кросс-энкодера.
+- Заодно разобран родственный `itpartypattaya/holographic-memory` (`37d562d`): референсом не подключён — тот же
+  движок с обвязкой под Claude Code и Codex; запись — в конспекте, «Родственный проект».
+- `hermes-dreaming`: в upstream 39 новых коммитов (до 3.8.16), сабмодуль не обновлялся — отдельная задача; он
+  держит копию `screen.py`, и её свежие правки уже взяты отсюда.
 
 ### 2026-11-26 — gemini-api-cli, hermes-antigravity-subscription, hermes-plugin-antigravity-agy: добавлены
 

@@ -59,4 +59,18 @@ final class FactNudgeTest extends AsyncTestCase {
         // spec: brief/memory.md#факты — a failure of the environment is not a fact
         self::assertStringContainsString('таймауты', \Mercurius\I18n\t('agent.fact_nudge.prompt'));
     }
+
+    /**
+     * spec: brief/memory.md#факты — the collector reads what was said, not what memory put into the message
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L378-L381 — the blocks the
+     *      runtime adds to a turn are no words of the person
+     */
+    public function testTheMemoryBlockOfAMessageIsNotReadAsSaid(): void {
+        $said = "Какой кофе я пью?\n\n" . \OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper::wrap('memory', "Из памяти:\n[#3] Владелец пьёт кофе без сахара");
+
+        self::assertSame('Какой кофе я пью?', FactNudge::said($said));
+        self::assertSame('просто текст', FactNudge::said('просто текст'));
+        $kept = "глянь\n\n" . \OpenCCK\App\Agent\Tool\Guard\UntrustedWrapper::wrap('attachments', 'фото: чашка');
+        self::assertSame($kept, FactNudge::said($kept), 'what a file said stays: only the memory block is taken out');
+    }
 }

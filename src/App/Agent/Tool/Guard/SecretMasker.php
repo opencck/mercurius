@@ -55,6 +55,9 @@ final class SecretMasker {
     /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret…; an author is not an auth */
     private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth(?!or(?!i[sz]))|cookie|session)[\w-]*)';
 
+    /** a model by its name: «GPT-4o», «claude-3.5-sonnet»; the tail splits a run of letters one way only */
+    private const MODEL_NAME = '(?:gpt|chatgpt|claude|gemini|gemma|llama|mistral|mixtral|qwen|deepseek|grok|yandexgpt|gigachat|sonnet|opus|haiku|o[1-9])[a-z0-9]*(?:[-.][a-z0-9]+)*';
+
     /**
      * Whether a text carries a secret by its name or its shape: a long hex or base64 string alone is not taken as one
      * (a hash of a commit, a picture) — the mask of output still hides those.
@@ -99,11 +102,26 @@ final class SecretMasker {
             // one after the nearest colon, not after a later one («токенов: 18318, время: 61 с»).
             // «pin» is a word of its own: «Skipping file: only two» names no secret.
             '/((?:парол|токен(?!ов(?![\p{L}\d]))|ключ\s+api|секретн\S*\s+ключ|(?<![A-Za-z])pin(?![A-Za-z])|пин-?код)[^\s:=]*[^\n:=]{0,40}?[:=]\s*)("[^"]*"|\S+)/iu' => '$1***',
-            '/((?:парол|токен(?!ов(?![\p{L}\d]))|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
+            '/((?:парол|пин-?код)\S*(?:\s+[^\s]+){0,4}?\s+)(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
+            // ref: references/hermes-plugin-holographic/screen.py@9b49943:L814-L815, L831-L832 (_holds_a_secret,
+            //      _RE_MODEL_NAME) — the tokens a model counts are no secret: «токены GPT-4o по тарифу»
+            '/((?:токен(?!ов(?![\p{L}\d])))\S*(?:\s+[^\s]+){0,4}?\s+)(?!' . self::MODEL_NAME . '(?![^\s,;]))(?=\S*\d)(?=\S*[A-Za-z])[^\s,;]{6,}/iu' => '$1***',
+            // ref: references/hermes-plugin-holographic/screen.py@9b49943:L298-L300 (_CREDENTIAL_LATIN) — «pass» and «pw»
+            //      only before a separator («boarding pass» is a word) and with a value of letters and digits («pass: true»
+            //      of a test report is no secret), and the seed of one-time codes
+            '/(?<![\w-])((?:pass|pw)\s*[:=]\s*)(?=\S*\d)(?=\S*[A-Za-z])\S{6,}/i' => '$1***',
+            '/((?:2fa|totp|mfa|otp)[\s_-]?(?:secret|seed|key)s?\s*[:=—–-]?\s*)[A-Za-z2-7]{16,}=*/i' => '$1***',
+            // ref: references/hermes-plugin-holographic/screen.py@9b49943:L770-L774 (_RE_SEED_PHRASE) — twelve to
+            //      twenty-four words after the name of a seed phrase are the wallet itself
+            '/((?:(?:seed|recovery|mnemonic|backup|secret)[\s-]+(?:phrase|words)|(?:сид|seed)[\s-]?фраз\w*|фраз\w*\s+восстановлени\w*|мнемоническ\w*\s+фраз\w*|секретн\w*\s+фраз\w*)'
+                . '(?:\s+[^\s:=—–]+){0,2}?\s*[:=—–-]?\s*)(?:[a-z]{3,8}[\s,]+){11,23}[a-z]{3,8}(?![A-Za-z])/iu' => '$1***',
             // ref: references/hermes-agent/agent/redact.py@e96221fa:L620-L640 — a bot token and a PEM private key
             '/(?<![A-Za-z_\d])(bot)?(\d{8,}):[-A-Za-z0-9_]{30,}/' => '$1$2:***',
             '/-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/' => '[PRIVATE KEY]',
             '/\b(sk|pk|rk)-[A-Za-z0-9_-]{16,}/' => '$1-***',
+            // ref: references/hermes-plugin-holographic/screen.py@9b49943:L487-L488 (_RE_TOKEN_SHAPE) — a payment key,
+            //      live or test, secret or restricted
+            '/\b([sr]k_(?:live|test)_)[A-Za-z0-9]{16,}/' => '$1***',
             '/\b(ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/' => '$1_***',
             '/\bxox[abprs]-[A-Za-z0-9-]{10,}/' => 'xox***',
             '/\bAKIA[0-9A-Z]{16}\b/' => 'AKIA***',

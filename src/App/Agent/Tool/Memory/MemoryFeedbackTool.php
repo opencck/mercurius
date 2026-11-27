@@ -21,7 +21,7 @@ use function Mercurius\I18n\t;
  * the threshold is no longer recalled. Only facts the conversation may see, once per fact in a run.
  *
  * spec: brief/memory.md#факты — trust of a fact follows its use
- * ref: references/hermes-plugin-holographic/store.py@4a794f8:L694-L709 (record_feedback) — +0.05 and a count, −0.10,
+ * ref: references/hermes-plugin-holographic/store.py@9b49943:L700-L715 (record_feedback) — +0.05 and a count, −0.10,
  *      clamped to [0, 1], the time of the change stays. Here no «confirmed»: what a person confirms goes through the
  *      owner's card (memory_propose)
  */

@@ -112,7 +112,9 @@ final class FactNudge {
         $lines = [];
         foreach ($this->transcript->history($run->conversationId, $run->id + 1, max(2, $this->every * 2)) as $message) {
             if (($message->role === Role::User || $message->role === Role::Assistant) && trim($message->content) !== '') {
-                $lines[] = ($message->role === Role::User ? t('agent.fact_nudge.person') : t('agent.fact_nudge.agent')) . ': ' . trim($message->content);
+                $lines[] = $message->role === Role::User
+                    ? t('agent.fact_nudge.person') . ': ' . self::said($message->content)
+                    : t('agent.fact_nudge.agent') . ': ' . trim($message->content);
             }
         }
         $text = SecretMasker::mask(mb_substr(implode("\n\n", $lines), -self::TURNS_TEXT));
@@ -138,6 +140,18 @@ final class FactNudge {
             $sent++;
         }
         $this->logger->info('Background fact review', ['run' => $run->id, 'proposed' => $sent]);
+    }
+
+    /**
+     * What a message of the person says without the facts memory added to it: a fact given back is not said again, and
+     * the collector would write it a second time in other words.
+     *
+     * spec: brief/memory.md#факты — the collector takes what was said in the conversation
+     * ref: references/hermes-plugin-holographic/__init__.py@9b49943:L378-L381, L3156-L3193 (_auto_extract_facts) — the blocks
+     *      the runtime puts into a turn are skipped; here only the block of memory: what a file said may hold a fact
+     */
+    public static function said(string $content): string {
+        return trim(preg_replace('~<untrusted-data source="memory">.*?</untrusted-data>~su', '', $content) ?? $content);
     }
 
     /** @param list<string> $rules */
