@@ -13,7 +13,7 @@
 | [tufantunc/ssh-mcp](https://github.com/tufantunc/ssh-mcp) | [ssh-mcp/](ssh-mcp/) | `main` (версия `2.26.0`) | `e04ebf2` | 2026-11-12 | 2026-11-16 | [notes/ssh-mcp.md](../notes/ssh-mcp.md) |
 | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | [hermes-agent/](hermes-agent/) | `main` | `e96221fa` | 2026-11-16 | 2026-11-16 | [hermes-agent](../notes/hermes-agent.md), [память и скиллы](../notes/hermes-agent-memory-skills.md), [шлюз и безопасность](../notes/hermes-agent-gateway-security.md) |
 | [itpartypattaya/hermes-plugin-holographic](https://github.com/itpartypattaya/hermes-plugin-holographic) | [hermes-plugin-holographic/](hermes-plugin-holographic/) | `main` (тег `v0.33.0`) | `9b49943` | 2026-11-27 | 2026-11-27 | [notes/hermes-plugin-holographic.md](../notes/hermes-plugin-holographic.md) |
-| [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | [hermes-dreaming/](hermes-dreaming/) | `main` (тег `v3.8.6`) | `21878d3` | 2026-11-07 | 2026-11-16 | [notes/hermes-dreaming.md](../notes/hermes-dreaming.md) |
+| [itpartypattaya/hermes-dreaming](https://github.com/itpartypattaya/hermes-dreaming) | [hermes-dreaming/](hermes-dreaming/) | `main` (тег `v3.8.16`) | `46d2f9e` | 2026-11-26 | 2026-11-27 | [notes/hermes-dreaming.md](../notes/hermes-dreaming.md) |
 | [NousResearch/hermes-official-plugins](https://github.com/NousResearch/hermes-official-plugins) | [hermes-official-plugins/](hermes-official-plugins/) | `main` | `269ddcb` | 2026-11-19 | 2026-11-23 | [notes/hermes-claude-subscription-directsdk.md](../docs/notes/hermes-claude-subscription-directsdk.md) (плагин `claude-subscription-directsdk` 0.4.0; остальные плагины не изучались) |
 | [google-gemini/gemini-api-cli](https://github.com/google-gemini/gemini-api-cli) | [gemini-api-cli/](gemini-api-cli/) | `main` | `3dcbb6e` | 2026-11-26 | 2026-11-26 | [notes/gemini-api-cli.md](../docs/notes/gemini-api-cli.md) |
 | [soyelmismo/hermes-antigravity-subscription](https://github.com/soyelmismo/hermes-antigravity-subscription) | [hermes-antigravity-subscription/](hermes-antigravity-subscription/) | `main` (тег `v1.0.35`) | `6e46b46` | 2026-11-26 | 2026-11-26 | [notes/hermes-antigravity-subscription.md](../docs/notes/hermes-antigravity-subscription.md) |
@@ -43,6 +43,9 @@
 
 ## Как проверить и обновить
 
+Проход целиком — сверка с нашим кодом, предложения, правки, пересчёт строк в ссылках — описан в скилле
+`reference-update` (`.claude/skills/reference-update/`); ниже — сам порядок.
+
 1. Посмотреть, что нового в upstream, не меняя рабочую копию:
    ```bash
    git -C references/<репо> fetch --depth 50 origin main
@@ -67,6 +70,24 @@
 - Что обновлено у нас: <конспект, BRIEF.md, код, ссылки> / «ничего не требуется»
 ```
 
+### 2026-11-27 — hermes-dreaming: `21878d3` → `46d2f9e` (v3.8.6 → v3.8.16)
+
+- Что изменилось в upstream (39 коммитов, 3.8.7–3.8.16): исправления тихих потерь по ревью 2026-11-17 — отказ не
+  глушит новое значение факта, время с точкой не дата, предупреждение о потере возвращается до ответа, цитата ответа
+  и голосовое в подсчёте повторов; секреты без разделителя — карта, PIN, CVV (3.8.12); вывод агента подтверждает
+  человек; копия фильтра провайдера до holographic 0.31.7 и её ежедневная сверка в CI; курсор еженедельного
+  извлечения (3.8.16).
+- Что это значит для проекта: подсчёт «в скольких днях человек это сказал» засчитывал цитату сообщения, на которое
+  человек отвечает, — «ок» под ответом агента подтверждало слова агента (в образце это правило есть с 2026-10-22, при
+  первом переносе пропущено); номер карты и PIN без разделителя не маскировались и могли стать фактом. Остальное у нас
+  устроено иначе или уже сделано — таблица в конспекте, «Дополнение: сверка 2026-11-27».
+- Что обновлено у нас: `mercurius-memory` — `Corroboration::ownWords` (шапка с цитатой и блоки внешних данных в любом
+  месте сообщения); приложение — `SecretMasker` (карта по контрольной сумме, PIN и CVV с числом). Конспект: `commit`,
+  `version`, строки, дополнение; ссылки `ref:` переведены на `46d2f9e`.
+- Предложение на потом (не сделано): ключ паузы ночной проверки — с версией факта, чтобы изменённый факт не ждал
+  конца паузы, выданной его прежнему тексту.
+- Обновление сделано по скиллу `reference-update` (`.claude/skills/reference-update/`) — первый проход по нему.
+
 ### 2026-11-27 — hermes-plugin-holographic: `4a794f8` → `9b49943` (v0.28.0 → v0.33.0)
 
 - Что изменилось в upstream (63 коммита, 0.29.0–0.33.0): число, время и дата в сообщении — обычное слово
@@ -86,8 +107,7 @@
   номерами строк. Не взято: первые формы имён, африканские языки, всё для эмбеддингов и кросс-энкодера.
 - Заодно разобран родственный `itpartypattaya/holographic-memory` (`37d562d`): референсом не подключён — тот же
   движок с обвязкой под Claude Code и Codex; запись — в конспекте, «Родственный проект».
-- `hermes-dreaming`: в upstream 39 новых коммитов (до 3.8.16), сабмодуль не обновлялся — отдельная задача; он
-  держит копию `screen.py`, и её свежие правки уже взяты отсюда.
+- `hermes-dreaming` обновлён в тот же день отдельной записью (ниже по времени — выше в журнале).
 
 ### 2026-11-26 — gemini-api-cli, hermes-antigravity-subscription, hermes-plugin-antigravity-agy: добавлены
 

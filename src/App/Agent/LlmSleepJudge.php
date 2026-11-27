@@ -33,7 +33,7 @@ use Throwable;
  * spec: brief/memory.md#слияние
  * spec: brief/memory.md#ночное-обогащение
  * spec: brief/memory.md#потолок-ночи-в-долларах
- * ref: references/hermes-dreaming/README.md@21878d3:L355-L400 (Optional cloud judge) — one question per pair with fixed
+ * ref: references/hermes-dreaming/README.md@46d2f9e:L357-L402 (Optional cloud judge) — one question per pair with fixed
  *      answers and a probability; a judge only narrows what the rules found and never adds a pair; a budget of calls
  *      and time a night. Here five answers instead of three: the model also tells a detail added from a replacement
  * ref: references/claude-cookbooks/managed_agents/CMA_cap_session_spend.ipynb@ce8b262, cell 23 — the spend is checked

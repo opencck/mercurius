@@ -175,4 +175,20 @@ final class SecretMaskerTest extends TestCase {
             self::assertSame($text, SecretMasker::mask($text), $text);
         }
     }
+
+    /**
+     * spec: brief/agent-loop.md#секреты-маскирование-и-вызовы-с-секретом — a payment card and a PIN with no separator
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L4068-L4077 (CARD_NUMBER_RE, _PIN_VALUE_RE),
+     *      L4089-L4101 (_luhn, _unseparated_secret) — a card passes the checksum, a year is no PIN
+     */
+    public function testAPaymentCardAndAPinAreMasked(): void {
+        foreach (['карта 4111 1111 1111 1111, cvv 123', 'номер карты 5555555555554444', 'PIN карты 4821', 'пин-код от домофона 90210'] as $text) {
+            self::assertNotSame($text, SecretMasker::mask($text), $text);
+            self::assertTrue(SecretMasker::carriesSecret($text), $text);
+        }
+        self::assertSame('карта *** и всё', SecretMasker::mask('карта 4111-1111-1111-1111 и всё'));
+        foreach (['заказ 4111111111111112', 'сменил PIN в 2024 году', 'чат -1004111111111111', 'https://x.com/a/status/4111111111111111', 'pin 827c639e в журнале', 'GPIO pin 17 занят'] as $text) {
+            self::assertSame($text, SecretMasker::mask($text), $text);
+        }
+    }
 }

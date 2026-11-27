@@ -14,7 +14,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `749395f` | 2026-11-21 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
 | [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `8bc34f7` | 2026-11-27 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `eef9663` | 2026-11-26 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
-| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `2cfaaa1` | 2026-11-27 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
+| [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `ad78a39` | 2026-11-27 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
 | [mercurius-peer](https://github.com/opencck/mercurius-peer) | [peer/](peer/) | `04ac368` | 2026-11-26 | Связь с агентами по A2A: ключи P-256 и подписи, клиент (карточка с доказательством ключа, задачи, отмена, файлы), WebSocket с рукопожатием ключей, живые соединения |
 
@@ -60,6 +60,8 @@ compose, по умолчанию выключен ([Модули: сервисы
   относительного дня при записи; проверка ключевых слов и фактов на выходе
   ([Как сделано: области и факты](../brief/memory.md#как-сделано-области-и-факты)).
 - `i18n` `8a577dd` → `8bc34f7`: тексты пометки, отказа длинному запросу `memory_search`, тема `memory`.
+- `memory` `2cfaaa1` → `ad78a39` (сверка с hermes-dreaming 3.8.16): цитата сообщения, на которое отвечают, не считается
+  словами человека в подсчёте повторов.
 
 ### 2026-11-27 — подписка Google
 

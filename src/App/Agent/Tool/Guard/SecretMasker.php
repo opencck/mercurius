@@ -55,6 +55,25 @@ final class SecretMasker {
     /** Names whose values are secrets: password, token, api_key, X-Api-Key, Authorization, client_secret…; an author is not an auth */
     private const SECRET_NAME = '(?:[\w-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|auth(?!or(?!i[sz]))|cookie|session)[\w-]*)';
 
+    /**
+     * A payment card: 16 to 19 digits starting 2–6 or American Express's 15, whole or in groups, passing the checksum.
+     * Not after a digit, "+" or "-" (a phone, a chat id), not in an address, not glued to a word.
+     *
+     * ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L4068-L4070 (CARD_NUMBER_RE),
+     *      L4089-L4094 (_luhn) — the same shape and checksum
+     */
+    private const CARD = '~(?<![\w+\-.,/=#&?%])(?:[2-6]\d{3}(?:[ -]?\d{4}){3}(?:[ -]?\d{1,3})?|3[47]\d{2}[ -]?\d{6}[ -]?\d{5})(?![\w\-/]|[.,]\d)~';
+
+    private static function luhn(string $number): bool {
+        $digits = preg_replace('~\D~', '', $number) ?? '';
+        $total = 0;
+        foreach (str_split(strrev($digits)) as $i => $char) {
+            $d = (int) $char * ($i % 2 === 1 ? 2 : 1);
+            $total += $d > 9 ? $d - 9 : $d;
+        }
+        return $digits !== '' && $total % 10 === 0;
+    }
+
     /** a model by its name: «GPT-4o», «claude-3.5-sonnet»; the tail splits a run of letters one way only */
     private const MODEL_NAME = '(?:gpt|chatgpt|claude|gemini|gemma|llama|mistral|mixtral|qwen|deepseek|grok|yandexgpt|gigachat|sonnet|opus|haiku|o[1-9])[a-z0-9]*(?:[-.][a-z0-9]+)*';
 
@@ -75,7 +94,8 @@ final class SecretMasker {
                 return true;
             }
         }
-        return false;
+        preg_match_all(self::CARD, $text, $cards);
+        return array_filter($cards[0], self::luhn(...)) !== [];
     }
 
     /**
@@ -115,6 +135,11 @@ final class SecretMasker {
             //      twenty-four words after the name of a seed phrase are the wallet itself
             '/((?:(?:seed|recovery|mnemonic|backup|secret)[\s-]+(?:phrase|words)|(?:сид|seed)[\s-]?фраз\w*|фраз\w*\s+восстановлени\w*|мнемоническ\w*\s+фраз\w*|секретн\w*\s+фраз\w*)'
                 . '(?:\s+[^\s:=—–]+){0,2}?\s*[:=—–-]?\s*)(?:[a-z]{3,8}[\s,]+){11,23}[a-z]{3,8}(?![A-Za-z])/iu' => '$1***',
+            // ref: references/hermes-dreaming/skills/dreaming/scripts/dream.py@46d2f9e:L4072-L4077 (_PIN_VALUE_RE) — a PIN,
+            //      CVV or CVC and a number of 3 to 8 digits a few words on: «PIN карты 4821»; a year is no PIN, a
+            //      number glued to a letter («pin 827c639e») is a commit
+            '/((?:\bpin(?:[- ]?code)?\b|(?<![\p{L}])пин(?:[- ]?код\w*)?(?![\p{L}])|\bcvv2?\b|\bcvc2?\b|\bcvn\b|код\s+безопасности|security\s+code)'
+                . '[^\d\n.!?]{0,30}?(?<![\w.,:\/-]))(?!(?:19|20)\d\d(?!\d))\d{3,8}(?!\w|[.,:\/-]\d)/iu' => '$1***',
             // ref: references/hermes-agent/agent/redact.py@e96221fa:L620-L640 — a bot token and a PEM private key
             '/(?<![A-Za-z_\d])(bot)?(\d{8,}):[-A-Za-z0-9_]{30,}/' => '$1$2:***',
             '/-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/' => '[PRIVATE KEY]',
@@ -141,7 +166,7 @@ final class SecretMasker {
         foreach (self::patterns() as $pattern => $replacement) {
             $text = preg_replace($pattern, $replacement, $text) ?? $text;
         }
-        return $text;
+        return preg_replace_callback(self::CARD, static fn(array $m): string => self::luhn($m[0]) ? '***' : $m[0], $text) ?? $text;
     }
 
     /**
