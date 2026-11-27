@@ -46,6 +46,38 @@ final class ModelCatalogViewTest extends TestCase {
         self::assertSame(1, preg_match_all('~^- antigravity~m', $text), 'and a connected one is not said to be missing');
     }
 
+    public function testTheListSaysWhichProvidersAreAvailableAndWhereAnUnavailableOneStands(): void {
+        // spec: brief/models.md#каталог-провайдеров-для-агента — the owner: a model of an MCP that is off is not erased
+        //       from its category, but the list of providers makes plain which providers can be called
+        $registry = new \OpenCCK\App\Agent\Model\ProviderRegistry(ModelCatalogView::KNOWN);
+        $model = new \Mercurius\Mcp\Models\McpModel('tts-1', 'voice', 'speech', null, ['text'], true, '', null);
+        $registry->add('mcp-voices', \OpenCCK\App\Agent\Model\ProviderRegistry::MCP, 'owners|voices', 'MCP voices', [$model]);
+        $registry->add('mcp-chat', \OpenCCK\App\Agent\Model\ProviderRegistry::MCP, 'owners|chat', 'MCP chat', [new \Mercurius\Mcp\Models\McpModel('c', 'chat', 'chat', null, ['text'], true, '', null)]);
+        $registry->suspend('owners|voices', 'выключен владельцем');
+        $view = new ModelCatalogView($this->catalog, ['openrouter'], $this->pauses, $registry, static fn(): array => ['voice' => ['mcp-voices:tts-1'], 'image' => ['author/img']]);
+
+        $text = $view->providers();
+
+        self::assertMatchesRegularExpression('~available_head|доступные сейчас|available now~u', $text);
+        $head = \Mercurius\I18n\t('model.catalog.unavailable_head');
+        $at = mb_strpos($text, $head);
+        self::assertNotFalse($at);
+        [$available, $rest] = [mb_substr($text, 0, $at), mb_substr($text, $at)];
+        self::assertStringContainsString('- openrouter', $available);
+        self::assertStringContainsString('- mcp-chat', $available);
+        self::assertStringContainsString(\Mercurius\I18n\t('model.catalog.chat_risk'), $available, 'a chat model of an MCP warns of what it sees');
+        self::assertStringContainsString('- mcp-voices', $rest, 'an MCP that is off is unavailable, not gone');
+        self::assertStringContainsString('выключен владельцем', $rest);
+        self::assertStringContainsString(sprintf(\Mercurius\I18n\t('model.catalog.placed'), 'voice', 'mcp-voices:tts-1'), $rest);
+        self::assertStringNotContainsString('author/img', $rest);
+        try {
+            $view->catalog('mcp-voices', null, null, 10);
+            self::fail('the catalog of an unavailable provider is not read');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('выключен владельцем', $e->getMessage());
+        }
+    }
+
     public function testAProviderTakenOffTheChoiceSaysSo(): void {
         $this->pauses->pause('antigravity', 4600, ProviderPauses::SIGN_IN);
 

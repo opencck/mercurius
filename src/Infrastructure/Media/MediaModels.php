@@ -79,12 +79,84 @@ final class MediaModels {
         $this->runs = $runs;
     }
 
+    private ?McpMedia $mcp = null;
+
+    /**
+     * The models of the providers MCP servers offer (`mcp-<entry>:<model>`) stand in the categories of media too.
+     *
+     * spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp
+     */
+    public function useMcp(McpMedia $mcp): void {
+        $this->mcp = $mcp;
+    }
+
+    /**
+     * A model of a provider of an MCP: its answer as text and files, the call kept in the spend like any other.
+     *
+     * @param non-empty-string $purpose
+     * @param array<string, mixed> $args
+     * @return array{?string, list<array{name: string, type: string, bytes: string}>, ?string} the text, the files, why it failed
+     */
+    private function viaMcp(string $ref, string $kind, string $purpose, array $args, MediaCall $call): array {
+        $started = microtime(true);
+        if ($this->mcp === null) {
+            return [null, [], sprintf(t('model.lists.mcp_unknown'), $ref, '—')];
+        }
+        try {
+            $answer = $this->mcp->call($ref, $kind, $args, $call->cancellation);
+        } catch (\DomainException $e) {
+            $this->record($ref, $purpose, [], $e->getMessage(), $call, (int) round((microtime(true) - $started) * 1000.0));
+            $this->logger->notice('A model of an MCP did not answer', ['model' => $ref, 'error' => mb_substr($e->getMessage(), 0, 200)]);
+            return [null, [], $e->getMessage()];
+        }
+        $this->record($ref, $purpose, ['usage' => ['cost' => $answer['cost']]], null, $call, (int) round((microtime(true) - $started) * 1000.0));
+        return [$answer['text'], $answer['files'], null];
+    }
+
+    /**
+     * Speech from a text by a model of the voice category; only a model of a provider of an MCP makes it.
+     *
+     * spec: brief/models.md#категории-моделей — generation of sound
+     *
+     * @return array{?array{name: string, type: string, bytes: string}, ?string} the file, why not
+     */
+    public function voice(string $ref, string $text, MediaCall $call): array {
+        if (!McpMedia::owns($ref)) {
+            return [null, sprintf(t('media.mcp.only_mcp'), $ref)];
+        }
+        [, $files, $error] = $this->viaMcp($ref, 'voice', 'media-voice', ['text' => $text], $call);
+        return [$files[0] ?? null, $error ?? ($files === [] ? t('media.mcp.no_file') : null)];
+    }
+
+    /**
+     * A video from a description by a model of the film category; only a model of a provider of an MCP makes it.
+     *
+     * @return array{?array{name: string, type: string, bytes: string}, ?string} the file, why not
+     */
+    public function film(string $ref, string $prompt, ?string $aspectRatio, MediaCall $call): array {
+        if (!McpMedia::owns($ref)) {
+            return [null, sprintf(t('media.mcp.only_mcp'), $ref)];
+        }
+        [, $files, $error] = $this->viaMcp($ref, 'film', 'media-film', ['prompt' => $prompt] + ($aspectRatio === null ? [] : ['aspect_ratio' => $aspectRatio]), $call);
+        return [$files[0] ?? null, $error ?? ($files === [] ? t('media.mcp.no_file') : null)];
+    }
+
     /**
      * Pictures drawn by an image model of OpenRouter; the cost OpenRouter reports is recorded like any call.
      *
      * spec: brief/models.md#категории-моделей — image generation
      */
     public function draw(string $ref, string $prompt, ?string $aspectRatio, MediaCall $call): MediaDrawing {
+        if (McpMedia::owns($ref)) {
+            [, $files, $error] = $this->viaMcp($ref, 'image', 'media-image', ['prompt' => $prompt] + ($aspectRatio === null || $aspectRatio === 'auto' ? [] : ['aspect_ratio' => $aspectRatio]), $call);
+            $images = [];
+            foreach ($files as $file) {
+                if (str_starts_with($file['type'], 'image/')) {
+                    $images[] = MediaPart::image($file['type'], $file['bytes']);
+                }
+            }
+            return new MediaDrawing($images, $error ?? ($images === [] ? t('media.mcp.no_file') : null), $ref);
+        }
         $model = str_starts_with($ref, ModelRef::OPENROUTER . ':') ? substr($ref, strlen(ModelRef::OPENROUTER) + 1) : $ref;
         if ($this->openRouterKey === null) {
             return new MediaDrawing([], sprintf(t('media.models.no_key'), 'OPENROUTER_API_KEY'), $ref);
@@ -116,14 +188,40 @@ final class MediaModels {
 
     /** @param list<array{bytes: string, mime: string}> $images */
     public function look(string $ref, array $images, string $prompt, MediaCall $call): MediaAnswer {
+        if (McpMedia::owns($ref)) {
+            $files = [];
+            foreach ($images as $i => $image) {
+                $files[] = McpMedia::file(sprintf('image-%d.%s', $i + 1, explode('/', $image['mime'])[1] ?? 'bin'), $image['mime'], $image['bytes']);
+            }
+            [$text, , $error] = $this->viaMcp($ref, 'vision', 'media-vision', ['question' => $prompt, 'files' => $files], $call);
+            return new MediaAnswer($text, $error, $ref);
+        }
         return $this->chat($ref, $prompt, array_map(static fn(array $i): MediaPart => MediaPart::image($i['mime'], $i['bytes']), $images), 'media-vision', $call);
     }
 
     public function video(string $ref, string $bytes, string $mime, string $prompt, MediaCall $call): MediaAnswer {
+        if (McpMedia::owns($ref)) {
+            try {
+                $file = McpMedia::file('video.' . (explode('/', $mime)[1] ?? 'mp4'), $mime, $bytes);
+            } catch (\DomainException $e) {
+                return new MediaAnswer(null, $e->getMessage(), $ref);
+            }
+            [$text, , $error] = $this->viaMcp($ref, 'video', 'media-video', ['question' => $prompt, 'files' => [$file]], $call);
+            return new MediaAnswer($text, $error, $ref);
+        }
         return $this->chat($ref, $prompt, [MediaPart::video($mime, $bytes)], 'media-video', $call);
     }
 
     public function transcribe(string $ref, string $bytes, string $fileName, MediaCall $call): MediaAnswer {
+        if (McpMedia::owns($ref)) {
+            try {
+                $file = McpMedia::file($fileName, 'application/octet-stream', $bytes);
+            } catch (\DomainException $e) {
+                return new MediaAnswer(null, $e->getMessage(), $ref);
+            }
+            [$text, , $error] = $this->viaMcp($ref, 'speech', 'media-speech', ['files' => [$file]], $call);
+            return new MediaAnswer($text, $error, $ref);
+        }
         $target = $this->target($ref);
         if (is_string($target)) {
             return new MediaAnswer(null, $target, $ref);

@@ -63,6 +63,7 @@ use OpenCCK\Infrastructure\Sandbox\HttpSandboxClient;
  * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var Amp\Http\Client\HttpClient $modelHttp
  * @var OpenCCK\App\Agent\Model\ModelRoles $modelRoles
+ * @var OpenCCK\App\Agent\Model\ProviderRegistry $providerRegistry
  * @var OpenCCK\App\Agent\Model\ModelListEditor $modelListEditor
  * @var OpenCCK\App\Agent\Model\ModelRouter $modelRouter
  * @var string|null $openAiKey
@@ -218,7 +219,17 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Agents\ParticipantsTool($principals
 $tools->register(new SetModelRoleTool($modelRoles));
 // spec: brief/models.md#списки-моделей-по-категориям — the agent changes the lists of models at the owner's word
 // spec: brief/models.md#каталог-провайдеров-для-агента — and reads what they are chosen from
-$tools->register(new \OpenCCK\App\Agent\Tool\Self\ModelListTool($modelListEditor, new \OpenCCK\App\Agent\Model\ModelCatalogView($modelCatalog, $modelRoles->providers(), $providerPauses)));
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\ModelListTool($modelListEditor, new \OpenCCK\App\Agent\Model\ModelCatalogView($modelCatalog, $modelRoles->builtin(...), $providerPauses, $providerRegistry, static function () use ($modelLists): array {
+    $placed = [];
+    foreach (array_keys(\OpenCCK\App\Agent\Model\ModelLists::TEXT) as $role) {
+        $placed[$role] = array_map('strval', $modelLists->of($role));
+    }
+    $placed['fallback'] = array_map('strval', $modelLists->fallback());
+    foreach (array_keys(\OpenCCK\App\Agent\Model\ModelLists::OTHER) as $category) {
+        $placed[$category] = $modelLists->other($category);
+    }
+    return $placed;
+})));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);
@@ -332,6 +343,10 @@ if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaTool($sandbox, $mediaModels, $mediaPrefs, new \OpenCCK\Infrastructure\Media\VideoService(HttpClients::create(), $serviceModules), $docsService));
     // spec: brief/models.md#категории-моделей — the image category: offered only while it has a model (asked at each request)
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\ImageGenerateTool($sandbox, $mediaModels, $mediaSettings));
+    // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — speech and video by the models of providers of MCP, while their
+    //      category has one
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaMakeTool($sandbox, $mediaModels, $mediaSettings, 'voice'));
+    $tools->register(new \OpenCCK\App\Agent\Tool\Files\MediaMakeTool($sandbox, $mediaModels, $mediaSettings, 'film'));
     // spec: brief/skills-mcp.md#модули-сервисы-mcp-и-скиллы — new docx, xlsx, pptx by the media-docs module, while it runs
     $tools->register(new \OpenCCK\App\Agent\Tool\Files\DocumentsTool($sandbox, $docsService));
     // files that came in are kept MEDIA_INBOX_DAYS: once a day the older days' folders of inbox/ go

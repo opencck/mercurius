@@ -121,13 +121,16 @@ $modelCatalogModule = new \OpenCCK\Infrastructure\Module\ModelCatalogModule(
         ...($antigravitySubscription === null ? [] : [\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY => $antigravitySubscription->signedIn(...)]),
     ],
 );
-$llm = new ProviderRouter($clients, $modelCatalog, $providerPauses);
+// spec: brief/models.md#реестр-провайдеров — providers that come and go (MCP); the names of the installation are reserved
+$providerRegistry = new \OpenCCK\App\Agent\Model\ProviderRegistry(array_values(array_unique([...\OpenCCK\App\Agent\Model\ModelCatalogView::KNOWN, ...array_keys($clients)])));
+$llm = new ProviderRouter($clients, $modelCatalog, $providerPauses, $providerRegistry);
 $routingDecisions = new PostgresRoutingDecisionRepository($db);
 // spec: brief/agent-loop.md#модели — a change of the model of a role reaches the open conversations of that role
 // spec: brief/models.md#списки-моделей-по-категориям — the agent calls only the models the owner listed
 // spec: brief/models.md#списки-моделей-по-категориям — read live: a list changed in the dialog works at once
 $modelLists = \OpenCCK\App\Agent\Model\ModelLists::live(static fn(string $setting): ?string => $settingsService->current($setting), $llmSettings->model);
 $modelRoles = new ModelRoles(new PostgresModelRoleRepository($db), $modelCatalog, $modelProviders, new \OpenCCK\App\Agent\Model\RoleConversations(new PostgresConversationRepository($db), $routingDecisions, $logger), $modelLists);
+$modelRoles->useRegistry($providerRegistry);
 $modelListEditor = new \OpenCCK\App\Agent\Model\ModelListEditor($settingsService, $modelLists, $modelRoles);
 // a model the owner names for a role joins its list through the editor
 $modelRoles->widenWith(static function (string $role, string $model, \OpenCCK\Domain\Entity\Member $by) use ($modelListEditor): void {

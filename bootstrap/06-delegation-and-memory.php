@@ -91,7 +91,7 @@ $scheduler = new RunScheduler(
     events: $tracer,
     // spec: brief/models.md#google-по-подписке — the providers of the roles hold the subscriptions: with the providers of
     //      the keys only, a conversation on a model of a subscription went to the default model at every run
-    providers: $modelRoles->providers(),
+    providers: $modelRoles->providers(...),
     runMessages: $runMessages,
     answers: $deliveryRepository,
 );

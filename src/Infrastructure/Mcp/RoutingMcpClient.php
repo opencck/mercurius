@@ -19,7 +19,7 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/skills-mcp.md#mcp-серверы-подключение-и-доверие
  */
-final class RoutingMcpClient implements McpClient, McpSessions {
+final class RoutingMcpClient implements McpClient, McpSessions, \Mercurius\Mcp\McpServerInfo {
     public function __construct(
         private readonly McpClient $http,
         /** null — the sandbox is off, stdio servers are not available */
@@ -40,6 +40,11 @@ final class RoutingMcpClient implements McpClient, McpSessions {
 
     public function readResource(McpEndpoint $server, #[SensitiveParameter] ?string $token, string $uri, Cancellation $cancellation): string {
         return $this->of($server)->readResource($server, $token, $uri, $cancellation);
+    }
+
+    public function serverCapabilities(McpEndpoint $server, #[SensitiveParameter] ?string $token, Cancellation $cancellation): array {
+        $client = $this->of($server);
+        return $client instanceof \Mercurius\Mcp\McpServerInfo ? $client->serverCapabilities($server, $token, $cancellation) : [];
     }
 
     public function forget(string $server): void {

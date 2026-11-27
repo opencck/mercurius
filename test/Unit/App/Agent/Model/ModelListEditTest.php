@@ -100,6 +100,32 @@ final class ModelListEditTest extends AsyncTestCase {
     }
 
     /** spec: brief/models.md#списки-моделей-по-категориям — the search takes a model of OpenRouter only; another one left it with no search */
+    public function testAModelOfAnMcpStandsOnlyInACategoryItsKindFits(): void {
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp
+        $registry = new \OpenCCK\App\Agent\Model\ProviderRegistry();
+        $registry->add('mcp-pics', \OpenCCK\App\Agent\Model\ProviderRegistry::MCP, 'owners|pics', 'MCP pics', [
+            new \Mercurius\Mcp\Models\McpModel('pic-1', 'image', 'image', null, ['text'], true, '', null),
+            new \Mercurius\Mcp\Models\McpModel('talk', 'chat', 'chat', null, ['text'], false, '', null),
+        ]);
+        $this->catalog->replace('mcp-pics', [self::info('talk')]);
+        $this->roles->useRegistry($registry);
+
+        self::assertStringStartsWith(sprintf(t('settings.saved_live'), 'MEDIA_IMAGE_MODELS'), $this->editor->change($this->owner, 'image', 'set', ['mcp-pics:pic-1']));
+        foreach ([['voice', 'mcp-pics:pic-1'], ['image', 'mcp-pics:nothing'], ['image', 'mcp-gone:pic-1']] as [$category, $model]) {
+            try {
+                $this->editor->change($this->owner, $category, 'set', [$model]);
+                self::fail($model . ' went into ' . $category);
+            } catch (DomainException $e) {
+                self::assertNotSame('', $e->getMessage());
+            }
+        }
+        $said = $this->editor->change($this->owner, ModelRole::MAIN, 'add', ['mcp-pics:talk']);
+        self::assertStringContainsString(t('model.catalog.chat_risk'), $said, 'a text model of an MCP: the owner hears what it sees');
+        $tool = new ModelListTool($this->editor);
+        self::assertStringContainsString(t('model.catalog.chat_risk'), $tool->describe(['action' => 'add', 'category' => 'main', 'models' => ['mcp-pics:talk']]), 'the card says it too');
+        self::assertStringNotContainsString(t('model.catalog.chat_risk'), $tool->describe(['action' => 'add', 'category' => 'image', 'models' => ['mcp-pics:pic-1']]));
+    }
+
     public function testTheFallbackCategoryIsEditedLikeATextOne(): void {
         // spec: brief/models.md#запасные-модели
         self::assertContains('fallback', ModelListEditor::categories());

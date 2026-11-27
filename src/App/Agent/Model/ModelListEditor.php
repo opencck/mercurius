@@ -24,6 +24,11 @@ final class ModelListEditor {
     public const ACTIONS = ['add', 'remove', 'set'];
     /** models in one list at most: the agent chooses among them, a long list is a list nobody reads */
     public const MAX = 20;
+    /** what a model of a provider of an MCP must do to stand in a category */
+    public const KIND_OF = [
+        ModelRole::CHEAP => 'chat', ModelRole::MAIN => 'chat', ModelRole::STRONG => 'chat', ModelLists::FALLBACK_CATEGORY => 'chat', 'sleep' => 'chat',
+        'image' => 'image', 'voice' => 'voice', 'film' => 'film', 'speech' => 'speech', 'vision' => 'vision', 'video' => 'video',
+    ];
 
     public function __construct(
         private readonly SettingsService $settings,
@@ -95,6 +100,7 @@ final class ModelListEditor {
             $asked[$model] = true;
         }
         $asked = array_keys($asked);
+        $chat = $this->checkMcp($category, $action, $asked);
         // spec: brief/models.md#модели-поиска — a model of the search whose provider has no key would leave no search at all
         if ($category === 'search') {
             foreach ($asked as $model) {
@@ -137,6 +143,41 @@ final class ModelListEditor {
                 }
             }
         }
-        return $said;
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a text model of an MCP sees the whole conversation
+        return $chat ? $said . "
+" . t('model.catalog.chat_risk') : $said;
+    }
+
+    /**
+     * A model of a provider of an MCP stands only in a category its kind fits, and only while its provider is known.
+     *
+     * spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp
+     *
+     * @param list<string> $models
+     * @return bool whether a text model of an MCP is put in
+     * @throws DomainException
+     */
+    private function checkMcp(string $category, string $action, array $models): bool {
+        $chat = false;
+        $registry = $this->roles->registry();
+        foreach ($models as $name) {
+            if (!str_starts_with($name, \OpenCCK\App\Mcp\McpModelProviders::PREFIX) || $action === 'remove') {
+                continue;
+            }
+            [$provider, $id] = explode(':', $name, 2) + [1 => ''];
+            $need = self::KIND_OF[$category] ?? null;
+            $model = $need === null ? null : $registry?->model($provider, $id, $need);
+            $model ??= $registry?->model($provider, $id);
+            if ($model === null) {
+                $known = $registry === null ? [] : array_keys($registry->all());
+                throw new DomainException(sprintf(t('model.lists.mcp_unknown'), $name, implode(', ', $known) ?: '—'));
+            }
+            if ($need !== $model->kind) {
+                $fit = array_keys(array_filter(self::KIND_OF, static fn(string $kind): bool => $kind === $model->kind));
+                throw new DomainException(sprintf(t('model.lists.mcp_kind'), $name, $model->kind, $category, implode(', ', $fit) ?: '—'));
+            }
+            $chat = $chat || $model->kind === 'chat';
+        }
+        return $chat;
     }
 }

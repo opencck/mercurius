@@ -55,9 +55,29 @@ final class ModelRoles {
         return $this->lists?->of($role) ?? [];
     }
 
-    /** @return list<string> */
+    private ?ProviderRegistry $registry = null;
+
+    /**
+     * Providers that come and go — the ones MCP servers offer — join the ones of the installation while they are on.
+     *
+     * spec: brief/models.md#реестр-провайдеров
+     */
+    public function useRegistry(ProviderRegistry $registry): void {
+        $this->registry = $registry;
+    }
+
+    /** @return list<string> the providers whose models can be called now */
     public function providers(): array {
+        return $this->registry === null ? $this->providers : array_values(array_unique([...$this->providers, ...$this->registry->available()]));
+    }
+
+    /** @return list<string> the providers of the installation, whether they answer or not */
+    public function builtin(): array {
         return $this->providers;
+    }
+
+    public function registry(): ?ProviderRegistry {
+        return $this->registry;
     }
 
     /** @return list<string> the ids of a provider's catalog, at most 40: the catalog of a subscription is short */
@@ -77,17 +97,17 @@ final class ModelRoles {
             //       it is still there, else the first of the list
             $role = isset(ModelLists::TEXT[$role]) ? $role : ModelRole::MAIN;
             $row = $this->roles->all()[$role] ?? null;
-            if ($row !== null && $this->lists->allows($role, $row->model) && in_array($row->model->provider, $this->providers, true)) {
+            if ($row !== null && $this->lists->allows($role, $row->model) && in_array($row->model->provider, $this->providers(), true)) {
                 return $row->model;
             }
             foreach ($this->lists->of($role) as $allowed) {
-                if (in_array($allowed->provider, $this->providers, true)) {
+                if (in_array($allowed->provider, $this->providers(), true)) {
                     return $allowed;
                 }
             }
             return $this->lists->of($role)[0] ?? $this->lists->of(ModelRole::MAIN)[0] ?? ModelRef::parse($this->seedTable()[ModelRole::MAIN]);
         }
-        if ($row !== null && in_array($row->model->provider, $this->providers, true)) {
+        if ($row !== null && in_array($row->model->provider, $this->providers(), true)) {
             return $row->model;
         }
         $seed = $this->seedTable();
@@ -115,7 +135,7 @@ final class ModelRoles {
             }
         }
         foreach (ProviderProfile::all() as $name => $profile) {
-            if (in_array($name, $this->providers, true)) {
+            if (in_array($name, $this->providers(), true)) {
                 return $profile->roles;
             }
         }
@@ -271,8 +291,8 @@ final class ModelRoles {
      * @throws DomainException with what is wrong
      */
     public function check(string $role, ModelRef $ref): void {
-        if (!in_array($ref->provider, $this->providers, true)) {
-            throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers)));
+        if (!in_array($ref->provider, $this->providers(), true)) {
+            throw new DomainException(sprintf(t('model.model_roles.u_provaydera_net_klyucha_dostupny'), $ref->provider, implode(', ', $this->providers())));
         }
         $info = $this->catalog->find($ref);
         if ($info === null) {

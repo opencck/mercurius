@@ -135,6 +135,10 @@ final class MediaSettings {
      * @param array<string, string> $endpoints
      */
     private static function usable(string $kind, string $ref, array $endpoints): bool {
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a model of a provider of an MCP; its kind is checked when it is put in
+        if (str_starts_with($ref, \OpenCCK\App\Mcp\McpModelProviders::PREFIX)) {
+            return preg_match(self::REF, $ref) === 1 && str_contains($ref, ':');
+        }
         $custom = str_starts_with($ref, 'custom:') ? substr($ref, 7) : null;
         $provider = preg_match(self::REF, $ref, $parts) === 1 && !str_ends_with($ref, ':') ? (($parts[1] ?? '') === '' ? ModelRef::OPENROUTER : $parts[1]) : null;
         if ($kind === 'image' && ($custom !== null || $provider !== ModelRef::OPENROUTER)) {
@@ -166,6 +170,10 @@ final class MediaSettings {
      * @return list<string>
      */
     public function models(string $kind): array {
+        // spec: brief/models.md#категории-моделей — speech and video are made only by the models of providers of MCP
+        if (in_array($kind, ['voice', 'film'], true)) {
+            return $this->now === null ? [] : array_values(array_filter(($this->now)($kind), static fn(string $ref): bool => str_starts_with($ref, \OpenCCK\App\Mcp\McpModelProviders::PREFIX)));
+        }
         $named = $this->now === null || !in_array($kind, self::KINDS, true)
             ? $this->models[$kind] ?? []
             : array_values(array_filter(($this->now)($kind), fn(string $ref): bool => self::usable($kind, $ref, $this->endpoints)));

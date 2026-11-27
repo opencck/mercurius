@@ -37,6 +37,10 @@ use OpenCCK\Infrastructure\Repository\PostgresProjectRepository;
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var OpenCCK\Infrastructure\Config\LlmSettings $llmSettings
  * @var Monolog\Logger $logger
+ * @var OpenCCK\App\Agent\Model\ProviderRegistry $providerRegistry
+ * @var OpenCCK\Infrastructure\Media\MediaModels $mediaModels
+ * @var OpenCCK\App\Agent\Model\ProviderPauses $providerPauses
+ * @var OpenCCK\Infrastructure\Repository\PostgresModelCatalogRepository $modelCatalog
  * @var Amp\Http\Client\HttpClient $modelHttp
  * @var OpenCCK\App\Service\OwnerDirectory $ownerDirectory
  * @var OpenCCK\App\Service\PolicyService $policies
@@ -206,6 +210,18 @@ $mcpManager = new McpManager(
     $logger,
     stdio: $stdioMcp !== null,
 );
+// spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a server of the owners' file may offer models: a provider of them
+// the text models of such a server answer through its tool, called the way the core calls a tool of an approved entry
+$mcpModelProviders = new \OpenCCK\App\Mcp\McpModelProviders($providerRegistry, $modelCatalog, $logger, static function (\OpenCCK\Domain\Mcp\McpServer $server) use ($providerRegistry, &$mcpManager): \Mercurius\Llm\LlmClient {
+    $name = \OpenCCK\App\Mcp\McpModelProviders::providerName($server->name);
+    $entry = $server->name;
+    return new \OpenCCK\Infrastructure\Llm\McpChatClient(
+        static fn(string $id): ?\Mercurius\Mcp\Models\McpModel => $providerRegistry->model($name, $id, 'chat'),
+        static fn(string $tool, array $args, \Amp\Cancellation $c): array => $mcpManager->call(\OpenCCK\App\Mcp\McpModelProviders::CONTEXT, $entry, $tool, $args, $c),
+    );
+});
+$mcpManager->useModelProviders($mcpModelProviders);
+$mediaModels->useMcp(new \OpenCCK\Infrastructure\Media\McpMedia($mcpModelProviders, $providerPauses));
 // spec: brief/skills-mcp.md#подстановка-секретов — an approved entry gets the secrets it names from the layers of its
 //       context; the wider layers only where they are turned on
 $secretInheritance = new \OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository($db);

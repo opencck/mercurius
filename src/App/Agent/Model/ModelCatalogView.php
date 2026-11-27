@@ -25,38 +25,82 @@ final class ModelCatalogView {
     /** what a model may read besides text */
     public const INPUTS = ['image', 'audio', 'video', 'file'];
     /** every provider the application knows, in the order they are told */
-    private const KNOWN = [
+    public const KNOWN = [
         ModelRef::OPENROUTER, ModelRef::OPENAI, ModelRef::ANTHROPIC, ModelRef::BEDROCK, ModelRef::GEMINI, ModelRef::VERTEX,
         ModelRef::CODEX, ModelRef::CHATGPT, ModelRef::CLAUDE, ModelRef::ANTIGRAVITY,
     ];
     /** the owner's command of a subscription: its sign-in and its quota */
     private const COMMANDS = [ModelRef::CHATGPT => '/codex', ModelRef::CLAUDE => '/claude', ModelRef::ANTIGRAVITY => '/antigravity'];
 
-    /** @param list<string> $providers the providers that have a key or a module now */
+    /**
+     * @param list<string>|(\Closure(): list<string>) $providers the providers of the installation that have a key or a module now
+     * @param ?ProviderRegistry $registry the providers that come and go (MCP)
+     * @param (\Closure(): array<string, list<string>>)|null $placed the models in each category now: where a model of an
+     *        unavailable provider stands is told
+     */
     public function __construct(
         private readonly ModelCatalogRepository $catalog,
-        private readonly array $providers,
+        private readonly array|\Closure $providers,
         private readonly ?ProviderPauses $pauses = null,
+        private readonly ?ProviderRegistry $registry = null,
+        private readonly ?\Closure $placed = null,
     ) {}
 
-    /** The providers the agent has, what each is and how many models its catalog holds; then the ones it has not. */
+    /** @return list<string> */
+    private function builtin(): array {
+        return $this->providers instanceof \Closure ? ($this->providers)() : $this->providers;
+    }
+
+    /**
+     * The providers in three parts: the ones that can be called now, the known ones that cannot (with why and what to
+     * do), and the ones not connected at all. A model of an unavailable provider that stands in a category is named.
+     *
+     * spec: brief/models.md#каталог-провайдеров-для-агента
+     */
     public function providers(): string {
-        $lines = [t('model.catalog.providers_head')];
-        foreach ($this->providers as $provider) {
+        $available = [];
+        $unavailable = [];
+        $off = [];
+        foreach ($this->builtin() as $provider) {
             $count = count($this->catalog->models($provider));
             $command = self::COMMANDS[$provider] ?? null;
-            $line = $command === null ? sprintf(t('model.catalog.by_key'), $count) : sprintf(t('model.catalog.by_subscription'), $count, $command);
+            $line = '- ' . $provider . ': ' . ($command === null ? sprintf(t('model.catalog.by_key'), $count) : sprintf(t('model.catalog.by_subscription'), $count, $command));
             $pause = $this->pauses?->anyOf($provider);
-            if ($pause !== null) {
-                $line .= '; ' . match ($pause['why']) {
-                    ProviderPauses::SIGN_IN => sprintf(t('model.catalog.paused_sign_in'), ($command ?? '') . ' login'),
-                    ProviderPauses::LIMIT => sprintf(t('model.catalog.paused_limit'), gmdate('Y-m-d H:i', $pause['until']) . ' UTC'),
-                    default => t('model.catalog.paused_account'),
-                };
+            if ($pause === null) {
+                $available[] = $line;
+                continue;
             }
-            $lines[] = '- ' . $provider . ': ' . $line;
+            $unavailable[] = $line . '; ' . match ($pause['why']) {
+                ProviderPauses::SIGN_IN => sprintf(t('model.catalog.paused_sign_in'), ($command ?? '') . ' login'),
+                ProviderPauses::LIMIT => sprintf(t('model.catalog.paused_limit'), gmdate('Y-m-d H:i', $pause['until']) . ' UTC'),
+                default => t('model.catalog.paused_account'),
+            };
+            $off[] = $provider;
         }
-        $missing = array_values(array_diff(self::KNOWN, $this->providers));
+        foreach ($this->registry?->all() ?? [] as $name => $provider) {
+            $kinds = array_values(array_unique(array_map(static fn(\Mercurius\Mcp\Models\McpModel $m): string => $m->kind, $provider['models'])));
+            $line = '- ' . $name . ': ' . sprintf(t('model.catalog.by_mcp'), $provider['about'], count($provider['models']), implode(', ', $kinds) ?: '—');
+            if ($provider['available']) {
+                $available[] = $line . (in_array('chat', $kinds, true) ? ' ' . t('model.catalog.chat_risk') : '');
+            } else {
+                $unavailable[] = $line . '; ' . sprintf(t('model.catalog.mcp_off'), $provider['reason'] === '' ? '—' : $provider['reason']);
+                $off[] = $name;
+            }
+        }
+        $lines = [t('model.catalog.available_head'), ...($available === [] ? ['—'] : $available)];
+        if ($unavailable !== []) {
+            $lines[] = t('model.catalog.unavailable_head');
+            array_push($lines, ...$unavailable);
+            foreach ($this->placed === null ? [] : ($this->placed)() as $category => $models) {
+                foreach ($models as $model) {
+                    $provider = str_contains($model, ':') ? (string) strstr($model, ':', true) : ModelRef::OPENROUTER;
+                    if (in_array($provider, $off, true)) {
+                        $lines[] = sprintf(t('model.catalog.placed'), $category, $model);
+                    }
+                }
+            }
+        }
+        $missing = array_values(array_diff(self::KNOWN, $this->builtin()));
         if ($missing !== []) {
             $lines[] = sprintf(t('model.catalog.missing'), implode(', ', $missing));
         }
@@ -73,8 +117,12 @@ final class ModelCatalogView {
      */
     public function catalog(string $provider, ?string $query, ?string $input, int $limit): string {
         $provider = strtolower(trim($provider));
-        if (!in_array($provider, $this->providers, true)) {
-            throw new DomainException(sprintf(t('model.catalog.no_provider'), $provider === '' ? '—' : $provider, implode(', ', $this->providers)));
+        if ($this->registry !== null && array_key_exists($provider, $this->registry->all()) && !$this->registry->isAvailable($provider)) {
+            throw new DomainException(sprintf(t('model.catalog.mcp_unavailable'), $provider, $this->registry->reason($provider) ?: '—'));
+        }
+        $known = [...$this->builtin(), ...($this->registry?->available() ?? [])];
+        if (!in_array($provider, $known, true)) {
+            throw new DomainException(sprintf(t('model.catalog.no_provider'), $provider === '' ? '—' : $provider, implode(', ', $known)));
         }
         $all = $this->catalog->models($provider);
         if ($all === []) {

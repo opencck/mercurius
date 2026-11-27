@@ -37,6 +37,8 @@ final class ProviderRouter implements LlmClient {
         private readonly array $clients,
         private readonly ?ModelCatalogRepository $prices = null,
         private readonly ?ProviderPauses $pauses = null,
+        /** providers that come and go: the ones MCP servers offer */
+        private readonly ?\OpenCCK\App\Agent\Model\ProviderRegistry $registry = null,
     ) {}
 
     public function complete(ChatRequest $request, ?Cancellation $cancellation = null): ChatResponse {
@@ -108,7 +110,7 @@ final class ProviderRouter implements LlmClient {
     /** @return array{LlmClient, ChatRequest, ModelRef} */
     private function route(ChatRequest $request): array {
         $ref = ModelRef::parse($request->model);
-        $client = $this->clients[$ref->provider] ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
+        $client = $this->clients[$ref->provider] ?? $this->registry?->client($ref->provider) ?? throw new LlmException(ErrorKind::BadRequest, sprintf('No client for the provider "%s"', $ref->provider));
         $pause = $this->pauses?->blocking($ref);
         if ($pause !== null) {
             // no request: the provider would refuse the same way, and a subscription might bill it beyond the plan

@@ -221,7 +221,7 @@ final class StdioMcpClient extends McpRpcClient implements McpSessions {
         }
         $session = new StdioSession($this->sandbox, $this->limits, $principal, $id, $server->key(), $this->onToolsChanged, $this->logger, $this->elicit);
         try {
-            $session->request('initialize', $this->initializeParams(), new NullCancellation(), self::START_SECONDS);
+            $this->started($server, $session->request('initialize', $this->initializeParams(), new NullCancellation(), self::START_SECONDS));
             $session->notify('notifications/initialized');
         } catch (RuntimeException $e) {
             $session->close();

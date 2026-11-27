@@ -72,7 +72,14 @@ final class ModelListTool implements Tool, GrantKeyed, \OpenCCK\App\Agent\Tool\W
 
     public function describe(array $args): string {
         $models = isset($args['models']) && is_array($args['models']) ? implode(', ', array_filter($args['models'], 'is_string')) : '';
-        return trim(sprintf('model_list %s %s %s', Args::string($args, 'action') ?? 'list', Args::string($args, 'category') ?? '', mb_substr($models, 0, 300)));
+        $line = trim(sprintf('model_list %s %s %s', Args::string($args, 'action') ?? 'list', Args::string($args, 'category') ?? '', mb_substr($models, 0, 300)));
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — the card that puts a text model of an MCP says what it will see
+        $category = Args::string($args, 'category') ?? '';
+        if (str_contains($models, \OpenCCK\App\Mcp\McpModelProviders::PREFIX) && (\OpenCCK\App\Agent\Model\ModelListEditor::KIND_OF[$category] ?? null) === 'chat') {
+            $line .= "
+" . t('model.catalog.chat_risk');
+        }
+        return $line;
     }
 
     public function untrusted(): bool {

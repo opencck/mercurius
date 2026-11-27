@@ -121,8 +121,8 @@ final class RunScheduler {
         private readonly float $editInterval = 1.5,
         private readonly ?ModelRouter $router = null,
         private readonly AgentEvents $events = new NullEvents(),
-        /** @var list<string> providers with a key; empty — not checked */
-        private readonly array $providers = [],
+        /** @var list<string>|(\Closure(): list<string>) providers that answer now; empty — not checked */
+        private readonly array|\Closure $providers = [],
         /** remembers which run wrote each message, so a reply names its run */
         private readonly ?\OpenCCK\Domain\Repository\RunMessageRepository $runMessages = null,
         /** obligations to deliver final answers */
@@ -881,7 +881,9 @@ final class RunScheduler {
         $model = $meta->model ?? $this->model;
         // spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — the conversation was opened with a provider whose key
         // is gone: its runs go to the default model instead of failing every time
-        if ($meta->systemPrompt !== null && $this->providers !== [] && !in_array(ModelRef::parse($model)->provider, $this->providers, true)) {
+        // the providers are read at every run: a provider of an MCP comes and goes while the application runs
+        $providers = $this->providers instanceof \Closure ? ($this->providers)() : $this->providers;
+        if ($meta->systemPrompt !== null && $providers !== [] && !in_array(ModelRef::parse($model)->provider, $providers, true)) {
             $this->logger->warning('Conversation model has no provider key; the default one is used', ['conversation' => $conversationId, 'model' => $model]);
             $model = $this->model;
         }

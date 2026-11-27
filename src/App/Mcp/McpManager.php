@@ -72,6 +72,18 @@ final class McpManager {
         private readonly bool $stdio = false,
     ) {}
 
+    private ?McpModelProviders $models = null;
+
+    /**
+     * A server of the owners' file that declares the contract of models becomes a provider of models.
+     *
+     * spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp
+     */
+    public function useModelProviders(McpModelProviders $models): void {
+        $this->models = $models;
+        $models->useManager($this);
+    }
+
     /** Pause before the first retry of a server that did not answer, doubled each time up to RETRY_MAX. */
     private const RETRY_FIRST = 30.0;
     private const RETRY_MAX = 600.0;
@@ -142,6 +154,18 @@ final class McpManager {
      * @throws DomainException the connection is not on, a secret it names is missing, or the server did not answer
      */
     public function call(string $context, string $name, string $tool, array $args, Cancellation $cancellation): array {
+        [$text, $error, $structured] = $this->callWithFiles($context, $name, $tool, $args, $cancellation);
+        return [$text, $error, $structured];
+    }
+
+    /**
+     * The same, with the files of the result: a model of a provider of an MCP answers with a picture, a sound or a video.
+     *
+     * @param array<string, mixed> $args
+     * @return array{string, bool, array<array-key, mixed>|null, list<array{name: string, type: string, bytes: string}>}
+     * @throws DomainException
+     */
+    public function callWithFiles(string $context, string $name, string $tool, array $args, Cancellation $cancellation): array {
         $server = $this->servers->find($context, $name);
         if ($server === null || !$server->enabled() || ($server->approvedHash === null && $this->filed !== null && ($this->filed)($context))) {
             throw new DomainException(sprintf(t('mcp.mcp_manager.not_connected'), $name, '—'));
@@ -161,7 +185,8 @@ final class McpManager {
                 }
             }
         }
-        return [self::hide(self::clean($answer[0]), $values), $answer[1], $structured];
+        /** @var array<array-key, mixed>|null $structured */
+        return [self::hide(self::clean($answer[0]), $values), $answer[1], $structured, $answer[2] ?? []];
     }
 
     /** Puts the secrets an approved entry names into it at each start and call. */
@@ -311,6 +336,7 @@ final class McpManager {
         $this->unregister($key);
         $this->forget($key);
         unset($this->down[$key]);
+        $this->models?->off($key, $note);
         return $this->servers->update($context, $name, McpServer::DISABLED, null, $note) !== null;
     }
 
@@ -339,6 +365,7 @@ final class McpManager {
         $this->unregister($key);
         $this->forget($key);
         unset($this->down[$key]);
+        $this->models?->off($key, $reason);
         $this->servers->update($context, $name, $state, null, $reason);
     }
 
@@ -355,6 +382,7 @@ final class McpManager {
         $this->unregister($key);
         $this->forget($key);
         unset($this->down[$key]);
+        $this->models?->removed($key);
         return $this->servers->remove($context, $name);
     }
 
@@ -541,6 +569,7 @@ final class McpManager {
     }
 
     private function markDown(McpServer $server, int $tries, ?Throwable $why = null): void {
+        $this->models?->off($server->key(), $why === null ? '' : mb_substr(\OpenCCK\App\Agent\Tool\Guard\SecretMasker::mask($why->getMessage()), 0, 300));
         // a built-in server has no switch for its owner: it keeps being tried
         if ($why !== null && $server->context !== '' && self::lasting($why, $tries)) {
             unset($this->down[$server->key()]);
@@ -609,6 +638,7 @@ final class McpManager {
         if (!$approve && $server->toolsHash !== null && !hash_equals($server->toolsHash, $hash)) {
             $this->unregister($server->key());
             $this->forget($server->key());
+            $this->models?->off($server->key(), t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
             if ($server->context !== '') {
                 $this->servers->update($server->context, $server->name, McpServer::CHANGED, null, t('mcp.mcp_manager.nabor_instrumentov_izmenilsya'));
             }
@@ -620,7 +650,40 @@ final class McpManager {
             $this->servers->saveTools($server->context, $server->name, self::listedBy($server), $cleaned);
             $this->kept[$server->key()] = $hash;
         }
-        return $this->register($server, $cleaned, $hash, $approve);
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a server of the owners' file that offers models: its provider
+        //      is put in before its tools, and a name already taken keeps the whole server off
+        if ($this->models !== null && $server->context === McpModelProviders::CONTEXT && $this->client instanceof \Mercurius\Mcp\McpServerInfo) {
+            try {
+                $capabilities = $this->client->serverCapabilities($target, $token, $cancellation);
+            } catch (RuntimeException) {
+                $capabilities = [];
+            }
+            $client = $this->client;
+            /**
+             * @param array<string, mixed> $args
+             * @return array<array-key, mixed>
+             */
+            $call = static function (string $tool, array $args, Cancellation $c) use ($client, $target, $token): array {
+                $named = [];
+                foreach (array_keys($args) as $key) {
+                    /** @psalm-suppress MixedAssignment the arguments go to the server as they are */
+                    $named[(string) $key] = $args[$key];
+                }
+                return $client->call($target, $token, $tool, $named, $c);
+            };
+            $taken = $this->models->connected($server, $capabilities, array_map(static fn(array $t): string => $t['name'], $cleaned), $call, $cancellation);
+            if ($taken !== null) {
+                $this->unregister($server->key());
+                $this->servers->update($server->context, $server->name, McpServer::NAMES, $approve ? $hash : null, $taken);
+                ($this->tell)($taken);
+                return 0;
+            }
+        }
+        $count = $this->register($server, $cleaned, $hash, $approve);
+        if ($count === 0 && ($this->taken[$server->key()] ?? []) !== []) {
+            $this->models?->off($server->key(), sprintf(t('mcp.mcp_manager.names_taken'), $server->name, implode(', ', $this->taken[$server->key()])));
+        }
+        return $count;
     }
 
     /**
@@ -722,6 +785,11 @@ final class McpManager {
         }
         $tools = $this->servers->cachedTools($server->context, $server->name, self::listedBy($server));
         if ($tools === null || !hash_equals($server->toolsHash, self::toolsHash($tools))) {
+            return false;
+        }
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a server that may offer models is asked live: its catalog
+        //      and what it declares are not in the cache of tools
+        if ($this->models !== null && McpModelProviders::mayOffer($server, $tools)) {
             return false;
         }
         try {
