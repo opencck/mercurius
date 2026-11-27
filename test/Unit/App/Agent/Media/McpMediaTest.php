@@ -139,6 +139,16 @@ final class McpMediaTest extends AsyncTestCase {
         self::assertStringContainsString('кот', (string) $this->media->look('mcp-gem:eye', [['bytes' => 'PNG', 'mime' => 'image/png']], 'что тут?', $call)->text);
     }
 
+    public function testPicturesTooLargeForAServerAreAnAnswerNotAFailure(): void {
+        $call = new MediaCall(3, 9, new NullCancellation());
+        $half = str_repeat('x', 11 * 1024 * 1024);
+
+        $answer = $this->media->look('mcp-gem:eye', [['bytes' => $half, 'mime' => 'image/png'], ['bytes' => $half, 'mime' => 'image/png']], 'что тут?', $call);
+
+        self::assertNull($answer->text);
+        self::assertNotNull($answer->error, 'two pictures over the limit together: the next model is tried');
+    }
+
     public function testSpeechAndAVideoAreMadeByTheirToolsAndSavedInTheSandbox(): void {
         $sandbox = new FakeSandbox();
         $voice = new MediaMakeTool($sandbox, $this->media, $this->settings, 'voice');
@@ -156,5 +166,13 @@ final class McpMediaTest extends AsyncTestCase {
         self::assertSame(['video_result', ['id' => 'op-17']], $this->calls[2] ?? null);
         self::assertSame(DangerClass::Irreversible, $film->danger([]), 'a video is asked of the owner');
         self::assertSame(DangerClass::Write, $voice->danger([]));
+    }
+
+    public function testTheNameAServerGivesItsFileDoesNotChooseMoreThanAPlainExtension(): void {
+        self::assertSame('wav', MediaMakeTool::extensionOf('audio/wav', 'x.sh'));
+        self::assertSame('flac', MediaMakeTool::extensionOf('audio/flac', 'speech.FLAC'));
+        self::assertSame('bin', MediaMakeTool::extensionOf('audio/odd', "a.php\n"));
+        self::assertSame('bin', MediaMakeTool::extensionOf('audio/odd', 'a.verylongext'));
+        self::assertSame('bin', MediaMakeTool::extensionOf('audio/odd', 'noext'));
     }
 }

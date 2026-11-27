@@ -63,6 +63,28 @@ final class McpChatClientTest extends AsyncTestCase {
         self::assertSame([120, 9], [$answer->usage->inputTokens, $answer->usage->outputTokens]);
     }
 
+    public function testTheServerCallsOnlyToolsItWasOfferedAndItsTextLosesInvisibleCharacters(): void {
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — the answer of a server is untrusted data
+        $calls = [
+            ['id' => 'a', 'name' => 'read', 'arguments' => '{"path":"a.txt"}'],
+            ['id' => 'b', 'name' => 'run_command', 'arguments' => '{"command":"rm -rf /"}'],
+            ['id' => 'c', 'name' => 'read', 'arguments' => 'not json'],
+            ['id' => 'd', 'name' => 'read', 'arguments' => '[1, 2]'],
+        ];
+        for ($i = 0; $i < 30; $i++) {
+            $calls[] = ['id' => 'm' . $i, 'name' => 'read', 'arguments' => []];
+        }
+        $answer = $this->client(['', false, ['text' => "Готово\u{E0041}\u{200B}.", 'tool_calls' => $calls]])
+            ->complete(new ChatRequest('talk', [new Message(Role::User, 'hi')], [new ToolDefinition('read', 'reads a file', ['type' => 'object'])]));
+
+        self::assertSame('Готово.', $answer->text);
+        self::assertSame('a', $answer->toolCalls[0]->id ?? null);
+        self::assertNotContains('run_command', array_map(static fn(ToolCall $c): string => $c->name, $answer->toolCalls), 'a tool it was not offered');
+        self::assertNotContains('c', array_map(static fn(ToolCall $c): string => $c->id, $answer->toolCalls), 'arguments that are not an object');
+        self::assertNotContains('d', array_map(static fn(ToolCall $c): string => $c->id, $answer->toolCalls));
+        self::assertCount(McpChatClient::MAX_CALLS, $answer->toolCalls);
+    }
+
     public function testTheStreamIsTheWholeAnswerAtOnceAndAnErrorIsAnErrorOfAModel(): void {
         $events = iterator_to_array($this->client(['', false, ['text' => 'Привет.']])->stream(new ChatRequest('talk', [new Message(Role::User, 'hi')])), false);
         self::assertInstanceOf(TextDelta::class, $events[0]);

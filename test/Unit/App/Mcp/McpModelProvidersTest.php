@@ -101,6 +101,20 @@ final class McpModelProvidersTest extends AsyncTestCase {
         self::assertSame(['drawn', false, 'a.png'], [$text, $error, $files[0]['name'] ?? null], 'a model is called by the tool of its server, with the files of the answer');
     }
 
+    public function testAServerThatOfferedModelsIsAskedLiveAfterARestartWhateverItsCatalogIsCalled(): void {
+        // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — the cache of tools does not say what a server declares
+        $this->manager(true);
+        $owners = $this->servers->add('owners', 'pics', 'https://pics.example/mcp', null);
+        $member = $this->servers->add('member:1', 'pics', 'https://pics.example/mcp', null);
+        $tools = [['name' => 'list_models'], ['name' => 'image']];
+
+        self::assertFalse($this->providers->mayOffer($owners, $tools), 'nothing says it offers models');
+        $this->manager->approve('owners', 'pics', new NullCancellation());
+        self::assertTrue($this->providers->mayOffer($owners, $tools), 'it offered them before the restart');
+        self::assertTrue($this->providers->mayOffer($owners, [['name' => 'models_list']]));
+        self::assertFalse($this->providers->mayOffer($member, [['name' => 'models_list']]), 'a member\'s server is never a provider');
+    }
+
     public function testTheSameServerOfAMemberOrWithoutTheDeclarationIsAnOrdinaryOne(): void {
         $this->manager(true);
         $this->servers->add('member:1', 'pics', 'https://pics.example/mcp', null);

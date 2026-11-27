@@ -674,6 +674,8 @@ final class McpManager {
             $taken = $this->models->connected($server, $capabilities, array_map(static fn(array $t): string => $t['name'], $cleaned), $call, $cancellation);
             if ($taken !== null) {
                 $this->unregister($server->key());
+                // the server stays off: its process goes too, as on every other way off
+                $this->forget($server->key());
                 $this->servers->update($server->context, $server->name, McpServer::NAMES, $approve ? $hash : null, $taken);
                 ($this->tell)($taken);
                 return 0;
@@ -789,7 +791,7 @@ final class McpManager {
         }
         // spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — a server that may offer models is asked live: its catalog
         //      and what it declares are not in the cache of tools
-        if ($this->models !== null && McpModelProviders::mayOffer($server, $tools)) {
+        if ($this->models !== null && $this->models->mayOffer($server, $tools)) {
             return false;
         }
         try {

@@ -74,6 +74,19 @@ final class McpMedia {
         return ['name' => $name, 'mime_type' => $mime, 'content_base64' => base64_encode($bytes)];
     }
 
+    /**
+     * Several files of one call, held to the same limit together: a server gets them in one message.
+     *
+     * @param list<array{name: string, mime: string, bytes: string}> $files
+     * @return list<array{name: string, mime_type: string, content_base64: string}>
+     */
+    public static function files(array $files): array {
+        if (array_sum(array_map(static fn(array $f): int => strlen($f['bytes']), $files)) > self::FILES_MAX) {
+            throw new DomainException(sprintf(t('media.mcp.too_large'), intdiv(self::FILES_MAX, 1_048_576)));
+        }
+        return array_map(static fn(array $f): array => self::file($f['name'], $f['mime'], $f['bytes']), $files);
+    }
+
     /** @return array{string, McpModel} */
     private function model(string $ref, string $kind): array {
         [$provider, $id] = explode(':', $ref, 2) + [1 => ''];

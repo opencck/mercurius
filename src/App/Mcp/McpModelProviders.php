@@ -60,9 +60,13 @@ final class McpModelProviders {
      *
      * @param array<array-key, mixed> $tools
      */
-    public static function mayOffer(McpServer $server, array $tools): bool {
+    public function mayOffer(McpServer $server, array $tools): bool {
         if ($server->context !== self::CONTEXT) {
             return false;
+        }
+        // a server may name its catalog anyhow: one that offered models before the restart has them in the catalog
+        if ($this->catalog->fetchedAt(self::providerName($server->name)) !== null) {
+            return true;
         }
         /** @var mixed $tool */
         foreach ($tools as $tool) {
@@ -102,6 +106,8 @@ final class McpModelProviders {
             $answer = $call($catalogTool, [], $cancellation);
             $structured = isset($answer[3]) && is_array($answer[3]) ? $answer[3] : null;
             $models = ($answer[1] ?? false) === true ? [] : ModelsContract::models($structured, $tools);
+        } catch (\Amp\CancelledException $e) {
+            throw $e;
         } catch (Throwable $e) {
             $this->logger->warning('The catalog of an MCP provider was not read', ['server' => $server->key(), 'error' => $e::class]);
             $models = [];

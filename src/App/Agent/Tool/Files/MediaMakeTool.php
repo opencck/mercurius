@@ -30,6 +30,15 @@ use function Mercurius\I18n\t;
 final class MediaMakeTool extends SandboxTool implements \OpenCCK\App\Agent\Tool\Available {
     public const VOICE = 'voice_generate';
     public const FILM = 'video_generate';
+    /**
+     * The extension of a saved file: by its type, else a plain short extension of the name the server gave, else bin —
+     * the name is the server's word and chooses no more than that.
+     */
+    public static function extensionOf(string $type, string $name): string {
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        return self::EXT[$type] ?? (preg_match('~^[a-z0-9]{1,5}\z~', $ext) === 1 ? $ext : 'bin');
+    }
+
     private const EXT = ['audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/mpeg' => 'mp3', 'audio/ogg' => 'ogg', 'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov'];
 
     public function __construct(
@@ -88,7 +97,7 @@ final class MediaMakeTool extends SandboxTool implements \OpenCCK\App\Agent\Tool
             if ($file !== null) {
                 $base = preg_replace('~[^a-z0-9-]+~', '-', strtolower(Args::string($args, 'name') ?? '')) ?? '';
                 $base = trim($base, '-') === '' ? ($voice ? 'speech' : 'video') . '-' . gmdate('Ymd-His') : trim($base, '-');
-                $path = ($voice ? 'audio/' : 'video/') . $base . '.' . (self::EXT[$file['type']] ?? pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'bin');
+                $path = ($voice ? 'audio/' : 'video/') . $base . '.' . self::extensionOf($file['type'], $file['name']);
                 $this->sandbox->put($context->principal->id, $limits, $path, $file['bytes'], $context->cancellation);
                 return ToolResult::ok(sprintf(t('tool.media_make.saved'), $path, $ref, strlen($file['bytes'])));
             }

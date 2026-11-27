@@ -34,6 +34,9 @@ use Throwable;
  * spec: brief/skills-mcp.md#провайдеры-моделей-от-mcp — the kind chat
  */
 final class McpChatClient implements LlmClient {
+    /** the most calls of tools one answer of a server may make */
+    public const MAX_CALLS = 16;
+
     /**
      * @param Closure(string): ?McpModel $model the chat model of the provider by its id
      * @param Closure(string, array<string, mixed>, Cancellation): array<array-key, mixed> $call calls a tool of the server: the text, whether it is an error, the structured content
@@ -59,7 +62,7 @@ final class McpChatClient implements LlmClient {
             $quota = preg_match('~\b429\b|quota|RESOURCE_EXHAUSTED~i', $text) === 1;
             throw new LlmException($quota ? ErrorKind::RateLimited : ErrorKind::Server, mb_substr($text === '' ? 'The MCP model answered with an error' : $text, 0, 500), $quota ? 429 : 502);
         }
-        return self::response($request->model, $structured, $text);
+        return self::response($request->model, $structured, $text, array_map(static fn(ToolDefinition $t): string => $t->name, $request->tools));
     }
 
     /** @return \Generator<int, TextDelta|StreamEnd, mixed, void> */
@@ -97,21 +100,37 @@ final class McpChatClient implements LlmClient {
         return $args;
     }
 
-    /** @param array<array-key, mixed>|null $structured */
-    private static function response(string $model, ?array $structured, string $text): ChatResponse {
+    /**
+     * The answer of the server, untrusted: calls only of the tools it was offered, with an object of arguments, no more
+     * than MAX_CALLS; the text without invisible characters.
+     *
+     * @param array<array-key, mixed>|null $structured
+     * @param list<string> $offered the tools of the request
+     */
+    private static function response(string $model, ?array $structured, string $text, array $offered): ChatResponse {
         $calls = [];
         $rows = isset($structured['tool_calls']) && is_array($structured['tool_calls']) ? $structured['tool_calls'] : [];
         foreach (array_values($rows) as $i => $row) {
-            if (!is_array($row) || !isset($row['name']) || !is_string($row['name']) || $row['name'] === '') {
+            if (count($calls) >= self::MAX_CALLS) {
+                break;
+            }
+            if (!is_array($row) || !isset($row['name']) || !is_string($row['name']) || !in_array($row['name'], $offered, true)) {
                 continue;
             }
             /** @var mixed $arguments */
             $arguments = $row['arguments'] ?? '{}';
             $json = is_string($arguments) ? $arguments : json_encode($arguments === [] ? new \stdClass() : $arguments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $id = isset($row['id']) && is_string($row['id']) && $row['id'] !== '' ? $row['id'] : 'call_' . $i;
-            $calls[] = new ToolCall($id, $row['name'], $json === false ? '{}' : $json);
+            /** @var mixed $decoded */
+            $decoded = is_string($json) ? json_decode($json, true) : null;
+            if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
+                continue;
+            }
+            $calls[] = new ToolCall($id, $row['name'], (string) $json);
         }
         $said = isset($structured['text']) && is_string($structured['text']) ? $structured['text'] : ($structured === null ? $text : '');
+        // format and private characters (tags, zero widths) carry nothing a reader sees
+        $said = (string) preg_replace('/[\p{Cf}\p{Co}]+/u', '', $said);
         $finish = FinishReason::tryFrom(isset($structured['finish']) && is_string($structured['finish']) ? $structured['finish'] : '') ?? ($calls === [] ? FinishReason::Stop : FinishReason::ToolCalls);
         $usage = isset($structured['usage']) && is_array($structured['usage']) ? $structured['usage'] : [];
         $int = static fn(mixed $v): int => is_int($v) ? max(0, $v) : 0;

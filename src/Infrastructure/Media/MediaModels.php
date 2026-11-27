@@ -189,9 +189,11 @@ final class MediaModels {
     /** @param list<array{bytes: string, mime: string}> $images */
     public function look(string $ref, array $images, string $prompt, MediaCall $call): MediaAnswer {
         if (McpMedia::owns($ref)) {
-            $files = [];
-            foreach ($images as $i => $image) {
-                $files[] = McpMedia::file(sprintf('image-%d.%s', $i + 1, explode('/', $image['mime'])[1] ?? 'bin'), $image['mime'], $image['bytes']);
+            try {
+                $files = McpMedia::files(array_map(static fn(int $i, array $image): array => ['name' => sprintf('image-%d.%s', $i + 1, explode('/', $image['mime'])[1] ?? 'bin'), 'mime' => $image['mime'], 'bytes' => $image['bytes']], array_keys($images), $images));
+            } catch (\DomainException $e) {
+                // too large for the server: an answer, so the next model of the category is tried
+                return new MediaAnswer(null, $e->getMessage(), $ref);
             }
             [$text, , $error] = $this->viaMcp($ref, 'vision', 'media-vision', ['question' => $prompt, 'files' => $files], $call);
             return new MediaAnswer($text, $error, $ref);
