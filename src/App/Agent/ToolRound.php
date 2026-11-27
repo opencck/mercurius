@@ -137,6 +137,15 @@ final class ToolRound {
         $turnUsed = 0;
         /** @var array<string, true> $observed what the guard already saw in this answer */
         $observed = [];
+        // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a call to a tool that is no longer offered:
+        //       the model took its name from the history and did not hear «do not repeat». Running it gives the same
+        //       answer and two more model calls before the stop, so nothing of this answer runs and the run stops now
+        // ref: references/hermes-agent/agent/tool_guardrails.py@e96221fa:L362-L378 (before_call) — a repeated call with
+        //      no progress is blocked before it runs and gets a synthetic result; hermes blocks the one call and goes
+        //      on, here the tool was already taken away after a warning, so the run ends
+        foreach ($calls as $call) {
+            $halted = $halted || isset($state->withheld[$call->call->name]);
+        }
         foreach ($this->planner->segments($calls) as $segment) {
             if ($halted) {
                 foreach ($segment as $call) {

@@ -743,10 +743,11 @@ final class AgentLoopTest extends AsyncTestCase {
     }
 
     public function testLoopGuardHaltsOnFifthRepeat(): void {
-        $this->registry->register(new FakeTool('t'));
+        // a tool that watches the outside world stays offered after the warning: only the fifth repeat stops the run
+        $this->registry->register(new FakeTool('web_read'));
         $script = [];
         for ($i = 1; $i <= 5; $i++) {
-            $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 't', '{"q":"same"}'));
+            $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 'web_read', '{"q":"same"}'));
         }
         $script[] = ScriptedLlm::text('Успел узнать: ответ тот же.');
         $llm = new ScriptedLlm($script);
@@ -781,6 +782,27 @@ final class AgentLoopTest extends AsyncTestCase {
         self::assertContains('other', $offered(3), 'the other tools stay');
     }
 
+    /**
+     * spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a model that calls a tool it is no longer
+     * offered has not heard the warning: the call is not run and the run stops at once
+     */
+    public function testACallToAToolNoLongerOfferedStopsTheRunWithoutRunningIt(): void {
+        $tool = new FakeTool('t');
+        $this->registry->register($tool);
+        $script = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $script[] = ScriptedLlm::calls(new ToolCall('c' . $i, 't', '{"q":"same"}'));
+        }
+        $script[] = ScriptedLlm::text('Итог по тому, что есть.');
+        $llm = new ScriptedLlm($script);
+
+        $run = $this->execute($llm, $this->start());
+
+        self::assertSame(StopReason::LoopGuard, $run->stopReason);
+        self::assertCount(3, $tool->calls, 'the fourth call, to a tool taken away, does not run');
+        self::assertSame(5, $run->turns, 'four turns of the repeat and the closing answer: the run does not wait for a fifth repeat');
+    }
+
     public function testTheSameCallWrittenSeveralTimesInOneAnswerIsNotALoop(): void {
         // spec: brief/agent-loop.md#запасная-модель-и-ограничитель-зацикливания — a model that writes one call five times in an
         //       answer slipped once: the call runs once, the copies are answered, the run goes on
@@ -812,7 +834,7 @@ final class AgentLoopTest extends AsyncTestCase {
         $again = $this->execute(new ScriptedLlm($script), $this->runs->find($resumed->id) ?? $resumed);
 
         self::assertSame(StopReason::LoopGuard, $again->stopReason);
-        self::assertSame(4, $again->turns, 'two repeats before the restart count: three turns, then the closing answer');
+        self::assertSame(3, $again->turns, 'two repeats before the restart count: the third takes the tool away, the call after it stops the run, then the closing answer');
     }
 
     public function testInboxMessageIsDeliveredAfterToolResults(): void {
