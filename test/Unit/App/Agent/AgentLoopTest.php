@@ -331,6 +331,7 @@ final class AgentLoopTest extends AsyncTestCase {
             'Не знаю сервиса «антигравити» — не встречал такого названия. Дайте ссылку на сайт.',
             'Я не знаю, что такое «антигравити» в данном контексте — нет такого сервиса или документации у меня под рукой.',
             "I'm not familiar with a service called Antigravity.",
+            'Я не знаю конкретного сервиса или сайта «antigravity», в который нужно войти. Дайте адрес.',
         ] as $answer) {
             $llm = new ScriptedLlm([ScriptedLlm::text($answer), ScriptedLlm::calls(new ToolCall('c1', 'self_info', '{}')), ScriptedLlm::text('Вход — /antigravity login.')]);
 

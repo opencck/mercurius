@@ -215,7 +215,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Agents\ParticipantsTool($principals
 }, $ownerPrivateChat));
 $tools->register(new SetModelRoleTool($modelRoles));
 // spec: brief/models.md#списки-моделей-по-категориям — the agent changes the lists of models at the owner's word
-$tools->register(new \OpenCCK\App\Agent\Tool\Self\ModelListTool($modelListEditor));
+// spec: brief/models.md#каталог-провайдеров-для-агента — and reads what they are chosen from
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\ModelListTool($modelListEditor, new \OpenCCK\App\Agent\Model\ModelCatalogView($modelCatalog, $llmSettings->providers(), $providerPauses)));
 // Sandbox: commands and files of the agent; off without SANDBOX_TOKEN.
 $sandboxToken = $sandboxSettings->token();
 $sandbox = $sandboxToken === null ? null : new HttpSandboxClient(HttpClients::create(), $sandboxSettings->url, $sandboxToken);

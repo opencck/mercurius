@@ -98,7 +98,9 @@ final class AgentLoop {
         'не знаю сервис', 'не знаю такого', 'не знаю такой', 'не знаю, что такое', 'не знаю что такое', 'не встречал',
         'нет такого сервиса', "don't know what", 'not familiar with', 'never heard of',
     ];
-    private const ABOUT_ITSELF ='~(?<![\p{L}])(?:я|мне|меня|мной|мо[йяеёию]|моей|моих|моим|i|me|my)(?![\p{L}])~iu';
+    /** the same said with words in between: «не знаю конкретного сервиса или сайта» */
+    private const UNKNOWN_NAME = '~не знаю[^.!?\n]{0,40}(?:сервис|сайт|названи|продукт)|do(?:n\'t| not) know[^.!?\n]{0,40}(?:service|product|site)~u';
+    private const ABOUT_ITSELF = '~(?<![\p{L}])(?:я|мне|меня|мной|мо[йяеёию]|моей|моих|моим|i|me|my)(?![\p{L}])~iu';
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
@@ -692,6 +694,9 @@ final class AgentLoop {
             if (str_contains($lower, $marker)) {
                 return true;
             }
+        }
+        if (preg_match(self::UNKNOWN_NAME, $lower) === 1) {
+            return true;
         }
         // spec: brief/agent-loop.md#знания-агента-о-себе — «спирт туда лить нельзя» is an answer about the world, not a denial of
         //       an ability: an impersonal word counts only in a sentence where the agent speaks of itself

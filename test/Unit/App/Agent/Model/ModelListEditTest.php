@@ -147,6 +147,22 @@ final class ModelListEditTest extends AsyncTestCase {
         }
     }
 
+    public function testTheToolReadsTheProvidersAndTheCatalogWithoutACard(): void {
+        // spec: brief/models.md#каталог-провайдеров-для-агента — what to choose from is read, not changed
+        $tool = new ModelListTool($this->editor, new \OpenCCK\App\Agent\Model\ModelCatalogView($this->catalog, ['openrouter']));
+        $owner = new ToolContext($this->owner->id, 1, $this->owner, new NullCancellation());
+
+        self::assertSame(DangerClass::Read, $tool->danger(['action' => 'providers']));
+        self::assertSame(DangerClass::Read, $tool->danger(['action' => 'catalog', 'provider' => 'openrouter']));
+        self::assertNull($tool->wideGrant(['action' => 'catalog', 'provider' => 'openrouter']));
+        self::assertStringContainsString('- openrouter:', $tool->execute(['action' => 'providers'], $owner)->content);
+        $catalog = $tool->execute(['action' => 'catalog', 'provider' => 'openrouter', 'query' => 'author/b'], $owner);
+        self::assertFalse($catalog->isError, $catalog->content);
+        self::assertStringContainsString('openrouter:author/b', $catalog->content);
+        self::assertStringNotContainsString('author/c', $catalog->content);
+        self::assertTrue($tool->execute(['action' => 'catalog', 'provider' => 'gemini'], $owner)->isError, 'a provider the agent has not');
+    }
+
     public function testTheToolEditsTheListsOfEveryCategoryOnlyForTheOwner(): void {
         $tool = new ModelListTool($this->editor);
         $owner = new ToolContext($this->owner->id, 1, $this->owner, new NullCancellation());
