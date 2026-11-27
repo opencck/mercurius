@@ -61,6 +61,17 @@ final class ChannelRunObserverTest extends AsyncTestCase {
         self::assertSame([], array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'edit')));
     }
 
+    public function testTheAnswerCarriesTheMarkOfTheContext(): void {
+        // spec: brief/participants.md#контекст-беседы-в-личном-чате — outside one's own context each answer is marked
+        $channel = new FakeChannel(canEdit: false);
+        $observer = new ChannelRunObserver($channel, '42', null, 0.0, fn(): float => $this->now, mark: '📁 Shop');
+        $observer->start();
+
+        $observer->finished(self::finishedRun(), 'Готово.', StopReason::Answered);
+
+        self::assertSame([['send', '42', "📁 Shop\n\nГотово."]], array_values(array_filter($channel->log, static fn(array $e): bool => $e[0] === 'send')));
+    }
+
     public function testCommentaryStaysAsItsOwnMessageAndTheRunGoesOnBelow(): void {
         $channel = new FakeChannel();
         $observer = $this->observer($channel);

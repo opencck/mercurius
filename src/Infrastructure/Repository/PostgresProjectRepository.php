@@ -189,6 +189,19 @@ final class PostgresProjectRepository implements ProjectRepository {
     }
 
     public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
+        // spec: brief/participants.md#контекст-беседы-в-личном-чате — a private chat works in the project of its open
+        //       conversation first; a group and a topic only by the binding of the chat
+        if ($threadId === '' && !str_starts_with($chatId, '-')) {
+            $row = $this->db->execute(
+                "SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated, p.owner_id, p.skill
+                 FROM conversations c JOIN projects p ON c.context = 'project:' || p.id
+                 WHERE c.channel = ? AND c.chat_id = ? AND c.thread_id = '' AND c.closed_at IS NULL",
+                [$channel, $chatId],
+            )->fetchRow();
+            if ($row !== null) {
+                return self::project($row);
+            }
+        }
         // owner_id too: without it a participant's own project looked like the owner's and was hidden from them
         $row = $this->db->execute(
             'SELECT p.id, p.name, p.goal, p.status, p.card, extract(epoch FROM p.updated_at)::bigint AS updated, p.owner_id, p.skill

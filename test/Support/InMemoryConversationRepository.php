@@ -81,15 +81,28 @@ final class InMemoryConversationRepository implements ConversationRepository {
     public function switchModel(int $conversationId, string $model): void {
         $meta = $this->meta[$conversationId] ?? null;
         if ($meta !== null && in_array($conversationId, $this->open, true)) {
-            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $meta->systemPrompt, $model, $meta->threadId);
+            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $meta->systemPrompt, $model, $meta->threadId, $meta->context);
         }
+    }
+
+    public function setContext(int $conversationId, ?string $context): void {
+        $meta = $this->meta[$conversationId] ?? null;
+        if ($meta !== null) {
+            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $meta->systemPrompt, $meta->model, $meta->threadId, $context);
+        }
+    }
+
+    /** The context of the open conversation of a chat, as the project repository reads it. */
+    public function openContext(string $channel, string $chatId, string $threadId = ''): ?string {
+        $id = $this->open[$channel . ':' . $chatId . ':' . $threadId] ?? null;
+        return $id === null ? null : ($this->meta[$id]->context ?? null);
     }
 
     public function setMeta(int $conversationId, string $systemPrompt, string $model, ?int $promptVersion = null): void {
         $this->promptVersions[$conversationId] ??= $promptVersion;
         $meta = $this->meta[$conversationId];
         if ($meta->systemPrompt === null) {
-            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $systemPrompt, $model, $meta->threadId);
+            $this->meta[$conversationId] = new ConversationMeta($meta->id, $meta->principalId, $meta->channel, $meta->chatId, $systemPrompt, $model, $meta->threadId, $meta->context);
         }
     }
 }

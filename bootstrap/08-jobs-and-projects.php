@@ -200,6 +200,10 @@ $projectEditTool->useSleep($projectSleep);
 // spec: brief/agent-loop.md#объём-беседы-и-порог-сжатия — the owner of a project sets the limits of its context
 $projectEditTool->useLimits($contextLimitRepository);
 $scheduler->useProjectPolicies($projectPolicies);
+// spec: brief/participants.md#контекст-беседы-в-личном-чате — a private conversation works in its own, the shared or a project's context
+$conversationPlaces = new \OpenCCK\App\Service\ConversationPlaces($conversations, $projectRepository);
+$scheduler->useConversationPlaces($conversationPlaces);
+$tools->register(new \OpenCCK\App\Agent\Tool\Self\ConversationContextTool($conversationPlaces, $conversations));
 $jobScheduler->useProjectPolicies($projectPolicies);
 $projectTransfers->usePolicies($projectPolicies);
 $policies->onChange($projectPolicies->reconcileAll(...));

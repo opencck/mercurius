@@ -19,7 +19,18 @@ use function Mercurius\I18n\t;
  *
  * spec: brief/agent-loop.md#инструменты — file and command tools run in the sandbox
  */
-abstract class SandboxTool implements Tool {
+abstract class SandboxTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall {
+    /**
+     * spec: brief/participants.md#контекст-беседы-в-личном-чате — in the shared context of the owners a call without an
+     * area works in the root: the area goes into the arguments, so the card and the grant see it as asked
+     */
+    public function prepare(array $args, \OpenCCK\Domain\Entity\Member $principal, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, \Amp\Cancellation $cancellation): array|string {
+        if (!isset($args['area']) && $policy->mcpContext === \OpenCCK\App\Service\ConversationPlace::OWNERS && $principal->isOwner()) {
+            $args['area'] = 'owners';
+        }
+        return $args;
+    }
+
     public function __construct(protected readonly Sandbox $sandbox) {}
 
     public function untrusted(): bool {

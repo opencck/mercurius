@@ -42,6 +42,10 @@ final class PostgresConversationRepository implements ConversationRepository {
         );
     }
 
+    public function setContext(int $conversationId, ?string $context): void {
+        $this->db->execute('UPDATE conversations SET context = ? WHERE id = ?', [$context, $conversationId]);
+    }
+
     public function setPrivateChat(int $conversationId, bool $private): void {
         $this->db->execute('UPDATE conversations SET private_chat = ? WHERE id = ? AND private_chat IS DISTINCT FROM ?', [$private, $conversationId, $private]);
     }
@@ -61,7 +65,7 @@ final class PostgresConversationRepository implements ConversationRepository {
 
     public function meta(int $conversationId): ?ConversationMeta {
         $row = $this->db->execute(
-            'SELECT id, principal_id, channel, chat_id, system_prompt, model, thread_id FROM conversations WHERE id = ?',
+            'SELECT id, principal_id, channel, chat_id, system_prompt, model, thread_id, context FROM conversations WHERE id = ?',
             [$conversationId],
         )->fetchRow();
         if ($row === null) {
@@ -78,7 +82,8 @@ final class PostgresConversationRepository implements ConversationRepository {
             throw new UnexpectedValueException('Malformed conversations row');
         }
         $thread = $row['thread_id'] ?? '';
-        return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model, is_string($thread) ? $thread : '');
+        $context = $row['context'] ?? null;
+        return new ConversationMeta($id, $principalId, $channel, $chatId, $prompt, $model, is_string($thread) ? $thread : '', is_string($context) ? $context : null);
     }
 
     public function compaction(int $conversationId): Compaction {

@@ -183,6 +183,25 @@ final class ChatService implements MessageHandler {
         $this->sshKeys = $keys;
     }
 
+    private ?ContextCommands $contexts = null;
+    private ?ConversationPlaces $places = null;
+    private ?FolderTree $tree = null;
+    /** @var (\Closure(\OpenCCK\Domain\Entity\Member): ?\OpenCCK\Domain\Agent\SandboxLimits)|null */
+    private ?\Closure $sandboxLimits = null;
+
+    /**
+     * spec: brief/participants.md#контекст-беседы-в-личном-чате — /context switches the context of the conversation,
+     * /ls shows its folder
+     *
+     * @param \Closure(\OpenCCK\Domain\Entity\Member): ?\OpenCCK\Domain\Agent\SandboxLimits $sandboxLimits
+     */
+    public function useContexts(ContextCommands $contexts, ConversationPlaces $places, FolderTree $tree, \Closure $sandboxLimits): void {
+        $this->contexts = $contexts;
+        $this->places = $places;
+        $this->tree = $tree;
+        $this->sandboxLimits = $sandboxLimits;
+    }
+
     public function useBans(\OpenCCK\App\Agent\BanList $bans): void {
         $this->bans = $bans;
     }
@@ -568,6 +587,24 @@ final class ChatService implements MessageHandler {
                     ? $this->projects->list($message->channel, $message->chatId, MessageMeta::topicKey($message))
                     : $this->projects->project($message->channel, $message->chatId, substr($text, strlen($command)), MessageMeta::topicKey($message)));
             }
+            return;
+        }
+        if ($command === '/context' && $this->contexts !== null) {
+            $answer = $message->isPrivateChat
+                ? $this->contexts->command($principal, $message->channel, $message->chatId, substr($text, strlen($command)))
+                : t('place.private_only');
+            if ($answer !== null) {
+                $this->reply($message, $answer);
+            }
+            return;
+        }
+        [$tree, $places, $sandboxLimits] = [$this->tree, $this->places, $this->sandboxLimits];
+        if ($command === '/ls' && $tree !== null && $places !== null && $sandboxLimits !== null) {
+            $limits = $sandboxLimits($principal);
+            $depth = max(1, min(3, (int) (trim(substr($text, strlen($command))) ?: 2)));
+            $this->reply($message, $limits === null
+                ? t('ls.no_sandbox')
+                : $tree->show($principal, $places->of($principal, $message->channel, $message->chatId, MessageMeta::topicKey($message)), $limits, $depth, new \Amp\TimeoutCancellation(90)));
             return;
         }
         if ($command === '/new') {

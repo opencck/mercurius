@@ -171,7 +171,18 @@ final class InMemoryProjectRepository implements ProjectRepository {
         $this->relations[$projectId . ':' . $principalId] = $text;
     }
 
+    private ?InMemoryConversationRepository $conversations = null;
+
+    /** As in PostgreSQL: a private chat works in the project of its open conversation first. */
+    public function useConversations(InMemoryConversationRepository $conversations): void {
+        $this->conversations = $conversations;
+    }
+
     public function active(string $channel, string $chatId, string $threadId = ''): ?Project {
+        $context = $threadId === '' && !str_starts_with($chatId, '-') ? $this->conversations?->openContext($channel, $chatId) : null;
+        if ($context !== null && preg_match('/^project:(\d+)$/', $context, $m) === 1 && isset($this->projects[(int) $m[1]])) {
+            return $this->projects[(int) $m[1]];
+        }
         $id = $this->chats[$channel . ':' . $chatId . ':' . $threadId] ?? null;
         return $id === null ? null : ($this->projects[$id] ?? null);
     }

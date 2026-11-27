@@ -172,6 +172,34 @@ final class RunScheduler {
     }
 
     private ?\OpenCCK\App\Service\ProjectPolicies $projectPolicies = null;
+    private ?\OpenCCK\App\Service\ConversationPlaces $places = null;
+    /** @var array<int, string> conversation => the notice of a context lost, for the first line of the next answer */
+    private array $placeNotices = [];
+
+    /** spec: brief/participants.md#контекст-беседы-в-личном-чате — a private conversation works in the context it was switched to */
+    public function useConversationPlaces(\OpenCCK\App\Service\ConversationPlaces $places): void {
+        $this->places = $places;
+    }
+
+    /** The place of a conversation for this member; a context they lost is taken off and its notice kept for the answer. */
+    private function placeOf(?ConversationMeta $meta, Member $principal): \OpenCCK\App\Service\ConversationPlace {
+        if ($meta === null || $this->places === null) {
+            return \OpenCCK\App\Service\ConversationPlace::personal();
+        }
+        [$place, $notice] = $this->places->current($meta, $principal);
+        if ($notice !== null) {
+            $this->placeNotices[$meta->id] = $notice;
+        }
+        return $place;
+    }
+
+    /** The first lines of an answer: the notice of a lost context, then the mark of the place. */
+    private function markOf(ConversationMeta $meta, Member $principal): string {
+        $mark = $this->placeOf($this->conversations->meta($meta->id) ?? $meta, $principal)->mark();
+        $notice = $this->placeNotices[$meta->id] ?? '';
+        unset($this->placeNotices[$meta->id]);
+        return trim($notice . "\n" . $mark);
+    }
 
     /** spec: brief/participants.md#права-проекта — a run in a project's chat, topic or job works with the project's rights */
     public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $policies): void {
@@ -201,8 +229,11 @@ final class RunScheduler {
         }
         // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a chat of a project gets the project's
         //       connections, a private chat the member's own; a group without a project none
+        // spec: brief/participants.md#контекст-беседы-в-личном-чате — the shared context of the owners has their connections
+        $owners = $members === null && $this->placeOf($meta, $principal)->kind === \OpenCCK\App\Service\ConversationPlace::OWNERS;
         $policy = $policy->withMcpContext(match (true) {
             $members !== null => 'project:' . $members->id,
+            $owners => \OpenCCK\App\Service\ConversationPlace::OWNERS,
             $meta !== null && !str_starts_with($meta->chatId, '-') => 'member:' . $principal->id,
             default => null,
         }, open: true);
@@ -442,7 +473,7 @@ final class RunScheduler {
         $paused = $this->waiting[$run->id] ?? null;
         unset($this->waiting[$run->id]);
         $paused?->settled(\Mercurius\I18n\t('agent.run_scheduler.decided'));
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers, mark: $this->markOf($meta, $principal));
         $observer->start();
         $this->launch($claimed, $principal, $observer);
     }
@@ -930,7 +961,7 @@ final class RunScheduler {
         }
         try {
             $this->transcript->appendUser($conversationId, $run->id, $this->withPlan($conversationId, $this->withSkillNote($principal, $meta, $conversationId, $recall && ($own ?? $text) !== '' ? $this->withFacts($principal, $meta, $text, $own ?? $text) : $text)), $messageId);
-            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
+            $observer = new ChannelRunObserver($this->channel, $meta->chatId, $messageId, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers, mark: $this->markOf($meta, $principal));
             $observer->start();
         } catch (Throwable $e) {
             // The run exists but will never run: free the conversation.
@@ -954,7 +985,7 @@ final class RunScheduler {
             }
         }
         $this->logger->info('Resuming run after restart', ['run' => $run->id]);
-        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers);
+        $observer = new ChannelRunObserver($this->channel, $meta->chatId, null, $this->editInterval, logger: $this->logger, threadId: $this->thread($meta, $run->conversationId), messages: $this->runMessages, silenceAllowed: $this->silence[$meta->id] ?? false, deliveries: $this->answers, mark: $this->markOf($meta, $principal));
         $observer->start(\Mercurius\I18n\t(self::RESUMED));
         $this->launch($run, $principal, $observer);
     }

@@ -123,6 +123,23 @@ final class FileToolsTest extends TestCase {
         self::assertCount($calls, $this->sandbox->calls, 'nothing reached the sandbox');
     }
 
+    public function testTheSharedContextOfAConversationWorksInTheOwnersArea(): void {
+        // spec: brief/participants.md#контекст-беседы-в-личном-чате — in the shared context the folder is the root
+        $policy = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true))->withMcpContext('owners', open: true);
+        $owner = new Member(7, MemberKind::Human, Role::admin(), null);
+        $write = new WriteFileTool($this->sandbox);
+
+        $prepared = $write->prepare(['path' => 'a.md', 'content' => 'x'], $owner, $policy, new NullCancellation());
+        self::assertSame('owners', is_array($prepared) ? ($prepared['area'] ?? null) : null);
+        self::assertSame(DangerClass::Irreversible, $write->danger(is_array($prepared) ? $prepared : []), 'a change of the root still waits for a card');
+        self::assertSame('own', ($write->prepare(['path' => 'a.md', 'content' => 'x', 'area' => 'own'], $owner, $policy, new NullCancellation()))['area'] ?? null, 'an asked area stays');
+
+        $member = new Member(8, MemberKind::Human, Role::user(), null);
+        self::assertArrayNotHasKey('area', (array) $write->prepare(['path' => 'a.md', 'content' => 'x'], $member, $policy, new NullCancellation()));
+        $own = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true))->withMcpContext('member:7', open: true);
+        self::assertArrayNotHasKey('area', (array) $write->prepare(['path' => 'a.md', 'content' => 'x'], $owner, $own, new NullCancellation()));
+    }
+
     public function testASkillFileIsNotOverwrittenWithWhatIsNotASkill(): void {
         // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a SKILL.md written with its line breaks
         //       as backslash-n stopped being a skill and failed the runs of its project

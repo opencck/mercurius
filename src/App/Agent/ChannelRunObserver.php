@@ -63,6 +63,8 @@ final class ChannelRunObserver implements RunObserver {
         private readonly bool $silenceAllowed = false,
         /** obligations to deliver the final answer, sent again after a restart; null — not kept */
         private readonly ?\OpenCCK\Domain\Repository\DeliveryRepository $deliveries = null,
+        /** spec: brief/participants.md#контекст-беседы-в-личном-чате — the first line of the answer outside one's own context */
+        private readonly string $mark = '',
     ) {
         $this->clock = $clock ?? static fn(): float => microtime(true);
     }
@@ -163,6 +165,9 @@ final class ChannelRunObserver implements RunObserver {
         }
         if (!$this->started) {
             $this->start();
+        }
+        if ($this->mark !== '') {
+            $finalText = $this->mark . "\n\n" . $finalText;
         }
         $mode = $reason === StopReason::Answered ? ParseMode::Markdown : ParseMode::Plain;
         $splitter = new TextSplitter($this->channel->capabilities()->maxMessageLength);

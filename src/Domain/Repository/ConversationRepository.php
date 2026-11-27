@@ -24,6 +24,9 @@ interface ConversationRepository {
 
     public function meta(int $conversationId): ?ConversationMeta;
 
+    /** spec: brief/participants.md#контекст-беседы-в-личном-чате — null — the member's own, 'owners' or 'project:<id>' */
+    public function setContext(int $conversationId, ?string $context): void;
+
     /** Keeps whether the conversation is a private chat. */
     public function setPrivateChat(int $conversationId, bool $private): void;
 

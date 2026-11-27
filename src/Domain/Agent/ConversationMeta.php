@@ -17,5 +17,9 @@ final class ConversationMeta {
         public readonly ?string $model,
         /** the forum topic; '' — a private chat, an ordinary group or the General topic */
         public readonly string $threadId = '',
+        /**
+         * spec: brief/participants.md#контекст-беседы-в-личном-чате — null — the member's own, 'owners' or 'project:<id>'
+         */
+        public readonly ?string $context = null,
     ) {}
 }
