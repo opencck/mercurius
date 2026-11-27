@@ -354,7 +354,7 @@ if ($antigravitySubscription !== null) {
 }
 // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — one message to the owner per window of a plan,
 // and one when a subscription lost its sign-in
-$providerPauses->tellWith(static function (string $provider, string $why, int $until) use ($channel, $logger): void {
+$providerPauses->tellWith(static function (string $provider, string $why, int $until, ?string $said = null) use ($channel, $logger): void {
     $text = match ($why) {
         \OpenCCK\App\Agent\Model\ProviderPauses::LIMIT => sprintf(\Mercurius\I18n\t('models.provider_limit'), $provider, gmdate('Y-m-d H:i', $until) . ' UTC'),
         \OpenCCK\App\Agent\Model\ProviderPauses::ACCOUNT => sprintf(\Mercurius\I18n\t('models.provider_account'), $provider),
@@ -364,6 +364,11 @@ $providerPauses->tellWith(static function (string $provider, string $why, int $u
             default => '/codex login',
         }),
     };
+    // the words of the provider tell the owner what to do; without them the notice only guesses
+    $said = trim(mb_substr((string) $said, 0, 400));
+    if ($why === \OpenCCK\App\Agent\Model\ProviderPauses::ACCOUNT && $said !== '') {
+        $text .= "\n" . sprintf(\Mercurius\I18n\t('models.provider_said'), $said);
+    }
     \Amp\async(static function () use ($channel, $logger, $text): void {
         try {
             $channel->send(new \Mercurius\Messenger\OutgoingMessage(\OpenCCK\App\Service\OwnersChannel::OWNERS, $text));

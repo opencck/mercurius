@@ -42,6 +42,19 @@ final class ProviderPausesTest extends AsyncTestCase {
         return new LlmException(ErrorKind::RateLimited, 'Claude subscription: limit', 429, null, null, self::RESET);
     }
 
+    public function testTheWordsOfTheProviderReachTheOwnerWithTheNotice(): void {
+        // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — seen live: the notice guessed «verify the
+        //       account or accept the terms» while Google said the account is not eligible where it is
+        $heard = [];
+        $pauses = new ProviderPauses(static function (string $provider, string $why, int $until, ?string $said = null) use (&$heard): void {
+            $heard[] = [$provider, $why, $said];
+        }, fn(): int => $this->now);
+
+        $pauses->pauseFor('antigravity', 3600, ProviderPauses::ACCOUNT, 'Google says this account is not eligible');
+
+        self::assertSame([['antigravity', ProviderPauses::ACCOUNT, 'Google says this account is not eligible']], $heard);
+    }
+
     public function testAUsedUpWindowStopsTheCallsOfItsProviderUntilItReopens(): void {
         $pauses = $this->pauses();
         $claude = new ScriptedLlm([self::limit(), ScriptedLlm::text('after the reset')]);

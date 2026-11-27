@@ -62,6 +62,32 @@ final class RoleChangeTest extends AsyncTestCase {
         return $id;
     }
 
+    public function testAConversationWhoseModelLeftTheListsMovesAtItsNextRun(): void {
+        // spec: brief/models.md#списки-моделей-по-категориям — seen live: the owner replaced the lists, the open conversation
+        //       went on with the model that was in none of them
+        $classifier = new RequestClassifier(new ScriptedLlm(), fn(): string => (string) $this->roles->model(ModelRole::CHEAP), new NullLogger());
+        $router = new ModelRouter($classifier, $this->roles, $this->stores, $this->stores, 131072, new NullLogger());
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('привет'), ScriptedLlm::text('дальше'), ScriptedLlm::text('ещё')]), router: $router);
+        $listed = true;
+        $stack->scheduler->useModelLists(static function (string $model) use (&$listed): bool {
+            return $listed;
+        });
+
+        $stack->say('привет');
+        $stack->scheduler->awaitIdle();
+        $first = $stack->llm->requests[0]->model;
+        $stack->say('как дела');
+        $stack->scheduler->awaitIdle();
+        self::assertSame($first, $stack->llm->requests[1]->model, 'a model of the lists stays with its conversation');
+
+        $listed = false;
+        $this->stores->set(ModelRole::MAIN, ModelRef::parse(self::B), 'список сменился', ModelRole::SET_BY_AGENT);
+        $stack->say('продолжай');
+        $stack->scheduler->awaitIdle();
+
+        self::assertSame(self::B, $stack->llm->requests[2]->model, 'the next run is routed anew');
+    }
+
     public function testTheNextRunOfAConversationOfTheRoleGoesOnTheNewModel(): void {
         $classifier = new RequestClassifier(new ScriptedLlm(), fn(): string => (string) $this->roles->model(ModelRole::CHEAP), new NullLogger());
         $router = new ModelRouter($classifier, $this->roles, $this->stores, $this->stores, 131072, new NullLogger());

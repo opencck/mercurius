@@ -79,7 +79,7 @@ final class ProviderRouter implements LlmClient {
         } elseif ($e->status === 403 && $ref->provider === ModelRef::ANTIGRAVITY) {
             // spec: brief/models.md#google-по-подписке — Google asks the owner of the account to act: the plan is not
             // called again until the owner says so (/antigravity resume), not asked again in ten minutes
-            $this->pauses->pauseFor($ref->provider, self::ACCOUNT_PAUSE, ProviderPauses::ACCOUNT);
+            $this->pauses->pauseFor($ref->provider, self::ACCOUNT_PAUSE, ProviderPauses::ACCOUNT, $e->getMessage());
         } elseif ($e->kind === ErrorKind::Auth && in_array($ref->provider, ModelRef::SUBSCRIPTIONS, true)) {
             $this->pauses->pauseFor($ref->provider, 600, ProviderPauses::SIGN_IN);
         }

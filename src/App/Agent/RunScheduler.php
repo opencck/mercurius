@@ -570,6 +570,18 @@ final class RunScheduler {
     /** The active project of a chat goes into the prompt of its new conversations. */
     /** spec: brief/self-improvement.md#самоулучшение — the active notes the owner accepted come into new prompts */
     /** spec: brief/network.md#подключения-агентов — the agent knows its own address and how a neighbour connects to it */
+    /** @var (Closure(string): bool)|null whether a model is in one of the owner's text lists */
+    private ?Closure $listed = null;
+
+    /**
+     * The owner's lists of text models: a conversation whose model left them is routed anew at its next run.
+     *
+     * @param Closure(string): bool $listed
+     */
+    public function useModelLists(Closure $listed): void {
+        $this->listed = $listed;
+    }
+
     public function useInstance(string $about): void {
         $this->instance = $about;
     }
@@ -872,6 +884,16 @@ final class RunScheduler {
         if ($meta->systemPrompt !== null && $this->providers !== [] && !in_array(ModelRef::parse($model)->provider, $this->providers, true)) {
             $this->logger->warning('Conversation model has no provider key; the default one is used', ['conversation' => $conversationId, 'model' => $model]);
             $model = $this->model;
+        }
+        // spec: brief/models.md#списки-моделей-по-категориям — a model in no list is never called: when the owner changed the
+        //       lists and the model of an open conversation left them, its next run is routed anew
+        if ($meta->systemPrompt !== null && $this->router !== null && $this->listed !== null && !($this->listed)($model)) {
+            $next = (string) $this->router->choose($conversationId, $text);
+            if ($next !== $model) {
+                $this->conversations->switchModel($conversationId, $next);
+                $this->logger->notice('Conversation model left the lists; the conversation moves', ['conversation' => $conversationId, 'from' => $model, 'to' => $next]);
+                $model = $next;
+            }
         }
         if ($meta->systemPrompt === null) {
             // spec: brief/agent-loop.md#модели — the model is chosen when the conversation opens and kept while the model of its role

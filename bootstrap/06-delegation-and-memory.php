@@ -95,6 +95,14 @@ $scheduler = new RunScheduler(
 );
 $scheduler->useApprovals($approvals);
 $scheduler->useBackground($background);
+// spec: brief/models.md#списки-моделей-по-категориям — an open conversation leaves a model the owner took off the lists
+$scheduler->useModelLists(static function (string $model) use ($modelRoles): bool {
+    try {
+        return $modelRoles->allowedText(\OpenCCK\Domain\Agent\ModelRef::parse($model));
+    } catch (\InvalidArgumentException) {
+        return true;
+    }
+});
 $memoryStore = new PostgresMemoryStore($db);
 // spec: brief/memory.md#журнал-выдачи-причины-и-срок — the journal of recall keeps 30 days, a line with an outcome 90
 \Revolt\EventLoop::unreference(\Revolt\EventLoop::repeat(86400, static function () use ($memoryStore, $logger): void {

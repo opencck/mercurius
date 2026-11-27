@@ -31,7 +31,7 @@ final class ProviderPauses {
     private readonly Closure $clock;
 
     /**
-     * @param ?Closure(string, string, int): void $notify tells the owner: provider or model, why (LIMIT or SIGN_IN), until
+     * @param ?Closure(string, string, int, ?string): void $notify tells the owner: provider or model, why (LIMIT, SIGN_IN or ACCOUNT), until, the words of the provider
      * @param ?Closure(): int $clock
      * @param ?Closure(string): string $word the owner's word on paid use for a provider: a pause by a limit stands only
      *        while that word is what it was — a word that allows more lifts it at once
@@ -47,7 +47,7 @@ final class ProviderPauses {
     /**
      * Who tells the owner: the channel to the owner is made after the models.
      *
-     * @param Closure(string, string, int): void $notify
+     * @param Closure(string, string, int, ?string): void $notify
      */
     public function tellWith(Closure $notify): void {
         $this->notify = $notify;
@@ -57,7 +57,7 @@ final class ProviderPauses {
      * @param string $provider a provider (a lost sign-in) or a model "provider:model" (a used-up window: plans have
      *        windows per model, so the other models of the subscription go on)
      */
-    public function pause(string $provider, int $until, string $why): void {
+    public function pause(string $provider, int $until, string $why, ?string $said = null): void {
         if ($until <= ($this->clock)()) {
             return;
         }
@@ -71,15 +71,15 @@ final class ProviderPauses {
             $this->told = [$key => true];
         }
         try {
-            ($this->notify)($provider, $why, $until);
+            ($this->notify)($provider, $why, $until, $said);
         } catch (Throwable) {
             // the notice is a courtesy: the pause works without it
         }
     }
 
     /** A pause for so many seconds from now, by the clock of the pauses. */
-    public function pauseFor(string $provider, int $seconds, string $why): void {
-        $this->pause($provider, ($this->clock)() + $seconds, $why);
+    public function pauseFor(string $provider, int $seconds, string $why, ?string $said = null): void {
+        $this->pause($provider, ($this->clock)() + $seconds, $why, $said);
     }
 
     /** The provider serves again: the owner signed in. */
