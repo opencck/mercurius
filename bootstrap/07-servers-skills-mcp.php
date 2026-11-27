@@ -387,6 +387,7 @@ if ($sandbox !== null) {
     $tools->register(new \OpenCCK\App\Mcp\McpInstallTool($mcpInstaller, $sandbox));
     // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent writes an entry, its card approves it
     $mcpManageTool = new \OpenCCK\App\Mcp\McpManageTool($mcpInstaller);
+    $mcpManageTool->useConnections($mcpServers);
     $mcpManageTool->useEntries(static fn(string $context, string $name, array $entry, Member $who): array => $mcpFiles->request($context, $name, $entry, $who));
     $mcpManageTool->useEntryRemoval(static fn(string $context, string $name, Member $who): array => $mcpFiles->dismiss($context, $name, $who));
     $tools->register($mcpManageTool);

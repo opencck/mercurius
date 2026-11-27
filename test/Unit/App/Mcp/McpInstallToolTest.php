@@ -68,6 +68,26 @@ final class McpInstallToolTest extends TestCase {
         self::assertSame('mcp-allow:template project:5', $manage->grantKey(['action' => 'allow', 'name' => 'template', 'context' => 'project:5']));
     }
 
+    /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent sees the state of the connections and why one fails */
+    public function testTheListShowsTheConnectionsOfThisContextAndOfTheOwners(): void {
+        $sandbox = new FakeSandbox();
+        $manage = new \OpenCCK\App\Mcp\McpManageTool(new McpInstaller(new InMemoryMcpInstallRepository(), new McpSources($sandbox), $sandbox, static fn(): array => [], static fn(\OpenCCK\App\Mcp\McpEntry $e, string $c): \OpenCCK\App\Mcp\McpRendered => $e->render(static fn(): ?string => null), static fn(): string => ''));
+        $servers = new \OpenCCK\Test\Support\InMemoryMcpServerRepository();
+        $servers->add('owners', 'gemini-api', 'stdio:php gemini', null);
+        $servers->update('owners', 'gemini-api', 'error', null, 'no secret GEMINI_API_KEY');
+        $servers->add('member:1', 'mail', 'stdio:php mail', null);
+        $servers->update('member:1', 'mail', 'connected', 'h');
+        $servers->add('member:2', 'other', 'stdio:php other', null);
+        $manage->useConnections($servers);
+        $owner = new \OpenCCK\Domain\Entity\Member(1, \OpenCCK\Domain\Entity\MemberKind::Human, \OpenCCK\Domain\Entity\Role::admin(), 'Я');
+
+        $listed = $manage->execute(['action' => 'list'], new \OpenCCK\App\Agent\Tool\ToolContext(1, 1, $owner, new \Amp\NullCancellation()))->content;
+
+        self::assertStringContainsString('mail — connected', $listed);
+        self::assertStringContainsString('gemini-api — error: no secret GEMINI_API_KEY', $listed);
+        self::assertStringNotContainsString('other', $listed, 'another member\'s connections are not shown');
+    }
+
     /** spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — an entry not written is an error, not data to read past */
     public function testAnEntryNotWrittenIsAnError(): void {
         $sandbox = new FakeSandbox();

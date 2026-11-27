@@ -39,6 +39,32 @@ final class McpManageTool implements Tool, GrantKeyed {
         $this->entries = $entries;
     }
 
+    private ?\OpenCCK\Domain\Repository\McpServerRepository $connections = null;
+
+    /**
+     * spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — list shows the connections of this chat's context and,
+     *       to an owner, of the owners' one: the state and why one fails (a missing secret, an entry waiting for a card),
+     *       so the agent tells the owner what to do instead of guessing
+     */
+    public function useConnections(\OpenCCK\Domain\Repository\McpServerRepository $connections): void {
+        $this->connections = $connections;
+    }
+
+    /** The connections of the contexts the caller may see, one line each. */
+    private function connectionsOf(string $here, \OpenCCK\Domain\Entity\Member $who): string {
+        if ($this->connections === null) {
+            return '';
+        }
+        $lines = [];
+        foreach (array_unique([$here, ...($who->isOwner() ? ['owners'] : [])]) as $context) {
+            foreach ($this->connections->inContext($context) as $server) {
+                $note = trim($server->note);
+                $lines[] = sprintf('- %s: %s — %s%s', $context, $server->name, $server->status, $note === '' ? '' : ': ' . mb_substr($note, 0, 300));
+            }
+        }
+        return $lines === [] ? '' : "\n\n" . t('tool.mcp_manage.connections') . "\n" . implode("\n", $lines);
+    }
+
     /** @var (\Closure(string, string, \OpenCCK\Domain\Entity\Member): array{bool, string})|null takes an entry out of a context's .mcp.json */
     private ?\Closure $removal = null;
 
@@ -132,7 +158,7 @@ final class McpManageTool implements Tool, GrantKeyed {
             'remove' => $this->installer->remove($who, $name),
             'allow' => $this->installer->allow($who, $name, $target, true),
             'disallow' => $this->installer->allow($who, $name, $target, false),
-            default => $this->installer->list(),
+            default => $this->installer->list() . $this->connectionsOf($here, $who),
         });
     }
 }
