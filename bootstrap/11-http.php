@@ -142,6 +142,8 @@ $tools->register(new \OpenCCK\App\Agent\Tool\Self\SelfInfoTool([
         foreach (\OpenCCK\App\Agent\Model\ModelLists::TEXT as $role => $setting) {
             $parts[] = sprintf('%s (%s): %s; выбрана %s', $role, $setting, implode(', ', array_map(static fn(\OpenCCK\Domain\Agent\ModelRef $m): string => (string) $m, $modelLists->of($role))), (string) $modelRoles->model($role));
         }
+        $fallback = $modelLists->fallback();
+        $parts[] = sprintf('fallback (%s): %s', \OpenCCK\App\Agent\Model\ModelLists::FALLBACK, implode(', ', array_map('strval', $fallback)) ?: '—');
         foreach (\OpenCCK\App\Agent\Model\ModelLists::OTHER as $category => $setting) {
             // the list of sleep is read at each pass, so it is shown as it is now
             $list = $category === 'sleep' ? $sleepModels() : $modelLists->other($category);

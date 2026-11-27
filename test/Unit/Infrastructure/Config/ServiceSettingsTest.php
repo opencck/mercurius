@@ -71,6 +71,15 @@ final class ServiceSettingsTest extends TestCase {
         self::assertStringNotContainsString('sk-or-secret', print_r($settings, true));
     }
 
+    public function testWithoutLlmModelTheStartingModelIsTheFirstFallbackOne(): void {
+        // spec: brief/models.md#запасные-модели — a new installation names the fallback models only
+        $fallback = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'LLM_FALLBACK_MODELS' => 'anthropic:x, openrouter:nvidia/nemotron-3.5-super-vl:free']);
+        $own = LlmSettings::fromEnv(['OPENROUTER_API_KEY' => 'sk-or', 'LLM_MODEL' => 'author/own', 'LLM_FALLBACK_MODELS' => 'nvidia/nemotron-3.5-super-vl:free']);
+
+        self::assertSame('openrouter:nvidia/nemotron-3.5-super-vl:free', $fallback->model, 'the first one a provider with a key serves');
+        self::assertSame('author/own', $own->model, 'LLM_MODEL, when set, stays');
+    }
+
     public function testLlmRouteAndOverrides(): void {
         $settings = LlmSettings::fromEnv([
             'OPENROUTER_API_KEY' => 'sk-or-secret',

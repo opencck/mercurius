@@ -100,6 +100,25 @@ final class ModelListEditTest extends AsyncTestCase {
     }
 
     /** spec: brief/models.md#списки-моделей-по-категориям — the search takes a model of OpenRouter only; another one left it with no search */
+    public function testTheFallbackCategoryIsEditedLikeATextOne(): void {
+        // spec: brief/models.md#запасные-модели
+        self::assertContains('fallback', ModelListEditor::categories());
+        self::assertSame('LLM_FALLBACK_MODELS', ModelListEditor::setting('fallback'));
+
+        $said = $this->editor->change($this->owner, 'fallback', 'set', ['author/b']);
+
+        self::assertSame(sprintf(t('settings.saved_live'), 'LLM_FALLBACK_MODELS'), $said);
+        self::assertSame(['openrouter:author/b'], array_map('strval', $this->lists->fallback()));
+        self::assertStringContainsString('fallback — LLM_FALLBACK_MODELS: openrouter:author/b', $this->editor->show());
+        try {
+            $this->editor->change($this->owner, 'fallback', 'add', ['author/notools']);
+            self::fail('a fallback model answers in a conversation: it must call tools');
+        } catch (DomainException) {
+        }
+        $this->editor->change($this->owner, 'fallback', 'set', []);
+        self::assertSame([], $this->lists->fallback(), 'the fallback category may be emptied');
+    }
+
     public function testAChangeOfATextListSaysWhichModelTheRoleTakesNow(): void {
         // spec: brief/models.md#списки-моделей-по-категориям — seen live: the agent put a model first in the list and told
         //       the owner it is now the main one, while the role kept the model it had

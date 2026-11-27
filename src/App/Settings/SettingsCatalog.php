@@ -65,7 +65,7 @@ final class SettingsCatalog {
      *
      * spec: brief/operations.md#настройки-агента
      */
-    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT', 'LLM_CHEAP_MODELS', 'LLM_MAIN_MODELS', 'LLM_STRONG_MODELS', 'WEB_SEARCH_MODELS', 'MEDIA_VISION_MODELS', 'MEDIA_IMAGE_MODELS', 'MEDIA_SPEECH_MODELS', 'MEDIA_VIDEO_MODELS', 'CLAUDE_CODE_EXTRA_USAGE', 'CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT'];
+    public const LIVE = ['MEMORY_RULES_NOTICE', 'MEMORY_SLEEP_MODELS', 'MEMORY_SLEEP_TRANSLATE', 'MEMORY_SLEEP_AUTO', 'MEMORY_SLEEP_USD', 'CONTEXT_MAX_TOKENS', 'CONTEXT_COMPACT_PERCENT', 'LLM_CHEAP_MODELS', 'LLM_MAIN_MODELS', 'LLM_STRONG_MODELS', 'LLM_FALLBACK_MODELS', 'WEB_SEARCH_MODELS', 'MEDIA_VISION_MODELS', 'MEDIA_IMAGE_MODELS', 'MEDIA_SPEECH_MODELS', 'MEDIA_VIDEO_MODELS', 'CLAUDE_CODE_EXTRA_USAGE', 'CLAUDE_CODE_EXTRA_USAGE_RESERVE_PERCENT'];
 
     /** @var array<string, array{string, string, string}> key => [group id, kind, catalog key of what it is] (texts — settings.group.*, settings.about.*) */
     public const ALL = [
@@ -91,6 +91,8 @@ final class SettingsCatalog {
         'LLM_CHEAP_MODELS' => ['models', self::TEXT, 'settings.about.llm_cheap_models'],
         'LLM_MAIN_MODELS' => ['models', self::TEXT, 'settings.about.llm_main_models'],
         'LLM_STRONG_MODELS' => ['models', self::TEXT, 'settings.about.llm_strong_models'],
+        // spec: brief/models.md#запасные-модели — the models of an empty text category and of a failed run
+        'LLM_FALLBACK_MODELS' => ['models', self::TEXT, 'settings.about.llm_fallback_models'],
         'LLM_REASONING_EFFORT' => ['models', self::TEXT, 'settings.about.llm_reasoning_effort'],
         'LLM_MAX_TOKENS' => ['models', self::INT, 'settings.about.llm_max_tokens'],
         'LLM_HISTORY_LIMIT' => ['models', self::INT, 'settings.about.llm_history_limit'],

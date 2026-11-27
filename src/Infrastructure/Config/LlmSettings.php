@@ -94,7 +94,9 @@ final class LlmSettings {
             }
         }
         $first = ProviderProfile::all()[$providers[0]];
-        $model = self::model($env, 'LLM_MODEL', self::bare($first->model), $providers);
+        // spec: brief/models.md#запасные-модели — without LLM_MODEL the starting model is the first fallback one
+        $default = self::firstFallback($env, $providers) ?? self::bare($first->model);
+        $model = self::model($env, 'LLM_MODEL', $default === '' ? $first->model : $default, $providers);
         $window = Env::positiveInt($env, 'LLM_CONTEXT_WINDOW', 131_072, 10_000_000);
         if ($window < 4096) {
             throw ConfigException::invalid('LLM_CONTEXT_WINDOW', 'at least 4096 tokens');
@@ -173,6 +175,28 @@ final class LlmSettings {
      * @param non-empty-string $model
      * @return non-empty-string
      */
+    /**
+     * The first fallback model a provider with a key serves; null — none.
+     *
+     * @param array<array-key, mixed> $env
+     * @param list<string> $providers
+     * @return ?non-empty-string
+     */
+    private static function firstFallback(array $env, array $providers): ?string {
+        foreach (explode(',', Env::raw($env, 'LLM_FALLBACK_MODELS') ?? '') as $name) {
+            try {
+                $ref = ModelRef::parse(trim($name));
+            } catch (InvalidArgumentException) {
+                continue;
+            }
+            $model = (string) $ref;
+            if ($model !== '' && in_array($ref->provider, $providers, true)) {
+                return $model;
+            }
+        }
+        return null;
+    }
+
     private static function bare(string $model): string {
         $prefix = ModelRef::OPENROUTER . ':';
         $id = str_starts_with($model, $prefix) ? substr($model, strlen($prefix)) : $model;

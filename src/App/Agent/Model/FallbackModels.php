@@ -22,7 +22,8 @@ use function Mercurius\I18n\t;
  * A model whose provider is off the choice — a used-up window of a subscription, a lost sign-in — is replaced only by
  * another model of the same category list, in the owner's order, at a provider that serves now. No such model — no
  * switch: the owner chose the subscription for this category, and another category would be a model he did not put
- * there. A role model at a provider off the choice is skipped too.
+ * there. A role model at a provider off the choice is skipped too. The fallback category is the owner's word for this
+ * case: when nothing else serves, the run moves to the first fallback model that does.
  *
  * spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории
  * spec: brief/models.md#провайдеры-моделей-openrouter-и-openai — a failed model is switched once
@@ -53,6 +54,8 @@ final class FallbackModels {
         $why = '';
         if ($this->pauses?->blocking($ref) !== null) {
             [$next, $why] = $this->sameCategory($ref);
+            // spec: brief/models.md#запасные-модели — the models the owner named for this
+            [$next, $why] = $next === null ? $this->fallback($ref) : [$next, $why];
             if ($next === null) {
                 $this->logger->notice('A model off the choice has no other model in its category', ['model' => (string) $ref]);
                 return null;
@@ -72,7 +75,7 @@ final class FallbackModels {
             $main = $this->roles->model(ModelRole::MAIN);
             $strong = $this->roles->model(ModelRole::STRONG);
             $serves = fn(ModelRef $model): bool => (string) $model !== (string) $ref && $this->pauses?->blocking($model) === null;
-            [$next, $why] = $serves($main) ? [$main, t('model.fallback_models.rol_main')] : ($serves($strong) ? [$strong, t('model.fallback_models.rol_strong')] : [null, '']);
+            [$next, $why] = $serves($main) ? [$main, t('model.fallback_models.rol_main')] : ($serves($strong) ? [$strong, t('model.fallback_models.rol_strong')] : $this->fallback($ref));
         }
         if ($next === null) {
             return null;
@@ -85,6 +88,16 @@ final class FallbackModels {
             $this->logger->error('Could not record a routing decision', ['error' => $e::class]);
         }
         return (string) $next;
+    }
+
+    /** @return array{?ModelRef, string} the first fallback model that serves and is not the failed one */
+    private function fallback(ModelRef $ref): array {
+        foreach ($this->roles->fallback() as $model) {
+            if ((string) $model !== (string) $ref && $this->pauses?->blocking($model) === null && in_array($model->provider, $this->roles->providers(), true)) {
+                return [$model, t('model.fallback_models.fallback')];
+            }
+        }
+        return [null, ''];
     }
 
     /** @return array{?ModelRef, string} the next model of the list that holds the failed one, and why */

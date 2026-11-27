@@ -12,11 +12,13 @@ use OpenCCK\Infrastructure\Config\Env;
 
 /**
  * The models the owner allowed, by category. The agent chooses a model for a task itself, but only among these: a
- * model that is in no list is never called. A new installation has one model — the starting one from the settings —
- * in each of the three text lists and nothing in the others; the owner fills them as the need comes. Read live, the
- * lists follow the settings without a restart.
+ * model that is in no list is never called. A new installation has every category empty but the fallback one: a text
+ * category the owner left empty takes the fallback models, and a run whose model failed moves to them. Without fallback
+ * models an empty text category is the starting model of the settings, as before. Read live, the lists follow the
+ * settings without a restart.
  *
  * spec: brief/models.md#списки-моделей-по-категориям
+ * spec: brief/models.md#запасные-модели
  */
 final class ModelLists {
     /** the text categories — the roles of a conversation's model — and the setting each list lies in */
@@ -37,6 +39,11 @@ final class ModelLists {
         'sleep' => 'MEMORY_SLEEP_MODELS',
     ];
 
+    /** the setting of the fallback text models */
+    public const FALLBACK = 'LLM_FALLBACK_MODELS';
+    /** the name of the fallback category in the tools and commands */
+    public const FALLBACK_CATEGORY = 'fallback';
+
     /** seconds a live read of the lists is kept: the lists are asked at every choice of a model */
     public const REREAD = 5.0;
 
@@ -51,10 +58,12 @@ final class ModelLists {
     /**
      * @param array<string, list<ModelRef>> $text the lists of the text categories, by role
      * @param array<string, list<string>> $other the lists of the other categories, as the owner wrote them
+     * @param list<ModelRef> $fallback the fallback text models
      */
     public function __construct(
         private array $text,
         private array $other = [],
+        private array $fallback = [],
     ) {}
 
     /**
@@ -92,14 +101,14 @@ final class ModelLists {
         }
         $this->readAt = $now;
         $env = [];
-        foreach ([...array_values(self::TEXT), ...array_values(self::OTHER)] as $setting) {
+        foreach ([...array_values(self::TEXT), ...array_values(self::OTHER), self::FALLBACK] as $setting) {
             $value = $read($setting);
             if ($value !== null) {
                 $env[$setting] = $value;
             }
         }
         $all = self::fromEnv($env, $start);
-        [$this->text, $this->other] = [$all->text, $all->other];
+        [$this->text, $this->other, $this->fallback] = [$all->text, $all->other, $all->fallback];
     }
 
     /**
@@ -107,16 +116,17 @@ final class ModelLists {
      * @param non-empty-string $start the starting model: the only one of a text list the owner has not filled
      */
     public static function fromEnv(array $env, string $start): self {
+        $fallback = self::refs(Env::raw($env, self::FALLBACK) ?? '');
         $text = [];
         foreach (self::TEXT as $role => $setting) {
             $list = self::refs(Env::raw($env, $setting) ?? '');
-            $text[$role] = $list === [] ? self::refs($start) : $list;
+            $text[$role] = $list !== [] ? $list : ($fallback !== [] ? $fallback : self::refs($start));
         }
         $other = [];
         foreach (self::OTHER as $category => $setting) {
             $other[$category] = self::names(Env::raw($env, $setting) ?? '');
         }
-        return new self($text, $other);
+        return new self($text, $other, $fallback);
     }
 
     /** @return list<string> */
@@ -144,6 +154,12 @@ final class ModelLists {
         return $this->text[$role] ?? [];
     }
 
+    /** @return list<ModelRef> the fallback text models the owner named; empty — none */
+    public function fallback(): array {
+        $this->fresh();
+        return $this->fallback;
+    }
+
     /** @return list<string> the models of another category, as written */
     public function other(string $category): array {
         $this->fresh();
@@ -159,10 +175,15 @@ final class ModelLists {
         return false;
     }
 
-    /** Whether the model is in any of the text lists: only such a model answers in a conversation. */
+    /** Whether the model is in any of the text lists or the fallback one: only such a model answers in a conversation. */
     public function allowsText(ModelRef $model): bool {
         foreach (array_keys(self::TEXT) as $role) {
             if ($this->allows($role, $model)) {
+                return true;
+            }
+        }
+        foreach ($this->fallback() as $allowed) {
+            if ((string) $allowed === (string) $model) {
                 return true;
             }
         }

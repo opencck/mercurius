@@ -8,6 +8,7 @@ use DomainException;
 use InvalidArgumentException;
 use OpenCCK\App\Settings\SettingsService;
 use OpenCCK\Domain\Agent\ModelRef;
+use OpenCCK\Domain\Agent\ModelRole;
 use OpenCCK\Domain\Entity\Member;
 
 use function Mercurius\I18n\t;
@@ -30,13 +31,13 @@ final class ModelListEditor {
         private readonly ModelRoles $roles,
     ) {}
 
-    /** @return list<string> the categories: the text roles, then the others */
+    /** @return list<string> the categories: the text roles, the fallback one, then the others */
     public static function categories(): array {
-        return [...array_keys(ModelLists::TEXT), ...array_keys(ModelLists::OTHER)];
+        return [...array_keys(ModelLists::TEXT), ModelLists::FALLBACK_CATEGORY, ...array_keys(ModelLists::OTHER)];
     }
 
     public static function setting(string $category): ?string {
-        return ModelLists::TEXT[$category] ?? ModelLists::OTHER[$category] ?? null;
+        return ModelLists::TEXT[$category] ?? ($category === ModelLists::FALLBACK_CATEGORY ? ModelLists::FALLBACK : null) ?? ModelLists::OTHER[$category] ?? null;
     }
 
     /** Every category: its setting and its models now. */
@@ -45,6 +46,8 @@ final class ModelListEditor {
         foreach (ModelLists::TEXT as $role => $setting) {
             $lines[] = sprintf('%s — %s: %s', $role, $setting, implode(', ', array_map('strval', $this->lists->of($role))));
         }
+        $fallback = $this->lists->fallback();
+        $lines[] = sprintf('%s — %s: %s', ModelLists::FALLBACK_CATEGORY, ModelLists::FALLBACK, $fallback === [] ? '—' : implode(', ', array_map('strval', $fallback)));
         foreach (ModelLists::OTHER as $category => $setting) {
             $models = $this->lists->other($category);
             $lines[] = sprintf('%s — %s: %s', $category, $setting, $models === [] ? '—' : implode(', ', $models));
@@ -69,21 +72,23 @@ final class ModelListEditor {
             throw new DomainException(sprintf(t('model.lists.no_action'), $action));
         }
         $text = isset(ModelLists::TEXT[$category]);
+        $fallback = $category === ModelLists::FALLBACK_CATEGORY;
         $asked = [];
         foreach ($models as $model) {
             $model = trim($model);
             if ($model === '') {
                 continue;
             }
-            if ($text) {
+            if ($text || $fallback) {
                 try {
                     $ref = ModelRef::parse($model);
                 } catch (InvalidArgumentException) {
                     throw new DomainException(t('model.model_roles.model_ukazyvaetsya_kak_provayder_identif'));
                 }
                 // removing does not need the model to be callable now: a model gone from the catalog leaves too
+                // a fallback model answers in a conversation of any role: it is checked as the main one
                 if ($action !== 'remove') {
-                    $this->roles->check($category, $ref);
+                    $this->roles->check($fallback ? ModelRole::MAIN : $category, $ref);
                 }
                 $model = (string) $ref;
             }
@@ -99,7 +104,11 @@ final class ModelListEditor {
                 }
             }
         }
-        $now = $text ? array_map('strval', $this->lists->of($category)) : $this->lists->other($category);
+        $now = match (true) {
+            $text => array_map('strval', $this->lists->of($category)),
+            $fallback => array_map('strval', $this->lists->fallback()),
+            default => $this->lists->other($category),
+        };
         $next = match ($action) {
             'add' => array_values(array_unique([...$now, ...$asked])),
             'remove' => array_values(array_diff($now, $asked)),

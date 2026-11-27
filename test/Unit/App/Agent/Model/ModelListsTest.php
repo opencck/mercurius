@@ -36,6 +36,18 @@ final class ModelListsTest extends TestCase {
         self::assertFalse($lists->allowsText(ModelRef::parse('openai/gpt-5.6-luna')), 'no model is built in');
     }
 
+    public function testTheFallbackCategoryFillsTheTextCategoriesTheOwnerLeftEmpty(): void {
+        // spec: brief/models.md#запасные-модели — a new installation: every category empty, the fallback one has a model
+        $lists = ModelLists::fromEnv(['LLM_FALLBACK_MODELS' => 'openrouter:nvidia/nemotron-3.5-super-vl:free', 'LLM_MAIN_MODELS' => 'author/a'], 'author/start');
+
+        self::assertSame(['openrouter:nvidia/nemotron-3.5-super-vl:free'], array_map('strval', $lists->fallback()));
+        self::assertSame(['openrouter:nvidia/nemotron-3.5-super-vl:free'], array_map('strval', $lists->of(ModelRole::CHEAP)), 'an empty text category takes the fallback models');
+        self::assertSame(['openrouter:author/a'], array_map('strval', $lists->of(ModelRole::MAIN)), 'a filled one keeps its own');
+        self::assertTrue($lists->allowsText(ModelRef::parse('openrouter:nvidia/nemotron-3.5-super-vl:free')), 'a fallback model may answer');
+        self::assertFalse($lists->allowsText(ModelRef::parse('author/start')), 'the starting model stands in only when there is no fallback');
+        self::assertSame([], ModelLists::fromEnv([], 'author/start')->fallback(), 'no fallback category: the starting model as before, and no switch to it');
+    }
+
     public function testTheOwnerFillsTheListsAndTheOtherCategories(): void {
         $lists = ModelLists::fromEnv([
             'LLM_MAIN_MODELS' => 'author/a, openai:b ,author/a',

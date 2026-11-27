@@ -45,6 +45,11 @@ final class ModelRoles {
         return $this->lists === null || $this->lists->allowsText($model);
     }
 
+    /** @return list<ModelRef> the fallback text models the owner named */
+    public function fallback(): array {
+        return $this->lists?->fallback() ?? [];
+    }
+
     /** @return list<ModelRef> the owner's list of a role; empty — no list is kept (any model) */
     public function listOf(string $role): array {
         return $this->lists?->of($role) ?? [];
