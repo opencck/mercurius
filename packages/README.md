@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `f7ae583` | 2026-11-27 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `efece4b` | 2026-11-27 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `ca9bec7` | 2026-11-27 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `15860ed` | 2026-11-27 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `ad78a39` | 2026-11-27 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
@@ -59,6 +59,8 @@ compose, по умолчанию выключен ([Модули: сервисы
   совпадения перед переводом строки; цена конечная и до 1000 долларов, окно до 10 млн токенов; из названия убраны
   управляющие и невидимые символы.
 - `i18n` `26909f7` → `efece4b`: предупреждение о текстовой модели MCP говорит, что она и выбирает инструменты агента.
+- `i18n` `efece4b` → `ca9bec7`: ошибка запуска MCP общего файла владельцев без секрета сразу называет команду
+  `/secret *: <имя>` — короткой строкой, которая целиком помещается в сохранённую причину.
 
 ### 2026-11-27 — подключения MCP в списке mcp_manage
 

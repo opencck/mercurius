@@ -874,7 +874,11 @@ final class McpManager {
         $entry = $entry->withMoreArgs($this->moreArgs === null ? [] : ($this->moreArgs)($server));
         $rendered = $secrets->render($entry, $server->context);
         if ($rendered->missing !== []) {
-            throw new DomainException(sprintf(t('mcp.mcp_manager.secret_missing'), implode(', ', $rendered->missing), $server->name));
+            // spec: brief/skills-mcp.md#подстановка-секретов — the owners' file takes only secrets of the agent: its own
+            //       words, short, so the kept reason (300 characters) names the command whole
+            throw new DomainException($server->context === 'owners'
+                ? sprintf(t('mcp.mcp_manager.secret_missing_owners'), implode(', ', $rendered->missing), $server->name, $rendered->missing[0])
+                : sprintf(t('mcp.mcp_manager.secret_missing'), implode(', ', $rendered->missing), $server->name));
         }
         return [$server->withEndpoint($rendered->address, $rendered->headers, $rendered->env, $rendered->hash), null, $rendered->values];
     }

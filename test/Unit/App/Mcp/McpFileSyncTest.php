@@ -199,6 +199,19 @@ final class McpFileSyncTest extends AsyncTestCase {
         self::assertSame([], $this->told);
     }
 
+    public function testAMissingSecretOfTheOwnersFileNamesTheCommandOfASecretOfTheAgent(): void {
+        // spec: brief/skills-mcp.md#подстановка-секретов — the owners' file takes only secrets of the agent: the reason says
+        //       how to put one, first, so the kept reason does not lose it
+        $entry = McpEntry::fromArray('gem', ['command' => 'php', 'args' => ['/workspace/mcp/gemini-api/current/bin/gemini-api-mcp'], 'env' => ['GEMINI_API_KEY' => '{GEMINI_API_KEY}']]);
+        $this->files->accept('owners', $entry, $this->owner);
+        $this->files->approve('owners', 'gem', $this->owner);
+        $this->files->sync('owners');
+
+        $server = $this->servers->find('owners', 'gem') ?? self::fail('kept');
+        self::assertSame(McpServer::ERROR, $server->status);
+        self::assertStringContainsString('/secret *: GEMINI_API_KEY', $server->note);
+    }
+
     public function testTheAgentWritesAnEntryThatWaitsForItsCardOnlyInAContextOfTheCaller(): void {
         // spec: brief/skills-mcp.md#файл-mcpjson-и-одобрение-записи — the agent writes an entry, its card approves it
         $raw = ['command' => 'php', 'args' => ['/workspace/mcp/mail/current/bin/mail-mcp-stdio', '--host=mail.example.com', '--user=me@example.com'], 'env' => ['MAIL_PASSWORD' => '{mail-admin}']];
