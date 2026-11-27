@@ -143,4 +143,4 @@ $modelRouter = new ModelRouter(
     $llmSettings->contextWindow,
     $logger,
 );
-$logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'providers' => $llmSettings->providers(), 'model' => $llmSettings->model]);
+$logger->info('Model route', ['route' => $llmSettings->routeUri() === null ? 'direct' : 'vless', 'providers' => $modelProviders, 'model' => $llmSettings->model]);

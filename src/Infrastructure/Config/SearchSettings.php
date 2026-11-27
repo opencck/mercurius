@@ -46,7 +46,7 @@ final class SearchSettings {
      * The models of the owner's list for the search the search can call, in their order.
      *
      * @param array<array-key, mixed> $env
-     * @return list<array{string, non-empty-string}> the provider and the model id of the provider
+     * @return list<array{string, string}> the provider and the model id of the provider
      */
     private static function searchModels(array $env): array {
         $models = [];
@@ -63,7 +63,7 @@ final class SearchSettings {
      * The provider and the model a name of the list stands for; null — the search cannot call it (a model of a
      * subscription, of a provider without a web search, or not a model id).
      *
-     * @return ?array{string, non-empty-string}
+     * @return ?array{string, string}
      */
     private static function model(string $name): ?array {
         $name = trim($name);
