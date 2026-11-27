@@ -321,6 +321,25 @@ final class AgentLoopTest extends AsyncTestCase {
         }
     }
 
+    public function testANameTheAgentDoesNotKnowIsLookedUpInSelfInfo(): void {
+        // spec: brief/agent-loop.md#знания-агента-о-себе — a module, a provider or a command of its own may stand behind
+        //       a name the model does not know: answers that went out while the module was running
+        $self = new FakeTool('self_info');
+        $this->registry->register($self);
+        $looked = 0;
+        foreach ([
+            'Не знаю сервиса «антигравити» — не встречал такого названия. Дайте ссылку на сайт.',
+            'Я не знаю, что такое «антигравити» в данном контексте — нет такого сервиса или документации у меня под рукой.',
+            "I'm not familiar with a service called Antigravity.",
+        ] as $answer) {
+            $llm = new ScriptedLlm([ScriptedLlm::text($answer), ScriptedLlm::calls(new ToolCall('c1', 'self_info', '{}')), ScriptedLlm::text('Вход — /antigravity login.')]);
+
+            $this->execute($llm, $this->start('авторизуй подписку антигравити'));
+
+            self::assertCount(++$looked, $self->calls, $answer);
+        }
+    }
+
     public function testAnAnswerAboutTheWorldIsNotADenialOfAnAbility(): void {
         // spec: brief/agent-loop.md#знания-агента-о-себе — «так делать нельзя» says nothing of the agent: the answer goes out as it is
         $self = new FakeTool('self_info');

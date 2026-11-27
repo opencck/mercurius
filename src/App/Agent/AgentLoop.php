@@ -90,7 +90,15 @@ final class AgentLoop {
     ];
     /** words that deny anything at all («так делать нельзя»): a denial of the agent's own ability only next to a word about itself */
     private const IMPERSONAL_MARKERS = ['нет возможности', 'нельзя', 'невозможно', 'not possible'];
-    private const ABOUT_ITSELF = '~(?<![\p{L}])(?:я|мне|меня|мной|мо[йяеёию]|моей|моих|моим|i|me|my)(?![\p{L}])~iu';
+    /**
+     * words of an answer that does not know the thing it was asked about by name: a module, a provider of models or a
+     * command of the agent's own may stand behind the name (seen live: «не знаю сервиса» about a module that was running)
+     */
+    private const UNKNOWN_MARKERS = [
+        'не знаю сервис', 'не знаю такого', 'не знаю такой', 'не знаю, что такое', 'не знаю что такое', 'не встречал',
+        'нет такого сервиса', "don't know what", 'not familiar with', 'never heard of',
+    ];
+    private const ABOUT_ITSELF ='~(?<![\p{L}])(?:я|мне|меня|мной|мо[йяеёию]|моей|моих|моим|i|me|my)(?![\p{L}])~iu';
     public const CONTINUE_NOTE = 'agent.agent_loop.continue_note';
     public const EMPTY_NOTE = 'agent.agent_loop.empty_note';
     private const SUMMARY_SECONDS = 60.0;
@@ -677,10 +685,10 @@ final class AgentLoop {
         return $paused;
     }
 
-    /** The answer says the agent has no such ability or feature: worth a look in self_info first. */
+    /** The answer says the agent has no such ability or does not know the thing by its name: worth a look in self_info first. */
     private static function deniesAbility(string $text): bool {
         $lower = mb_strtolower($text);
-        foreach (array_diff(self::DENIAL_MARKERS, self::IMPERSONAL_MARKERS) as $marker) {
+        foreach ([...array_diff(self::DENIAL_MARKERS, self::IMPERSONAL_MARKERS), ...self::UNKNOWN_MARKERS] as $marker) {
             if (str_contains($lower, $marker)) {
                 return true;
             }
