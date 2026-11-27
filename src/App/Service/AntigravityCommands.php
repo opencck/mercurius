@@ -51,7 +51,7 @@ final class AntigravityCommands {
             'login' => $this->login(strtolower(trim(substr($argument, 5))) === 'accept'),
             'code' => $this->code(trim(substr($argument, 4))),
             'resume' => $this->resume(),
-            'logout' => t('antigravity.no_logout'),
+            'logout' => $this->logout(),
             default => $this->show(),
         };
     }
@@ -104,6 +104,10 @@ final class AntigravityCommands {
             // spec: brief/models.md#google-по-подписке — the owner reads what the terms say before the first link
             return sprintf(t('antigravity.warning'), self::TERMS);
         }
+        // spec: brief/models.md#google-по-подписке — a plan signed in already gives no link: the owner signs out first
+        if ($this->subscription->signedIn()) {
+            return t('antigravity.login_again');
+        }
         try {
             [$url, $wait] = $this->subscription->login();
         } catch (Throwable $e) {
@@ -111,6 +115,16 @@ final class AntigravityCommands {
             return $this->subscription->status(true) === null ? t('antigravity.module_down') : t('antigravity.failed');
         }
         return sprintf(t('antigravity.login'), $url, $wait);
+    }
+
+    /** The sign-in is removed so the owner can sign in again, with this account or another one. */
+    private function logout(): string {
+        if (!$this->subscription->logout()) {
+            return $this->subscription->status(true) === null ? t('antigravity.module_down') : t('antigravity.logout_failed');
+        }
+        // a pause belongs to the account that is gone
+        $this->pauses->resume(ModelRef::ANTIGRAVITY);
+        return t('antigravity.logged_out');
     }
 
     private function code(#[SensitiveParameter] string $code): string {

@@ -22,6 +22,7 @@ use OpenCCK\Test\Support\ScriptedLlm;
 use Psr\Log\NullLogger;
 
 use function Amp\ByteStream\buffer;
+use function Mercurius\I18n\t;
 
 /**
  * /antigravity speaks with the module antigravity: the state of the plan and its quota, a sign-in that starts only
@@ -130,7 +131,26 @@ final class AntigravityCommandsTest extends AsyncTestCase {
         self::assertStringContainsString('/antigravity login accept', $this->commands()->handle('code wrong'));
         self::assertCount($calls + 1, $this->asked);
         self::assertStringContainsString('/antigravity code', $this->commands()->handle('code'));
-        self::assertStringNotContainsString('%', $this->commands()->handle('logout'), 'the CLI has no sign-out: the owner is told what to do');
+    }
+
+    public function testTheOwnerSignsOutToSignInAgainWithThisAccountOrAnother(): void {
+        // spec: brief/models.md#google-по-подписке — seen live: Google refused the account, and a new sign-in answered
+        //       only that it had failed: the plan was signed in already
+        $this->status('login');
+        $pauses = new ProviderPauses();
+        $pauses->pauseFor('antigravity', 3600, ProviderPauses::ACCOUNT);
+
+        $again = $this->commands($pauses)->handle('login accept');
+        self::assertStringContainsString('/antigravity logout', $again, 'a plan signed in already says how to sign in anew');
+        self::assertSame([], array_filter($this->asked, static fn(array $a): bool => $a[1] === '/auth/login'), 'and asks the module for no link');
+
+        $this->answers['POST /auth/logout'] = [200, ['auth' => 'none']];
+        $out = $this->commands($pauses)->handle('logout');
+        self::assertSame(t('antigravity.logged_out'), $out);
+        self::assertFalse($pauses->paused('antigravity'), 'a pause of the old account does not stand for the new one');
+
+        $this->answers['POST /auth/logout'] = [503, ['error' => ['message' => 'no']]];
+        self::assertSame(t('antigravity.logout_failed'), $this->commands()->handle('logout'));
     }
 
     public function testTheModelsOfThePlanCostNothingAndCarryTheWindowOfOneMessage(): void {

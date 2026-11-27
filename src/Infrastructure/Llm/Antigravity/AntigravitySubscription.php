@@ -91,6 +91,13 @@ final class AntigravitySubscription {
         return [$url, is_int($wait) && $wait > 0 ? $wait : 60];
     }
 
+    /** Removes the sign-in of the CLI at the owner's word; true — the module signed out. */
+    public function logout(): bool {
+        $data = $this->ask('POST', '/auth/logout', null, 20.0);
+        $this->forget();
+        return $data !== null && self::text($data, 'auth') === 'none';
+    }
+
     /** Passes the code to the CLI; true — the sign-in is done. */
     public function code(#[SensitiveParameter] string $code): bool {
         $data = $this->ask('POST', '/auth/code', ['code' => $code], 60.0);
