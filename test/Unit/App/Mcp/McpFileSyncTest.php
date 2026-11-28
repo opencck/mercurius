@@ -210,6 +210,12 @@ final class McpFileSyncTest extends AsyncTestCase {
         $server = $this->servers->find('owners', 'gem') ?? self::fail('kept');
         self::assertSame(McpServer::ERROR, $server->status);
         self::assertStringContainsString('/secret *: GEMINI_API_KEY', $server->note);
+
+        // spec: brief/skills-mcp.md#подстановка-секретов — a saved secret wakes the connections that waited for it at once
+        $this->vault->putAgent('GEMINI_API_KEY', 'AIza-test', $this->owner);
+        self::assertSame(1, $this->manager->secretSaved('GEMINI_API_KEY'));
+        self::assertSame(McpServer::CONNECTED, $this->servers->find('owners', 'gem')?->status);
+        self::assertSame(0, $this->manager->secretSaved('OTHER_NAME'), 'a connection that did not wait for it is left alone');
     }
 
     public function testTheAgentWritesAnEntryThatWaitsForItsCardOnlyInAContextOfTheCaller(): void {

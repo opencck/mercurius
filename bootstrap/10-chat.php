@@ -434,6 +434,17 @@ $chat->useOwnership($ownership);
 $chat->useRoles($roleCatalog);
 // spec: brief/participants.md#секреты-проекта — "/secret <project>: …" keeps a secret of a project
 $serverCommands->useProjects($projectRepository);
+// spec: brief/skills-mcp.md#подстановка-секретов — a saved secret wakes the MCP connections that waited for it, in the
+//       background: the answer to /secret does not wait for a server to start
+$serverCommands->useSecretSaved(static function (string $name) use ($mcpManager, $logger): void {
+    \Amp\async(static function () use ($mcpManager, $logger, $name): void {
+        try {
+            $mcpManager->secretSaved($name);
+        } catch (\Throwable $e) {
+            $logger->warning('MCP connections were not woken after a secret was saved', ['error' => $e::class]);
+        }
+    });
+});
 /** @var OpenCCK\Infrastructure\Repository\PostgresSecretInheritanceRepository $secretInheritance */
 // spec: brief/skills-mcp.md#подстановка-секретов — a project of the owner of the agent has no owner id: its owner is the owner of the agent
 $serverCommands->useInheritance($secretInheritance, static fn(): ?int => $ownerDirectory->principal()?->id);

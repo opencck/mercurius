@@ -32,6 +32,24 @@ final class ServerCommands {
     /** "/secret <name> <value>" stores, "/secret - <name>" removes. */
     private ?\OpenCCK\Domain\Repository\ProjectRepository $projects = null;
 
+    /** @var (\Closure(string): void)|null told the name of a secret just saved */
+    private ?\Closure $onSaved = null;
+
+    /**
+     * spec: brief/skills-mcp.md#подстановка-секретов — a saved secret wakes at once the MCP connections that waited for it
+     *
+     * @param \Closure(string): void $onSaved
+     */
+    public function useSecretSaved(\Closure $onSaved): void {
+        $this->onSaved = $onSaved;
+    }
+
+    private function saved(string $name): void {
+        if ($this->onSaved !== null) {
+            ($this->onSaved)($name);
+        }
+    }
+
     /** spec: brief/participants.md#секреты-проекта — "/secret <project>: …" keeps a secret of a project */
     public function useProjects(\OpenCCK\Domain\Repository\ProjectRepository $projects): void {
         $this->projects = $projects;
@@ -78,6 +96,7 @@ final class ServerCommands {
         } catch (DomainException $e) {
             return $e->getMessage();
         }
+        $this->saved($parts[0]);
         return sprintf(t($existed ? 'service.server_commands.agent_secret_updated' : 'service.server_commands.agent_secret_saved'), $parts[0]);
     }
 
@@ -173,6 +192,7 @@ final class ServerCommands {
         }
         try {
             $existed = $this->vault->putProject($project->id, $name, $site, $value, $principal);
+            $this->saved($name);
         } catch (DomainException $e) {
             return $e->getMessage();
         }
@@ -208,6 +228,7 @@ final class ServerCommands {
         } catch (DomainException $e) {
             return $e->getMessage();
         }
+        $this->saved($name);
         return sprintf(t($existed ? 'service.server_commands.secret_updated' : 'service.server_commands.sekret_sohranen_soobschenie_s_nim'), $name, $kind === 'private_key' ? t('service.server_commands.zakrytyy_klyuch') : t('service.server_commands.parol'));
     }
 

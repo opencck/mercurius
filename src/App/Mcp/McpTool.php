@@ -135,7 +135,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
                 continue;
             }
             try {
-                $bytes = $this->sandbox->fetch($context->principal->id, $limits, trim($path), \OpenCCK\App\Agent\Media\AttachmentIntake::MAX_FILE, $context->cancellation);
+                $bytes = $this->sandbox->fetch(self::holder($context), $limits, trim($path), \OpenCCK\App\Agent\Media\AttachmentIntake::MAX_FILE, $context->cancellation);
             } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure $e) {
                 return sprintf(t('mcp.files_unread'), trim($path), $e->getMessage());
             }
@@ -147,6 +147,18 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
             $files[] = ['name' => $name, 'mime_type' => self::mime($name), 'content_base64' => base64_encode($bytes)];
         }
         return $files;
+    }
+
+    /**
+     * Whose folder the files of a call are in: the root in the shared context of the owners, as the file tools there;
+     * the caller's own elsewhere.
+     *
+     * spec: brief/participants.md#контекст-беседы-в-личном-чате
+     */
+    private static function holder(ToolContext $context): int {
+        return $context->policy?->mcpContext === \OpenCCK\App\Service\ConversationPlace::OWNERS && $context->principal->isOwner()
+            ? \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::OWNERS_AREA
+            : $context->principal->id;
     }
 
     /**
@@ -171,7 +183,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
             try {
                 $taken = [];
                 try {
-                    foreach ($this->sandbox->list($context->principal->id, $limits, $folder, 1, $context->cancellation) as $entry) {
+                    foreach ($this->sandbox->list(self::holder($context), $limits, $folder, 1, $context->cancellation) as $entry) {
                         $taken[basename($entry['path'])] = true;
                     }
                 } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
@@ -182,7 +194,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
                     $number++;
                 }
                 $path = $folder . '/' . \OpenCCK\App\Agent\Media\MediaNames::numbered($file['name'], $number);
-                $this->sandbox->put($context->principal->id, $limits, $path, $file['bytes'], $context->cancellation);
+                $this->sandbox->put(self::holder($context), $limits, $path, $file['bytes'], $context->cancellation);
                 $lines[] = sprintf(t('mcp.file_kept'), $file['name'], intdiv(strlen($file['bytes']) + 1023, 1024), $path);
             } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure $e) {
                 $lines[] = sprintf(t('mcp.file_not_kept'), $file['name'], $e->getMessage());

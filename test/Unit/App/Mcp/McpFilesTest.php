@@ -80,6 +80,20 @@ final class McpFilesTest extends TestCase {
         self::assertStringContainsString('inbox/2026-11-19/счёт.pdf', $result->content);
     }
 
+    public function testInTheSharedContextTheFilesOfAnAnswerLandInTheRoot(): void {
+        // spec: brief/participants.md#контекст-беседы-в-личном-чате — the shared context works in the root of the sandbox:
+        //       a file an MCP gave lies where the file tools look for it
+        $sandbox = new FakeSandbox();
+        $tool = $this->tool($sandbox, ['type' => 'object'], ['Озвучено.', false, [['name' => 'voice.wav', 'type' => 'audio/wav', 'bytes' => 'RIFF']]]);
+        $limits = new SandboxLimits(1_000_000_000, 64, 60, 0, 2);
+        $policy = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $limits, true))->withMcpContext('owners', open: true);
+
+        $tool->execute([], new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::admin(), null), new NullCancellation(), $policy));
+
+        self::assertSame('RIFF', $sandbox->files[0]['inbox/2026-11-19/voice.wav'] ?? null);
+        self::assertArrayNotHasKey(7, $sandbox->files, 'not in the owner\'s own folder');
+    }
+
     public function testFilesTheAgentNamesGoAsTheirContent(): void {
         $sandbox = new FakeSandbox();
         $sandbox->files[7]['report/отчёт.pdf'] = '%PDF-1.4';

@@ -330,6 +330,33 @@ final class McpManager {
         return sprintf(t('mcp.mcp_manager.mcp_server_odobren_instrumentov'), $name, $count);
     }
 
+    /**
+     * A secret was just saved: a connection in error whose entry names it is tried at once, not at its next try — the
+     * owner who put the key asks right away, and the old reason (no secret) would send them to put it again.
+     *
+     * spec: brief/skills-mcp.md#подстановка-секретов
+     *
+     * @return int how many connections were tried
+     */
+    public function secretSaved(string $name): int {
+        $tried = 0;
+        foreach ($this->servers->all() as $server) {
+            if ($server->status !== McpServer::ERROR || !$server->enabled() || $server->entry === null
+                || !str_contains(mb_strtolower((string) json_encode($server->entry, JSON_UNESCAPED_UNICODE)), '{' . mb_strtolower($name) . '}')) {
+                continue;
+            }
+            $tried++;
+            unset($this->down[$server->key()]);
+            try {
+                $count = $this->sync($server, false, new NullCancellation());
+                $this->logger->info('MCP server connected after its secret was saved', ['server' => $server->key(), 'tools' => $count]);
+            } catch (Throwable $e) {
+                $this->markDown($server, 0, $e);
+            }
+        }
+        return $tried;
+    }
+
     public function disable(string $context, string $name, string $note = ''): bool {
         $note = $note === '' ? t('mcp.mcp_manager.disabled_by_owner') : $note;
         $key = $context === '' ? $name : $context . '|' . $name;
