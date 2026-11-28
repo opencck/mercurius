@@ -27,10 +27,10 @@ final class ModelCatalogView {
     /** every provider the application knows, in the order they are told */
     public const KNOWN = [
         ModelRef::OPENROUTER, ModelRef::OPENAI, ModelRef::ANTHROPIC, ModelRef::BEDROCK, ModelRef::GEMINI, ModelRef::VERTEX,
-        ModelRef::CODEX, ModelRef::CHATGPT, ModelRef::CLAUDE, ModelRef::ANTIGRAVITY,
+        ModelRef::MOONSHOT, ModelRef::CODEX, ModelRef::CHATGPT, ModelRef::CLAUDE, ModelRef::ANTIGRAVITY, ModelRef::KIMI,
     ];
     /** the owner's command of a subscription: its sign-in and its quota */
-    private const COMMANDS = [ModelRef::CHATGPT => '/codex', ModelRef::CLAUDE => '/claude', ModelRef::ANTIGRAVITY => '/antigravity'];
+    private const COMMANDS = [ModelRef::CHATGPT => '/codex', ModelRef::CLAUDE => '/claude', ModelRef::ANTIGRAVITY => '/antigravity', ModelRef::KIMI => '/kimi'];
 
     /**
      * @param list<string>|(\Closure(): list<string>) $providers the providers of the installation that have a key or a module now

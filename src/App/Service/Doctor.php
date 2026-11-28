@@ -139,8 +139,17 @@ final class Doctor {
             $raw('AWS_BEARER_TOKEN_BEDROCK') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_bedrock_zadan')],
             $raw('GEMINI_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_gemini_zadan')],
             $raw('VERTEX_CREDENTIALS') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_vertex_zadan')],
+            $raw('MOONSHOT_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_moonshot_zadan')],
+            $raw('KIMI_CODE_API_KEY') !== null => [self::OK, t('service.doctor.modeli'), t('service.doctor.klyuch_kimi_zadan')],
             default => [self::FAIL, t('service.doctor.modeli'), t('service.doctor.nuzhen_openrouter_api_key_ili')],
         };
+        // spec: brief/models.md#kimi-ключ-api-и-подписка — a key of the subscription starts with sk-kimi- and answers 401 on
+        // the platform
+        // ref: references/hermes-agent/hermes_cli/auth_zai_kimi.py@e96221f:L22-L33 (_resolve_kimi_base_url) — the prefix
+        //      of a key of Kimi Code
+        if (str_starts_with(ltrim((string) $raw('MOONSHOT_API_KEY')), 'sk-kimi-')) {
+            $out[] = [self::FAIL, 'MOONSHOT_API_KEY', t('service.doctor.moonshot_klyuch_podpiski')];
+        }
         // spec: brief/models.md#провайдеры-gemini-и-vertex — a key of the wrong kind is named before the first call fails
         $gemini = $raw('GEMINI_API_KEY');
         if ($gemini !== null && str_starts_with(ltrim($gemini), '{')) {

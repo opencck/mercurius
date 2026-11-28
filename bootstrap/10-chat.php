@@ -354,6 +354,14 @@ if ($antigravitySubscription !== null) {
         static fn() => $modelCatalogModule->reload(\OpenCCK\Domain\Agent\ModelRef::ANTIGRAVITY),
     ));
 }
+// spec: brief/models.md#подписка-kimi-code-условия-и-лимиты — /kimi: the state and the quota of the Kimi Code subscription
+$kimiKey = $llmSettings->key(\OpenCCK\Domain\Agent\ModelRef::KIMI);
+$chat->useKimi(new \OpenCCK\App\Service\KimiCommands(
+    $kimiKey === null ? null : new \Mercurius\Llm\Moonshot\KimiCodeUsage($modelHttp, $kimiKey, $version, $llmSettings->kimiCodeBaseUrl),
+    $llmSettings->kimiCodeBaseUrl,
+    $providerPauses,
+));
+unset($kimiKey);
 // spec: brief/models.md#лимиты-подписки-и-переход-на-модель-категории — one message to the owner per window of a plan,
 // and one when a subscription lost its sign-in
 $providerPauses->tellWith(static function (string $provider, string $why, int $until, ?string $said = null) use ($channel, $logger): void {

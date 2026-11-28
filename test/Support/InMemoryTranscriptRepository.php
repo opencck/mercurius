@@ -53,12 +53,12 @@ final class InMemoryTranscriptRepository implements TranscriptRepository {
         return $lines;
     }
 
-    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls): void {
+    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls, string $reasoning = ''): void {
         if ($this->beforeAssistant !== null) {
             ($this->beforeAssistant)();
         }
         $toolCalls = array_map(static fn(StoredToolCall $c): ToolCall => new ToolCall($c->callId, $c->name, $c->argumentsJson, $c->signature), $calls);
-        $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::assistant($text, $toolCalls)];
+        $this->messages[] = ['conversation' => $conversationId, 'run' => $runId, 'message' => Message::assistant($text, $toolCalls, $calls === [] ? '' : $reasoning)];
         foreach ($calls as $call) {
             $this->calls[$runId][$call->callId] = $call;
         }

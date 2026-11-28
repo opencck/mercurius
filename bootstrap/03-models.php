@@ -43,7 +43,7 @@ $onRetry = static fn(LlmException $e, int $attempt, float $delay): null => $logg
     'Retrying model call',
     ['kind' => $e->kind->value, 'attempt' => $attempt, 'delay' => $delay],
 );
-$providerClients = ProviderClients::build($llmSettings, $modelHttp, $config->appUrl, $onRetry);
+$providerClients = ProviderClients::build($llmSettings, $modelHttp, $config->appUrl, $onRetry, $version);
 $clients = $providerClients->clients;
 $catalogSources = $providerClients->catalogs;
 $toolReliableSources = $providerClients->toolReliable;

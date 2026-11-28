@@ -76,8 +76,9 @@ final class ProviderRouter implements LlmClient {
             return $e;
         }
         if ($e->resetsAt !== null) {
-            // a window may be the model's own (a week of Opus): the other models of the provider go on
-            $this->pauses->pause((string) $ref, $e->resetsAt, ProviderPauses::LIMIT);
+            // a window may be the model's own (a week of Opus): the other models of the provider go on; the windows of
+            // Kimi Code are of the account (spec: brief/models.md#подписка-kimi-code-условия-и-лимиты)
+            $this->pauses->pause($ref->provider === ModelRef::KIMI ? $ref->provider : (string) $ref, $e->resetsAt, ProviderPauses::LIMIT);
         } elseif ($e->status === 403 && $ref->provider === ModelRef::ANTIGRAVITY) {
             // spec: brief/models.md#google-по-подписке — Google asks the owner of the account to act: the plan is not
             // called again until the owner says so (/antigravity resume), not asked again in ten minutes

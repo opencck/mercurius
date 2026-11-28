@@ -79,6 +79,11 @@ final class SettingsCatalog {
         'VERTEX_CREDENTIALS' => ['models', self::SECRET, 'settings.about.vertex_credentials'],
         'VERTEX_PROJECT_ID' => ['models', self::TEXT, 'settings.about.vertex_project_id'],
         'VERTEX_REGION' => ['models', self::TEXT, 'settings.about.vertex_region'],
+        // spec: brief/models.md#kimi-ключ-api-и-подписка
+        'MOONSHOT_API_KEY' => ['models', self::SECRET, 'settings.about.moonshot_api_key'],
+        'MOONSHOT_BASE_URL' => ['models', self::TEXT, 'settings.about.moonshot_base_url'],
+        'KIMI_CODE_API_KEY' => ['models', self::SECRET, 'settings.about.kimi_code_api_key'],
+        'KIMI_CODE_BASE_URL' => ['models', self::TEXT, 'settings.about.kimi_code_base_url'],
         'VLESS_URI' => ['models', self::SECRET, 'settings.about.vless_uri'],
         // spec: brief/models.md#вход-в-подписку-claude — the token wins over the sign-in; it reaches the module with each request
         'CLAUDE_CODE_OAUTH_TOKEN' => ['models', self::SECRET, 'settings.about.claude_code_oauth_token'],

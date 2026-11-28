@@ -158,6 +158,40 @@ final class ServiceSettingsTest extends TestCase {
         self::assertStringNotContainsString('AIza-secret', print_r($gemini, true));
     }
 
+    public function testAKeyOfKimiAloneIsEnough(): void {
+        // spec: brief/models.md#kimi-ключ-api-и-подписка
+        $platform = LlmSettings::fromEnv(['MOONSHOT_API_KEY' => 'sk-platform-secret']);
+        $subscription = LlmSettings::fromEnv(['KIMI_CODE_API_KEY' => 'sk-kimi-secret', 'KIMI_CODE_BASE_URL' => 'https://api.kimi.com/coding/v1/']);
+
+        self::assertSame(['moonshot'], $platform->providers());
+        self::assertSame('moonshot:kimi-k3.1-pro', $platform->model);
+        self::assertSame('https://api.moonshot.ai/v1', $platform->moonshotBaseUrl);
+        self::assertSame('https://api.kimi.ai/coding/v1', $platform->kimiCodeBaseUrl, 'outside China by default');
+        self::assertSame(['kimi'], $subscription->providers());
+        self::assertSame('kimi:kimi-for-coding', $subscription->model);
+        self::assertSame('https://api.kimi.com/coding/v1', $subscription->kimiCodeBaseUrl);
+        self::assertStringNotContainsString('sk-kimi-secret', print_r($subscription, true));
+    }
+
+    /**
+     * @dataProvider foreignKimiAddresses
+     * @param array<string, string> $env
+     */
+    public function testAnAddressOfKimiOutsideItsListIsRefused(array $env, string $name): void {
+        try {
+            LlmSettings::fromEnv($env);
+            self::fail('expected a refusal');
+        } catch (ConfigException $e) {
+            self::assertStringContainsString($name, $e->getMessage());
+        }
+    }
+
+    /** @return iterable<string, array{array<string, string>, string}> */
+    public static function foreignKimiAddresses(): iterable {
+        yield 'the platform' => [['MOONSHOT_API_KEY' => 'k', 'MOONSHOT_BASE_URL' => 'https://evil.example/v1'], 'MOONSHOT_BASE_URL'];
+        yield 'the subscription' => [['KIMI_CODE_API_KEY' => 'k', 'KIMI_CODE_BASE_URL' => 'https://api.moonshot.ai/v1'], 'KIMI_CODE_BASE_URL'];
+    }
+
     public function testAVertexServiceAccountAloneIsEnough(): void {
         // spec: brief/models.md#провайдеры-gemini-и-vertex
         $vertex = LlmSettings::fromEnv(['VERTEX_CREDENTIALS' => self::serviceAccount()]);

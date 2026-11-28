@@ -23,7 +23,10 @@ final class ProviderProfileTest extends TestCase {
             }
             self::assertSame([ModelRole::CHEAP, ModelRole::MAIN, ModelRole::STRONG, ModelRole::MEDIA], array_keys($profile->roles));
         }
-        self::assertSame(['openrouter', 'openai', 'codex', 'anthropic', 'bedrock', 'gemini', 'vertex'], $names, 'OpenRouter first: the order of the defaults');
+        self::assertSame(['openrouter', 'openai', 'codex', 'anthropic', 'bedrock', 'gemini', 'vertex', 'moonshot', 'kimi'], $names, 'OpenRouter first: the order of the defaults');
+        // spec: brief/models.md#kimi-ключ-api-и-подписка
+        self::assertSame('MOONSHOT_API_KEY', ProviderProfile::of('moonshot')?->keyEnv);
+        self::assertSame('KIMI_CODE_API_KEY', ProviderProfile::of('kimi')?->keyEnv, 'the subscription has a key of its console');
         self::assertSame('OPENAI_API_KEY', ProviderProfile::of('codex')?->keyEnv, 'one key, two APIs');
         // spec: brief/models.md#провайдеры-gemini-и-vertex
         self::assertSame('GEMINI_API_KEY', ProviderProfile::of('gemini')?->keyEnv);
@@ -43,5 +46,7 @@ final class ProviderProfileTest extends TestCase {
         self::assertSame(PromptCache::Key, ProviderProfile::cacheFor(ModelRef::parse('codex:gpt-6.1-codex')));
         self::assertSame(PromptCache::Provider, ProviderProfile::cacheFor(ModelRef::parse('z-ai/glm-5.3-flash')));
         self::assertSame(PromptCache::Provider, ProviderProfile::cacheFor(ModelRef::parse('jev:jev-latest')), 'an unknown provider caches on its own');
+        self::assertSame(PromptCache::Marks, ProviderProfile::cacheFor(ModelRef::parse('moonshotai/kimi-k3')), 'Kimi through OpenRouter caches by marks, as Claude');
+        self::assertSame(PromptCache::Provider, ProviderProfile::cacheFor(ModelRef::parse('kimi:k3')), 'Kimi caches on its own');
     }
 }

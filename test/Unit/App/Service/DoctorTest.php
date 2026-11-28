@@ -93,6 +93,17 @@ final class DoctorTest extends AsyncTestCase {
         self::assertStringNotContainsString('AIza-not-json', $text);
     }
 
+    public function testKeysOfKimiAreNamedAndASwappedOneIsCaught(): void {
+        // spec: brief/models.md#kimi-ключ-api-и-подписка — keys of the platform and of the subscription do not mix
+        $right = self::results(['KIMI_CODE_API_KEY' => 'sk-kimi-abc']);
+        $swapped = self::results(['MOONSHOT_API_KEY' => 'sk-kimi-abc', 'KIMI_CODE_API_KEY' => 'sk-platform']);
+
+        self::assertStringContainsString('✅ Модели: ключ Kimi Code задан', $right);
+        self::assertStringContainsString('✅ Модели: ключ Kimi Platform задан', $swapped);
+        self::assertStringContainsString('❌ MOONSHOT_API_KEY: похоже на ключ подписки Kimi Code', $swapped);
+        self::assertStringNotContainsString('sk-kimi-abc', $swapped);
+    }
+
     public function testTheDataFolderMustBeWritable(): void {
         // spec: brief/operations.md#экспорт-и-импорт-агента — archives and marks of the application go into storage/app
         $ok = Doctor::render((new Doctor([], null, dirname(__DIR__, 4) . '/migrations', sys_get_temp_dir()))->run());

@@ -31,7 +31,20 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         );
     }
 
-    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls): void {
+    /** Bytes of the reasoning of one turn kept for the provider that wants it back. */
+    private const MAX_REASONING_BYTES = 64 * 1024;
+
+    /**
+     * The reasoning kept with a turn: at most 64 KB, cut on a character; a cut one is still a reasoning, and Kimi only
+     * needs it present.
+     *
+     * spec: brief/models.md#kimi-ключ-api-и-подписка
+     */
+    public static function reasoning(string $reasoning): string {
+        return strlen($reasoning) > self::MAX_REASONING_BYTES ? mb_strcut($reasoning, 0, self::MAX_REASONING_BYTES, 'UTF-8') : $reasoning;
+    }
+
+    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls, string $reasoning = ''): void {
         $toolCalls = $calls === [] ? null : json_encode(
             // spec: packages/llm/BRIEF.md#gemini-и-vertex — the signature of a call is kept with the history and goes back with it
             array_map(static fn(StoredToolCall $c): array => ['id' => $c->callId, 'name' => $c->name, 'arguments' => $c->argumentsJson] + ($c->signature === null ? [] : ['signature' => $c->signature]), $calls),
@@ -40,8 +53,9 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $transaction = $this->db->beginTransaction();
         try {
             $transaction->execute(
-                "INSERT INTO messages (conversation_id, run_id, role, content, tool_calls) VALUES (?, ?, 'assistant', ?, ?::jsonb)",
-                [$conversationId, $runId, $text, $toolCalls],
+                "INSERT INTO messages (conversation_id, run_id, role, content, tool_calls, reasoning) VALUES (?, ?, 'assistant', ?, ?::jsonb, ?)",
+                // spec: brief/models.md#kimi-ключ-api-и-подписка — only a turn with tool calls needs its reasoning back
+                [$conversationId, $runId, $text, $toolCalls, $calls === [] || $reasoning === '' ? null : self::reasoning($reasoning)],
             );
             foreach ($calls as $call) {
                 $transaction->execute(
@@ -117,7 +131,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
     public function runMessages(int $runId): array {
         $messages = [];
         foreach ($this->db->execute(
-            'SELECT role, COALESCE(compact_content, content) AS content, tool_calls::text AS tool_calls, tool_call_id FROM messages WHERE run_id = ? ORDER BY id',
+            'SELECT role, COALESCE(compact_content, content) AS content, tool_calls::text AS tool_calls, tool_call_id, reasoning FROM messages WHERE run_id = ? ORDER BY id',
             [$runId],
         ) as $row) {
             $messages[] = self::message($row);
@@ -296,7 +310,7 @@ final class PostgresTranscriptRepository implements TranscriptRepository {
         $content = self::string($row, 'content');
         return match (self::string($row, 'role')) {
             'user' => Message::user($content),
-            'assistant' => Message::assistant($content, self::toolCalls(self::nullableString($row, 'tool_calls'))),
+            'assistant' => Message::assistant($content, self::toolCalls(self::nullableString($row, 'tool_calls')), self::nullableString($row, 'reasoning') ?? ''),
             'tool' => Message::toolResult(self::string($row, 'tool_call_id'), $content),
             default => throw new UnexpectedValueException('Malformed messages row: role'),
         };

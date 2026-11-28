@@ -82,6 +82,27 @@ final class ProviderPausesTest extends AsyncTestCase {
         self::assertCount(1, $this->told, 'one notice per window');
     }
 
+    public function testAUsedUpWindowOfKimiCodeStopsEveryModelOfTheSubscription(): void {
+        // spec: brief/models.md#подписка-kimi-code-условия-и-лимиты — the windows of Kimi Code are of the account
+        $pauses = $this->pauses();
+        $kimi = new ScriptedLlm([self::limit()]);
+        $router = new ProviderRouter(['kimi' => $kimi], null, $pauses);
+
+        try {
+            $router->complete(new ChatRequest('kimi:k3', [Message::user('hi')]));
+            self::fail('a used-up window was answered');
+        } catch (LlmException) {
+        }
+        try {
+            $router->complete(new ChatRequest('kimi:kimi-for-coding', [Message::user('hi')]));
+            self::fail('another model of the subscription was called');
+        } catch (LlmException $e) {
+            self::assertSame(self::RESET, $e->resetsAt);
+        }
+        self::assertCount(1, $kimi->requests, 'the second model sent nothing');
+        self::assertSame([['kimi', ProviderPauses::LIMIT, self::RESET]], $this->told);
+    }
+
     public function testALostSignInOfASubscriptionPausesItUntilTheOwnerSignsIn(): void {
         $pauses = $this->pauses();
         $auth = new LlmException(ErrorKind::Auth, 'not signed in', 401);

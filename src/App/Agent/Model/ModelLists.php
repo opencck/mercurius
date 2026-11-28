@@ -124,9 +124,20 @@ final class ModelLists {
         }
         $other = [];
         foreach (self::OTHER as $category => $setting) {
-            $other[$category] = self::names(Env::raw($env, $setting) ?? '');
+            $names = self::names(Env::raw($env, $setting) ?? '');
+            $other[$category] = $category === 'sleep' ? array_values(array_filter($names, static fn(string $name): bool => !self::interactiveOnly($name))) : $names;
         }
         return new self($text, $other, $fallback);
+    }
+
+    /**
+     * Whether a model may answer only a living conversation: the Kimi Code subscription forbids non-interactive
+     * automation, so the sleep of memory never calls it.
+     *
+     * spec: brief/models.md#подписка-kimi-code-условия-и-лимиты
+     */
+    public static function interactiveOnly(string $model): bool {
+        return str_starts_with(trim($model), ModelRef::KIMI . ':');
     }
 
     /** @return list<string> */

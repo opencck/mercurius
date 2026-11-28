@@ -1235,3 +1235,23 @@ webhook; подписку чата с курсором. **Не берём:** п�
 [Провайдеры Gemini и Vertex](../../brief/models.md#провайдеры-gemini-и-vertex). Не читались: `client.py` и
 `interactions.py` профиля Gemini (родной клиент), `agent/gemini_long_decode.py`, `agent/usage_pricing.py` сверх
 таблицы цен Google (`L223-L242`).
+
+## Дополнение 2026-11-28: Kimi и Moonshot
+
+Прочитано под провайдеры `moonshot:` и `kimi:` Меркурия; коммит тот же (`e96221fa`). Свои факты о API Kimi —
+[kimi-api.md](kimi-api.md) и [kimi-code.md](kimi-code.md).
+
+| Что | Где | Суть |
+|---|---|---|
+| Профиль провайдера | `plugins/model-providers/kimi-coding/__init__.py:L12-L20`, `L37-L65`, `L68-L78` | Свои заголовки (`User-Agent` `HermesAgent/<версия>`, `HTTP-Referer`, `X-Title`, `Accept-Encoding: gzip` — у `br` ломался разбор потока); без `temperature`; потолок 32 000; `thinking` либо `reasoning_effort`, не вместе; `keep: "all"` для K2; список моделей с `/coding/v1` |
+| Адрес по началу ключа | `hermes_cli/auth_zai_kimi.py:L22-L33` | `sk-kimi-…` → `https://api.kimi.com/coding` (Messages API), иначе `api.moonshot.ai/v1` |
+| Уровни усилия | `agent/reasoning_effort.py:L53-L59`, `L116-L124`, `L241-L262` | K3 — `low`/`high`/`max` (`medium` → `high`, `xhigh` → `max`), K2 — `low`/`medium`/`high` |
+| Тело запроса | `agent/transports/chat_completions.py:L407-L408`, `L592-L602`, `L616-L617` | Очистка схем для моделей Kimi на любом адресе; верхний `reasoning_effort` по семейству |
+| Очистка схем | `agent/moonshot_schema.py:L35-L143` | Тип у каждого узла, `type` не рядом с `anyOf`, без `null`-ветвей и `nullable`, перечисления без `null`/`""`, `required` у объектов |
+| Возврат рассуждения | `agent/message_sanitization.py:L702-L724` | Kimi — по хосту (`api.kimi.com`, `moonshot.ai`, `moonshot.cn`): ход с вызовами без `reasoning_content` — 400, пустое заменяется пробелом |
+| Окна | `agent/model_metadata.py:L352-L353`, `L599-L609` | K3 — 1 048 576 только на `api.kimi.com/coding`; прочие Kimi — 262 144 |
+| Usage | `agent/usage_pricing.py:L648-L656` | Чтение из кеша Moonshot — `cached_tokens` |
+| Зрение | `agent/auxiliary_client.py:L876-L877` | На подписке выключено (устарело: по справке Kimi картинки и видео принимаются) |
+| Подмена `User-Agent` | `agent/agent_init.py:L963`, `agent/auxiliary_client.py:L2171-L2172`, `L2208-L2209`, `hermes_cli/doctor_connectivity.py:L246-L247` | `claude-code/0.1.0` на `api.kimi.com` — **не берём**: правила Kimi Code это запрещают |
+
+Что взято в Меркурий и от чего отступили — [Kimi: ключ API и подписка](../../brief/models.md#kimi-ключ-api-и-подписка).

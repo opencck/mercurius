@@ -40,4 +40,12 @@ final class ProviderClientsTest extends TestCase {
         self::assertSame(['gemini', 'vertex'], array_keys($google->clients));
         self::assertSame(['gemini', 'vertex'], array_keys($google->catalogs));
     }
+
+    public function testKimiByAKeyOfThePlatformAndOfTheSubscriptionAreTwoProviders(): void {
+        // spec: brief/models.md#kimi-ключ-api-и-подписка
+        $kimi = ProviderClients::build(LlmSettings::fromEnv(['MOONSHOT_API_KEY' => 'sk-platform', 'KIMI_CODE_API_KEY' => 'sk-kimi']), HttpClientBuilder::buildDefault(), null, version: '1.0');
+
+        self::assertSame(['moonshot', 'kimi'], array_keys($kimi->clients));
+        self::assertSame(['moonshot', 'kimi'], array_keys($kimi->catalogs));
+    }
 }

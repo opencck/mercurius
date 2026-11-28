@@ -153,6 +153,18 @@ final class ModelListEditTest extends AsyncTestCase {
         self::assertStringContainsString(sprintf(t('model.lists.role_now'), ModelRole::MAIN, 'openrouter:author/a'), $said, 'the role keeps its model while it stays in the list');
     }
 
+    public function testTheSleepOfMemoryTakesNoModelOfTheKimiSubscription(): void {
+        // spec: brief/models.md#подписка-kimi-code-условия-и-лимиты — the subscription is for a living conversation only
+        try {
+            $this->editor->change($this->owner, 'sleep', 'set', ['kimi:k3']);
+            self::fail('a model of the subscription was taken for the sleep');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('kimi:k3', $e->getMessage());
+        }
+        self::assertSame([], ModelLists::fromEnv(['MEMORY_SLEEP_MODELS' => 'kimi:k3'], 'author/start')->other('sleep'), 'nor from the settings');
+        self::assertSame(['moonshot:kimi-k3'], ModelLists::fromEnv(['MEMORY_SLEEP_MODELS' => 'kimi:k3, moonshot:kimi-k3'], 'author/start')->other('sleep'), 'the platform paid by the token may sleep');
+    }
+
     public function testTheSearchTakesOnlyAModelItCanCall(): void {
         foreach (['claude:claude-opus-5-5', 'chatgpt:gpt-5', 'z-ai/glm-5.3-flash,claude:claude-opus-5-5'] as $list) {
             try {

@@ -99,8 +99,11 @@ final class ToolRound {
                 : new ValidatedCall($call->call, $call->tool, $prepared, null, $call->tool->danger($prepared), $call->wire);
         }, $calls);
     }
-    /** @param list<ValidatedCall> $calls */
-    public function persist(RunState $state, string $text, array $calls): bool {
+    /**
+     * @param list<ValidatedCall> $calls
+     * @param string $reasoning what the model thought before these calls; kept for the provider that wants it back
+     */
+    public function persist(RunState $state, string $text, array $calls, string $reasoning = ''): bool {
         $stored = [];
         foreach ($calls as $position => $call) {
             // spec: brief/skills-mcp.md#mcp-ресурсы-и-поиск-инструментов — a call through tool_call is saved as the model made it, the history stays its own
@@ -117,7 +120,7 @@ final class ToolRound {
             );
         }
         try {
-            $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, $stored);
+            $this->transcript->appendAssistant($state->run->conversationId, $state->run->id, $text, $stored, $reasoning);
             return true;
         } catch (Throwable $e) {
             $this->logger->error('Could not save the model answer; no tool runs', ['run' => $state->run->id, 'error' => $e::class]);

@@ -41,7 +41,7 @@ API.
    git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
    ```
 2. Copy `.env.example` to `.env` (mode `600`) and fill it in: at least `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID` (your
-   Telegram user id), one key of a model provider (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` — the full list is in `.env.example`), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
+   Telegram user id), one key of a model provider (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MOONSHOT_API_KEY`, `KIMI_CODE_API_KEY` for the Kimi Code subscription — the full list is in `.env.example`), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
    (`openssl rand -hex 24`). Every variable is explained in the file; most settings can be changed later in the dialog.
    Without `APP_URL` the bot uses long polling and needs no public address; with it — a webhook behind your proxy.
 3. `chmod 1777 storage/app storage/browser storage/whisper` — the containers write there as their own users. Then

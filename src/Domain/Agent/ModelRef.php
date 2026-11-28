@@ -25,14 +25,18 @@ final class ModelRef implements Stringable {
     public const GEMINI = 'gemini';
     /** Gemini in Google Cloud (Gemini Enterprise Agent Platform, formerly Vertex AI) by a service account. */
     public const VERTEX = 'vertex';
+    /** Kimi models of the Kimi Platform by a key, paid by the token. */
+    public const MOONSHOT = 'moonshot';
+    /** the owner's Kimi Code subscription by a key of its console: paid by the plan, not by the token */
+    public const KIMI = 'kimi';
     /** the owner's ChatGPT subscription through the Codex backend (sign-in by /codex login, not a key) */
     public const CHATGPT = 'chatgpt';
     /** the owner's Claude subscription through the module claude-code (sign-in by /claude login, not a key) */
     public const CLAUDE = 'claude';
     /** the owner's Google Antigravity plan through the module antigravity (sign-in by /antigravity login, not a key) */
     public const ANTIGRAVITY = 'antigravity';
-    /** providers of a subscription: no key in .env, a sign-in of the owner, no price per token */
-    public const SUBSCRIPTIONS = [self::CHATGPT, self::CLAUDE, self::ANTIGRAVITY];
+    /** providers of a subscription: a sign-in of the owner (Kimi Code — a key of its console), no price per token */
+    public const SUBSCRIPTIONS = [self::CHATGPT, self::CLAUDE, self::ANTIGRAVITY, self::KIMI];
 
     public function __construct(
         public readonly string $provider,

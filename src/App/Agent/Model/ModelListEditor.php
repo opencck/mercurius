@@ -100,6 +100,13 @@ final class ModelListEditor {
             $asked[$model] = true;
         }
         $asked = array_keys($asked);
+        if ($category === 'sleep' && $action !== 'remove') {
+            foreach ($asked as $model) {
+                if (ModelLists::interactiveOnly($model)) {
+                    throw new DomainException(sprintf(t('model.lists.sleep_interactive_only'), $model));
+                }
+            }
+        }
         $chat = $this->checkMcp($category, $action, $asked);
         // spec: brief/models.md#модели-поиска — a model of the search whose provider has no key would leave no search at all
         if ($category === 'search') {

@@ -18,6 +18,7 @@
 | [google-gemini/gemini-api-cli](https://github.com/google-gemini/gemini-api-cli) | [gemini-api-cli/](gemini-api-cli/) | `main` | `3dcbb6e` | 2026-11-26 | 2026-11-26 | [notes/gemini-api-cli.md](../docs/notes/gemini-api-cli.md) |
 | [soyelmismo/hermes-antigravity-subscription](https://github.com/soyelmismo/hermes-antigravity-subscription) | [hermes-antigravity-subscription/](hermes-antigravity-subscription/) | `main` (тег `v1.0.35`) | `6e46b46` | 2026-11-26 | 2026-11-26 | [notes/hermes-antigravity-subscription.md](../docs/notes/hermes-antigravity-subscription.md) |
 | [Realtyxxx/hermes-plugin-antigravity-agy](https://github.com/Realtyxxx/hermes-plugin-antigravity-agy) | [hermes-plugin-antigravity-agy/](hermes-plugin-antigravity-agy/) | `main` (автором не поддерживается, `agy` 1.2) | `ec07f86` | 2026-09-28 | 2026-11-26 | [notes/hermes-antigravity-agy.md](../docs/notes/hermes-antigravity-agy.md) |
+| [MoonshotAI/kimi-code](https://github.com/MoonshotAI/kimi-code) | [kimi-code/](kimi-code/) | `main` | `a6ac07d` | 2026-11-28 | 2026-11-28 | [notes/kimi-code.md](../docs/notes/kimi-code.md) |
 
 - **Коммит** — версия, на которую указывает сабмодуль; источник истины — `git submodule status`. Таблица должна с ним совпадать.
 - **Проверено** — дата, когда репозиторий последний раз сверяли с upstream (даже если обновлений не было).
@@ -69,6 +70,23 @@
 - Что это значит для проекта: <что перенять, что устарело в наших выводах или коде>
 - Что обновлено у нас: <конспект, BRIEF.md, код, ссылки> / «ничего не требуется»
 ```
+
+### 2026-11-28 — kimi-code: добавлен на `a6ac07d`
+
+- Что это: официальный клиент Kimi Code (`MoonshotAI/kimi-code`, MIT, TypeScript-монорепозиторий: CLI `kimi`,
+  настольное приложение, расширение VS Code). Заменил архивный `MoonshotAI/kimi-cli` (Python, архив с 2026-09-23),
+  который не добавлялся.
+- Зачем проекту: первоисточник того, чего нет в документации Kimi или что в ней расходится, для провайдеров
+  `moonshot:` и `kimi:` — разбор `/models` обоих адресов с признаками моделей, запрос квоты подписки `/usages`,
+  код исчерпанной квоты `exceeded_current_quota_error`, адреса регионов, очистка схем инструментов, возврат
+  `reasoning_content`. Нужны два каталога — `packages/core/src/llm/builtin/` и `packages/oauth/src/`; репозиторий
+  большой (~7 тыс. файлов), но sparse-checkout у сабмодулей проекта не принят.
+- Взята голова `main` на день добавления: релизы частые, коммит закреплён.
+- Не добавлены: `MoonshotAI/kimi-cli` (архив), `s-a-s-k-i-a/hermes-kimi-code` (запись каталога плагинов hermes —
+  делегирование через `kimi acp`, не провайдер), `MoonshotAI/kimi-agent-rs` (экспериментальный сервер wire).
+- Что обновлено у нас: конспекты `docs/notes/kimi-code.md`, `kimi-api.md` (по статьям `docs/kimi-*.md`),
+  дополнение о Kimi в `docs/notes/hermes-agent.md`, строки в `brief/knowledge.md`.
+
 
 ### 2026-11-27 — hermes-dreaming: `21878d3` → `46d2f9e` (v3.8.6 → v3.8.16)
 

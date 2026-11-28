@@ -15,7 +15,10 @@ use Mercurius\Llm\LlmException;
 use Mercurius\Llm\ModelCatalog\AnthropicCatalog;
 use Mercurius\Llm\ModelCatalog\BedrockCatalog;
 use Mercurius\Llm\ModelCatalog\GeminiCatalog;
+use Mercurius\Llm\ModelCatalog\KimiCodeCatalog;
 use Mercurius\Llm\ModelCatalog\ModelInfo;
+use Mercurius\Llm\ModelCatalog\MoonshotCatalog;
+use Mercurius\Llm\Moonshot\MoonshotClient;
 use Mercurius\Llm\ModelCatalog\OpenAICatalog;
 use Mercurius\Llm\ModelCatalog\OpenRouterCatalog;
 use Mercurius\Llm\ModelCatalog\VertexCatalog;
@@ -47,8 +50,9 @@ final class ProviderClients {
 
     /**
      * @param (Closure(LlmException, int, float): void)|null $onRetry
+     * @param string $version of the agent: Kimi is told which client calls it
      */
-    public static function build(LlmSettings $settings, HttpClient $http, ?string $appUrl, ?Closure $onRetry = null): self {
+    public static function build(LlmSettings $settings, HttpClient $http, ?string $appUrl, ?Closure $onRetry = null, string $version = 'dev'): self {
         $clients = [];
         $catalogs = [];
         $toolReliable = [];
@@ -74,6 +78,15 @@ final class ProviderClients {
                 ModelRef::VERTEX => [
                     new VertexClient($http, VertexAccount::fromJson($http, $key), $settings->vertexProject, $settings->vertexRegion),
                     (new VertexCatalog($reference))->fetch(...),
+                ],
+                // spec: brief/models.md#kimi-ключ-api-и-подписка — the platform by the token, the subscription by a key of its console
+                ModelRef::MOONSHOT => [
+                    MoonshotClient::platform($http, $key, $version, $settings->moonshotBaseUrl),
+                    (new MoonshotCatalog($http, $key, $version, $reference, $settings->moonshotBaseUrl))->fetch(...),
+                ],
+                ModelRef::KIMI => [
+                    MoonshotClient::kimiCode($http, $key, $version, $settings->kimiCodeBaseUrl),
+                    (new KimiCodeCatalog($http, $key, $version, $settings->kimiCodeBaseUrl))->fetch(...),
                 ],
                 default => throw new \LogicException('No client for the provider profile ' . $name),
             };

@@ -196,6 +196,17 @@ abstract class RunStoreContract extends AsyncTestCase {
         self::assertSame(['SIG-1', null], array_map(static fn(\Mercurius\Llm\ToolCall $c): ?string => $c->signature, $calls));
     }
 
+    public function testTheReasoningOfATurnWithCallsComesBackWithTheHistory(): void {
+        // spec: brief/models.md#kimi-ключ-api-и-подписка — Kimi wants the reasoning of a turn with tool calls back
+        $id = $this->startRun();
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('r1', 0, DangerClass::Read)], 'I should look');
+        $this->transcript->appendAssistant($this->conversationId, $id, '', [self::call('r2', 0, DangerClass::Read)]);
+
+        $assistant = array_values(array_filter($this->transcript->runMessages($id), static fn(\Mercurius\Llm\Message $m): bool => $m->toolCalls !== []));
+
+        self::assertSame(['I should look', ''], array_map(static fn(\Mercurius\Llm\Message $m): string => $m->reasoning, $assistant));
+    }
+
     public function testAForgottenFactLeavesTheArgumentsOfCalls(): void {
         $id = $this->startRun();
         $fact = 'у Пети аллергия на "орехи"';

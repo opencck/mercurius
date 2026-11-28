@@ -123,3 +123,7 @@
 	path = services/antigravity
 	url = https://github.com/opencck/mercurius-antigravity.git
 	branch = master
+[submodule "references/kimi-code"]
+	path = references/kimi-code
+	url = https://github.com/MoonshotAI/kimi-code
+	shallow = true

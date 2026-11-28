@@ -6,6 +6,7 @@ namespace OpenCCK\Infrastructure\Config;
 
 use InvalidArgumentException;
 use Mercurius\Llm\Gemini\VertexClient;
+use Mercurius\Llm\Moonshot\MoonshotClient;
 use OpenCCK\Domain\Agent\ModelRef;
 use OpenCCK\Domain\Agent\ProviderProfile;
 
@@ -50,6 +51,10 @@ final class LlmSettings {
         public readonly string $vertexProject = '',
         /** Region of the Vertex endpoint, checked to be `global` or a region name. */
         public readonly string $vertexRegion = VertexClient::DEFAULT_REGION,
+        /** Address of the Kimi Platform: one of its two. */
+        public readonly string $moonshotBaseUrl = MoonshotClient::PLATFORM_URLS[0],
+        /** Address of the Kimi Code subscription: one of its two, outside China by default. */
+        public readonly string $kimiCodeBaseUrl = MoonshotClient::KIMI_CODE_URLS[0],
     ) {
         $this->keys = $keys;
         $this->routeUri = $routeUri;
@@ -93,6 +98,9 @@ final class LlmSettings {
                 throw ConfigException::invalid('VERTEX_CREDENTIALS', $problem);
             }
         }
+        // spec: brief/models.md#kimi-ключ-api-и-подписка — the key goes only to an address of Kimi itself
+        $moonshotBaseUrl = self::kimiAddress($env, 'MOONSHOT_BASE_URL', MoonshotClient::PLATFORM_URLS);
+        $kimiCodeBaseUrl = self::kimiAddress($env, 'KIMI_CODE_BASE_URL', MoonshotClient::KIMI_CODE_URLS);
         $first = ProviderProfile::all()[$providers[0]];
         // spec: brief/models.md#запасные-модели — without LLM_MODEL the starting model is the first fallback one
         $default = self::firstFallback($env, $providers) ?? self::bare($first->model);
@@ -115,7 +123,26 @@ final class LlmSettings {
             bedrockRegion: $region,
             vertexProject: $vertexProject,
             vertexRegion: $vertexRegion,
+            moonshotBaseUrl: $moonshotBaseUrl,
+            kimiCodeBaseUrl: $kimiCodeBaseUrl,
         );
+    }
+
+    /**
+     * @param array<array-key, mixed> $env
+     * @param list<string> $known
+     * @throws ConfigException
+     */
+    private static function kimiAddress(array $env, string $name, array $known): string {
+        $value = Env::raw($env, $name);
+        if ($value === null) {
+            return $known[0];
+        }
+        try {
+            return MoonshotClient::address($value, $known);
+        } catch (\InvalidArgumentException) {
+            throw ConfigException::invalid($name, implode(' or ', $known));
+        }
     }
 
     /**
@@ -259,6 +286,8 @@ final class LlmSettings {
             'bedrockRegion' => $this->bedrockRegion,
             'vertexProject' => $this->vertexProject,
             'vertexRegion' => $this->vertexRegion,
+            'moonshotBaseUrl' => $this->moonshotBaseUrl,
+            'kimiCodeBaseUrl' => $this->kimiCodeBaseUrl,
             'route' => $this->routeUri === null ? 'direct' : 'vless',
             'model' => $this->model,
             'reasoningEffort' => $this->reasoningEffort,

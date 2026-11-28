@@ -69,6 +69,20 @@ final class ProviderProfile {
             ModelRole::STRONG => $p . 'gemini-4-carbon',
             ModelRole::MEDIA => $p . 'gemini-3.8-flash',
         ];
+        // spec: brief/models.md#kimi-ключ-api-и-подписка — K3.1 Pro above, K3 for the cheap and the media role; the K2 models
+        // of the platform leave at the end of December 2026
+        $moonshot = [
+            ModelRole::CHEAP => 'moonshot:kimi-k3',
+            ModelRole::MAIN => 'moonshot:kimi-k3.1-pro',
+            ModelRole::STRONG => 'moonshot:kimi-k3.1-pro',
+            ModelRole::MEDIA => 'moonshot:kimi-k3',
+        ];
+        $kimi = [
+            ModelRole::CHEAP => 'kimi:k3',
+            ModelRole::MAIN => 'kimi:kimi-for-coding',
+            ModelRole::STRONG => 'kimi:k3.1-pro',
+            ModelRole::MEDIA => 'kimi:k3',
+        ];
         $all = [];
         foreach ([
             new self(ModelRef::OPENROUTER, 'OpenRouter', self::API_CHAT_COMPLETIONS, 'OPENROUTER_API_KEY', PromptCache::Provider, 'openrouter:z-ai/glm-5.3-flash', 'openrouter:openai/gpt-5.6-luna', [
@@ -85,6 +99,9 @@ final class ProviderProfile {
             new self(ModelRef::GEMINI, 'Google Gemini', self::API_CHAT_COMPLETIONS, 'GEMINI_API_KEY', PromptCache::Provider, 'gemini:gemini-4-hydrogen', 'gemini:gemini-3.8-flash', $gemini('gemini:')),
             // the "key" of Vertex is the JSON of a service account
             new self(ModelRef::VERTEX, 'Google Vertex', self::API_CHAT_COMPLETIONS, 'VERTEX_CREDENTIALS', PromptCache::Provider, 'vertex:google/gemini-4-hydrogen', 'vertex:google/gemini-3.8-flash', $gemini('vertex:google/')),
+            new self(ModelRef::MOONSHOT, 'Kimi Platform', self::API_CHAT_COMPLETIONS, 'MOONSHOT_API_KEY', PromptCache::Provider, 'moonshot:kimi-k3.1-pro', 'moonshot:kimi-k3', $moonshot),
+            // the subscription: a key of the Kimi Code console, paid by the plan
+            new self(ModelRef::KIMI, 'Kimi Code', self::API_CHAT_COMPLETIONS, 'KIMI_CODE_API_KEY', PromptCache::Provider, 'kimi:kimi-for-coding', 'kimi:k3', $kimi),
         ] as $profile) {
             $all[$profile->name] = $profile;
         }
@@ -100,7 +117,9 @@ final class ProviderProfile {
      * an unknown provider caches on its own.
      */
     public static function cacheFor(ModelRef $ref): PromptCache {
-        if ($ref->provider === ModelRef::OPENROUTER && str_starts_with($ref->model, 'anthropic/')) {
+        // ref: references/hermes-agent/agent/agent_runtime_helpers.py@e96221f:L1769-L1776 — Kimi through OpenRouter takes
+        //      the markers of Claude; without them about 1% of the prompt is read from the cache
+        if ($ref->provider === ModelRef::OPENROUTER && (str_starts_with($ref->model, 'anthropic/') || str_starts_with($ref->model, 'moonshotai/'))) {
             return PromptCache::Marks;
         }
         return self::of($ref->provider)->cache ?? PromptCache::Provider;

@@ -40,7 +40,7 @@ Telegram от [@BotFather](https://t.me/BotFather) и ключ OpenRouter или
    git submodule update --init --depth 1 packages/llm packages/connectors packages/messenger packages/search packages/i18n packages/mcp-client packages/memory packages/peer skills/skill-creator skills/memory-file
    ```
 2. Скопировать `.env.example` в `.env` (права `600`) и заполнить: как минимум `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`
-   (ваш id в Telegram), один ключ провайдера моделей (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` — полный список в `.env.example`), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
+   (ваш id в Telegram), один ключ провайдера моделей (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MOONSHOT_API_KEY`, `KIMI_CODE_API_KEY` для подписки Kimi Code — полный список в `.env.example`), `POSTGRES_PASSWORD`, `SANDBOX_TOKEN`
    (`openssl rand -hex 24`). Каждая переменная описана в файле; большинство настроек потом меняются в диалоге. Без
    `APP_URL` бот работает через long polling и публичный адрес не нужен; с ним — через webhook за вашим прокси.
 3. `chmod 1777 storage/app storage/browser storage/whisper` — контейнеры пишут туда от своих пользователей. Затем

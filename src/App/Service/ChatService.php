@@ -126,6 +126,13 @@ final class ChatService implements MessageHandler {
 
     private ?AntigravityCommands $antigravity = null;
 
+    private ?KimiCommands $kimi = null;
+
+    /** spec: brief/models.md#подписка-kimi-code-условия-и-лимиты — /kimi: the owner's Kimi Code subscription */
+    public function useKimi(KimiCommands $kimi): void {
+        $this->kimi = $kimi;
+    }
+
     /** spec: brief/models.md#google-по-подписке — /antigravity: the owner's Google Antigravity plan */
     public function useAntigravity(AntigravityCommands $antigravity): void {
         $this->antigravity = $antigravity;
@@ -407,6 +414,11 @@ final class ChatService implements MessageHandler {
             if (ClaudeCommands::carriesSecret($argument) && !$this->deleteOnce($message)) {
                 $this->reply($message, t('service.chat.ne_udalos_udalit_soobschenie_s'));
             }
+            return;
+        }
+        if ($this->kimi !== null && ($command === '/kimi' || str_starts_with($command, '/kimi@'))) {
+            $argument = (preg_split('~\s~u', $text, 2) ?: [])[1] ?? '';
+            $this->reply($message, $principal->isOwner() ? $this->kimi->handle($argument) : t(self::OWNER_ONLY));
             return;
         }
         if ($command === '/antigravity' || str_starts_with($command, '/antigravity@')) {

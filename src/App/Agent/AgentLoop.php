@@ -417,7 +417,7 @@ final class AgentLoop {
         $state->truncatedRetried = false;
 
         $calls = $this->round->prepare($state, $outcome->calls);
-        if (!$this->round->persist($state, $response->text, $calls)) {
+        if (!$this->round->persist($state, $response->text, $calls, $response->reasoning)) {
             return Step::stop(StopReason::PersistFailed);
         }
         if (trim($response->text) !== '') {

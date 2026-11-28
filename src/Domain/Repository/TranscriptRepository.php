@@ -21,8 +21,10 @@ interface TranscriptRepository {
      * The model's answer with its tool calls, in one transaction: if it fails, nothing is saved.
      *
      * @param list<StoredToolCall> $calls
+     * @param string $reasoning what the model thought before a turn with tool calls; a provider that wants it back gets
+     *                          it with the history of the run
      */
-    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls): void;
+    public function appendAssistant(int $conversationId, int $runId, string $text, array $calls, string $reasoning = ''): void;
 
     public function startCall(int $runId, string $callId): void;
 
