@@ -28,6 +28,24 @@ final class WorkspaceTest extends TestCase {
         $workspace->resolve(Workspace::OWNERS, '../etc');
     }
 
+    /** spec: brief/agent-loop.md#папка-контекста — a project works by a user of its own, in its folder in its owner's */
+    public function testAProjectIsAHolderOfItsOwnInsideItsOwnersFolder(): void {
+        $workspace = new Workspace();
+        $holder = Workspace::projectHolder(12, 7);
+
+        self::assertLessThan(0, $holder);
+        self::assertTrue(Workspace::isProject($holder));
+        self::assertFalse(Workspace::isProject(7));
+        self::assertFalse(Workspace::isProject(Workspace::OWNERS));
+        self::assertSame([12, 7], [Workspace::projectOf($holder), Workspace::ownerOf($holder)]);
+        self::assertSame(['j12', 3000012, '/workspace/p7/projects/12'], [$workspace->user($holder), $workspace->uid($holder), $workspace->home($holder)]);
+        self::assertSame('/workspace/p7/projects/12/a.txt', $workspace->resolve($holder, 'a.txt'));
+        self::assertNotSame($holder, Workspace::projectHolder(12, 8), 'another owner, another holder');
+
+        $this->expectException(SandboxError::class);
+        $workspace->resolve($holder, '../../secret.txt');
+    }
+
     public function testResolveKeepsPathsInsideHome(): void {
         $workspace = new Workspace();
 

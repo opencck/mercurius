@@ -37,7 +37,7 @@ final class ResourcesTopic {
         $used = null;
         if ($this->sandbox instanceof SandboxUsage) {
             try {
-                $used = $this->sandbox->usage($context->principal->id, $limits, $context->cancellation);
+                $used = $this->sandbox->usage(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $context->cancellation);
             } catch (SandboxFailure) {
                 // the count did not come: the limits are said without it
             }

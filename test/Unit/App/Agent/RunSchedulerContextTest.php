@@ -32,6 +32,28 @@ final class RunSchedulerContextTest extends AsyncTestCase {
         self::assertSame("🌐 global\n\nПривет!", end($edits));
     }
 
+    public function testARunInAProjectWorksInTheFolderOfTheProjectAndTheOwnersContextInTheRoot(): void {
+        // spec: brief/agent-loop.md#папка-контекста — the folder of a run follows its context
+        $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('ok'), ScriptedLlm::text('ok')]));
+        $projects = new InMemoryProjectRepository();
+        $projects->useConversations($stack->conversations);
+        $places = new ConversationPlaces($stack->conversations, $projects);
+        $stack->scheduler->useConversationPlaces($places);
+        $stack->scheduler->useProjectPolicies(new \OpenCCK\App\Service\ProjectPolicies(new \OpenCCK\Test\Support\InMemoryProjectPolicyRepository(), $projects, $stack->principals, $stack->policies, $stack->registry->names(...), new \Psr\Log\NullLogger()));
+        $stack->scheduler->useProjects(new \OpenCCK\App\Agent\ProjectContext($projects));
+        $stack->scheduler->useSandboxHolders(new \OpenCCK\App\Service\SandboxHolders(static fn(): int => 1));
+        $owner = $stack->principals->ensureOwner('telegram', '42', 'Owner');
+        $shop = $projects->create('Shop', 'goal');
+        $id = $stack->conversations->openConversation($owner->id, 'telegram', '42');
+
+        $places->switchTo($owner, 'telegram', '42', 'Shop');
+        self::assertSame(\OpenCCK\Sandbox\Workspace::projectHolder($shop->id, 1), $stack->scheduler->policyFor($id, $owner)->holder, 'the project of the owner of the agent lies in the owner\'s folder');
+        $places->switchTo($owner, 'telegram', '42', 'global');
+        self::assertSame(0, $stack->scheduler->policyFor($id, $owner)->holder);
+        $places->switchTo($owner, 'telegram', '42', 'personal');
+        self::assertSame($owner->id, $stack->scheduler->policyFor($id, $owner)->holder);
+    }
+
     public function testALostContextIsSaidInTheAnswer(): void {
         $stack = new AgentStack(new ScriptedLlm([ScriptedLlm::text('Привет!')]));
         $projects = new InMemoryProjectRepository();

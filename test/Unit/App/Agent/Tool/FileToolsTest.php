@@ -140,6 +140,20 @@ final class FileToolsTest extends TestCase {
         self::assertArrayNotHasKey('area', (array) $write->prepare(['path' => 'a.md', 'content' => 'x'], $owner, $own, new NullCancellation()));
     }
 
+    public function testInAProjectTheFileToolsWorkInItsFolderByItsUser(): void {
+        // spec: brief/agent-loop.md#папка-контекста — the folder of a run is its context's, its user the project's
+        $holder = \OpenCCK\Sandbox\Workspace::projectHolder(12, 7);
+        $policy = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), new SandboxLimits(100, 10, 5, 1000, 1), true))->withMcpContext('project:12', open: true, holder: $holder);
+        $member = new ToolContext(3, 1, new Member(8, MemberKind::Human, Role::user(), null), new NullCancellation(), $policy, 'c2');
+
+        (new WriteFileTool($this->sandbox))->execute(['path' => 'notes.md', 'content' => 'x'], $member);
+        (new RunCommandTool($this->sandbox, 120))->execute(['command' => 'ls'], $member);
+
+        self::assertSame('x', $this->sandbox->files[$holder]['notes.md'] ?? null, 'in the project\'s folder, not in the member\'s');
+        self::assertContains('exec ' . $holder . ' ls @. t120', $this->sandbox->calls);
+        self::assertTrue((new ReadFileTool($this->sandbox))->execute(['path' => 'notes.md', 'area' => 'owners'], $member)->isError, 'the root stays the owners\'');
+    }
+
     public function testASkillFileIsNotOverwrittenWithWhatIsNotASkill(): void {
         // spec: brief/skills-mcp.md#как-сделано-каталог-замок-и-проверка-скиллов — a SKILL.md written with its line breaks
         //       as backslash-n stopped being a skill and failed the runs of its project

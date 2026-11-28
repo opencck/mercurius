@@ -150,10 +150,14 @@ final class A2aServer implements JobRuns {
     private ?\OpenCCK\Domain\Repository\ProjectRepository $projectsOfChats = null;
 
     /** spec: brief/participants.md#права-проекта — a task of an agent in a project runs with the project's rights */
-    public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $rights, \OpenCCK\Domain\Repository\ProjectRepository $projects): void {
+    public function useProjectPolicies(\OpenCCK\App\Service\ProjectPolicies $rights, \OpenCCK\Domain\Repository\ProjectRepository $projects, ?\OpenCCK\App\Service\SandboxHolders $holders = null): void {
         $this->projectRights = $rights;
         $this->projectsOfChats = $projects;
+        $this->holders = $holders;
     }
+
+    /** spec: brief/agent-loop.md#папка-контекста — an agent in a project works in the project's folder */
+    private ?\OpenCCK\App\Service\SandboxHolders $holders = null;
 
     /**
      * The rights of the agent's run in this conversation: in a project — the project's, as for a person who writes in
@@ -170,7 +174,7 @@ final class A2aServer implements JobRuns {
                 $inProject = $rights->forRun($project, $agent);
                 if ($inProject !== null) {
                     // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — an agent in a project gets its connections
-                    return $inProject->withMcpContext('project:' . $project->id, open: true);
+                    return $inProject->withMcpContext('project:' . $project->id, open: true, holder: $this->holders?->forProject($project));
                 }
             }
         }

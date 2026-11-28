@@ -98,7 +98,7 @@ final class MediaMakeTool extends SandboxTool implements \OpenCCK\App\Agent\Tool
                 $base = preg_replace('~[^a-z0-9-]+~', '-', strtolower(Args::string($args, 'name') ?? '')) ?? '';
                 $base = trim($base, '-') === '' ? ($voice ? 'speech' : 'video') . '-' . gmdate('Ymd-His') : trim($base, '-');
                 $path = ($voice ? 'audio/' : 'video/') . $base . '.' . self::extensionOf($file['type'], $file['name']);
-                $this->sandbox->put($context->principal->id, $limits, $path, $file['bytes'], $context->cancellation);
+                $this->sandbox->put(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, $file['bytes'], $context->cancellation);
                 return ToolResult::ok(sprintf(t('tool.media_make.saved'), $path, $ref, strlen($file['bytes'])));
             }
             $errors[] = $ref . ': ' . ($error ?? '');

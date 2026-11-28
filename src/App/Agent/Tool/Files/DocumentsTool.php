@@ -70,7 +70,7 @@ final class DocumentsTool extends SandboxTool implements NeedsService {
         } catch (RuntimeException $e) {
             return ToolResult::error(sprintf(t('tool.documents.failed'), $e->getMessage()));
         }
-        $this->sandbox->put($context->principal->id, $limits, $path, $bytes, $context->cancellation);
+        $this->sandbox->put(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, $bytes, $context->cancellation);
         return ToolResult::ok(sprintf(t('tool.documents.done'), $path, strlen($bytes)));
     }
 }

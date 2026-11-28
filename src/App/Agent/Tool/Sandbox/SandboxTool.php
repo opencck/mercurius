@@ -72,7 +72,19 @@ abstract class SandboxTool implements Tool, \OpenCCK\App\Agent\Tool\PreparesCall
      * @param array<string, mixed> $args
      */
     protected function holder(array $args, ToolContext $context): int {
-        return self::inOwnersArea($args) ? self::OWNERS_AREA : $context->principal->id;
+        return self::inOwnersArea($args) ? self::OWNERS_AREA : self::holderOf($context);
+    }
+
+    /**
+     * The folder of the run: its context's — the root, the member's, the project's by its own user; without a context,
+     * the caller's own. For every part of the app that keeps or reads a file of a run.
+     *
+     * spec: brief/agent-loop.md#папка-контекста
+     */
+    public static function holderOf(ToolContext $context): int {
+        $holder = $context->policy->holder ?? $context->principal->id;
+        // the root is only an owner's, whatever a policy says
+        return $holder === self::OWNERS_AREA && !$context->principal->isOwner() ? $context->principal->id : $holder;
     }
 
     /**

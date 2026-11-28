@@ -56,8 +56,8 @@ final class ToolExecutor {
         $limits = $context->policy?->sandbox;
         if ($this->checkpoints !== null && $limits !== null && ($tool instanceof SandboxTool || $tool instanceof ChangesSandbox) && !$tool instanceof CheckpointTool && $tool->danger($call->args) !== DangerClass::Read
             // the owners' area holds every member's folder: it has no snapshot, a restore would undo the members' work
-            && !SandboxTool::worksInOwnersArea($call->args)) {
-            $this->checkpoints->ensure($context->principal->id, $limits, $context->runId, $context->cancellation);
+            && !SandboxTool::worksInOwnersArea($call->args) && SandboxTool::holderOf($context) !== SandboxTool::OWNERS_AREA) {
+            $this->checkpoints->ensure(SandboxTool::holderOf($context), $limits, $context->runId, $context->cancellation);
         }
 
         try {
@@ -113,7 +113,7 @@ final class ToolExecutor {
         $callId = $callId === '' ? 'call' : $callId;
         $path = sprintf('.mercurius/results/%d/%s.txt', $context->runId, $callId);
         try {
-            $this->sandbox->write($context->principal->id, $limits, $path, $content, $context->cancellation);
+            $this->sandbox->write(SandboxTool::holderOf($context), $limits, $path, $content, $context->cancellation);
         } catch (SandboxFailure $e) {
             $this->logger->warning('Could not spill a tool result', ['run' => $context->runId]);
             return null;

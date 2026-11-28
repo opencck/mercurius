@@ -437,12 +437,19 @@ final class JobScheduler implements JobRuns {
     }
 
     /** A job cannot set jobs; irreversible steps ask the owner by a card or go by a saved grant. */
+    private ?\OpenCCK\App\Service\SandboxHolders $holders = null;
+
+    /** spec: brief/agent-loop.md#папка-контекста — a job of a project works in the project's folder */
+    public function useSandboxHolders(\OpenCCK\App\Service\SandboxHolders $holders): void {
+        $this->holders = $holders;
+    }
+
     private function policy(Member $principal, Job $job, ?\OpenCCK\Domain\Project\Project $project = null): ParticipantPolicy {
         $owner = $project !== null && $this->projectPolicies !== null ? $this->projectPolicies->of($project) : $this->policies->forPrincipal($principal);
         // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a job of a project gets the project's
         //       connections, any other job its member's own
         // spec: brief/self-improvement.md#самоулучшение — the self-review has its white list and no connections
-        $owner = $job->title === 'self-review' ? $owner->withMcpContext(null) : $owner->withMcpContext($project !== null ? 'project:' . $project->id : 'member:' . $principal->id, open: true);
+        $owner = $job->title === 'self-review' ? $owner->withMcpContext(null) : $owner->withMcpContext($project !== null ? 'project:' . $project->id : 'member:' . $principal->id, open: true, holder: $project === null ? null : $this->holders?->forProject($project));
         $tools = array_values(array_diff($this->registry->names($owner), self::JOB_TOOLS));
         if ($job->title === 'self-review') {
             $tools = array_values(array_intersect($tools, self::SELF_REVIEW_TOOLS));

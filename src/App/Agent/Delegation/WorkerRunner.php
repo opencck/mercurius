@@ -810,7 +810,7 @@ final class WorkerRunner {
                 $this->transcript->appendUser($conversation, $run->id, $message ?? $this->brief($parent, $task));
             }
             // spec: brief/skills-mcp.md#процессы-и-реестр-инструментов-по-контекстам — a worker is in its parent's context
-            $policy = (new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false))->withMcpContext($parent->policy?->mcpContext);
+            $policy = (new ParticipantPolicy($this->tools($parent, $task), $limits, $parent->policy?->sandbox, false, $readOnly || $task->mode === 'read', false))->withMcpContext($parent->policy?->mcpContext, holder: $parent->policy?->holder);
             $final = $this->loop->run($run, $policy, $parent->principal, new SilentObserver(), $parent->cancellation);
         } catch (Throwable $e) {
             $this->logger->error('Worker failed to run', ['parent' => $orchestrator->id, 'task' => $index, 'error' => $e::class]);

@@ -111,7 +111,7 @@ final class ImageGenerateTool extends SandboxTool implements \OpenCCK\App\Agent\
         }
         $image = $drawn->images[0];
         $path = 'images/' . self::slug(Args::string($args, 'name') ?? '', $prompt) . '.' . (self::EXT[$image->mime] ?? 'png');
-        $this->sandbox->put($context->principal->id, $limits, $path, $image->bytes, $context->cancellation);
+        $this->sandbox->put(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, $image->bytes, $context->cancellation);
         return ToolResult::ok(sprintf(t('tool.image_generate.saved'), $path, $drawn->model, strlen($image->bytes)));
     }
 

@@ -37,12 +37,13 @@ final class FolderTree {
 
     /** @param int<1, 3> $depth */
     public function show(Member $who, ConversationPlace $place, SandboxLimits $limits, int $depth, Cancellation $cancellation): string {
-        [$holder, $dir] = match ($place->kind) {
-            ConversationPlace::OWNERS => [0, '.'],
-            ConversationPlace::PROJECT => [$place->project->ownerId ?? ($this->agentOwner)() ?? $who->id, 'projects/' . ($place->project->id ?? 0)],
-            default => [$who->id, '.'],
+        // spec: brief/agent-loop.md#папка-контекста — a project is listed by its own user, from its own folder
+        $owner = $place->project === null ? null : ($place->project->ownerId ?? ($this->agentOwner)());
+        [$holder, $dir, $shown] = match (true) {
+            $place->kind === ConversationPlace::OWNERS => [0, '.', self::ROOT],
+            $place->project !== null && $owner !== null => [\OpenCCK\Sandbox\Workspace::projectHolder($place->project->id, $owner), '.', self::ROOT . '/p' . $owner . '/projects/' . $place->project->id],
+            default => [$who->id, '.', self::ROOT . '/p' . $who->id],
         };
-        $shown = ($holder === 0 ? self::ROOT : self::ROOT . '/p' . $holder) . ($dir === '.' ? '' : '/' . $dir);
         $header = [sprintf(t('ls.context'), $place->title())];
         if ($place->project !== null) {
             $level = $place->project->levelOf($who, $this->projects->memberLevel($place->project->id, $who->id));

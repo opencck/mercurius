@@ -58,8 +58,7 @@ final class FolderTreeTest extends TestCase {
         self::assertStringContainsString(sprintf(t('ls.folder'), '/workspace/p5/projects/' . $shop->id, '8.3 МБ'), $text);
         self::assertStringContainsString(sprintf(t('ls.level'), 'write'), $text);
         self::assertStringContainsString('└─ main.py — 4 КБ', $text);
-        self::assertStringStartsWith('exec 5 ', $sandbox->calls[0]);
-        self::assertStringContainsString("projects/{$shop->id}", $sandbox->calls[0]);
+        self::assertStringStartsWith('exec ' . \OpenCCK\Sandbox\Workspace::projectHolder($shop->id, 5) . ' ', $sandbox->calls[0], 'by the project\'s own user');
         self::assertStringContainsString('--max-depth=2', $sandbox->calls[0]);
     }
 

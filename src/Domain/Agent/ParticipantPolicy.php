@@ -42,11 +42,26 @@ final class ParticipantPolicy {
          * stranger in the group get connection tools only by their list.
          */
         public readonly bool $mcpOpen = false,
+        /**
+         * Whose folder the run works in: 0 — the root (the shared context), a member, the holder of a project; null —
+         * the caller's own.
+         *
+         * spec: brief/agent-loop.md#папка-контекста
+         */
+        public readonly ?int $holder = null,
     ) {}
 
-    /** The same policy in a context of MCP connections; $open — the run is the place itself. */
-    public function withMcpContext(?string $context, bool $open = false): self {
-        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $context, $context !== null && $open);
+    /**
+     * The same policy in a context of MCP connections; $open — the run is the place itself. The folder follows the
+     * context: the root for the owners', the member's for theirs; a project's is given, its owner is not in the name.
+     */
+    public function withMcpContext(?string $context, bool $open = false, ?int $holder = null): self {
+        $holder ??= match (true) {
+            $context === 'owners' => 0,
+            $context !== null && preg_match('/^member:(\d+)$/', $context, $m) === 1 => (int) $m[1],
+            default => null,
+        };
+        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $context, $context !== null && $open, $holder);
     }
 
     /** The same policy with one more tool; every tool already — the same. */
@@ -55,19 +70,19 @@ final class ParticipantPolicy {
         if ($this->tools === null || array_intersect($this->tools, $names) === []) {
             return $this;
         }
-        return new self(array_values(array_diff($this->tools, $names)), $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen);
+        return new self(array_values(array_diff($this->tools, $names)), $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen, $this->holder);
     }
 
     public function withTool(string $name): self {
         if ($this->tools === null || in_array($name, $this->tools, true) || $name === '') {
             return $this;
         }
-        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen);
+        return new self([...$this->tools, $name], $this->run, $this->sandbox, $this->mayRequestApproval, $this->readOnly, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen, $this->holder);
     }
 
     /** The same policy where only calls that read run. */
     public function readOnlyCopy(): self {
-        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, true, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen);
+        return new self($this->tools, $this->run, $this->sandbox, $this->mayRequestApproval, true, $this->irreversible, $this->dailySpendUsd, $this->mcpContext, $this->mcpOpen, $this->holder);
     }
 
     public function allowsTool(string $name): bool {
@@ -97,6 +112,7 @@ final class ParticipantPolicy {
             dailySpendUsd: $cap,
             mcpContext: $this->mcpContext,
             mcpOpen: false,
+            holder: $this->holder,
         );
     }
 
@@ -111,7 +127,7 @@ final class ParticipantPolicy {
         if (!$keepApproval || !$this->mayRequestApproval || $narrowed->mayRequestApproval) {
             return $narrowed;
         }
-        return new self($narrowed->tools, $narrowed->run, $narrowed->sandbox, true, $narrowed->readOnly, $narrowed->irreversible, $narrowed->dailySpendUsd, $narrowed->mcpContext);
+        return new self($narrowed->tools, $narrowed->run, $narrowed->sandbox, true, $narrowed->readOnly, $narrowed->irreversible, $narrowed->dailySpendUsd, $narrowed->mcpContext, holder: $narrowed->holder);
     }
 
     /**

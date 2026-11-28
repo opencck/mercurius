@@ -38,6 +38,7 @@ use OpenCCK\Infrastructure\Http\HttpClients;
  * @var OpenCCK\App\Vault\Vault $vault
  * @var OpenCCK\App\Peer\ProjectChannels $projectChannels
  * @var OpenCCK\App\Service\ProjectPolicies $projectPolicies
+ * @var OpenCCK\App\Service\SandboxHolders $sandboxHolders
  * @var OpenCCK\Infrastructure\Repository\PostgresProjectRepository $projectRepository
  */
 
@@ -213,7 +214,7 @@ if ($a2aServer !== null) {
     // spec: brief/network.md#опознание-агентов-ключи-ecdsa — the extended card names the tools of the asking agent's own policy
     $a2aServer->useProjects($projectChannels);
     // spec: brief/participants.md#права-проекта — a task of an agent in a project runs with the project's rights
-    $a2aServer->useProjectPolicies($projectPolicies, $projectRepository);
+    $a2aServer->useProjectPolicies($projectPolicies, $projectRepository, $sandboxHolders);
     $a2aServer->useStreams($placeStreams);
     $a2aServer->useSkills(static function (Member $agent) use ($tools, $policies): array {
         $skills = [];

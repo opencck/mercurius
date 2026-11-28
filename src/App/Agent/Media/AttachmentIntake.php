@@ -133,11 +133,11 @@ final class AttachmentIntake {
                     continue;
                 }
                 // not understood now (no model, failed, left for a request): kept, the agent works with it later
-                $path = $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
+                $path = $this->keep($policy->holder ?? $principal->id, $limits, $folder, $name, $bytes, $cancellation);
                 $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . "\n" . $content;
                 continue;
             }
-            $path = $limits === null ? null : $this->keep($principal, $limits, $folder, $name, $bytes, $cancellation);
+            $path = $limits === null ? null : $this->keep($policy->holder ?? $principal->id, $limits, $folder, $name, $bytes, $cancellation);
             $blocks[] = $this->line($attachment, $name, strlen($bytes), $path) . $note
                 . "\n" . $this->content($principal, $limits, $attachment, $name, $bytes, $path, $cancellation, $call);
         }
@@ -275,14 +275,15 @@ final class AttachmentIntake {
     }
 
     /** Keeps the file under a free name in the folder; null — not kept (the reason is logged). */
-    private function keep(Member $principal, SandboxLimits $limits, string $folder, string $name, string $bytes, Cancellation $cancellation): ?string {
+    /** spec: brief/agent-loop.md#папка-контекста — an attachment is kept in the folder of the conversation's context */
+    private function keep(int $holder, SandboxLimits $limits, string $folder, string $name, string $bytes, Cancellation $cancellation): ?string {
         if ($this->sandbox === null) {
             return null;
         }
         try {
             $taken = [];
             try {
-                foreach ($this->sandbox->list($principal->id, $limits, $folder, 1, $cancellation) as $entry) {
+                foreach ($this->sandbox->list($holder, $limits, $folder, 1, $cancellation) as $entry) {
                     $taken[basename($entry['path'])] = true;
                 }
             } catch (SandboxFailure) {
@@ -293,10 +294,10 @@ final class AttachmentIntake {
                 $number++;
             }
             $path = $folder . '/' . MediaNames::numbered($name, $number);
-            $this->sandbox->put($principal->id, $limits, $path, $bytes, $cancellation);
+            $this->sandbox->put($holder, $limits, $path, $bytes, $cancellation);
             return $path;
         } catch (SandboxFailure $e) {
-            $this->logger->notice('Attachment was not kept', ['principal' => $principal->id, 'error' => mb_substr($e->getMessage(), 0, 200)]);
+            $this->logger->notice('Attachment was not kept', ['holder' => $holder, 'error' => mb_substr($e->getMessage(), 0, 200)]);
             return null;
         }
     }

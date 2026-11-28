@@ -62,6 +62,7 @@ use Mercurius\Memory\App\Proposals;
  * @var OpenCCK\App\Agent\MemoryRulesNotice|null $rulesNotice
  * @var OpenCCK\Infrastructure\Repository\PostgresConversationRepository $conversations
  * @var OpenCCK\App\Service\ConversationPlaces $conversationPlaces
+ * @var OpenCCK\App\Service\SandboxHolders $sandboxHolders
  * @var Amp\Postgres\PostgresConnectionPool $db
  * @var OpenCCK\Infrastructure\Media\DocsService $docsService
  * @var OpenCCK\Infrastructure\Repository\PostgresEvalScoreRepository $evalScores
@@ -459,6 +460,7 @@ if ($sandbox !== null) {
         $conversationPlaces,
         new \OpenCCK\App\Service\FolderTree($sandbox, $projectRepository, static fn(): ?int => $ownerDirectory->principal()?->id),
         static fn(\OpenCCK\Domain\Entity\Member $who): ?\OpenCCK\Domain\Agent\SandboxLimits => $policies->forPrincipal($who)->sandbox,
+        $sandboxHolders,
     );
 }
 // spec: brief/participants.md#обзор-владельца

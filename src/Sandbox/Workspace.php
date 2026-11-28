@@ -24,15 +24,54 @@ final class Workspace {
 
     public function __construct(public readonly string $root = '/workspace') {}
 
+    /** the uid of a project: 3000000 + its number, apart from the members' */
+    public const PROJECT_UID_BASE = 3_000_000;
+    /** a member's number fits below it in the holder of a project */
+    private const OWNER_SPAN = 2_097_152;
+
+    /**
+     * The holder of a project: its own user, its home its folder in its owner's. Negative, so it is never a member's;
+     * the owner is in it, so the folder is found without a lookup and a transfer gives a new holder.
+     *
+     * spec: brief/agent-loop.md#папка-контекста
+     */
+    public static function projectHolder(int $projectId, int $ownerId): int {
+        if ($projectId < 1 || $ownerId < 1 || $ownerId >= self::OWNER_SPAN || $projectId > intdiv(PHP_INT_MAX, self::OWNER_SPAN) - 1) {
+            throw new SandboxError(t('sandbox.workspace.nedopustimyy_put'));
+        }
+        return -($projectId * self::OWNER_SPAN + $ownerId);
+    }
+
+    public static function isProject(int $holder): bool {
+        return $holder < 0;
+    }
+
+    public static function projectOf(int $holder): int {
+        return intdiv(-$holder, self::OWNER_SPAN);
+    }
+
+    public static function ownerOf(int $holder): int {
+        return -$holder % self::OWNER_SPAN;
+    }
+
     public function user(int $principalId): string {
+        if (self::isProject($principalId)) {
+            return 'j' . self::projectOf($principalId);
+        }
         return $principalId === self::OWNERS ? 'owners' : 'p' . $principalId;
     }
 
     public function uid(int $principalId): int {
+        if (self::isProject($principalId)) {
+            return self::PROJECT_UID_BASE + self::projectOf($principalId);
+        }
         return $principalId === self::OWNERS ? self::OWNERS_UID : self::UID_BASE + $principalId;
     }
 
     public function home(int $principalId): string {
+        if (self::isProject($principalId)) {
+            return $this->home(self::ownerOf($principalId)) . '/projects/' . self::projectOf($principalId);
+        }
         return $principalId === self::OWNERS ? $this->root : $this->root . '/' . $this->user($principalId);
     }
 

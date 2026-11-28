@@ -156,9 +156,7 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
      * spec: brief/participants.md#контекст-беседы-в-личном-чате
      */
     private static function holder(ToolContext $context): int {
-        return $context->policy?->mcpContext === \OpenCCK\App\Service\ConversationPlace::OWNERS && $context->principal->isOwner()
-            ? \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::OWNERS_AREA
-            : $context->principal->id;
+        return \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context);
     }
 
     /**

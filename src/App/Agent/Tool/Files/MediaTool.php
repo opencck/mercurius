@@ -103,7 +103,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
         $refs = MediaPrefs::candidates($settings, $model, $this->prefs->of($context->principal->id, $kindOf)->model, $asked);
         $question = trim(Args::string($args, 'question') ?? '') ?: t($model === 'video' ? 'media.prompt.video' : 'media.prompt.describe');
         $call = new MediaCall($context->conversationId, $context->runId, $context->cancellation);
-        $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
+        $bytes = $this->sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
         $name = basename(str_replace('\\', '/', $path));
         $models = $this->models;
         return match ($model) {
@@ -156,7 +156,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
             if ($this->docs === null || !$this->docs->up()) {
                 return ToolResult::error(t('media.intake.no_docs_module'));
             }
-            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
+            $bytes = $this->sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
             try {
                 [$status, $text] = $this->docs->extract($bytes, basename(str_replace('\\', '/', $path)), $offset + $limit, $context->cancellation);
             } catch (\RuntimeException $e) {
@@ -166,7 +166,7 @@ final class MediaTool extends SandboxTool implements ReadsOutside {
                 return ToolResult::error($status === 415 ? t('media.intake.unsupported') : sprintf(t('media.intake.not_extracted'), $text));
             }
         } else {
-            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
+            $bytes = $this->sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, AttachmentIntake::SANDBOX_MAX, $context->cancellation);
             $converted = mb_check_encoding($bytes, 'UTF-8') ? $bytes : iconv('Windows-1251', 'UTF-8', $bytes);
             $text = $converted === false ? '' : $converted;
         }

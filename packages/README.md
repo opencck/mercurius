@@ -12,7 +12,7 @@ git-сабмодулями (ветка `master`). Правила — в [CLAUDE.
 | [mercurius-connectors](https://github.com/opencck/mercurius-connectors) | [connectors/](connectors/) | `0b2faa8` | 2026-11-21 | Маршруты исходящих соединений: напрямую, HTTP CONNECT, SOCKS5, VLESS |
 | [mercurius-messenger](https://github.com/opencck/mercurius-messenger) | [messenger/](messenger/) | `68c1d0c` | 2026-11-26 | Канал связи: адаптеры Telegram и WebSocket |
 | [mercurius-search](https://github.com/opencck/mercurius-search) | [search/](search/) | `f7ae583` | 2026-11-27 | Поиск в интернете за одним интерфейсом: SearXNG, Brave, Tavily, OpenRouter, порядок и кеш |
-| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `9569504` | 2026-11-28 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
+| [mercurius-i18n](https://github.com/opencck/mercurius-i18n) | [i18n/](i18n/) | `f3b579a` | 2026-11-28 | Тексты агента на русском и английском: `Translator`, каталоги, формы числа |
 | [mercurius-mcp-client](https://github.com/opencck/mercurius-mcp-client) | [mcp-client/](mcp-client/) | `15860ed` | 2026-11-27 | Клиент MCP: JSON-RPC по Streamable HTTP, инструменты и ресурсы постранично, файлы в результате; тексты — снаружи (`McpTexts`) |
 | [mercurius-memory](https://github.com/opencck/mercurius-memory) | [memory/](memory/) | `ad78a39` | 2026-11-27 | Память: факты с версиями и происхождением, вспоминание по ключам и HRR, предложения владельцу, ядро, ночная проверка; хранилища PostgreSQL и в памяти, свои миграции |
 | [mercurius-todo](https://github.com/opencck/mercurius-todo) | [todo/](todo/) | `2c8e999` | 2026-11-21 | План беседы: пункты со статусами и подзадачами, замена или слияние по номеру, показ несделанного, хранилища в памяти и на PostgreSQL |
@@ -52,6 +52,11 @@ compose, по умолчанию выключен ([Модули: сервисы
 - У каждого пакета свой `composer check` и свой CI.
 
 ## Журнал
+
+### 2026-11-28 — папка контекста
+
+- `i18n` `dbb1242` → `9569504` → `f3b579a`: поиск файлов по части имени; папка проекта — рабочая папка запуска, пути
+  от неё; тема `projects` — папка каждого контекста и свой пользователь проекта.
 
 ### 2026-11-28 — файлы MCP в общем контексте, поиск по части имени
 

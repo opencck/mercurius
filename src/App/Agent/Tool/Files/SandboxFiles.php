@@ -44,7 +44,7 @@ final class SandboxFiles {
                 continue;
             }
             try {
-                $bytes = $sandbox->fetch($context->principal->id, $limits, $path, SendFileTool::MAX_BYTES, $context->cancellation);
+                $bytes = $sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, SendFileTool::MAX_BYTES, $context->cancellation);
             } catch (SandboxFailure $e) {
                 throw new RuntimeException($e->getMessage());
             }

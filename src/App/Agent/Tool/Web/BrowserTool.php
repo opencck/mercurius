@@ -403,7 +403,7 @@ final class BrowserTool implements Tool, GrantKeyed, ReadsOutside, PreparesCall,
         if ($this->sandbox !== null && $limits !== null) {
             $path = 'screenshots/shot-' . date('Ymd-His') . '-' . substr(bin2hex(random_bytes(2)), 0, 4) . '.png';
             try {
-                $this->sandbox->put($context->principal->id, $limits, $path, $png, $context->cancellation);
+                $this->sandbox->put(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, $png, $context->cancellation);
                 $kept = $path;
             } catch (\OpenCCK\App\Agent\Sandbox\SandboxFailure) {
                 // the chat still gets it

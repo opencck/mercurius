@@ -173,6 +173,12 @@ final class RunScheduler {
 
     private ?\OpenCCK\App\Service\ProjectPolicies $projectPolicies = null;
     private ?\OpenCCK\App\Service\ConversationPlaces $places = null;
+    private ?\OpenCCK\App\Service\SandboxHolders $holders = null;
+
+    /** spec: brief/agent-loop.md#папка-контекста — a run of a project works in the project's folder */
+    public function useSandboxHolders(\OpenCCK\App\Service\SandboxHolders $holders): void {
+        $this->holders = $holders;
+    }
     /** @var array<int, string> conversation => the notice of a context lost, for the first line of the next answer */
     private array $placeNotices = [];
 
@@ -236,7 +242,8 @@ final class RunScheduler {
             $owners => \OpenCCK\App\Service\ConversationPlace::OWNERS,
             $meta !== null && !str_starts_with($meta->chatId, '-') => 'member:' . $principal->id,
             default => null,
-        }, open: true);
+        // spec: brief/agent-loop.md#папка-контекста — a project works in its own folder, by its own user
+        }, open: true, holder: $members === null ? null : $this->holders?->forProject($members));
         $speakers = $this->speakers;
         if ($speakers === null || $meta === null) {
             return $policy;

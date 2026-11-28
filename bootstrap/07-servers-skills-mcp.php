@@ -497,6 +497,11 @@ if ($sandbox !== null) {
     /** @var \OpenCCK\App\Agent\Tool\Files\WriteFileTool|null $writeFile */
     $writeFile?->useMcpFiles(static function (int $member, string $path) use ($mcpFiles): void {
         $path = str_replace('\\', '/', $path);
+        // spec: brief/agent-loop.md#папка-контекста — from a project's folder: the file lies in its owner's, under projects/
+        if (\OpenCCK\Sandbox\Workspace::isProject($member)) {
+            $path = 'projects/' . \OpenCCK\Sandbox\Workspace::projectOf($member) . '/' . ltrim(preg_replace('~^(\./)+~', '', $path) ?? $path, '/');
+            $member = \OpenCCK\Sandbox\Workspace::ownerOf($member);
+        }
         if ($member === \OpenCCK\App\Mcp\McpFiles::OWNERS_AREA) {
             // from the owners' area: the root's own file, or a member's or project's file inside a member's folder
             $path = preg_replace('~^/workspace/~', '', $path) ?? $path;

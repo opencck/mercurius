@@ -41,8 +41,45 @@ final class Users {
         }
     }
 
+    /**
+     * The user of a project: its home is the project's folder in its owner's. The owner makes the folder and opens it
+     * (setpriv): to the project only a pass through the owner's home and projects/, everything inside the folder, and
+     * the default ACL for the project, the owner and the owners. A link the owner planted opens nothing the owner could
+     * not open, and the project sees none of the owner's other files.
+     *
+     * spec: brief/agent-loop.md#папка-контекста
+     *
+     * @throws SandboxError
+     */
+    private function createProject(int $holder): void {
+        $owner = Workspace::ownerOf($holder);
+        $this->ensure($owner);
+        $user = $this->workspace->user($holder);
+        $id = (string) $this->workspace->uid($holder);
+        $home = $this->workspace->home($holder);
+        $ownerHome = $this->workspace->home($owner);
+        $ownerId = (string) $this->workspace->uid($owner);
+        if ($this->proc->run(['getent', 'passwd', $user], '/', 10)->exitCode !== 0) {
+            $this->must(['groupadd', '--gid', $id, $user]);
+            $this->must(['useradd', '--uid', $id, '--gid', $id, '--no-create-home', '--home-dir', $home, '--shell', '/bin/bash', $user]);
+        } else {
+            // a project handed to another owner: its folder moved, its home follows
+            $this->must(['usermod', '--home', $home, $user]);
+        }
+        $asOwner = ['setpriv', '--reuid=' . $ownerId, '--regid=' . $ownerId, '--clear-groups', '--'];
+        $this->must([...$asOwner, 'mkdir', '-p', '--', $home]);
+        $this->must([...$asOwner, 'setfacl', '-m', 'u:' . $id . ':--x', $ownerHome, $ownerHome . '/projects']);
+        // files the project or the owners made are not the owner's: their ACL came with them by default, so the result
+        // is not checked (as in share())
+        $this->proc->run([...$asOwner, 'setfacl', '-R', '-P', '-m', 'u:' . $id . ':rwX,d:u:' . $id . ':rwX,d:u:' . $ownerId . ':rwX,d:u:' . Workspace::OWNERS_UID . ':rwX', $home], '/', 600);
+    }
+
     /** @throws SandboxError */
     private function create(int $principalId): void {
+        if (Workspace::isProject($principalId)) {
+            $this->createProject($principalId);
+            return;
+        }
         $user = $this->workspace->user($principalId);
         $id = (string) $this->workspace->uid($principalId);
         $home = $this->workspace->home($principalId);

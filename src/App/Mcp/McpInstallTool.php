@@ -130,7 +130,7 @@ final class McpInstallTool implements Tool, GrantKeyed {
             return t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika');
         }
         try {
-            $bytes = $this->sandbox->fetch($context->principal->id, $limits, $path, self::ARCHIVE_MAX, new NullCancellation());
+            $bytes = $this->sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, self::ARCHIVE_MAX, new NullCancellation());
         } catch (SandboxFailure $e) {
             return $e->getMessage();
         }

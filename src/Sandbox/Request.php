@@ -34,8 +34,8 @@ final class Request {
         $body = self::decode($json);
 
         $principal = $body['principal_id'] ?? null;
-        // 0 is the owners' area; members are numbered from 1
-        if (!is_int($principal) || $principal < 0) {
+        // 0 is the owners' area; members are numbered from 1; a project is negative, with its number and its owner in it
+        if (!is_int($principal) || ($principal < 0 && (Workspace::projectOf($principal) < 1 || Workspace::ownerOf($principal) < 1))) {
             throw new SandboxError(t('sandbox.request.ne_ukazan_uchastnik_principal_id'));
         }
         $callId = $body['call_id'] ?? '';

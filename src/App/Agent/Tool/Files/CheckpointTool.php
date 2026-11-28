@@ -49,7 +49,7 @@ final class CheckpointTool extends SandboxTool {
     protected function run(array $args, ToolContext $context, SandboxLimits $limits): ToolResult {
         $action = Args::string($args, 'action') ?? 'list';
         if ($action === 'list') {
-            $out = $this->checkpoints->list($context->principal->id, $limits, $context->cancellation);
+            $out = $this->checkpoints->list(SandboxTool::holderOf($context), $limits, $context->cancellation);
             return ToolResult::ok(trim($out->stdout) === '' || trim($out->stdout) === 'none' ? t('tool.checkpoint.none') : t('tool.checkpoint.list') . "\n" . trim($out->stdout));
         }
         $id = Args::string($args, 'id') ?? '';
@@ -58,10 +58,10 @@ final class CheckpointTool extends SandboxTool {
             return ToolResult::error(t('tool.checkpoint.bad'));
         }
         if ($action === 'diff') {
-            $out = $this->checkpoints->diff($context->principal->id, $limits, $id, $context->cancellation);
+            $out = $this->checkpoints->diff(SandboxTool::holderOf($context), $limits, $id, $context->cancellation);
             return $out->exitCode === 0 ? ToolResult::ok(trim($out->stdout) === '' ? t('tool.checkpoint.same') : trim($out->stdout)) : ToolResult::error(trim($out->stdout . $out->stderr));
         }
-        $out = $this->checkpoints->restore($context->principal->id, $limits, $id, $path, $context->cancellation);
+        $out = $this->checkpoints->restore(SandboxTool::holderOf($context), $limits, $id, $path, $context->cancellation);
         return $out->exitCode === 0
             ? ToolResult::ok(sprintf(t('tool.checkpoint.restored'), $path ?? '.', $id))
             : ToolResult::error(mb_substr(trim($out->stdout . "\n" . $out->stderr), 0, 500));

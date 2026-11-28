@@ -186,6 +186,26 @@ final class ChatService implements MessageHandler {
     private ?ContextCommands $contexts = null;
     private ?ConversationPlaces $places = null;
     private ?FolderTree $tree = null;
+    private ?SandboxHolders $holders = null;
+
+    /**
+     * The policy of a message's own handling (its attachments) in the folder of the place: the root of the shared
+     * context, the folder of a project, the member's own.
+     *
+     * spec: brief/agent-loop.md#папка-контекста
+     */
+    private function inContext(\OpenCCK\Domain\Entity\Member $who, \OpenCCK\Domain\Agent\ParticipantPolicy $policy, IncomingMessage $message): \OpenCCK\Domain\Agent\ParticipantPolicy {
+        if ($this->places === null) {
+            return $policy;
+        }
+        $place = $this->places->of($who, $message->channel, $message->chatId, MessageMeta::topicKey($message));
+        $holder = match (true) {
+            $place->kind === ConversationPlace::OWNERS && $who->isOwner() => 0,
+            $place->project !== null => $this->holders?->forProject($place->project),
+            default => null,
+        };
+        return $holder === null ? $policy : $policy->withMcpContext($policy->mcpContext, $policy->mcpOpen, $holder);
+    }
     /** @var (\Closure(\OpenCCK\Domain\Entity\Member): ?\OpenCCK\Domain\Agent\SandboxLimits)|null */
     private ?\Closure $sandboxLimits = null;
 
@@ -195,7 +215,8 @@ final class ChatService implements MessageHandler {
      *
      * @param \Closure(\OpenCCK\Domain\Entity\Member): ?\OpenCCK\Domain\Agent\SandboxLimits $sandboxLimits
      */
-    public function useContexts(ContextCommands $contexts, ConversationPlaces $places, FolderTree $tree, \Closure $sandboxLimits): void {
+    public function useContexts(ContextCommands $contexts, ConversationPlaces $places, FolderTree $tree, \Closure $sandboxLimits, ?SandboxHolders $holders = null): void {
+        $this->holders = $holders;
         $this->contexts = $contexts;
         $this->places = $places;
         $this->tree = $tree;
@@ -629,7 +650,7 @@ final class ChatService implements MessageHandler {
         $outside = null;
         if (($original->attachments !== [] || $original->repliedAttachments !== []) && $intake !== null && $policies !== null) {
             // the spend of the media models is counted on the conversation
-            $taken = $intake->intake($principal, $policies->forPrincipal($principal), $original, new \Amp\TimeoutCancellation(180), $conversationId);
+            $taken = $intake->intake($principal, $this->inContext($principal, $policies->forPrincipal($principal), $message), $original, new \Amp\TimeoutCancellation(180), $conversationId);
             $outside = $taken->outside ? 'attachments' : null;
             $message = self::withText($message, trim($message->text . "\n\n" . $taken->text));
             // the participant's own voice is their words: it counts with the text

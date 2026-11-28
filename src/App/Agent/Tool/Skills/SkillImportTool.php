@@ -105,7 +105,7 @@ final class SkillImportTool implements Tool, ReadsOutside, ChangesSandbox, \Open
                 if ($this->sandbox === null || $limits === null) {
                     return ToolResult::error(t('tool.sandbox.pesochnitsa_nedostupna_dlya_uchastnika'));
                 }
-                [$bundle, $findings] = $this->importer->archive($this->sandbox->fetch($context->principal->id, $limits, $path, 5 * 1024 * 1024, $context->cancellation), $path);
+                [$bundle, $findings] = $this->importer->archive($this->sandbox->fetch(\OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::holderOf($context), $limits, $path, 5 * 1024 * 1024, $context->cancellation), $path);
             } elseif ($url !== '') {
                 [$bundle, $findings] = $this->importer->fetch($url, new CompositeCancellation($context->cancellation, new TimeoutCancellation(80)));
             } else {

@@ -42,6 +42,20 @@ final class RequestTest extends TestCase {
         }
     }
 
+    /** spec: brief/agent-loop.md#папка-контекста — a project is a holder of its own; a negative number that is none is not */
+    public function testAProjectHolderIsTakenAndANumberThatIsNoneIsNot(): void {
+        $holder = \OpenCCK\Sandbox\Workspace::projectHolder(12, 7);
+        self::assertSame($holder, Request::parse('exec', self::json(['principal_id' => $holder, 'limits' => self::LIMITS, 'command' => 'ls']))->principalId);
+        foreach ([-1, -2_097_152, -12 * 2_097_152] as $bad) {
+            try {
+                Request::parse('exec', self::json(['principal_id' => $bad, 'limits' => self::LIMITS, 'command' => 'ls']));
+                self::fail('No error for ' . $bad);
+            } catch (SandboxError $e) {
+                self::assertSame(400, $e->status);
+            }
+        }
+    }
+
     public function testRequestRejectsBadJson(): void {
         $this->expectException(SandboxError::class);
         Request::parse('read', '{');
