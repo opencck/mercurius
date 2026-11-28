@@ -33,6 +33,20 @@ final class MessageMetaTest extends TestCase {
         self::assertStringContainsString('конец»]', $header, 'the whole text, not a preview');
     }
 
+    public function testAPieceTheMemberSelectedIsWhatTheReplyQuotes(): void {
+        // ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L6362-L6393 (_reply_context) —
+        //      Telegram's partial quote first: the rest of the message is not what the member asks about
+        $raw = [
+            'reply_to_message' => ['message_id' => 50, 'from' => ['id' => 999, 'first_name' => 'Bot'], 'text' => "├─ a.wav — 1 КБ\n└─ v2-test.wav — 106.9 КБ"],
+            'quote' => ['text' => 'v2-test.wav', 'position' => 22, 'is_manual' => true],
+        ];
+
+        $header = MessageMeta::header(self::message($raw), '999');
+
+        self::assertStringContainsString(\Mercurius\I18n\t('service.message_meta.selected') . ': «v2-test.wav»', $header);
+        self::assertStringNotContainsString('a.wav', $header, 'only the selected piece');
+    }
+
     public function testAReplyToTheAgentNamesTheRunThatWroteIt(): void {
         $raw = ['reply_to_message' => ['message_id' => 50, 'from' => ['id' => 999], 'text' => 'сводка']];
 

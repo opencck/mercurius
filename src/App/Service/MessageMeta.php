@@ -150,6 +150,16 @@ final class MessageMeta {
         }
         /** @var mixed $text */
         $text = $reply['text'] ?? ($reply['caption'] ?? null);
+        // ref: references/hermes-agent/plugins/platforms/telegram/adapter.py@e96221fa:L6362-L6393 (_reply_context) — the
+        //      piece the member selected (Telegram's quote) first: they ask about it, not about the rest of the message
+        /** @var mixed $quote */
+        $quote = $message->raw['quote'] ?? null;
+        /** @var mixed $selected */
+        $selected = is_array($quote) ? ($quote['text'] ?? null) : null;
+        if (is_string($selected) && trim($selected) !== '') {
+            $text = $selected;
+            $author .= ', ' . t('service.message_meta.selected');
+        }
         // the agent's own message is quoted whole (it wrote it); what someone else wrote is one short inert line
         $piece = !is_string($text) ? '' : ($own ? mb_substr(trim($text), 0, self::QUOTE) : self::inline($text));
         return sprintf(
