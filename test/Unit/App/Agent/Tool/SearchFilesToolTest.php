@@ -46,6 +46,18 @@ final class SearchFilesToolTest extends AsyncTestCase {
         self::assertStringContainsString('head -n 50', $sandbox->calls[1] ?? '', 'fifty by default');
     }
 
+    public function testAWordWithoutWildcardsIsAPartOfTheName(): void {
+        // a model looks for «tts» or «gemini-tts» and means a part of the name: -name with the bare word found nothing
+        $sandbox = new FakeSandbox();
+        $tool = new SearchFilesTool($sandbox);
+
+        $tool->execute(['pattern' => 'gemini-TTS', 'target' => 'files'], self::context());
+        $tool->execute(['pattern' => 'report-?.md', 'target' => 'files'], self::context());
+
+        self::assertStringContainsString("find -- '.' -iname '*gemini-TTS*'", $sandbox->calls[0] ?? '');
+        self::assertStringContainsString("find -- '.' -name 'report-?.md'", $sandbox->calls[1] ?? '', 'a glob stays a glob');
+    }
+
     public function testNothingFoundIsSaidPlainly(): void {
         $sandbox = new FakeSandbox();
         $sandbox->outcome = new CommandOutcome(1, '', '', false, false, 1);

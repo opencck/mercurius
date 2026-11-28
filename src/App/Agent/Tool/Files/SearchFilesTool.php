@@ -53,8 +53,11 @@ final class SearchFilesTool extends SandboxTool {
         $path = Args::string($args, 'path') ?? '.';
         $limit = max(1, min(self::MAX_LIMIT, Args::int($args, 'limit') ?? self::LIMIT));
         $glob = Args::string($args, 'file_glob');
+        // a word without wildcards is a part of the name, in any case: hermes takes the pattern as a glob only, and a
+        // model asking for «tts» meant every file with it in the name (a bare -name found nothing)
+        $bare = strpbrk($pattern, '*?[') === false;
         $command = (Args::string($args, 'target') ?? 'content') === 'files'
-            ? sprintf("find -- %s -name %s -not -path '*/.checkpoints/*' 2>/dev/null | head -n %d", self::quote($path), self::quote($pattern), $limit)
+            ? sprintf("find -- %s %s %s -not -path '*/.checkpoints/*' 2>/dev/null | head -n %d", self::quote($path), $bare ? '-iname' : '-name', self::quote($bare ? '*' . $pattern . '*' : $pattern), $limit)
             : sprintf('grep -rInE --exclude-dir=.checkpoints %s-e %s -- %s 2>/dev/null | head -n %d', $glob === null || $glob === '' ? '' : '--include=' . self::quote($glob) . ' ', self::quote($pattern), self::quote($path), $limit);
         $outcome = $this->sandbox->exec($this->holder($args, $context), $limits, $context->callId, $command, '.', 60, $context->cancellation);
         $found = rtrim($outcome->stdout, "\n");
