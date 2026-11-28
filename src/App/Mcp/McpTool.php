@@ -200,6 +200,10 @@ final class McpTool implements Tool, \OpenCCK\App\Agent\Tool\ReadsOutside, \Open
                 $lines[] = sprintf(t('mcp.file_not_kept'), $file['name'], $e->getMessage());
             }
         }
+        // the path alone does not say whose folder it is in: the file tools find it with the area named
+        if ($lines !== [] && self::holder($context) === \OpenCCK\App\Agent\Tool\Sandbox\SandboxTool::OWNERS_AREA) {
+            $lines[] = t('mcp.files_owners_area');
+        }
         return implode("\n", $lines);
     }
 

@@ -88,9 +88,10 @@ final class McpFilesTest extends TestCase {
         $limits = new SandboxLimits(1_000_000_000, 64, 60, 0, 2);
         $policy = (new ParticipantPolicy(null, new RunLimits(30, 1000, 900, 120), $limits, true))->withMcpContext('owners', open: true);
 
-        $tool->execute([], new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::admin(), null), new NullCancellation(), $policy));
+        $result = $tool->execute([], new ToolContext(1, 1, new Member(7, MemberKind::Human, Role::admin(), null), new NullCancellation(), $policy));
 
         self::assertSame('RIFF', $sandbox->files[0]['inbox/2026-11-19/voice.wav'] ?? null);
+        self::assertStringContainsString(\Mercurius\I18n\t('mcp.files_owners_area'), $result->content, 'the answer says where the file lies');
         self::assertArrayNotHasKey(7, $sandbox->files, 'not in the owner\'s own folder');
     }
 

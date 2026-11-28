@@ -155,4 +155,11 @@ final class SettingsTest extends AsyncTestCase {
         self::assertSame([], $this->settings->unknown());
         self::assertArrayHasKey('QUIET_HOURS', $this->store->all(), 'the known ones stay');
     }
+
+    public function testEveryListOfModelsWorksAtOnce(): void {
+        // spec: brief/models.md#списки-моделей-по-категориям — a list of models is read at each use: no restart is promised
+        foreach ([...array_values(\OpenCCK\App\Agent\Model\ModelLists::TEXT), ...array_values(\OpenCCK\App\Agent\Model\ModelLists::OTHER), \OpenCCK\App\Agent\Model\ModelLists::FALLBACK] as $setting) {
+            self::assertContains($setting, \OpenCCK\App\Settings\SettingsCatalog::LIVE, $setting);
+        }
+    }
 }
